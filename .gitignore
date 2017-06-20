@@ -1,0 +1,4 @@
+*.c
+*.so
+build/
+cython_debug/
