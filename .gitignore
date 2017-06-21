@@ -2,3 +2,4 @@
 *.so
 build/
 cython_debug/
+__*
