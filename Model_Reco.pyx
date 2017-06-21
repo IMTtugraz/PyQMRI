@@ -123,7 +123,7 @@ cdef class Model_Reco:
           
           iters = np.fmin(iters*2,self.irgn_par.max_iters)
           self.irgn_par.gamma = self.irgn_par.gamma/2
-          self.irgn_par.delta = self.irgn_par.delta*2
+          self.irgn_par.delta = self.irgn_par.delta*0.7
           
           end = time.time()-start
           print("Elapsed time: %f seconds" %end)
