@@ -323,7 +323,7 @@ par.U = np.ones((uData).shape, dtype=bool)
 par.U[abs(uData) == 0] = False
 ########################################################################
 #Init optimizer
-opt = Model_Reco.Model_Reco()
+opt = Model_Reco.VFA_Model_Reco()
 
 opt.par = par
 opt.data =  uData
@@ -362,18 +362,18 @@ irgn_par.display_iterations = True
 opt.irgn_par = irgn_par
 
 
-import cProfile
+
 
 opt.execute_2D()
 
-
-
-cProfile.run("opt.execute_2D()","eval_speed")
 #
-import pstats
-
-p=pstats.Stats("eval_speed")
-p.sort_stats('time').print_stats(20)
+#import cProfile
+#cProfile.run("opt.execute_2D()","eval_speed")
+##
+#import pstats
+#
+#p=pstats.Stats("eval_speed")
+#p.sort_stats('time').print_stats(20)
 
 
 

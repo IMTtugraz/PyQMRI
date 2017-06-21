@@ -5,12 +5,13 @@ Created on Wed May 31 09:14:08 2017
 
 @author: omaier
 """
-import numpy as np
 cimport numpy as np
 np.import_array()
+import numpy as np
 
+DTYPE = np.complex128
 
-cpdef bdiv_1(np.ndarray[DTYPE_t, ndim=4] v, int dx=1, int dy=1):
+cdef bdiv_1(np.ndarray[DTYPE_t, ndim=4] v, int dx=1, int dy=1):
 
 
     cdef int n = v.shape[3]
@@ -30,7 +31,7 @@ cpdef bdiv_1(np.ndarray[DTYPE_t, ndim=4] v, int dx=1, int dy=1):
 
     return div_v
 
-cpdef fgrad_1(np.ndarray[DTYPE_t, ndim=3] u,int dx=1, int dy=1):
+cdef fgrad_1(np.ndarray[DTYPE_t, ndim=3] u,int dx=1, int dy=1):
 
     
     cdef int n = u.shape[2]
@@ -46,7 +47,7 @@ cpdef fgrad_1(np.ndarray[DTYPE_t, ndim=3] u,int dx=1, int dy=1):
 
     return grad
   
-cpdef fdiv_2(np.ndarray[DTYPE_t, ndim=4] x,int dx=1, int dy=1):
+cdef fdiv_2(np.ndarray[DTYPE_t, ndim=4] x,int dx=1, int dy=1):
 
 
       
@@ -64,7 +65,7 @@ cpdef fdiv_2(np.ndarray[DTYPE_t, ndim=4] x,int dx=1, int dy=1):
     div_x[:,1,:-1,:] = div_x[:,1,:-1,:] + (x[:,1,1:,:]-x[:,1,:-1,:])/dy
     return div_x
     
-cpdef sym_bgrad_2(np.ndarray[DTYPE_t, ndim=4] x, int dx=1, int dy=1):
+cdef sym_bgrad_2(np.ndarray[DTYPE_t, ndim=4] x, int dx=1, int dy=1):
 
 
     cdef int k = np.shape(x)[0]
@@ -94,7 +95,7 @@ cpdef sym_bgrad_2(np.ndarray[DTYPE_t, ndim=4] x, int dx=1, int dy=1):
     
     return grad_x  
 ################################## 3D Functions  
-cpdef bdiv_3(np.ndarray[DTYPE_t, ndim=5] v, int dx=1, int dy=1, int dz = 1):
+cdef bdiv_3(np.ndarray[DTYPE_t, ndim=5] v, int dx=1, int dy=1, int dz = 1):
 
 
     cdef int n = v.shape[4]
@@ -118,7 +119,7 @@ cpdef bdiv_3(np.ndarray[DTYPE_t, ndim=5] v, int dx=1, int dy=1, int dz = 1):
     div_v[:,1:-1,:,:] = div_v[:,1:-1,:,:] + (v[:,2,1:-1,:,:] - v[:,2,:-2,:,:])/dz   
     return div_v
 
-cpdef fgrad_3(np.ndarray[DTYPE_t, ndim=4] u,int dx=1, int dy=1, int dz = 1):
+cdef fgrad_3(np.ndarray[DTYPE_t, ndim=4] u,int dx=1, int dy=1, int dz = 1):
 
     
     cdef int n = u.shape[3]
@@ -136,7 +137,7 @@ cpdef fgrad_3(np.ndarray[DTYPE_t, ndim=4] u,int dx=1, int dy=1, int dz = 1):
     grad[:,2,:-1,:,:] = (u[:,1:,:,:] - u[:,:-1,:,:])/dz
     return grad
   
-cpdef fdiv_3(np.ndarray[DTYPE_t, ndim=5] x,int dx=1, int dy=1, int dz=1):
+cdef fdiv_3(np.ndarray[DTYPE_t, ndim=5] x,int dx=1, int dy=1, int dz=1):
 
       
     cdef int n = x.shape[4]
@@ -187,7 +188,7 @@ cpdef fdiv_3(np.ndarray[DTYPE_t, ndim=5] x,int dx=1, int dy=1, int dz=1):
 
     return div_x
     
-cpdef sym_bgrad_3(np.ndarray[DTYPE_t, ndim=5] x, int dx=1, int dy=1, int dz=1):
+cdef sym_bgrad_3(np.ndarray[DTYPE_t, ndim=5] x, int dx=1, int dy=1, int dz=1):
 
 
     cdef int n = x.shape[4]

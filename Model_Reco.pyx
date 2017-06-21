@@ -19,7 +19,7 @@ ctypedef np.complex128_t DTYPE_t
 @cython.wraparound(False)  # turn off negative index wrapping for entire function    
 
 
-cdef class VFA_Model_Reco:
+cdef class Model_Reco:
   cdef dict __dict__
   
   def __init__(self):
