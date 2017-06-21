@@ -144,10 +144,17 @@ else:
 
 ################################################################### 
 ## Choose undersampling mode
-Nproj = 55
+Nproj = 34
+
+for i in range(NScan):
+  data[i,:,:,:Nproj,:] = data[i,:,:,i*Nproj:(i+1)*Nproj,:]
+  traj[i,:Nproj,:] = traj[i,i*Nproj:(i+1)*Nproj,:]
+
+
 data = data[:,:,:,:Nproj,:]
 traj = traj[:,:Nproj,:]
 dcf = dcf[:Nproj,:]
+
 
 
 
@@ -323,7 +330,7 @@ par.U = np.ones((uData).shape, dtype=bool)
 par.U[abs(uData) == 0] = False
 ########################################################################
 #Init optimizer
-opt = Model_Reco.VFA_Model_Reco()
+opt = Model_Reco.Model_Reco()
 
 opt.par = par
 opt.data =  uData
