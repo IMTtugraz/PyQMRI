@@ -7,7 +7,7 @@ import scipy.io as sio
 from tkinter import filedialog
 from tkinter import Tk
 import nlinvns_maier as nlinvns
-import VFA_Model_Reco as VFA_Model_Reco
+import Model_Reco as Model_Reco
 import multiprocessing as mp
 
 import mkl
@@ -312,7 +312,7 @@ par.U = np.ones((uData).shape, dtype=bool)
 par.U[abs(uData) == 0] = False
 ########################################################################
 #Init optimizer
-opt = VFA_Model_Reco.VFA_Model_Reco()
+opt = Model_Reco.Model_Reco()
 
 opt.par = par
 opt.data =  uData
