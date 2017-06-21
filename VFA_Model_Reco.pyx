@@ -1,20 +1,22 @@
 
-
+cimport cython
 cimport numpy as np
 import numpy as np
 import time
 import VFA_model
 import decimal
-import gradients_divergences as gd
+cimport gradients_divergences as gd
 import matplotlib.pyplot as plt
 plt.ion()
-
+np.import_array()
 DTYPE = np.complex128
 ctypedef np.complex128_t DTYPE_t
 
 
 
-
+@cython.cdivision(True)      
+@cython.boundscheck(False) # turn off bounds-checking for entire function
+@cython.wraparound(False)  # turn off negative index wrapping for entire function    
 
 
 cdef class VFA_Model_Reco:
@@ -42,7 +44,7 @@ cdef class VFA_Model_Reco:
     print("Please Set Parameters, Data and Initial images")
 
     
-  cpdef irgn_solve_2D(self,np.ndarray[DTYPE_t,ndim=3] x, int iters,np.ndarray[DTYPE_t,ndim=3] data):
+  cdef irgn_solve_2D(self,np.ndarray[DTYPE_t,ndim=3] x, int iters,np.ndarray[DTYPE_t,ndim=3] data):
     
 
     ###################################
@@ -57,7 +59,7 @@ cdef class VFA_Model_Reco:
     a = self.FT(self.step_val[:,None,:,:]*self.Coils)
     b = self.operator_forward_2D(x)
     res = data - a + b
-    print("Test the norm: %2.2E  a=%2.2E   b=%2.2E" %(np.linalg.norm(res.flatten()),np.linalg.norm(a.flatten()), np.linalg.norm(b.flatten())))
+#    print("Test the norm: %2.2E  a=%2.2E   b=%2.2E" %(np.linalg.norm(res.flatten()),np.linalg.norm(a.flatten()), np.linalg.norm(b.flatten())))
   
 #    x = self.pdr_tgv_solve_2D(x,res,iters)
     x = self.tgv_solve_2D(x,res,iters)      
@@ -69,7 +71,7 @@ cdef class VFA_Model_Reco:
 
     return x
   
-  cpdef irgn_solve_3D(self,np.ndarray[DTYPE_t,ndim=4] x,int iters,np.ndarray[DTYPE_t,ndim=4] data):
+  cdef irgn_solve_3D(self,np.ndarray[DTYPE_t,ndim=4] x,int iters,np.ndarray[DTYPE_t,ndim=4] data):
     
 
     ###################################
@@ -161,7 +163,7 @@ cdef class VFA_Model_Reco:
       self.result = result
                
       
-  cpdef operator_forward_2D(self,np.ndarray[DTYPE_t,ndim=3] x):
+  cdef operator_forward_2D(self,np.ndarray[DTYPE_t,ndim=3] x):
     
     tmp = np.zeros_like(self.grad_x)
       
@@ -182,7 +184,7 @@ cdef class VFA_Model_Reco:
 #      return self.FT((tmp1[:,None,:,:]+tmp2[:,None,:,:])*self.Coils)
 
     
-  cpdef operator_adjoint_2D(self,np.ndarray[DTYPE_t,ndim=3] x):
+  cdef operator_adjoint_2D(self,np.ndarray[DTYPE_t,ndim=3] x):
     
     x[~np.isfinite(x)] = 1e-20
     fdx = self.FTH(x)
@@ -197,7 +199,7 @@ cdef class VFA_Model_Reco:
       
     return dx
   
-  cpdef operator_forward_3D(self,np.ndarray[DTYPE_t,ndim=4] x):
+  cdef operator_forward_3D(self,np.ndarray[DTYPE_t,ndim=4] x):
     
     tmp = np.zeros_like(self.grad_x)
       
@@ -218,7 +220,7 @@ cdef class VFA_Model_Reco:
 #      return self.FT((tmp1[:,None,:,:]+tmp2[:,None,:,:])*self.Coils)
 
     
-  cpdef operator_adjoint_3D(self,np.ndarray[DTYPE_t,ndim=4] x):
+  cdef operator_adjoint_3D(self,np.ndarray[DTYPE_t,ndim=4] x):
     
     x[~np.isfinite(x)] = 1e-20
     fdx = self.FTH(x)
@@ -233,7 +235,7 @@ cdef class VFA_Model_Reco:
       
     return dx    
     
-  cpdef tgv_solve_2D(self, np.ndarray[DTYPE_t, ndim=3] x, np.ndarray[DTYPE_t, ndim=3] res, int iters):
+  cdef tgv_solve_2D(self, np.ndarray[DTYPE_t, ndim=3] x, np.ndarray[DTYPE_t, ndim=3] res, int iters):
     cdef double alpha = self.irgn_par.gamma
     cdef double beta = self.irgn_par.gamma*2
     
@@ -380,7 +382,7 @@ cdef class VFA_Model_Reco:
     self.v = v
     return x
  
-  cpdef tgv_solve_3D(self, np.ndarray[DTYPE_t,ndim=4] x, np.ndarray[DTYPE_t,ndim=4] res, int iters):
+  cdef tgv_solve_3D(self, np.ndarray[DTYPE_t,ndim=4] x, np.ndarray[DTYPE_t,ndim=4] res, int iters):
     cdef double alpha = self.irgn_par.gamma
     cdef double beta = self.irgn_par.gamma*2
     
@@ -637,7 +639,7 @@ cdef class VFA_Model_Reco:
 
 
 
-  cpdef pdr_tgv_solve_2D(self, np.ndarray[DTYPE_t, ndim=3] x, np.ndarray[DTYPE_t, ndim=3] res, int iters):
+  cdef pdr_tgv_solve_2D(self, np.ndarray[DTYPE_t, ndim=3] x, np.ndarray[DTYPE_t, ndim=3] res, int iters):
     
     
 

@@ -6,11 +6,6 @@ Created on Wed May 31 09:14:08 2017
 @author: omaier
 """
 
-import numpy as np
-cimport numpy as np
-
-DTYPE = np.complex128
-ctypedef np.complex_t DTYPE_t
 
 cpdef bdiv_1(np.ndarray[DTYPE_t, ndim=4] v, int dx=1, int dy=1):
 

@@ -33,7 +33,7 @@ file = filedialog.askopenfilename()
 root.destroy()
 
 data = sio.loadmat(file)
-data = data['data']
+data = data['data'].astype('complex128')
 
 data = np.transpose(data)
 
@@ -44,7 +44,7 @@ file = filedialog.askopenfilename()
 root.destroy()
 
 traj = sio.loadmat(file)
-traj = traj['traj']
+traj = traj['traj'].astype('complex128')
 
 traj = np.transpose(traj)
 
@@ -55,18 +55,20 @@ file = filedialog.askopenfilename()
 root.destroy()
 
 dcf = sio.loadmat(file)
-dcf = dcf['w']
+dcf = dcf['dcf'].astype('complex128')
 
 dcf = np.transpose(dcf)
 #dcf = dcf/np.max(dcf)
 
 
-data = data[:,:,0,:,:]
-dimX = 128
-dimY = 128
+#data = data[:,:,0,:,:]
+dimX = 206
+dimY = 206
 #data = data*np.sqrt(dcf)
 
 NSlice = 1
+data = data[None,:,:,:]
+
 [NScan,NC,Nproj, N] = data.shape
 #[NScan,NC,NSlice,dimY,dimX] = data.shape
 
@@ -144,9 +146,10 @@ for i in range(0,(NSlice)):
 
 ################################################################### 
 ## Choose undersampling mode
-Nproj = 21
-data = data[:,:,:Nproj,:]
-traj = traj[:,:Nproj,:]
+Nproj = 34
+NScan = 35
+data = np.transpose(np.reshape(data[:,:,:Nproj*NScan,:],(NC,NScan,Nproj,N)),(1,0,2,3))
+traj =np.reshape(traj[:Nproj*NScan,:],(NScan,Nproj,N))
 dcf = dcf[:Nproj,:]
 
 
@@ -194,7 +197,7 @@ FA = 5.0
 fa = np.divide(FA , np.complex128(180)) * np.pi;   #  % flip angle in rad FA siehe FLASH phantom generierung
 #alpha = [1,3,5,7,9,11,13,15,17,19]*pi/180;
 
-par.TR          = 5123#10000-(6*Nproj*NScan+14.7)
+par.TR          = 10000-(6*Nproj*NScan+14.7)#10000-(6*Nproj*NScan+14.7)
 par.tau         = 6
 par.td          = 14.7
 par.NC          = NC
@@ -348,18 +351,18 @@ irgn_par.display_iterations = True
 opt.irgn_par = irgn_par
 
 
-import cProfile
-
-#model.execute_2D()
 
 
-
-cProfile.run("opt.execute_2D()","eval_speed")
+opt.execute_2D()
 #
-import pstats
-
-p=pstats.Stats("eval_speed")
-p.sort_stats('time').print_stats(20)
+#import cProfile
+#
+#cProfile.run("opt.execute_2D()","eval_speed")
+##
+#import pstats
+#
+#p=pstats.Stats("eval_speed")
+#p.sort_stats('time').print_stats(20)
 
 
 

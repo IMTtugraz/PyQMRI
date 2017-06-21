@@ -144,7 +144,7 @@ else:
 
 ################################################################### 
 ## Choose undersampling mode
-Nproj = 21
+Nproj = 55
 data = data[:,:,:,:Nproj,:]
 traj = traj[:,:Nproj,:]
 dcf = dcf[:Nproj,:]
@@ -351,12 +351,12 @@ opt.unknowns = 2
 ########################################################################
 #IRGN Params
 irgn_par = struct()
-irgn_par.start_iters = 10
+irgn_par.start_iters = 2
 irgn_par.max_iters = 2000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e0
 irgn_par.gamma = 1e0
-irgn_par.delta = 1e-2
+irgn_par.delta = 1e2
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par

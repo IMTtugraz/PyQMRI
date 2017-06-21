@@ -7,10 +7,19 @@ Created on Thu Jun  1 10:21:57 2017
 """
 
 from distutils.core import setup
+from distutils.extension import Extension
 from Cython.Build import cythonize
 import numpy
 
+
+ext_modules=[ Extension("*",
+              ["*.pyx"],
+              libraries=["m"],
+              extra_compile_args = ["-ffast-math","-O3",'-fopenmp'],
+              extra_link_args=['-fopenmp'],
+              include_dirs = [numpy.get_include()])]
+
 setup(
-    ext_modules = cythonize(["gradients_divergences.pyx", "VFA_Model_Reco.pyx","IRLL_Model.pyx"], gdb_debug=True),
-    include_dirs = [numpy.get_include()]
-)
+    ext_modules = cythonize(ext_modules)
+
+    )
