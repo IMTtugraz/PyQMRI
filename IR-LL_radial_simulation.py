@@ -46,7 +46,7 @@ for i in range(NScan):
   
   
 series = fibonacci.run(14)
-series = series[5:8]
+series = series[5:10]
 
 S_comb = list()
 S_mean = list()
@@ -70,17 +70,17 @@ for j in range(np.size(series)):
 plt.close('all')
 
 plt.figure(1)
-plt.plot(Ref[0,:],label='Ref')     
+plt.plot(Ref[1,:],label='Ref')     
 for i in range(np.size(series)):
-  plt.plot(np.arange(0,1200-int(series[i]*bool(np.mod(1200,series[i]))),int(series[i])),np.squeeze(S_mean[i][0,:]),label='Projections '+str(int(series[i])))    
+  plt.plot(np.arange(0,1200-int(series[i]*bool(np.mod(1200,series[i]))),int(series[i])),np.squeeze(S_mean[i][1,:]),label='Projections '+str(int(series[i])))    
 plt.title('T1 = '+str(T1[0])+' With mean')
 plt.legend()
   
 
 plt.figure(2)
-plt.plot(Ref[0,:],label='Ref')     
+plt.plot(Ref[1,:],label='Ref')     
 for i in range(np.size(series)):
-  plt.plot(np.arange(0,1200-int(series[i]*bool(np.mod(1200,series[i]))),int(series[i])),np.squeeze(S_comb[i][0,:]),label='Projections '+str(int(series[i])))    
+  plt.plot(np.arange(0,1200-int(series[i]*bool(np.mod(1200,series[i]))),int(series[i])),np.squeeze(S_comb[i][1,:]),label='Projections '+str(int(series[i])))    
 plt.title('T1 = '+str(T1[0])+' With apparent tau')
 plt.legend()
   
