@@ -3,3 +3,4 @@
 build/
 cython_debug/
 __*
+output/
