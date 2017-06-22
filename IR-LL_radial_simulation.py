@@ -45,8 +45,8 @@ for i in range(NScan):
   Ref[:,i] = IR_LL_model(i,M0,T1,alpha,NScan,tau,TR,td)
   
   
-series = fibonacci.run(10)
-series = series[1:]
+series = fibonacci.run(14)
+series = series[5:8]
 
 S_comb = list()
 S_mean = list()
