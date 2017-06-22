@@ -99,15 +99,16 @@ par.B1_correction = False
 #% Estimates sensitivities and complex image.
 #%(see Martin Uecker: Image reconstruction by regularized nonlinear
 #%inversion joint estimation of coil sensitivities and image content)
-nlinvNewtonSteps = 9
+nlinvNewtonSteps = 6
 nlinvRealConstr  = False
 
 traj_coil = np.reshape(traj,(NScan*Nproj,N))
 coil_plan = NFFT((dimY,dimX),NScan*Nproj*N)
 coil_plan.x = np.transpose(np.array([np.imag(traj_coil.flatten()),np.real(traj_coil.flatten())]))
 coil_plan.precompute()
-        
-        
+       
+par.C = np.zeros((NC,NSlice,dimY,dimX), dtype="complex128")       
+par.phase_map = np.zeros((NSlice,dimY,dimX), dtype="complex128")   
 for i in range(0,(NSlice)):
   print('deriving M(TI(1)) and coil profiles')
   
@@ -137,22 +138,19 @@ for i in range(0,(NSlice)):
                      True, nlinvRealConstr) #(6, 9, 128, 128)
 
   #% coil sensitivities are stored in par.C
-  par.C = np.zeros((NC,NSlice,dimY,dimX), dtype='complex128')
-  par.phase_map = np.zeros((NC,NSlice,dimY,dimX), dtype='complex128') 
+
   par.C[:,i,:,:] = nlinvout[2:,-1,:,:]
 
   if not nlinvRealConstr:
-    par.phase_map[:,i,:,:] = np.exp(1j * np.angle(nlinvout[0,-1,:,:]))
+    par.phase_map[i,:,:] = np.exp(1j * np.angle(nlinvout[0,-1,:,:]))
     par.C[:,i,:,:] = par.C[:,i,:,:]* np.exp(1j * np.angle(nlinvout[1,-1,:,:]))
     
     # standardize coil sensitivity profiles
 sumSqrC = np.sqrt(np.sum((par.C * np.conj(par.C)),0)) #4, 9, 128, 128
 if NC == 1:
-    par.C = sumSqrC 
+  par.C = sumSqrC 
 else:
-    par.C = par.C / np.tile(sumSqrC, (NC,1,1,1)) 
-  
-#  par.C = np.expand_dims(par.C,axis=1)
+  par.C = par.C / np.tile(sumSqrC, (NC,1,1,1)) 
 
 ################################################################### 
 ## Choose undersampling mode
