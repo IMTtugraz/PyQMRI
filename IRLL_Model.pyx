@@ -29,7 +29,7 @@ cdef extern from "complex.h":
 cdef class IRLL_Model:
   
   cdef public DTYPE_t TR, fa, T1_sc, M0_sc, tau, td
-  cdef public int NLL, Nproj, dimY, dimX NSlice
+  cdef public int NLL, Nproj, dimY, dimX, NSlice
   cdef public DTYPE_t[:,:,::1] fa_corr, phi_corr, sin_phi, cos_phi
   cdef public DTYPE_t[:,:,:,::1] guess
   
