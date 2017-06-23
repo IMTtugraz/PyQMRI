@@ -224,7 +224,7 @@ cdef class IRLL_Model:
     
 #    S[~np.isfinite(S)] = 1e-20
     return np.mean(S,axis=1)
-  cpdef execute_gradient_3D(self,DTYPE_t[:,:,::1] x):
+  cpdef execute_gradient_3D(self,DTYPE_t[:,:,:,::1] x):
     cdef DTYPE_t[:,:,:,:,:,::1] grad = np.zeros((2,self.NLL,self.Nproj,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
     cdef int i = 0
     cdef int j = 0  
