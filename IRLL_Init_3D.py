@@ -10,6 +10,12 @@ import nlinvns_maier as nlinvns
 import Model_Reco as Model_Reco
 import multiprocessing as mp
 
+import ipyparallel as ipp
+
+c = ipp.Client()
+#dview = c[:]
+
+
 import mkl
 from pynfft.nfft import NFFT
 from optimizedPattern import optimizedPattern
@@ -109,9 +115,11 @@ coil_plan.precompute()
        
 par.C = np.zeros((NC,NSlice,dimY,dimX), dtype="complex128")       
 par.phase_map = np.zeros((NSlice,dimY,dimX), dtype="complex128")   
-for i in range(0,(NSlice)):
+
+result = []
+for i in range(NSlice):
   print('deriving M(TI(1)) and coil profiles')
-  
+
   
   ##### RADIAL PART
   combinedData = np.transpose(data[:,:,i,:,:],(1,0,2,3))
@@ -125,25 +133,32 @@ for i in range(0,(NSlice)):
   ### CARTESIAN PART    
 #  combinedData = np.squeeze(np.sum(data[:,:,i,:,:],0))/NSlice
 
-  
-  
-  
-  
+
 
   """shape combinData(128, 128, 4)"""
   #            print('nlivout')np.
   #            print(combinedData[0,0,0])
+  dview = c[int(np.floor(i*len(c)/NSlice))]
+  result.append(dview.apply_async(nlinvns.nlinvns, combinedData, nlinvNewtonSteps,
+                     True, nlinvRealConstr))
+
+  
+  
             
-  nlinvout = nlinvns.nlinvns(combinedData, nlinvNewtonSteps,
-                     True, nlinvRealConstr) #(6, 9, 128, 128)
+#  nlinvout = nlinvns.nlinvns(combinedData, nlinvNewtonSteps,
+#                     True, nlinvRealConstr) #(6, 9, 128, 128)
 
   #% coil sensitivities are stored in par.C
 
-  par.C[:,i,:,:] = nlinvout[2:,-1,:,:]
+  
+
+  
+for i in range(NSlice):  
+  par.C[:,i,:,:] = result[i].get()[2:,-1,:,:]
 
   if not nlinvRealConstr:
-    par.phase_map[i,:,:] = np.exp(1j * np.angle(nlinvout[0,-1,:,:]))
-    par.C[:,i,:,:] = par.C[:,i,:,:]* np.exp(1j * np.angle(nlinvout[1,-1,:,:]))
+    par.phase_map[i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
+    par.C[:,i,:,:] = par.C[:,i,:,:]* np.exp(1j * np.angle( result[i].get()[1,-1,:,:]))
     
     # standardize coil sensitivity profiles
 sumSqrC = np.sqrt(np.sum((par.C * np.conj(par.C)),0)) #4, 9, 128, 128
@@ -154,9 +169,9 @@ else:
 
 ################################################################### 
 ## Choose undersampling mode
-Nproj = 34
-NScan = 35
-data = np.transpose(np.reshape(data[:,:,:Nproj*NScan,:],(NC,NScan,Nproj,N)),(1,0,2,3))
+Nproj = 21
+NScan = 57
+data = np.transpose(np.reshape(data[:,:,:,:Nproj*NScan,:],(NC,NSlice,NScan,Nproj,N)),(2,1,0,3,4))
 traj =np.reshape(traj[:Nproj*NScan,:],(NScan,Nproj,N))
 dcf = dcf[:Nproj,:]
 
@@ -304,9 +319,11 @@ plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
 #
 
 uData = np.reshape(uData[:,:,None,:,:],(NScan,NC,NSlice,N*Nproj))* dscale
-
-images= (np.sum(nFTH(uData,plan,dcf,NScan,NC,dimY,dimX)[:,:,None,:]*(np.conj(par.C)),axis = 1))
-
+tmp = np.zeros((NScan,NC,NSlice,dimY,dimX),dtype='complex128')
+for i in range(NSlice):
+    tmp[:,:,i,:,:]=nFTH(uData[:,:,i,:],plan,dcf,NScan,NC,dimY,dimX)
+    
+images = np.sum(tmp*np.conj(par.C),axis=1)
 #images= (np.sum(FTH(uData*dscale)*(np.conj(par.C)),axis = 1))
 
 

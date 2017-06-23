@@ -211,8 +211,8 @@ cdef class IRLL_Model:
               n_i = i*self.Nproj+j+1
               S[i,j,k,m,n] = (x[0,k,m,n]*self.M0_sc*sin_phi[k,m,n]*(((cexp(-self.TR/(x[1,k,m,n]*self.T1_sc)) - 
                       2*cexp(-self.td/(x[1,k,m,n]*self.T1_sc)) + (cexp(-self.TR/(x[1,k,m,n]*self.T1_sc))
-                      *cexp(-self.td/(x[1,k,m,n]*self.T1_sc))*cos_phi[k,k,m,n]*((cexp(-self.tau/(x[1,k,m,n]
-                      *self.T1_sc))*cos_phi[k,k,m,n])**(self.NLL - 1) - 1)*(cexp(-self.tau/(x[1,k,m,n]*
+                      *cexp(-self.td/(x[1,k,m,n]*self.T1_sc))*cos_phi[k,m,n]*((cexp(-self.tau/(x[1,k,m,n]
+                      *self.T1_sc))*cos_phi[k,m,n])**(self.NLL - 1) - 1)*(cexp(-self.tau/(x[1,k,m,n]*
                       self.T1_sc)) - 1))/(cexp(-self.tau/(x[1,k,m,n]*self.T1_sc))*cos_phi[k,m,n] - 1)
                       + 1)/(cexp(-self.TR/(x[1,k,m,n]*self.T1_sc))*cexp(-self.td/(x[1,k,m,n]*self.T1_sc))
                       *cos_phi[k,m,n]*(cexp(-self.tau/(x[1,k,m,n]*self.T1_sc))

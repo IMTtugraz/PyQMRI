@@ -30,7 +30,7 @@ def nlinvns(Y, n, *arg):  #*returnProfiles,**realConstr):
         realConstr = False
         if nrarg < 1:
             returnProfiles = 0
-       
+
     
     print('Start...')
 
@@ -140,6 +140,7 @@ def nlinvns(Y, n, *arg):  #*returnProfiles,**realConstr):
     end = time.clock()  #sec.process time
     print('done in', round((end - start)),'s')
     return R
+
 
 
 def scal(a,b):#check
