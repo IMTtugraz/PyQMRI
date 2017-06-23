@@ -79,9 +79,9 @@ dcf = np.transpose(dcf)
 data = data_real+1j*data_imag
 dimX = 206
 dimY = 206
-#data = data*np.sqrt(dcf)
+data = data*np.sqrt(dcf)
 
-NSlice = 1
+#NSlice = 1
 data = data[None,:,:,:,:]
 
 [NScan,NC,NSlice,Nproj, N] = data.shape
@@ -323,7 +323,7 @@ tmp = np.zeros((NScan,NC,NSlice,dimY,dimX),dtype='complex128')
 for i in range(NSlice):
     tmp[:,:,i,:,:]=nFTH(uData[:,:,i,:],plan,dcf,NScan,NC,dimY,dimX)
     
-images = np.sum(tmp*np.conj(par.C),axis=1)
+images = np.sum(tmp[:,:,0,:,:]*np.conj(par.C[:,0,:,:]),axis=1)
 #images= (np.sum(FTH(uData*dscale)*(np.conj(par.C)),axis = 1))
 
 
