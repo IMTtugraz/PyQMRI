@@ -294,7 +294,7 @@ cdef class Model_Reco:
     Axold = self.operator_forward_2D(x)
     Kyk1 = self.operator_adjoint_2D(r) - gd.bdiv_1(z1)
     Kyk2 = -z1 - gd.fdiv_2(z2)
-    cdef int i=0
+    cdef unsigned int i=0
     for i in range(iters):
       np.maximum(0,((x - tau*(Kyk1))+(tau/delta)*xk)/(1+tau/delta),x_new)
       
@@ -533,7 +533,7 @@ cdef class Model_Reco:
   
   
   
-  cpdef FT_2D(self, np.ndarray[DTYPE_t,ndim=4] x):
+  cdef FT_2D(self, np.ndarray[DTYPE_t,ndim=4] x):
 
     cdef int nscan = np.shape(x)[0]
     cdef int NC = np.shape(x)[1]
@@ -551,7 +551,7 @@ cdef class Model_Reco:
   
   
       
-  cpdef FTH_2D(self, np.ndarray[DTYPE_t,ndim=4] x):
+  cdef FTH_2D(self, np.ndarray[DTYPE_t,ndim=4] x):
     cdef int nscan = np.shape(x)[0]
     cdef int NC = np.shape(x)[1]
     cdef float scale =  np.sqrt(np.shape(x)[2]*np.shape(x)[3])
