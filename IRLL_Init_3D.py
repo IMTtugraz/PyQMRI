@@ -83,7 +83,7 @@ data = data*np.sqrt(dcf)
 
 #NSlice = 1
 data = data[None,:,:,:,:]
-
+data = data[:,:,20:-20,:,:]
 [NScan,NC,NSlice,Nproj, N] = data.shape
 #[NScan,NC,NSlice,dimY,dimX] = data.shape
 
@@ -169,9 +169,9 @@ else:
 
 ################################################################### 
 ## Choose undersampling mode
-Nproj = 21
-NScan = 57
-data = np.transpose(np.reshape(data[:,:,:,:Nproj*NScan,:],(NC,NSlice,NScan,Nproj,N)),(2,1,0,3,4))
+Nproj = 13
+NScan = 46
+data = np.transpose(np.reshape(data[:,:,:,:Nproj*NScan,:],(NC,NSlice,NScan,Nproj,N)),(2,0,1,3,4))
 traj =np.reshape(traj[:Nproj*NScan,:],(NScan,Nproj,N))
 dcf = dcf[:Nproj,:]
 
@@ -318,12 +318,12 @@ def FTH(x):
 plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
 #
 
-uData = np.reshape(uData[:,:,None,:,:],(NScan,NC,NSlice,N*Nproj))* dscale
+uData = np.reshape(uData,(NScan,NC,NSlice,N*Nproj))* dscale
 tmp = np.zeros((NScan,NC,NSlice,dimY,dimX),dtype='complex128')
 for i in range(NSlice):
     tmp[:,:,i,:,:]=nFTH(uData[:,:,i,:],plan,dcf,NScan,NC,dimY,dimX)
     
-images = np.sum(tmp[:,:,0,:,:]*np.conj(par.C[:,0,:,:]),axis=1)
+images = np.sum(tmp*np.conj(par.C),axis=1)
 #images= (np.sum(FTH(uData*dscale)*(np.conj(par.C)),axis = 1))
 
 
@@ -378,7 +378,7 @@ opt.irgn_par = irgn_par
 
 
 
-opt.execute_2D()
+opt.execute_3D()
 #
 #import cProfile
 #
