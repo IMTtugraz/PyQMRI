@@ -5,6 +5,8 @@ import time
 import decimal
 import gradients_divergences_old as gd
 import matplotlib.pyplot as plt
+import scipy.optimize as optimizer
+
 plt.ion()
 
 DTYPE = np.complex128
@@ -37,21 +39,23 @@ class Model_Reco:
     
 
     ###################################
-    ### Adjointness     
-    xx = np.random.random_sample(np.shape(x)).astype('complex128')
-    yy = np.random.random_sample(np.shape(data)).astype('complex128')
-    a = np.vdot(xx.flatten(),self.operator_adjoint_2D(yy).flatten())
-    b = np.vdot(self.operator_forward_2D(xx).flatten(),yy.flatten())
-    test = np.abs(a-b)
-    print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,decimal.Decimal(test)))
+#    ### Adjointness     
+#    xx = np.random.random_sample(np.shape(x)).astype('complex128')
+#    yy = np.random.random_sample(np.shape(data)).astype('complex128')
+#    a = np.vdot(xx.flatten(),self.operator_adjoint_2D(yy).flatten())
+#    b = np.vdot(self.operator_forward_2D(xx).flatten(),yy.flatten())
+#    test = np.abs(a-b)
+#    print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,decimal.Decimal(test)))
     x_old = x
     a = self.FT(self.step_val[:,None,:,:]*self.Coils)
     b = self.operator_forward_2D(x)
     res = data - a + b
 #    print("Test the norm: %2.2E  a=%2.2E   b=%2.2E" %(np.linalg.norm(res.flatten()),np.linalg.norm(a.flatten()), np.linalg.norm(b.flatten())))
   
-    x = self.pdr_tgv_solve_2D(x,res,iters)
-#    x = self.tgv_solve_2D(x,res,iters)      
+#    x = self.pdr_tgv_solve_2D(x,res,iters)
+#    x = optimizer.fmin_cg(self.lb_fun,x.flatten(),self.lb_grad,args=(res,x),maxiter=iters)
+#    x = np.reshape(x,(self.unknowns,self.par.dimY,self.par.dimX))
+    x = self.tgv_solve_2D(x,res,iters)      
     fval= (self.irgn_par.lambd/2*np.linalg.norm(data - self.FT(self.step_val[:,None,:,:]*self.Coils))**2
            +self.irgn_par.gamma*np.sum(np.abs(gd.fgrad_1(x)-self.v))
            +self.irgn_par.gamma*(2)*np.sum(np.abs(gd.sym_bgrad_2(self.v))) 
@@ -91,8 +95,8 @@ class Model_Reco:
     
   def execute_2D(self):
      
-      self.FT = self.nFT_2D
-      self.FTH = self.nFTH_2D
+      self.FT = self.FT_2D
+      self.FTH = self.FTH_2D
       iters = self.irgn_par.start_iters
       self.v = np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype='complex128')
       
@@ -792,3 +796,79 @@ class Model_Reco:
         
     self.v = v
     return x  
+  
+  def lb_fun(self,x,res,xk):
+    x = np.reshape(x,[self.unknowns,self.par.dimY,self.par.dimX])
+    f = (1/2*np.linalg.norm(self.operator_forward_2D(x)-res)**2 + 
+        self.irgn_par.gamma*np.log(1+np.sum(np.linalg.norm(gd.fgrad_1(x),axis=0)**2)) 
+        + 1/(2*self.irgn_par.delta)*np.linalg.norm(x-xk)**2)
+    return f.flatten()
+  def lb_grad(self,x,res,xk):
+    x = np.reshape(x,[self.unknowns,self.par.dimY,self.par.dimX])
+    f =(self.operator_adjoint_2D(self.operator_forward_2D(x)-res) + 
+        self.irgn_par.gamma*(-np.sqrt(np.sum(gd.bdiv_1(gd.fgrad_1(x))**2,0)))/(1+np.sum(np.linalg.norm(gd.fgrad_1(x),axis=0)**2)) 
+        + 1/(self.irgn_par.delta)*(x-xk))
+    return f.flatten()
+  
+#  def ipalm_solve(self,x,res,iters):
+#    
+#    alpha = self.irgn_par.gamma
+#    beta = self.irgn_par.gamma*2
+#    
+#    delta = self.irgn_par.gamma
+#    
+#  
+#    L1 = np.max(np.abs(self.grad_x[0,:,None,:,:]*self.Coils
+#                                   *np.conj(self.grad_x[0,:,None,:,:])*np.conj(self.Coils)))*self.unknowns*self.par.NScan*self.par.NC
+#    L2 = np.max(np.abs(self.grad_x[1,:,None,:,:]*self.Coils
+#                                   *np.conj(self.grad_x[1,:,None,:,:])*np.conj(self.Coils)))*self.unknowns*self.par.NScan*self.par.NC
+#    
+#    
+#    eps = 0.5
+#    alpha_bar = 0.5*(1-eps)
+#    beta_bar = 1
+#
+#    step_sig1 = (alpha_bar+beta_bar)/(1-eps-2*alpha_bar)*L1
+#    step_sig2 = (alpha_bar+beta_bar)/(1-eps-2*alpha_bar)*L2
+#                       
+#    
+#    tau1 = ((1+eps)*step_sig1+(1+beta_bar)*L1)/(1-alpha_bar)
+#    tau2 = ((1+eps)*step_sig2+(1+beta_bar)*L2)/(1-alpha_bar)
+#    
+#    x1 = x[0,:,:]
+#    x1k = x1
+#    x1old = x1
+#    x2 = x[1,:,:]
+#    x2k = x2
+#    x2old = x2
+#    
+#    alpha1 = 1
+#    beta1 = 1
+#    
+#    alpha2 = 1
+#    beta2 = 1
+#    
+#    
+#    for i in range(iters):
+#      ##### M0 update
+#      y1 = x1 + alpha1*(x1-x1old)
+#      z1 = x1 + beta1*(x1-x1old)
+#      
+#      tmp_inner = y1-1/tau1*(self.operator_adjoint_2D(self.operator_forward_2D(np.concatenate(z1,x2)))-res)[0,:,:]
+#      
+#      x1old = x1
+#      x1 = np.maximum(0,(np.abs(tmp_inner+tau1/delta*x1k)-alpha*tau1)/(1+tau1/delta))*np.sign(tmp_inner+tau1/delta*x1k)
+#      
+#      #### T1 update
+#      y2 = x2 + alpha2*(x2-x2old)
+#      z2 = x2 + beta2*(x2-x2old)
+#      
+#      tmp_inner = y2-1/tau2*(self.operator_adjoint_2D(self.operator_forward_2D(np.concatenate(x1,z2)))-res)[1,:,:]
+#      
+#      x2old = x2
+#      x2 = np.maximum(0,(np.abs(tmp_inner+tau2/delta*x2k)-alpha*tau2)/(1+tau2/delta))*np.sign(tmp_inner+tau2/delta*x2k)
+      
+      
+      
+      
+        

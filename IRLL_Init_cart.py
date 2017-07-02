@@ -7,10 +7,10 @@ import scipy.io as sio
 from tkinter import filedialog
 from tkinter import Tk
 import nlinvns_maier as nlinvns
-import Model_Reco as Model_Reco
-import multiprocessing as mp
+import Model_Reco_old as Model_Reco
+#import multiprocessing as mp
 
-import mkl
+#import mkl
 from pynfft.nfft import NFFT
 from optimizedPattern import optimizedPattern
 
@@ -18,7 +18,7 @@ import IRLL_Model
 
 np.seterr(divide='ignore', invalid='ignore')# TODO:
   
-mkl.set_num_threads(mp.cpu_count())  
+#mkl.set_num_threads(mp.cpu_count())  
 os.system("taskset -p 0xff %d" % os.getpid()) 
   
   
@@ -167,7 +167,7 @@ def one():
     global uData
     par.AF = 1
     par.ACL = 32
-    uData = data
+    uData = data[:,:,None,:,:]
 
 def two():
     # radial Pattern
@@ -228,13 +228,13 @@ par.dscale = dscale
 
 uData = pyfftw.byte_align(uData)
 
-fftw_ksp = pyfftw.empty_aligned((dimX,dimY),dtype='complex128')
-fftw_img = pyfftw.empty_aligned((dimX,dimY),dtype='complex128')
+fftw_ksp = pyfftw.empty_aligned((NScan,NC,dimY,dimX),dtype='complex128')
+fftw_img = pyfftw.empty_aligned((NScan,NC,dimY,dimX),dtype='complex128')
 
-fft_forward = pyfftw.FFTW(fftw_img,fftw_ksp,axes=(0,1))
-fft_back = pyfftw.FFTW(fftw_ksp,fftw_img,axes=(0,1),direction='FFTW_BACKWARD')
+fft_forward = pyfftw.FFTW(fftw_img,fftw_ksp,axes=(2,3))
+fft_back = pyfftw.FFTW(fftw_ksp,fftw_img,axes=(2,3),direction='FFTW_BACKWARD')
 
-
+#
 def nfft(NScan,NC,dimX,dimY,N,Nproj,traj):
   plan = []
   traj_x = np.imag(traj)
@@ -274,22 +274,22 @@ def nFTH(x,plan,dcf,NScan,NC,dimY,dimX):
 
 def FT(x):
   siz = np.shape(x)
-  result = np.zeros_like(x,dtype='complex128')
-  for i in range(siz[0]):
-    for j in range(siz[1]):
-      for k in range(siz[2]):
-        result[i,j,k,:,:] = fft_forward(x[i,j,k,:,:])/np.sqrt(siz[4]*(siz[3]))
+#  result = np.zeros_like(x,dtype='complex128')
+#  for i in range(siz[0]):
+#    for j in range(siz[1]):
+#      for k in range(siz[2]):
+  result = fft_forward(x)/np.sqrt(siz[3]*(siz[2]))
       
   return result
 
 
 def FTH(x):
   siz = np.shape(x)
-  result = np.zeros_like(x,dtype='complex128')
-  for i in range(siz[0]):
-    for j in range(siz[1]):
-      for k in range(siz[2]):
-        result[i,j,k,:,:] = fft_back(x[i,j,k,:,:])*np.sqrt(siz[4]*(siz[3]))
+#  result = np.zeros_like(x,dtype='complex128')
+#  for i in range(siz[0]):
+#    for j in range(siz[1]):
+#      for k in range(siz[2]):
+  result = fft_back(x)*np.sqrt(siz[3]*(siz[2]))
       
   return result
 
@@ -297,11 +297,11 @@ def FTH(x):
 plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
 #
 
-uData = np.reshape(uData[:,:,None,:,:],(NScan,NC,NSlice,N*Nproj))* dscale
+#uData = np.reshape(uData[:,:,None,:,:],(NScan,NC,NSlice,N*Nproj))* dscale
 
-images= (np.sum(nFTH(uData,plan,dcf,NScan,NC,dimY,dimX)[:,:,None,:]*(np.conj(par.C)),axis = 1))
+#images= (np.sum(nFTH(uData,plan,dcf,NScan,NC,dimY,dimX)[:,:,None,:]*(np.conj(par.C)),axis = 1))
 
-#images= (np.sum(FTH(uData*dscale)*(np.conj(par.C)),axis = 1))
+images= (np.sum(FTH(uData[:,:,0,:,:]*dscale)[:,:,None,:,:]*(np.conj(par.C)),axis = 1))
 
 
 ########################################################################
@@ -318,7 +318,6 @@ opt = Model_Reco.Model_Reco()
 
 opt.par = par
 opt.data =  uData
-#model.data = uData*dscale
 opt.images = images
 opt.fft_forward = fft_forward
 opt.fft_back = fft_back
@@ -330,12 +329,12 @@ opt.unknowns = 2
 
 #
 #
-#xx = np.random.randn(NScan,NC,dimX,dimY)
-#yy = np.random.randn(NScan,NC,Nproj*N)
-#a = np.vdot(xx,nFTH(yy,plan,dcf,NScan,NC,dimY,dimX))
-#b = np.vdot(nFT(xx,plan,dcf,NScan,NC,Nproj,N,dimX),yy)
-#test = np.abs(a-b)
-#print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,test))
+xx = np.random.randn(NScan,NC,dimX,dimY)
+yy = np.random.randn(NScan,NC,dimX,dimY)
+a = np.vdot(xx,FTH(yy))
+b = np.vdot(FT(xx),yy)
+test = np.abs(a-b)
+print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,test))
 
 
 
