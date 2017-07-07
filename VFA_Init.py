@@ -7,7 +7,7 @@ import scipy.io as sio
 from tkinter import filedialog
 from tkinter import Tk
 import nlinvns_maier as nlinvns
-import Model_Reco_old as Model_Reco
+import Model_Reco as Model_Reco
 import multiprocessing as mp
 
 import mkl
@@ -31,7 +31,7 @@ file = filedialog.askopenfilename()
 root.destroy()
 
 data = sio.loadmat(file)
-data = data['data']
+data = data['data_mid']
 #data = data['data']
 
 data = np.transpose(data)
@@ -54,15 +54,15 @@ file = filedialog.askopenfilename()
 root.destroy()
 
 dcf = sio.loadmat(file)
-dcf = dcf['w']
+dcf = dcf['dcf']
 
 dcf = np.transpose(dcf)
 #dcf = dcf/np.max(dcf)
 
 
 #data = data[:,:,0,:,:]
-dimX = 128
-dimY = 128
+dimX = 256
+dimY = 256
 data = data*np.sqrt(dcf)
 
 #NSlice = 1
@@ -146,9 +146,9 @@ else:
 ## Choose undersampling mode
 Nproj = 21
 #
-#for i in range(NScan):
-#  data[i,:,:,:Nproj,:] = data[i,:,:,i*Nproj:(i+1)*Nproj,:]
-#  traj[i,:Nproj,:] = traj[i,i*Nproj:(i+1)*Nproj,:]
+for i in range(NScan):
+  data[i,:,:,:Nproj,:] = data[i,:,:,i*Nproj:(i+1)*Nproj,:]
+  traj[i,:Nproj,:] = traj[i,i*Nproj:(i+1)*Nproj,:]
 
 
 data = data[:,:,:,:Nproj,:]
@@ -197,8 +197,8 @@ options[undersampling_mode]()
 ######################################################################## 
 ## struct par init
 
-#FA = np.array([2,3,4,5,7,9,11,14,17,22],np.complex128)
-FA = np.array([1,3,5,7,9,11,13,15,17],np.complex128)
+FA = np.array([2,3,4,5,7,9,11,14,17,22],np.complex128)
+#FA = np.array([1,3,5,7,9,11,13,15,17],np.complex128)
 fa = np.divide(FA , np.complex128(180)) * np.pi;   #  % flip angle in rad FA siehe FLASH phantom generierung
 #alpha = [1,3,5,7,9,11,13,15,17,19]*pi/180;
 
@@ -218,18 +218,18 @@ par.Nproj = Nproj
 ##### No FA correction
 par.fa_corr = np.ones([NSlice,dimX,dimY],dtype='complex128')
 
-#root = Tk()
-#root.withdraw()
-#root.update()
-#file = filedialog.askopenfilename()
-#root.destroy()
-#
-#fa_corr = sio.loadmat(file)
-#fa_corr = fa_corr['fa_mid_3mm']
-#
-#fa_corr = np.transpose(fa_corr)
-#fa_corr[[fa_corr==0]] = 1
-#par.fa_corr = fa_corr[None,:,:]*180/np.pi
+root = Tk()
+root.withdraw()
+root.update()
+file = filedialog.askopenfilename()
+root.destroy()
+
+fa_corr = sio.loadmat(file)
+fa_corr = fa_corr['fa_mid_3mm']
+
+fa_corr = np.transpose(fa_corr)
+fa_corr[[fa_corr==0]] = 1
+par.fa_corr = fa_corr[None,:,:]*180/np.pi
 
 '''standardize the data'''
 
@@ -272,7 +272,7 @@ def nFT(x,plan,dcf,NScan,NC,NSlice,Nproj,N,dimX):
         plan[i][j].f_hat = x[i,j,k,:,:]/dimX
         result[i,j,k,:] = plan[i][j].trafo()*np.sqrt(dcf).flatten()
       
-  return np.reshape(result,[NScan,NC,NSlice,Nproj,N])
+  return result
 
 
 def nFTH(x,plan,dcf,NScan,NC,NSlice,dimY,dimX):
@@ -281,7 +281,7 @@ def nFTH(x,plan,dcf,NScan,NC,NSlice,dimY,dimX):
   for i in range(siz[0]):
     for j in range(siz[1]):  
       for k in range(siz[2]):
-        plan[i][j].f = x[i,j,k,:]*np.sqrt(dcf).flatten()
+        plan[i][j].f = x[i,j,k,:,:]*np.sqrt(dcf)
         result[i,j,k,:,:] = plan[i][j].adjoint()
       
   return result/dimX
@@ -313,7 +313,7 @@ def FTH(x):
 plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
 #
 
-uData = np.reshape(uData,(NScan,NC,NSlice,N*Nproj))* dscale
+uData = uData* dscale
 
 images= (np.sum(nFTH(uData,plan,dcf,NScan,NC,NSlice,dimY,dimX)[:None,:,:,:]*(np.conj(par.C)),axis = 1))
 
@@ -330,7 +330,9 @@ par.U = np.ones((uData).shape, dtype=bool)
 par.U[abs(uData) == 0] = False
 ########################################################################
 #Init optimizer
-opt = Model_Reco.Model_Reco()
+par.unknowns = 2
+
+opt = Model_Reco.Model_Reco(par)
 
 opt.par = par
 opt.data =  uData
@@ -339,10 +341,10 @@ opt.images = images
 opt.fft_forward = fft_forward
 opt.fft_back = fft_back
 opt.nfftplan = plan
-opt.dcf = dcf.flatten()
+opt.dcf = dcf
 opt.model = model
 
-opt.unknowns = 2
+
 
 #
 ##
@@ -358,12 +360,12 @@ opt.unknowns = 2
 ########################################################################
 #IRGN Params
 irgn_par = struct()
-irgn_par.start_iters = 2
-irgn_par.max_iters = 2000
+irgn_par.start_iters = 10
+irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e0
-irgn_par.gamma = 1e0
-irgn_par.delta = 1e0
+irgn_par.gamma = 1e-1
+irgn_par.delta = 1e2
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par

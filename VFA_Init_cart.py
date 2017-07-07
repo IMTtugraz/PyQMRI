@@ -4,10 +4,9 @@ import matplotlib.pyplot as plt
 import time
 import os
 import scipy.io as sio
-from tkinter import filedialog
-from tkinter import Tk
+from tkinter import filedialog, Tk
 import nlinvns_maier as nlinvns
-import Model_Reco_old as Model_Reco
+import Model_Reco as Model_Reco
 #import multiprocessing as mp
 
 #import mkl
@@ -18,8 +17,8 @@ np.seterr(divide='ignore', invalid='ignore')# TODO:
   
 #mkl.set_num_threads(mp.cpu_count())  
 os.system("taskset -p 0xff %d" % os.getpid()) 
-  
-  
+
+ 
   
 plt.ion()
 pyfftw.interfaces.cache.enable()
@@ -253,11 +252,11 @@ par.dscale = dscale
 uData = pyfftw.byte_align(uData)
 
 
-fftw_ksp = pyfftw.empty_aligned((dimY,dimX),dtype='complex128')
-fftw_img = pyfftw.empty_aligned((dimY,dimX),dtype='complex128')
+fftw_ksp = pyfftw.empty_aligned((NScan,NC,dimY,dimX),dtype='complex128')
+fftw_img = pyfftw.empty_aligned((NScan,NC,dimY,dimX),dtype='complex128')
 
-fft_forward = pyfftw.FFTW(fftw_img,fftw_ksp,axes=(0,1))
-fft_back = pyfftw.FFTW(fftw_ksp,fftw_img,axes=(0,1),direction='FFTW_BACKWARD')
+fft_forward = pyfftw.FFTW(fftw_img,fftw_ksp,axes=(2,3))
+fft_back = pyfftw.FFTW(fftw_ksp,fftw_img,axes=(2,3),direction='FFTW_BACKWARD')
 
 
 def nfft(NScan,NC,dimX,dimY,N,Nproj,traj):
@@ -299,26 +298,42 @@ def nFTH(x,plan,dcf,NScan,NC,NSlice,dimY,dimX):
 
 
 
+#def FT(x):
+#  siz = np.shape(x)
+#  result = np.zeros_like(x,dtype='complex128')
+#  for i in range(siz[0]):
+#    for j in range(siz[1]):
+#      for k in range(siz[2]):
+#        result[i,j,k,:,:] = fft_forward(x[i,j,k,:,:])/np.sqrt(siz[3]*(siz[2]))
+#      
+#  return result
+
 def FT(x):
-  siz = np.shape(x)
-  result = np.zeros_like(x,dtype='complex128')
-  for i in range(siz[0]):
-    for j in range(siz[1]):
-      for k in range(siz[2]):
-        result[i,j,k,:,:] = fft_forward(x[i,j,k,:,:])/np.sqrt(siz[3]*(siz[2]))
-      
-  return result
+
+#  nscan = np.shape(x)[0]
+#  NC = np.shape(x)[1]
+#  scale =  np.sqrt(np.shape(x)[2]*np.shape(x)[3])
+#      
+#  result = np.zeros_like(x)
+##    cdef int scan=0
+##    cdef int coil=0
+#  for scan in range(nscan):
+#    for coil in range(NC):
+#  result = 
+    
+  return fft_forward(x)/np.sqrt(np.shape(x)[2]*np.shape(x)[3])
+ 
 
 
 def FTH(x):
-  siz = np.shape(x)
-  result = np.zeros_like(x,dtype='complex128')
-  for i in range(siz[0]):
-    for j in range(siz[1]):
-      for k in range(siz[2]):
-        result[i,j,k,:,:] = fft_back(x[i,j,k,:,:])*np.sqrt(siz[3]*(siz[2]))
-      
-  return result
+#  siz = np.shape(x)
+#  result = np.zeros_like(x,dtype='complex128')
+#  for i in range(siz[0]):
+#    for j in range(siz[1]):
+#      for k in range(siz[2]):
+#  result[i,j,k,:,:] = fft_back(x[i,j,k,:,:])*np.sqrt(siz[3]*(siz[2]))
+#      
+  return fft_back(x)*np.sqrt(np.shape(x)[2]*np.shape(x)[3])
 
 
 plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
@@ -329,7 +344,7 @@ uData = uData*dscale
 
 #images= (np.sum(nFTH(uData,plan,dcf,NScan,NC,NSlice,dimY,dimX)[:None,:,:,:]*(np.conj(par.C)),axis = 1))
 
-images= (np.sum(FTH(uData)*(np.conj(par.C)),axis = 1))
+images= (np.sum(FTH(uData[:,:,0,:,:])[:,:,None,:,:]*(np.conj(par.C)),axis = 1))
 
 
 ########################################################################
@@ -342,9 +357,9 @@ par.U = np.ones((uData).shape, dtype=bool)
 par.U[abs(uData) == 0] = False
 ########################################################################
 #Init optimizer
-opt = Model_Reco.Model_Reco()
+par.unknowns = 2
+opt = Model_Reco.Model_Reco(par)
 
-opt.par = par
 opt.data =  uData
 #model.data = uData*dscale
 opt.images = images
@@ -354,12 +369,12 @@ opt.nfftplan = plan
 opt.dcf = dcf.flatten()
 opt.model = model
 
-opt.unknowns = 2
+
 
 #
 ##
-#xx = np.random.randn(NScan,NC,NSlice,dimX,dimY)
-#yy = np.random.randn(NScan,NC,NSlice,Nproj*N)
+xx = np.random.randn(2,dimX,dimY).astype('complex128')
+yy = np.random.randn(NScan,NC,dimY,dimX).astype('complex128')
 #a = np.vdot(xx,nFTH(yy,plan,dcf,NScan,NC,NSlice,dimY,dimX))
 #b = np.vdot(nFT(xx,plan,dcf,NScan,NC,NSlice,Nproj,N,dimX),yy)
 #test = np.abs(a-b)
@@ -371,10 +386,10 @@ opt.unknowns = 2
 #IRGN Params
 irgn_par = struct()
 irgn_par.start_iters = 10
-irgn_par.max_iters = 2000
+irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e0
-irgn_par.gamma = 1e0
+irgn_par.gamma = 1e-2
 irgn_par.delta = 1e0
 irgn_par.display_iterations = True
 
@@ -383,11 +398,11 @@ opt.irgn_par = irgn_par
 
 
 
-opt.execute_2D()
+opt.execute_2D_cart()
 
 #
 #import cProfile
-#cProfile.run("opt.execute_2D()","eval_speed")
+#cProfile.run("opt.execute_2D_cart()","eval_speed")
 ##
 #import pstats
 #
