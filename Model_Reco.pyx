@@ -69,32 +69,6 @@ cdef class Model_Reco:
     print ("Function value after GN-Step: %f" %fval)
 
     return x
-#  cdef irgn_solve_2D_cart(self,np.ndarray[DTYPE_t,ndim=3] x, int iters,np.ndarray[DTYPE_t,ndim=4] data):
-#    
-#
-#    ###################################
-#    ### Adjointness     
-#    xx = np.random.random_sample(np.shape(x)).astype('complex128')
-#    yy = np.random.random_sample(np.shape(data)).astype('complex128')
-#    a = np.vdot(xx.flatten(),self.operator_adjoint_2D_cart(yy).flatten())
-#    b = np.vdot(self.operator_forward_2D_cart(xx).flatten(),yy.flatten())
-#    test = np.abs(a-b)
-#    print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,decimal.Decimal(test)))
-#    cdef np.ndarray[DTYPE_t,ndim=3] x_old = x
-#    a = self.FT_2D(self.step_val[:,None,:,:]*self.Coils)
-#    b = self.operator_forward_2D(x)
-#    res = data - a + b
-##    print("Test the norm: %2.2E  a=%2.2E   b=%2.2E" %(np.linalg.norm(res.flatten()),np.linalg.norm(a.flatten()), np.linalg.norm(b.flatten())))
-#  
-##    x = self.pdr_tgv_solve_2D(x,res,iters)
-#    x = self.tgv_solve_2D_cart(x,res,iters)      
-#    fval= (self.irgn_par.lambd/2*np.linalg.norm(data - self.FT_2D(self.step_val[:,None,:,:]*self.Coils))**2
-#           +self.irgn_par.gamma*np.sum(np.abs(gd.fgrad_1(x)-self.v))
-#           +self.irgn_par.gamma*(2)*np.sum(np.abs(gd.sym_bgrad_2(self.v))) 
-#           +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2)    
-#    print ("Function value after GN-Step: %f" %fval)
-#
-#    return x  
   
   cdef irgn_solve_3D(self,np.ndarray[DTYPE_t,ndim=4] x,int iters,np.ndarray[DTYPE_t,ndim=4] data):
     
