@@ -364,7 +364,7 @@ irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e0
-irgn_par.gamma = 1e-1
+irgn_par.gamma = 1e0
 irgn_par.delta = 1e2
 irgn_par.display_iterations = True
 
