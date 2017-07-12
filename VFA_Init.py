@@ -7,6 +7,8 @@ import scipy.io as sio
 from tkinter import filedialog
 from tkinter import Tk
 import nlinvns_maier as nlinvns
+
+import pyximport; pyximport.install()
 import Model_Reco as Model_Reco
 import multiprocessing as mp
 
@@ -341,8 +343,10 @@ opt.images = images
 opt.fft_forward = fft_forward
 opt.fft_back = fft_back
 opt.nfftplan = plan
-opt.dcf = dcf
+opt.dcf = np.sqrt(dcf)
+opt.dcf_flat = np.sqrt(dcf).flatten()
 opt.model = model
+opt.traj = traj
 
 
 
@@ -364,26 +368,28 @@ irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e0
-irgn_par.gamma = 1e0
+irgn_par.gamma = 1e-1
 irgn_par.delta = 1e2
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par
 
 
-
-
-opt.execute_2D()
-
+#opt.execute_2D()
 #
-#import cProfile
-#cProfile.run("opt.execute_2D()","eval_speed")
-##
-#import pstats
-#
-#p=pstats.Stats("eval_speed")
-#p.sort_stats('time').print_stats(20)
 
+import cProfile
+cProfile.run("opt.execute_2D()","eval_speed_3")
+#
+import pstats
+p=pstats.Stats("eval_speed_3")
+p.sort_stats('time').print_stats(20)
+
+p=pstats.Stats("eval_speed_2")
+p.sort_stats('time').print_stats(20)
+
+p=pstats.Stats("eval_speed")
+p.sort_stats('time').print_stats(20)
 
 
 
@@ -406,6 +412,8 @@ sio.savemat("result.mat",{"result":opt.result})
 import pickle
 with open("par" + ".p", "wb") as pickle_file:
     pickle.dump(par, pickle_file)
+
+os.chdir('..')
 #with open("par.txt", "rb") as myFile:
     #par = pickle.load(myFile)
 #par.dump("par.dat")

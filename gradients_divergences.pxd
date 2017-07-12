@@ -10,12 +10,12 @@ cimport numpy as np
 np.import_array()
 import numpy as np
 
-ctypedef np.complex_t DTYPE_t
+ctypedef np.complex128_t DTYPE_t
 
-cdef bdiv_1(np.ndarray[DTYPE_t, ndim=4] v, int dx=*, int dy=*)
-cdef fgrad_1(np.ndarray[DTYPE_t, ndim=3] u,int dx=*, int dy=*)
-cdef fdiv_2(np.ndarray[DTYPE_t, ndim=4] x,int dx=*, int dy=*)
-cdef sym_bgrad_2(np.ndarray[DTYPE_t, ndim=4] x, int dx=*, int dy=*)
+cdef np.ndarray[DTYPE_t, ndim=3] bdiv_1(np.ndarray[DTYPE_t, ndim=4] v, int dx=*, int dy=*)
+cdef np.ndarray[DTYPE_t, ndim=4] fgrad_1(np.ndarray[DTYPE_t, ndim=3] u,int dx=*, int dy=*)
+cdef np.ndarray[DTYPE_t, ndim=4] fdiv_2(np.ndarray[DTYPE_t, ndim=4] x,int dx=*, int dy=*)
+cdef np.ndarray[DTYPE_t, ndim=4] sym_bgrad_2(np.ndarray[DTYPE_t, ndim=4] x, int dx=*, int dy=*)
 
 cdef bdiv_3(np.ndarray[DTYPE_t, ndim=5] v, int dx=*, int dy=*, int dz = *)
 cdef fgrad_3(np.ndarray[DTYPE_t, ndim=4] u,int dx=*, int dy=*, int dz = *)
