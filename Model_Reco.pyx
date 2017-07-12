@@ -163,7 +163,8 @@ cdef class Model_Reco:
     self.result = np.zeros((self.irgn_par.max_GN_it,self.unknowns,self.par.NSlice,self.par.dimY,self.par.dimX),dtype='complex128')
     result = np.copy(self.model.guess)
     for islice in range(self.par.NSlice):
-      self.Coils = np.squeeze(self.par.C[:,islice,:,:])        
+      self.Coils = np.squeeze(self.par.C[:,islice,:,:])
+      self.conjCoils = np.conj(Coils)        
       for i in range(self.irgn_par.max_GN_it):
         start = time.time()       
         self.step_val = self.model.execute_forward_2D(result[:,islice,:,:],islice)
@@ -195,6 +196,7 @@ cdef class Model_Reco:
       self.result[0,:,:,:,:] = np.copy(self.model.guess)
 
       self.Coils = np.squeeze(self.par.C)        
+      self.conjCoils = np.conj(Coils)
       for i in range(self.irgn_par.max_GN_it):
         start = time.time()       
         self.step_val = self.model.execute_forward_3D(self.result[i,:,:,:,:])
@@ -233,7 +235,7 @@ cdef class Model_Reco:
     cdef DTYPE_t[:,:,:,::1] fdx = np.zeros((self.NScan,self.NC,self.dimY,self.dimX),dtype=DTYPE)
     fdx = self.FTH(np.asarray(x))
     cdef DTYPE_t[:,:,::1] dx = np.zeros((self.unknowns,self.par.dimX,self.par.dimY),dtype=DTYPE)
-    cdef DTYPE_t[:,:,::1] conC = np.conj(self.Coils)
+    cdef DTYPE_t[:,:,::1] conC =self.conjCoils
 
     cdef int i,j,k,m,n,o   
     with nogil, parallel():    
@@ -248,7 +250,7 @@ cdef class Model_Reco:
   
   cdef np.ndarray[DTYPE_t,ndim=5] operator_forward_3D(self,np.ndarray[DTYPE_t,ndim=4] x):
     
-    tmp = np.zeros_like(self.grad_x)
+    np.ndarray[DTYPE_t,ndim=5] tmp = np.zeros_like(self.grad_x)
       
     for i in range(self.unknowns):
       tmp[i,:,:,:,:] = x[i,:,:,:]*self.grad_x[i,:,:,:,:]
@@ -258,14 +260,14 @@ cdef class Model_Reco:
     
   cdef np.ndarray[DTYPE_t,ndim=4] operator_adjoint_3D(self,np.ndarray[DTYPE_t,ndim=5] x):
     
-    x[~np.isfinite(x)] = 1e-20
-    fdx = self.FTH(x)
+#    x[~np.isfinite(x)] = 1e-20
+    np.ndarray[DTYPE_t,ndim=5] fdx = self.FTH(x)
       
-    fdx = np.squeeze(np.sum(fdx*np.conj(self.Coils),axis=1))
+   fdx = np.squeeze(np.sum(fdx*(self.conjCoils),axis=1))
       
     cdef np.ndarray[DTYPE_t,ndim=4]dx = np.zeros((self.unknowns,self.par.NSlice,self.par.dimX,self.par.dimY),dtype=DTYPE)
     for i in range(self.unknowns):   
-      dx[i,:,:,:] = np.sum(self.conj_grad_x[i,:,:,:,:]*fdx,axis=0)
+      dx[i,:,:,:] =np.sum(self.conj_grad_x[i,:,:,:,:]*fdx,axis=0)
       
     return dx    
     
