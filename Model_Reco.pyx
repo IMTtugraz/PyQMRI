@@ -44,7 +44,8 @@ cdef class Model_Reco:
   cdef double scale
   cdef DTYPE_t[:,:,:,::1] grad_x_2D
   cdef DTYPE_t[:,:,:,::1] conj_grad_x_2D
-  cdef DTYPE_t[:,:,::1] Coils
+  cdef DTYPE_t[:,:,::1] Coils, conjCoils
+  cdef DTYPE_t[:,:,:,::1] Coils3D, conjCoils3D
   
   def __init__(self,par):
     self.par = par
@@ -164,7 +165,7 @@ cdef class Model_Reco:
     result = np.copy(self.model.guess)
     for islice in range(self.par.NSlice):
       self.Coils = np.squeeze(self.par.C[:,islice,:,:])
-      self.conjCoils = np.conj(Coils)        
+      self.conjCoils = np.conj(self.Coils)        
       for i in range(self.irgn_par.max_GN_it):
         start = time.time()       
         self.step_val = self.model.execute_forward_2D(result[:,islice,:,:],islice)
@@ -195,8 +196,8 @@ cdef class Model_Reco:
       self.result = np.zeros((self.irgn_par.max_GN_it+1,self.unknowns,self.par.NSlice,self.par.dimY,self.par.dimX),dtype='complex128')
       self.result[0,:,:,:,:] = np.copy(self.model.guess)
 
-      self.Coils = np.squeeze(self.par.C)        
-      self.conjCoils = np.conj(Coils)
+      self.Coils3D = np.squeeze(self.par.C)        
+      self.conjCoils3D = np.conj(self.Coils3D)
       for i in range(self.irgn_par.max_GN_it):
         start = time.time()       
         self.step_val = self.model.execute_forward_3D(self.result[i,:,:,:,:])
@@ -235,7 +236,6 @@ cdef class Model_Reco:
     cdef DTYPE_t[:,:,:,::1] fdx = np.zeros((self.NScan,self.NC,self.dimY,self.dimX),dtype=DTYPE)
     fdx = self.FTH(np.asarray(x))
     cdef DTYPE_t[:,:,::1] dx = np.zeros((self.unknowns,self.par.dimX,self.par.dimY),dtype=DTYPE)
-    cdef DTYPE_t[:,:,::1] conC =self.conjCoils
 
     cdef int i,j,k,m,n,o   
     with nogil, parallel():    
@@ -244,26 +244,26 @@ cdef class Model_Reco:
           for j in range(self.NC):
             for n in range(self.dimY):
               for m in prange(self.dimX):    
-                dx[o,n,m] = dx[o,n,m] +(fdx[i,j,n,m]*conC[j,n,m]*self.conj_grad_x_2D[o,i,n,m])
+                dx[o,n,m] = dx[o,n,m] +(fdx[i,j,n,m]*self.conjCoils[j,n,m]*self.conj_grad_x_2D[o,i,n,m])
     return np.asarray(dx)   
   
   
   cdef np.ndarray[DTYPE_t,ndim=5] operator_forward_3D(self,np.ndarray[DTYPE_t,ndim=4] x):
     
-    np.ndarray[DTYPE_t,ndim=5] tmp = np.zeros_like(self.grad_x)
+    cdef np.ndarray[DTYPE_t,ndim=5] tmp = np.zeros_like(self.grad_x)
       
     for i in range(self.unknowns):
       tmp[i,:,:,:,:] = x[i,:,:,:]*self.grad_x[i,:,:,:,:]
       
-    return self.FT(np.sum(tmp,axis=0)[:,None,:,:,:]*self.Coils)
+    return self.FT(np.sum(tmp,axis=0)[:,None,:,:,:]*self.Coils3D)
 
     
   cdef np.ndarray[DTYPE_t,ndim=4] operator_adjoint_3D(self,np.ndarray[DTYPE_t,ndim=5] x):
     
 #    x[~np.isfinite(x)] = 1e-20
-    np.ndarray[DTYPE_t,ndim=5] fdx = self.FTH(x)
+    cdef np.ndarray[DTYPE_t,ndim=5] fdx = self.FTH(x)
       
-   fdx = np.squeeze(np.sum(fdx*(self.conjCoils),axis=1))
+    fdx = np.squeeze(np.sum(fdx*(self.conjCoils3D),axis=1))
       
     cdef np.ndarray[DTYPE_t,ndim=4]dx = np.zeros((self.unknowns,self.par.NSlice,self.par.dimX,self.par.dimY),dtype=DTYPE)
     for i in range(self.unknowns):   
