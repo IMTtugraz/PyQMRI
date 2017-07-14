@@ -228,12 +228,12 @@ par.dimY        = dimY
 par.dimX        = dimX
 par.fa          = fa
 par.NSlice      = NSlice
-
+par.NScan       = NScan
 par.N = N
 par.Nproj = Nproj
 
 
-
+par.unknowns = 2
 ##### No FA correction
 par.fa_corr = np.ones([NSlice,dimX,dimY],dtype='complex128')
 
@@ -286,7 +286,7 @@ def nFTH(x,plan,dcf,NScan,NC,dimY,dimX):
   result = np.zeros((NScan,NC,dimY,dimX),dtype='complex128')
   for i in range(siz[0]):
     for j in range(siz[1]):  
-      plan[i][j].f = x[i,j,:]*np.sqrt(dcf).flatten()
+      plan[i][j].f = x[i,j,:,:]*np.sqrt(dcf)
       result[i,j,:,:] = plan[i][j].adjoint()
       
   return result/dimX
@@ -318,10 +318,10 @@ def FTH(x):
 plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
 #
 
-uData = np.reshape(uData,(NScan,NC,NSlice,N*Nproj))* dscale
+uData = np.reshape(uData,(NScan,NC,NSlice,Nproj,N))* dscale
 tmp = np.zeros((NScan,NC,NSlice,dimY,dimX),dtype='complex128')
 for i in range(NSlice):
-    tmp[:,:,i,:,:]=nFTH(uData[:,:,i,:],plan,dcf,NScan,NC,dimY,dimX)
+    tmp[:,:,i,:,:]=nFTH(uData[:,:,i,:,:],plan,dcf,NScan,NC,dimY,dimX)
     
 images = np.sum(tmp*np.conj(par.C),axis=1)
 #images= (np.sum(FTH(uData*dscale)*(np.conj(par.C)),axis = 1))
@@ -337,7 +337,7 @@ par.U = np.ones((uData).shape, dtype=bool)
 par.U[abs(uData) == 0] = False
 ########################################################################
 #Init optimizer
-opt = Model_Reco.Model_Reco()
+opt = Model_Reco.Model_Reco(par)
 
 opt.par = par
 opt.data =  uData
@@ -346,19 +346,20 @@ opt.images = images
 opt.fft_forward = fft_forward
 opt.fft_back = fft_back
 opt.nfftplan = plan
-opt.dcf = dcf.flatten()
+opt.dcf = np.sqrt(dcf)
+opt.dcf_flat =np.sqrt( dcf.flatten())
 opt.model = model
 
-opt.unknowns = 2
 
+opt.traj = traj
 #
-#
-xx = np.random.randn(NScan,NC,dimX,dimY)
-yy = np.random.randn(NScan,NC,Nproj*N)
-a = np.vdot(xx,nFTH(yy,plan,dcf,NScan,NC,dimY,dimX))
-b = np.vdot(nFT(xx,plan,dcf,NScan,NC,Nproj,N,dimX),yy)
-test = np.abs(a-b)
-print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,test))
+##
+#xx = np.random.randn(NScan,NC,NSlice,dimX,dimY)
+#yy = np.random.randn(NScan,NC,NSlice,Nproj,N)
+#a = np.vdot(xx,nFTH(yy,plan,dcf,NScan,NC,dimY,dimX))
+#b = np.vdot(nFT(xx,plan,dcf,NScan,NC,Nproj,N,dimX),yy)
+#test = np.abs(a-b)
+#print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,test))
 
 
 
@@ -376,7 +377,7 @@ irgn_par.display_iterations = True
 opt.irgn_par = irgn_par
 
 
-
+opt.dz = 3
 
 opt.execute_3D()
 #
