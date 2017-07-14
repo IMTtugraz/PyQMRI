@@ -17,25 +17,18 @@ DTYPE = np.complex128
 
 
 class Model_Reco: 
-  def __init__(self):
-#    self.par = []
-#    self.data= []
-#    self.result = []
-#    self.fft_forward = []
-#    self.fft_back = []
-#    self.irgn_par = []
-#    self.model = []
-#    self.step_val = []
-#    self.grad_x = []
-#    self.conj_grad_x = []
-#    self.FT_scale = []
-#    self.v = []
-#    self.nfftplan = []
-#    self.dcf = []
-#    self.FT = []
-#    self.FTH = []
-#    self.Coils = []
-#    self.unknowns = []
+  def __init__(self,par):
+    self.par = par
+    self.unknowns = par.unknowns
+    self.NSlice = par.NSlice
+    self.NScan = par.NScan
+    self.dimX = par.dimX
+    self.dimY = par.dimY
+    self.scale = np.sqrt(par.dimX*par.dimY)
+    self.NC = par.NC
+    self.N = par.N
+    self.Nproj = par.Nproj
+    
     print("Please Set Parameters, Data and Initial images")
 
     
@@ -99,8 +92,8 @@ class Model_Reco:
     
   def execute_2D(self):
      
-      self.FT = self.FT_2D
-      self.FTH = self.FTH_2D
+      self.FT = self.nFT_2D
+      self.FTH = self.nFTH_2D
       iters = self.irgn_par.start_iters
       self.v = np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype='complex128')
       
@@ -284,7 +277,7 @@ class Model_Reco:
     gradx = np.zeros_like(z1,dtype=DTYPE)
     gradx_xold = np.zeros_like(z1,dtype=DTYPE)
     
-#    v_old = np.zeros_like(v,dtype=DTYPE)
+    v_vold = np.zeros_like(v,dtype=DTYPE)
     symgrad_v = np.zeros_like(z2,dtype=DTYPE)
     symgrad_v_vold = np.zeros_like(z2,dtype=DTYPE)
     
@@ -303,7 +296,7 @@ class Model_Reco:
 #      np.abs(x_new[1,:,:],x_new[1,:,:])
       
       
-      v_new = v-tau*Kyk2
+      np.subtract(v,tau*Kyk2,v_new)
       
       beta_new = beta_line*(1+mu*tau)
       
@@ -313,32 +306,32 @@ class Model_Reco:
       beta_line = beta_new
       
       gradx = gd.fgrad_1(x_new)
-      gradx_xold = gradx - gd.fgrad_1(x)
-      v_vold = v_new-v
+      np.subtract(gradx , gd.fgrad_1(x),gradx_xold)
+      np.subtract(v_new,v,v_vold)
       symgrad_v = gd.sym_bgrad_2(v_new)
-      symgrad_v_vold = symgrad_v - gd.sym_bgrad_2(v)
+      np.subtract(symgrad_v , gd.sym_bgrad_2(v),symgrad_v_vold)
       Ax = self.operator_forward_2D(x_new)
-      Ax_Axold = Ax-Axold
+      np.subtract(Ax,Axold,Ax_Axold)
     
       while True:
         
         theta_line = tau_new/tau
         
-        z1_new = z1 + beta_line*tau_new*( gradx + theta_line*gradx_xold - v_new - theta_line*v_vold  )
-        z1_new = z1_new/np.maximum(1,(np.sqrt(np.sum(z1_new**2,axis=(0,1)))/alpha))
+        np.add(z1 , beta_line*tau_new*( gradx + theta_line*gradx_xold - v_new - theta_line*v_vold  ),z1_new)
+        np.divide(z1_new,np.maximum(1,(np.sqrt(np.sum(z1_new**2,axis=(0,1)))/alpha)),z1_new)
      
-        z2_new = z2 + beta_line*tau_new*( symgrad_v + theta_line*symgrad_v_vold )
-        scal = np.sqrt( np.sum(z2_new[:,0,:,:]**2 + z2_new[:,1,:,:]**2 + 2*z2_new[:,2,:,:]**2,axis=0) )
+        np.add(z2, beta_line*tau_new*( symgrad_v + theta_line*symgrad_v_vold ))
+        np.sqrt( np.sum(z2_new[:,0,:,:]**2 + z2_new[:,1,:,:]**2 + 2*z2_new[:,2,:,:]**2,axis=0) ,scal)
         np.maximum(1,scal/(beta),scal)
-        z2_new = z2_new/scal
+        np.divide(z2_new,scal,z2_new)
         
         
         
-        tmp = Ax+theta_line*Ax_Axold
-        r_new = (( r  + beta_line*tau_new*(tmp) ) - beta_line*tau_new*res)/(1+beta_line*tau_new/self.irgn_par.lambd)
+        np.add(Ax,theta_line*Ax_Axold,tmp)
+        np.divide((( r  + beta_line*tau_new*(tmp) ) - beta_line*tau_new*res),(1+beta_line*tau_new/self.irgn_par.lambd),r_new)
         
-        Kyk1_new = self.operator_adjoint_2D(r_new)-gd.bdiv_1(z1_new)
-        Kyk2_new = -z1_new -gd.fdiv_2(z2_new)
+        np.subtract(self.operator_adjoint_2D(r_new),gd.bdiv_1(z1_new),Kyk1_new)
+        np.subtract(-z1_new ,gd.fdiv_2(z2_new),Kyk2_new)
 
         
         ynorm = np.linalg.norm(np.concatenate([(r_new-r).flatten(),(z1_new-z1).flatten(),(z2_new-z2).flatten()]))
@@ -574,9 +567,9 @@ class Model_Reco:
     for scan in range(nscan):
       for coil in range(NC):
           self.nfftplan[scan][coil].f_hat = x[scan,coil,:,:]/np.sqrt(self.par.dimX*self.par.dimY)
-          result[scan,coil,:] = self.nfftplan[scan][coil].trafo()*np.sqrt(self.dcf)
+          result[scan,coil,:] = self.nfftplan[scan][coil].trafo()*self.dcf_flat
       
-    return result
+    return np.reshape(result,(nscan,NC,self.par.Nproj,self.par.N))
 
 
 
@@ -586,7 +579,7 @@ class Model_Reco:
     result = np.zeros((nscan,NC,self.par.dimX,self.par.dimY),dtype='complex128')
     for scan in range(nscan):
         for coil in range(NC):  
-            self.nfftplan[scan][coil].f = x[scan,coil,:]*np.sqrt(self.dcf)
+            self.nfftplan[scan][coil].f = x[scan,coil,:]*self.dcf
             result[scan,coil,:,:] = self.nfftplan[scan][coil].adjoint()
       
     return result/np.sqrt(self.par.dimX*self.par.dimY)
@@ -608,7 +601,7 @@ class Model_Reco:
       for coil in range(NC):
         for islice in range(NSlice):
           self.nfftplan[scan][coil].f_hat = x[scan,coil,islice,:,:]/np.sqrt(dimX*dimY)
-          result[scan,coil,islice,:] = self.nfftplan[scan][coil].trafo()*np.sqrt(self.dcf)
+          result[scan,coil,islice,:] = self.nfftplan[scan][coil].trafo()*self.dcf_flat
       
     return result
 
@@ -627,7 +620,7 @@ class Model_Reco:
     for scan in range(nscan):
         for coil in range(NC): 
           for islice in range(NSlice):
-            self.nfftplan[scan][coil].f = x[scan,coil,islice,:]*np.sqrt(self.dcf)
+            self.nfftplan[scan][coil].f = x[scan,coil,islice,:]*self.dcf
             result[scan,coil,islice,:,:] = self.nfftplan[scan][coil].adjoint()
       
     return result/np.sqrt(dimX*dimY)  

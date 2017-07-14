@@ -1,6 +1,6 @@
 
 # cython: infer_types=True
-# cython: profile=True
+# cython: profile=False
 
 
 from __future__ import division
@@ -68,16 +68,16 @@ cdef class Model_Reco:
 
     ###################################
     ### Adjointness     
-    xx = np.random.random_sample(np.shape(x)).astype('complex128')
-    yy = np.random.random_sample(np.shape(data)).astype('complex128')
-    a = np.vdot(xx.flatten(),self.operator_adjoint_2D(yy).flatten())
-    b = np.vdot(self.operator_forward_2D(xx).flatten(),yy.flatten())
-    test = np.abs(a-b)
-    print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,decimal.Decimal(test)))
+#    xx = np.random.random_sample(np.shape(x)).astype('complex128')
+#    yy = np.random.random_sample(np.shape(data)).astype('complex128')
+#    a = np.vdot(xx.flatten(),self.operator_adjoint_2D(yy).flatten())
+#    b = np.vdot(self.operator_forward_2D(xx).flatten(),yy.flatten())
+#    test = np.abs(a-b)
+#    print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,decimal.Decimal(test)))
     cdef np.ndarray[DTYPE_t,ndim=3] x_old = x
-    a = self.FT(self.step_val[:,None,:,:]*self.Coils)
-    b = self.operator_forward_2D(x)
-    res = data - a + b
+#    a = 
+#    b = 
+    res = data - self.FT(self.step_val[:,None,:,:]*self.Coils) + self.operator_forward_2D(x)
   
 #    x = self.pdr_tgv_solve_2D(x,res,iters)
     x = self.tgv_solve_2D(x,res,iters)      
@@ -128,7 +128,8 @@ cdef class Model_Reco:
       self.result = np.zeros((self.irgn_par.max_GN_it,self.unknowns,self.par.NSlice,self.par.dimY,self.par.dimX),dtype='complex128')
       result = np.copy(self.model.guess)
       for islice in range(self.par.NSlice):
-        self.Coils = np.squeeze(self.par.C[:,islice,:,:])        
+        self.Coils = np.squeeze(self.par.C[:,islice,:,:])    
+        self.conjCoils = np.conj(self.Coils)          
         for i in range(self.irgn_par.max_GN_it):
           start = time.time()       
           self.step_val = self.model.execute_forward_2D(result[:,islice,:,:],islice)
@@ -186,7 +187,7 @@ cdef class Model_Reco:
       
      
   cpdef execute_3D(self):
-     
+      self.init_plan()
       self.FT = self.nFT_3D
       self.FTH = self.nFTH_3D
       iters = self.irgn_par.start_iters
@@ -217,36 +218,51 @@ cdef class Model_Reco:
             
                
       
-  cdef np.ndarray[DTYPE_t,ndim=4] operator_forward_2D(self,DTYPE_t[:,:,::1] x):
-    cdef DTYPE_t[:,:,:,::1] tmp = np.zeros((self.NScan,self.NC,self.dimY,self.dimX),dtype=DTYPE)
-    cdef int i,j,k,m,n,o
-    with nogil, parallel():   
-      for o in range(self.unknowns):   
-        for i in range(self.NScan):
-          for j in range(self.NC):
-            for n in range(self.dimY):
-              for m in prange(self.dimX):
-                tmp[i,j,n,m] = tmp[i,j,n,m] + (x[o,n,m])*(self.grad_x_2D[o,i,n,m])*self.Coils[j,n,m]
+  cdef np.ndarray[DTYPE_t,ndim=4] operator_forward_2D(self,np.ndarray[DTYPE_t,ndim=3] x):
+    
+    cdef np.ndarray[DTYPE_t,ndim=4] tmp = np.zeros_like(self.grad_x_2D)
       
-    return (self.FT(np.asarray(tmp)))
+    for i in range(self.unknowns):
+      tmp[i,:,:,:] = x[i,:,:]*self.grad_x_2D[i,:,:,:]
+      
+    return self.FT(np.sum(tmp,axis=0)[:,None,:,:]*self.Coils)    
+    
+#    cdef DTYPE_t[:,:,:,::1] tmp = np.zeros((self.NScan,self.NC,self.dimY,self.dimX),dtype=DTYPE)
+#    cdef int i,j,k,m,n,o
+#    with nogil, parallel():   
+#      for o in range(self.unknowns):   
+#        for i in range(self.NScan):
+#          for j in range(self.NC):
+#            for n in range(self.dimY):
+#              for m in prange(self.dimX):
+#                tmp[i,j,n,m] = tmp[i,j,n,m] + (x[o,n,m])*(self.grad_x_2D[o,i,n,m])*self.Coils[j,n,m]
+#      
+#    return (self.FT(np.asarray(tmp)))
 
     
-  cdef np.ndarray[DTYPE_t,ndim=3] operator_adjoint_2D(self,DTYPE_t[:,:,:,::1] x):
-    
-    cdef DTYPE_t[:,:,:,::1] fdx = np.zeros((self.NScan,self.NC,self.dimY,self.dimX),dtype=DTYPE)
-    fdx = self.FTH(np.asarray(x))
-    cdef DTYPE_t[:,:,::1] dx = np.zeros((self.unknowns,self.par.dimX,self.par.dimY),dtype=DTYPE)
+  cdef np.ndarray[DTYPE_t,ndim=3] operator_adjoint_2D(self,np.ndarray[DTYPE_t,ndim=4] x):
 
-    cdef int i,j,k,m,n,o   
-    with nogil, parallel():    
-      for o in range(self.unknowns):   
-        for i in range(self.NScan):
-          for j in range(self.NC):
-            for n in range(self.dimY):
-              for m in prange(self.dimX):    
-                dx[o,n,m] = dx[o,n,m] +(fdx[i,j,n,m]*self.conjCoils[j,n,m]*self.conj_grad_x_2D[o,i,n,m])
-    return np.asarray(dx)   
-  
+    cdef np.ndarray[DTYPE_t,ndim=3] fdx = np.squeeze(np.sum(self.FTH(x)*(self.conjCoils),axis=1))   
+    cdef np.ndarray[DTYPE_t,ndim=3]dx = np.zeros((self.unknowns,self.par.dimX,self.par.dimY),dtype=DTYPE)
+    
+    for i in range(self.unknowns):   
+      dx[i,:,:] =np.sum(self.conj_grad_x_2D[i,:,:,:]*fdx,axis=0)
+      
+    return dx        
+#    cdef DTYPE_t[:,:,:,::1] fdx = np.zeros((self.NScan,self.NC,self.dimY,self.dimX),dtype=DTYPE)
+#    fdx = self.FTH(np.asarray(x))
+#    cdef DTYPE_t[:,:,::1] dx = np.zeros((self.unknowns,self.par.dimX,self.par.dimY),dtype=DTYPE)
+#
+#    cdef int i,j,k,m,n,o   
+#    with nogil, parallel():    
+#      for o in range(self.unknowns):   
+#        for i in range(self.NScan):
+#          for j in range(self.NC):
+#            for n in range(self.dimY):
+#              for m in prange(self.dimX):    
+#                dx[o,n,m] = dx[o,n,m] +(fdx[i,j,n,m]*self.conjCoils[j,n,m]*self.conj_grad_x_2D[o,i,n,m])
+#    return np.asarray(dx)   
+#  
   
   cdef np.ndarray[DTYPE_t,ndim=5] operator_forward_3D(self,np.ndarray[DTYPE_t,ndim=4] x):
     
@@ -324,6 +340,8 @@ cdef class Model_Reco:
     cdef double primal = 0.0
     cdef double dual = 0.0
     cdef double gap = 0.0
+    
+    
 
     
     cdef np.ndarray[DTYPE_t, ndim=4] gradx = np.zeros_like(z1,dtype=DTYPE)
