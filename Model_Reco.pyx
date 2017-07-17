@@ -69,12 +69,12 @@ cdef class Model_Reco:
 
     ###################################
     ### Adjointness     
-#    xx = np.random.random_sample(np.shape(x)).astype('complex128')
-#    yy = np.random.random_sample(np.shape(data)).astype('complex128')
-#    a = np.vdot(xx.flatten(),self.operator_adjoint_2D(yy).flatten())
-#    b = np.vdot(self.operator_forward_2D(xx).flatten(),yy.flatten())
-#    test = np.abs(a-b)
-#    print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,decimal.Decimal(test)))
+    xx = np.random.random_sample(np.shape(x)).astype('complex128')
+    yy = np.random.random_sample(np.shape(data)).astype('complex128')
+    a = np.vdot(xx.flatten(),self.operator_adjoint_2D(yy).flatten())
+    b = np.vdot(self.operator_forward_2D(xx).flatten(),yy.flatten())
+    test = np.abs(a-b)
+    print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,decimal.Decimal(test)))
     cdef np.ndarray[DTYPE_t,ndim=3] x_old = x
 #    a = 
 #    b = 
@@ -221,12 +221,12 @@ cdef class Model_Reco:
       
   cdef np.ndarray[DTYPE_t,ndim=4] operator_forward_2D(self,np.ndarray[DTYPE_t,ndim=3] x):
     
-    cdef np.ndarray[DTYPE_t,ndim=4] tmp = np.zeros_like(self.grad_x_2D)
+#    cdef np.ndarray[DTYPE_t,ndim=4] tmp = np.zeros_like(self.grad_x_2D)
+#      
+#    for i in range(self.unknowns):
+#      tmp[i,:,:,:] = x[i,:,:]*self.grad_x_2D[i,:,:,:]
       
-    for i in range(self.unknowns):
-      tmp[i,:,:,:] = x[i,:,:]*self.grad_x_2D[i,:,:,:]
-      
-    return self.FT(np.sum(tmp,axis=0)[:,None,:,:]*self.Coils)    
+    return self.FT(np.sum(x[:,None,:,:]*self.grad_x_2D,axis=0)[:,None,:,:]*self.Coils)
     
 #    cdef DTYPE_t[:,:,:,::1] tmp = np.zeros((self.NScan,self.NC,self.dimY,self.dimX),dtype=DTYPE)
 #    cdef int i,j,k,m,n,o
@@ -244,12 +244,12 @@ cdef class Model_Reco:
   cdef np.ndarray[DTYPE_t,ndim=3] operator_adjoint_2D(self,np.ndarray[DTYPE_t,ndim=4] x):
 
 #    cdef np.ndarray[DTYPE_t,ndim=3] fdx = np.squeeze(np.sum(self.FTH(x)*(self.conjCoils),axis=1))   
-    cdef np.ndarray[DTYPE_t,ndim=3] dx =  np.squeeze(np.sum(np.squeeze(np.sum(self.FTH(x)*np.conj(self.conjCoils),axis=1)*self.conj_grad_x_2D),axis=1))
+#    cdef np.ndarray[DTYPE_t,ndim=3] dx =  
     
 #    for i in range(self.unknowns):   
 #      dx[i,:,:] =np.sum(self.conj_grad_x_2D[i,:,:,:]*fdx,axis=0)
       
-    return dx        
+    return np.squeeze(np.sum(np.squeeze(np.sum(self.FTH(x)*self.conjCoils,axis=1))*self.conj_grad_x_2D,axis=1))      
 #    cdef DTYPE_t[:,:,:,::1] fdx = np.zeros((self.NScan,self.NC,self.dimY,self.dimX),dtype=DTYPE)
 #    fdx = self.FTH(np.asarray(x))
 #    cdef DTYPE_t[:,:,::1] dx = np.zeros((self.unknowns,self.par.dimX,self.par.dimY),dtype=DTYPE)
@@ -266,13 +266,13 @@ cdef class Model_Reco:
 #  
   
   cdef np.ndarray[DTYPE_t,ndim=5] operator_forward_3D(self,np.ndarray[DTYPE_t,ndim=4] x):
-    x[~np.isfinite(x)] = 1e-20    
-    cdef np.ndarray[DTYPE_t,ndim=5] tmp = np.zeros_like(self.grad_x)
+#    x[~np.isfinite(x)] = 1e-20    
+#    cdef np.ndarray[DTYPE_t,ndim=5] tmp = np.zeros_like(self.grad_x)
+#      
+#    for i in range(self.unknowns):
+#      tmp[i,:,:,:,:] = 
       
-    for i in range(self.unknowns):
-      tmp[i,:,:,:,:] = x[i,:,:,:]*self.grad_x[i,:,:,:,:]
-      
-    return self.FT(np.sum(tmp,axis=0)[:,None,:,:,:]*self.Coils3D)
+    return self.FT(np.sum(x[:,None,:,:,:]*self.grad_x,axis=0)[:,None,:,:,:]*self.Coils3D)
 
     
   cdef np.ndarray[DTYPE_t,ndim=4] operator_adjoint_3D(self,np.ndarray[DTYPE_t,ndim=5] x):
@@ -286,7 +286,7 @@ cdef class Model_Reco:
 #      dx[i,:,:,:] =np.sum(self.conj_grad_x[i,:,:,:,:]*fdx,axis=0)
 
       
-    return np.squeeze(np.sum(np.squeeze(np.sum(self.FTH(x)*np.conj(self.conjCoils3D),axis=1)*self.conj_grad_x),axis=1))    
+    return np.squeeze(np.sum(np.squeeze(np.sum(self.FTH(x)*self.conjCoils3D,axis=1)*self.conj_grad_x),axis=1))    
     
   cdef np.ndarray[DTYPE_t,ndim=3] tgv_solve_2D(self, np.ndarray[DTYPE_t, ndim=3] x, np.ndarray[DTYPE_t, ndim=4] res, int iters):
     cdef double alpha = self.irgn_par.gamma

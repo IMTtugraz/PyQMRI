@@ -155,12 +155,12 @@ class Model_Reco:
       
   def operator_forward_2D(self, x):
     
-    tmp = np.zeros_like(self.grad_x)
+#    tmp = np.zeros_like(self.grad_x)
+#      
+#    for i in range(self.unknowns):
+#      tmp[i,:,:,:] = 
       
-    for i in range(self.unknowns):
-      tmp[i,:,:,:] = x[i,:,:]*self.grad_x[i,:,:,:]
-      
-    return self.FT(np.sum(tmp,axis=0)[:,None,:,:]*self.Coils)
+    return self.FT(np.sum(x[:,None,:,:]*self.grad_x,axis=0)[:,None,:,:]*self.Coils)
 #      
 #      tmp1 = x[0,:,:]*self.grad_x[0,:,:,:]
 #      tmp2 = x[1,:,:]*self.grad_x[1,:,:,:]
