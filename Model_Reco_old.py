@@ -37,12 +37,12 @@ class Model_Reco:
 
     ###################################
 #    ### Adjointness     
-#    xx = np.random.random_sample(np.shape(x)).astype('complex128')
-#    yy = np.random.random_sample(np.shape(data)).astype('complex128')
-#    a = np.vdot(xx.flatten(),self.operator_adjoint_2D(yy).flatten())
-#    b = np.vdot(self.operator_forward_2D(xx).flatten(),yy.flatten())
-#    test = np.abs(a-b)
-#    print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,decimal.Decimal(test)))
+    xx = np.random.random_sample(np.shape(x)).astype('complex128')
+    yy = np.random.random_sample(np.shape(data)).astype('complex128')
+    a = np.vdot(xx.flatten(),self.operator_adjoint_2D(yy).flatten())
+    b = np.vdot(self.operator_forward_2D(xx).flatten(),yy.flatten())
+    test = np.abs(a-b)
+    print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,decimal.Decimal(test)))
     x_old = x
     a = self.FT(self.step_val[:,None,:,:]*self.Coils)
     b = self.operator_forward_2D(x)
@@ -176,18 +176,18 @@ class Model_Reco:
     
   def operator_adjoint_2D(self, x):
     
-    x[~np.isfinite(x)] = 1e-20
-    fdx = self.FTH(x)
+#    x[~np.isfinite(x)] = 1e-20
+#    fdx = 
       
-    fdx = np.squeeze(np.sum(fdx*np.conj(self.Coils),axis=1))
+#    dx = 
       
-    dx = np.zeros((self.unknowns,self.par.dimX,self.par.dimY),dtype=DTYPE)
-    for i in range(self.unknowns):   
-      dx[i,:,:] = np.sum(self.conj_grad_x[i,:,:,:]*fdx,axis=0)
+#     = np.zeros((self.unknowns,self.par.dimX,self.par.dimY),dtype=DTYPE)
+#    for i in range(self.unknowns):   
+#      dx[i,:,:] = np.sum(fdx,axis=0)
 #      dx[0,:,:] = np.sum(self.conj_grad_x[0,:,:,:]*fdx,axis=0)
 #      dx[1,:,:] = np.sum(self.conj_grad_x[1,:,:,:]*fdx,axis=0)
       
-    return dx
+    return np.squeeze(np.sum(np.squeeze(np.sum(self.FTH(x)*np.conj(self.Coils),axis=1)*self.conj_grad_x),axis=1))
   
 #  def operator_forward_3D(self, x):
 #    

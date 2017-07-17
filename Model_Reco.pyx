@@ -242,11 +242,11 @@ cdef class Model_Reco:
     
   cdef np.ndarray[DTYPE_t,ndim=3] operator_adjoint_2D(self,np.ndarray[DTYPE_t,ndim=4] x):
 
-    cdef np.ndarray[DTYPE_t,ndim=3] fdx = np.squeeze(np.sum(self.FTH(x)*(self.conjCoils),axis=1))   
-    cdef np.ndarray[DTYPE_t,ndim=3]dx = np.zeros((self.unknowns,self.par.dimX,self.par.dimY),dtype=DTYPE)
+#    cdef np.ndarray[DTYPE_t,ndim=3] fdx = np.squeeze(np.sum(self.FTH(x)*(self.conjCoils),axis=1))   
+    cdef np.ndarray[DTYPE_t,ndim=3] dx =  np.squeeze(np.sum(np.squeeze(np.sum(self.FTH(x)*np.conj(self.conjCoils),axis=1)*self.conj_grad_x_2D),axis=1))
     
-    for i in range(self.unknowns):   
-      dx[i,:,:] =np.sum(self.conj_grad_x_2D[i,:,:,:]*fdx,axis=0)
+#    for i in range(self.unknowns):   
+#      dx[i,:,:] =np.sum(self.conj_grad_x_2D[i,:,:,:]*fdx,axis=0)
       
     return dx        
 #    cdef DTYPE_t[:,:,:,::1] fdx = np.zeros((self.NScan,self.NC,self.dimY,self.dimX),dtype=DTYPE)
@@ -277,13 +277,15 @@ cdef class Model_Reco:
   cdef np.ndarray[DTYPE_t,ndim=4] operator_adjoint_3D(self,np.ndarray[DTYPE_t,ndim=5] x):
     
 #    x[~np.isfinite(x)] = 1e-20
-    cdef np.ndarray[DTYPE_t,ndim=4] fdx = np.squeeze(np.sum(self.FTH(x)*(self.conjCoils3D),axis=1))
+#    cdef np.ndarray[DTYPE_t,ndim=3] dx =  np.squeeze(np.sum(np.squeeze(np.sum(fdx*np.conj(self.conjCoils3D),axis=1)*self.conj_grad_x),axis=1))
+
+#    cdef np.ndarray[DTYPE_t,ndim=4] fdx = np.squeeze(np.sum(self.FTH(x)*(self.conjCoils3D),axis=1))
+#      
+#    cdef np.ndarray[DTYPE_t,ndim=4]dx = np.zeros((self.unknowns,self.par.NSlice,self.par.dimX,self.par.dimY),dtype=DTYPE)
+#    for i in range(self.unknowns):   
+#      dx[i,:,:,:] =np.sum(self.conj_grad_x[i,:,:,:,:]*fdx,axis=0)
       
-    cdef np.ndarray[DTYPE_t,ndim=4]dx = np.zeros((self.unknowns,self.par.NSlice,self.par.dimX,self.par.dimY),dtype=DTYPE)
-    for i in range(self.unknowns):   
-      dx[i,:,:,:] =np.sum(self.conj_grad_x[i,:,:,:,:]*fdx,axis=0)
-      
-    return dx    
+    return np.squeeze(np.sum(np.squeeze(np.sum(self.FTH(x)*np.conj(self.conjCoils3D),axis=1)*self.conj_grad_x),axis=1))    
     
   cdef np.ndarray[DTYPE_t,ndim=3] tgv_solve_2D(self, np.ndarray[DTYPE_t, ndim=3] x, np.ndarray[DTYPE_t, ndim=4] res, int iters):
     cdef double alpha = self.irgn_par.gamma
@@ -328,7 +330,7 @@ cdef class Model_Reco:
     cdef double beta_line = 1.0
     cdef double beta_new = 0
     
-    cdef double mu_line = 0.8
+    cdef double mu_line = 0.5
     cdef double delta_line = 0.8
     cdef np.ndarray[DTYPE_t, ndim=2] scal = np.zeros((self.par.dimX,self.par.dimY),dtype=DTYPE)
     

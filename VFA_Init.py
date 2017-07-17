@@ -9,7 +9,7 @@ from tkinter import Tk
 import nlinvns_maier as nlinvns
 
 import pyximport; pyximport.install()
-import Model_Reco as Model_Reco
+import Model_Reco_old as Model_Reco
 import multiprocessing as mp
 
 import mkl
