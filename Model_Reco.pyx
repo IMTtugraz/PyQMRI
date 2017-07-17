@@ -30,7 +30,7 @@ import pynfft.nfft as nfft
 @cython.initializedcheck(False)
 
 cdef class Model_Reco:
-  cdef public list _plan
+  cdef list _plan
   cdef dict __dict__
   cdef int unknowns
   cdef int NSlice
@@ -41,7 +41,7 @@ cdef class Model_Reco:
   cdef int N
   cdef int Nproj
   cdef double scale
-  cdef int dz
+  cdef public float dz
   cdef DTYPE_t[:,:,:,::1] grad_x_2D
   cdef DTYPE_t[:,:,:,::1] conj_grad_x_2D
   cdef DTYPE_t[:,:,::1] Coils, conjCoils
@@ -58,6 +58,7 @@ cdef class Model_Reco:
     self.NC = par.NC
     self.N = par.N
     self.Nproj = par.Nproj
+    self.dz = 3
     
 
     print("Please Set Parameters, Data and Initial images")
@@ -109,8 +110,8 @@ cdef class Model_Reco:
     x = self.tgv_solve_3D(x,res,iters)
       
     fval= (self.irgn_par.lambd/2*np.linalg.norm(data - self.FT(self.step_val[:,None,:,:]*self.Coils3D))**2
-           +self.irgn_par.gamma*np.sum(np.abs(gd.fgrad_3(x)-self.v))
-           +self.irgn_par.gamma*(2)*np.sum(np.abs(gd.sym_bgrad_3(self.v))) 
+           +self.irgn_par.gamma*np.sum(np.abs(gd.fgrad_3(x,1,1,self.dz)-self.v))
+           +self.irgn_par.gamma*(2)*np.sum(np.abs(gd.sym_bgrad_3(self.v,1,1,self.dz))) 
            +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2)    
     print ("Function value after GN-Step: %f" %fval)
 
@@ -265,7 +266,7 @@ cdef class Model_Reco:
 #  
   
   cdef np.ndarray[DTYPE_t,ndim=5] operator_forward_3D(self,np.ndarray[DTYPE_t,ndim=4] x):
-    
+    x[~np.isfinite(x)] = 1e-20    
     cdef np.ndarray[DTYPE_t,ndim=5] tmp = np.zeros_like(self.grad_x)
       
     for i in range(self.unknowns):
@@ -276,14 +277,14 @@ cdef class Model_Reco:
     
   cdef np.ndarray[DTYPE_t,ndim=4] operator_adjoint_3D(self,np.ndarray[DTYPE_t,ndim=5] x):
     
-#    x[~np.isfinite(x)] = 1e-20
-#    cdef np.ndarray[DTYPE_t,ndim=3] dx =  np.squeeze(np.sum(np.squeeze(np.sum(fdx*np.conj(self.conjCoils3D),axis=1)*self.conj_grad_x),axis=1))
 
+#    x[~np.isfinite(x)] = 1e-20
 #    cdef np.ndarray[DTYPE_t,ndim=4] fdx = np.squeeze(np.sum(self.FTH(x)*(self.conjCoils3D),axis=1))
 #      
 #    cdef np.ndarray[DTYPE_t,ndim=4]dx = np.zeros((self.unknowns,self.par.NSlice,self.par.dimX,self.par.dimY),dtype=DTYPE)
 #    for i in range(self.unknowns):   
 #      dx[i,:,:,:] =np.sum(self.conj_grad_x[i,:,:,:,:]*fdx,axis=0)
+
       
     return np.squeeze(np.sum(np.squeeze(np.sum(self.FTH(x)*np.conj(self.conjCoils3D),axis=1)*self.conj_grad_x),axis=1))    
     
@@ -408,6 +409,7 @@ cdef class Model_Reco:
         if lhs <= ynorm:
             break
         else:
+            print('Lhs:',lhs,'  Rrhs: ', ynorm)
             tau_new = tau_new*mu_line
             
       Kyk1 = (Kyk1_new)
@@ -446,8 +448,12 @@ cdef class Model_Reco:
     cdef double alpha = self.irgn_par.gamma
     cdef double beta = self.irgn_par.gamma*2
     
+    cdef float dz = self.dz
+    
     
     cdef double tau = 1/np.sqrt(16**2+8**2)
+    cdef double tau_new = 0   
+    
     cdef np.ndarray[DTYPE_t,ndim=4] xk = x
     cdef np.ndarray[DTYPE_t,ndim=4] x_new = np.zeros_like(x,dtype=DTYPE)
     
@@ -477,9 +483,14 @@ cdef class Model_Reco:
     cdef double delta = self.irgn_par.delta
     cdef double mu = 1/delta
     
-    cdef double theta_line = 1
-    cdef double beta_line = 1
-    cdef double mu_line = 0.5
+    cdef double theta_line = 1.0
+
+    
+    cdef double beta_line = 1.0
+    cdef double beta_new = 0
+    
+    cdef double mu_line = 0.8
+    cdef double delta_line = 0.8
     cdef np.ndarray[DTYPE_t,ndim=3] scal = np.zeros((self.par.NSlice,self.par.dimX,self.par.dimY),dtype=DTYPE)
     
     cdef double ynorm = 0
@@ -493,13 +504,16 @@ cdef class Model_Reco:
     cdef np.ndarray[DTYPE_t,ndim=5] gradx = np.zeros_like(z1,dtype=DTYPE)
     cdef np.ndarray[DTYPE_t,ndim=5] gradx_xold = np.zeros_like(z1,dtype=DTYPE)
     
-    cdef np.ndarray[DTYPE_t,ndim=5] v_old = np.zeros_like(v,dtype=DTYPE)
+    cdef np.ndarray[DTYPE_t,ndim=5] v_vold = np.zeros_like(v,dtype=DTYPE)
     cdef np.ndarray[DTYPE_t,ndim=5] symgrad_v = np.zeros_like(z2,dtype=DTYPE)
     cdef np.ndarray[DTYPE_t,ndim=5] symgrad_v_vold = np.zeros_like(z2,dtype=DTYPE)
     
     Axold = self.operator_forward_3D(x)
-    Kyk1 = self.operator_adjoint_3D(r) - gd.bdiv_3(z1)
-    Kyk2 = -z1 - gd.fdiv_3(z2)
+#    print('Axold: ',np.sum(~np.isfinite(Axold)))
+    Kyk1 = self.operator_adjoint_3D(r) - gd.bdiv_3(z1,1,1,dz)
+#    print('Kyk1: ',np.sum(~np.isfinite(Kyk1)))   
+    Kyk2 = -z1 - gd.fdiv_3(z2,1,1,dz)
+#    print('Kyk2: ',np.sum(~np.isfinite(Kyk2)))      
     cdef int i=0
     
     for i in range(iters):
@@ -513,29 +527,31 @@ cdef class Model_Reco:
 
 #      np.abs(x_new[1,:,:],x_new[1,:,:])
       
-      
+#      print('x_new: ',np.sum(~np.isfinite(x_new)))       
       v_new = v-tau*Kyk2
-      
+#      print('vnew: ',np.sum(~np.isfinite(v_new)))     
       beta_new = beta_line*(1+mu*tau)
       
       tau_new = tau*np.sqrt(beta_line/beta_new*(1+theta_line))
       beta_line = beta_new
       
-      gradx = gd.fgrad_3(x_new)
-      gradx_xold = gradx - gd.fgrad_3(x)
+      gradx = gd.fgrad_3(x_new,1,1,dz)
+      gradx_xold = gradx - gd.fgrad_3(x,1,1,dz)
+#      print('gradx_xold: ',np.sum(~np.isfinite(gradx_xold)))     
       v_vold = v_new-v
-      symgrad_v = gd.sym_bgrad_3(v_new)
-      symgrad_v_vold = symgrad_v - gd.sym_bgrad_3(v)
+      symgrad_v = gd.sym_bgrad_3(v_new,1,1,dz)
+      symgrad_v_vold = symgrad_v - gd.sym_bgrad_3(v,1,1,dz)
+#      print('symgrad_v_vold: ',np.sum(~np.isfinite(symgrad_v_vold)))       
       Ax = self.operator_forward_3D(x_new)
       Ax_Axold = Ax-Axold
-    
+#      print('Ax_Axold: ',np.sum(~np.isfinite(Ax_Axold))) 
       while True:
         
         theta_line = tau_new/tau
         
         z1_new = z1 + beta_line*tau_new*( gradx + theta_line*gradx_xold - v_new - theta_line*v_vold  )
         z1_new = z1_new/np.maximum(1,(np.sqrt(np.sum(z1_new**2,axis=(0,1)))/alpha))
-     
+#        print('z1_new: ',np.sum(~np.isfinite(z1_new))) 
         z2_new = z2 + beta_line*tau_new*( symgrad_v + theta_line*symgrad_v_vold )
         scal = np.sqrt( np.sum(z2_new[:,0,:,:,:]**2 + z2_new[:,1,:,:,:]**2 +
                     z2_new[:,2,:,:,:]**2+ 2*z2_new[:,3,:,:,:]**2 + 
@@ -543,13 +559,15 @@ cdef class Model_Reco:
         np.maximum(1,scal/(beta),scal)
         z2_new = z2_new/scal
         
-        
+#        print('z2_new: ',np.sum(~np.isfinite(z2_new))) 
         
         tmp = Ax+theta_line*Ax_Axold
         r_new = (( r  + beta_line*tau_new*(tmp) ) - beta_line*tau_new*res)/(1+beta_line*tau_new/self.irgn_par.lambd)
-        
-        Kyk1_new = self.operator_adjoint_3D(r_new)-gd.bdiv_3(z1_new)
-        Kyk2_new = -z1_new -gd.fdiv_3(z2_new)
+#        print('r_new: ',np.sum(~np.isfinite(r_new))) 
+        Kyk1_new = self.operator_adjoint_3D(r_new)-gd.bdiv_3(z1_new,1,1,dz)
+#        print('Kyk1_new: ',np.sum(~np.isfinite(Kyk1_new))) 
+        Kyk2_new = -z1_new -gd.fdiv_3(z2_new,1,1,dz)
+#        print('Kyk2_new: ',np.sum(~np.isfinite(Kyk2_new))) 
 
         
         ynorm = np.linalg.norm(np.concatenate([(r_new-r).flatten(),(z1_new-z1).flatten(),(z2_new-z2).flatten()]))
@@ -557,6 +575,7 @@ cdef class Model_Reco:
         if lhs <= ynorm:
             break
         else:
+            print('Lhs:',lhs,'  Rrhs: ', ynorm)           
             tau_new = tau_new*mu_line
             
       Kyk1 = (Kyk1_new)

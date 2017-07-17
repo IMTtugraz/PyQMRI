@@ -9,9 +9,12 @@ cimport numpy as np
 np.import_array()
 import numpy as np
 
-DTYPE = np.complex128
+cimport cython
 
-cdef np.ndarray[DTYPE_t, ndim=3] bdiv_1(np.ndarray[DTYPE_t, ndim=4] v, int dx=1, int dy=1):
+DTYPE = np.complex128
+@cython.cdivision(True) 
+@cython.initializedcheck(False)
+cdef np.ndarray[DTYPE_t, ndim=3] bdiv_1(np.ndarray[DTYPE_t, ndim=4] v, float dx=1, float dy=1):
 
 
     cdef int n = v.shape[3]
@@ -30,8 +33,9 @@ cdef np.ndarray[DTYPE_t, ndim=3] bdiv_1(np.ndarray[DTYPE_t, ndim=4] v, int dx=1,
     div_v[:,1:-1,:] = div_v[:,1:-1,:] + (v[:,1,1:-1,:] - v[:,1,:-2,:])/dy
 
     return div_v
-
-cdef np.ndarray[DTYPE_t, ndim=4] fgrad_1(np.ndarray[DTYPE_t, ndim=3] u,int dx=1, int dy=1):
+@cython.cdivision(True) 
+@cython.initializedcheck(False)
+cdef np.ndarray[DTYPE_t, ndim=4] fgrad_1(np.ndarray[DTYPE_t, ndim=3] u,float dx=1, float dy=1):
 
     
     cdef int n = u.shape[2]
@@ -46,8 +50,9 @@ cdef np.ndarray[DTYPE_t, ndim=4] fgrad_1(np.ndarray[DTYPE_t, ndim=3] u,int dx=1,
 
 
     return grad
-  
-cdef np.ndarray[DTYPE_t, ndim=4] fdiv_2(np.ndarray[DTYPE_t, ndim=4] x,int dx=1, int dy=1):
+@cython.cdivision(True)   
+@cython.initializedcheck(False)
+cdef np.ndarray[DTYPE_t, ndim=4] fdiv_2(np.ndarray[DTYPE_t, ndim=4] x,float dx=1, float dy=1):
 
 
       
@@ -64,8 +69,9 @@ cdef np.ndarray[DTYPE_t, ndim=4] fdiv_2(np.ndarray[DTYPE_t, ndim=4] x,int dx=1, 
     div_x[:,1,:,:-1] = (x[:,2,:,1:]-x[:,2,:,:-1])/dx
     div_x[:,1,:-1,:] = div_x[:,1,:-1,:] + (x[:,1,1:,:]-x[:,1,:-1,:])/dy
     return div_x
-    
-cdef np.ndarray[DTYPE_t, ndim=4] sym_bgrad_2(np.ndarray[DTYPE_t, ndim=4] x, int dx=1, int dy=1):
+@cython.cdivision(True)  
+@cython.initializedcheck(False)  
+cdef np.ndarray[DTYPE_t, ndim=4] sym_bgrad_2(np.ndarray[DTYPE_t, ndim=4] x, float dx=1, float dy=1):
 
 
     cdef int k = np.shape(x)[0]
@@ -95,7 +101,9 @@ cdef np.ndarray[DTYPE_t, ndim=4] sym_bgrad_2(np.ndarray[DTYPE_t, ndim=4] x, int 
     
     return grad_x  
 ################################## 3D Functions  
-cdef bdiv_3(np.ndarray[DTYPE_t, ndim=5] v, int dx=1, int dy=1, int dz = 1):
+@cython.cdivision(True) 
+@cython.initializedcheck(False)
+cdef bdiv_3(np.ndarray[DTYPE_t, ndim=5] v, float dx=1, float dy=1, float dz = 1):
 
 
     cdef int n = v.shape[4]
@@ -118,8 +126,9 @@ cdef bdiv_3(np.ndarray[DTYPE_t, ndim=5] v, int dx=1, int dy=1, int dz = 1):
     div_v[:,-1,:,:] = div_v[:,-1,:,:] - v[:,2,-2,:,:]/dz
     div_v[:,1:-1,:,:] = div_v[:,1:-1,:,:] + (v[:,2,1:-1,:,:] - v[:,2,:-2,:,:])/dz   
     return div_v
-
-cdef fgrad_3(np.ndarray[DTYPE_t, ndim=4] u,int dx=1, int dy=1, int dz = 1):
+@cython.cdivision(True) 
+@cython.initializedcheck(False)
+cdef fgrad_3(np.ndarray[DTYPE_t, ndim=4] u,float dx=1, float dy=1, float dz = 1):
 
     
     cdef int n = u.shape[3]
@@ -136,8 +145,9 @@ cdef fgrad_3(np.ndarray[DTYPE_t, ndim=4] u,int dx=1, int dy=1, int dz = 1):
     ##dz
     grad[:,2,:-1,:,:] = (u[:,1:,:,:] - u[:,:-1,:,:])/dz
     return grad
-  
-cdef fdiv_3(np.ndarray[DTYPE_t, ndim=5] x,int dx=1, int dy=1, int dz=1):
+@cython.cdivision(True)  
+@cython.initializedcheck(False) 
+cdef fdiv_3(np.ndarray[DTYPE_t, ndim=5] x,float dx=1, float dy=1, float dz=1):
 
       
     cdef int n = x.shape[4]
@@ -187,8 +197,9 @@ cdef fdiv_3(np.ndarray[DTYPE_t, ndim=5] x,int dx=1, int dy=1, int dz=1):
     
 
     return div_x
-    
-cdef sym_bgrad_3(np.ndarray[DTYPE_t, ndim=5] x, int dx=1, int dy=1, int dz=1):
+@cython.cdivision(True) 
+@cython.initializedcheck(False)    
+cdef sym_bgrad_3(np.ndarray[DTYPE_t, ndim=5] x, float dx=1, float dy=1, float dz=1):
 
 
     cdef int n = x.shape[4]

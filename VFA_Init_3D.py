@@ -20,6 +20,10 @@ mkl.set_num_threads(mp.cpu_count())
 os.system("taskset -p 0xff %d" % os.getpid()) 
   
 
+import ipyparallel as ipp
+
+c = ipp.Client()
+
 import h5py  
   
 plt.ion()
@@ -105,7 +109,7 @@ fa_corr = np.transpose(fa_corr)
 par.fa_corr = np.repeat(fa_corr[None,:,:,:],NScan,axis=0)*180/np.pi
 par.fa_corr[par.fa_corr==0] = 1
 par.fa_corr = par.fa_corr[:,11:-11,:,:]
-########################################################################
+
 
 
 ################################################################### 
@@ -114,19 +118,21 @@ par.fa_corr = par.fa_corr[:,11:-11,:,:]
 #% Estimates sensitivities and complex image.
 #%(see Martin Uecker: Image reconstruction by regularized nonlinear
 #%inversion joint estimation of coil sensitivities and image content)
-nlinvNewtonSteps = 9
+nlinvNewtonSteps = 6
 nlinvRealConstr  = False
 
 traj_coil = np.reshape(traj,(NScan*Nproj,N))
 coil_plan = NFFT((dimY,dimX),NScan*Nproj*N)
 coil_plan.x = np.transpose(np.array([np.imag(traj_coil.flatten()),np.real(traj_coil.flatten())]))
 coil_plan.precompute()
-        
+       
 par.C = np.zeros((NC,NSlice,dimY,dimX), dtype="complex128")       
 par.phase_map = np.zeros((NSlice,dimY,dimX), dtype="complex128")   
-for i in range(0,(NSlice)):
+
+result = []
+for i in range(NSlice):
   print('deriving M(TI(1)) and coil profiles')
-  
+
   
   ##### RADIAL PART
   combinedData = np.transpose(data[:,:,i,:,:],(1,0,2,3))
@@ -140,25 +146,32 @@ for i in range(0,(NSlice)):
   ### CARTESIAN PART    
 #  combinedData = np.squeeze(np.sum(data[:,:,i,:,:],0))/NSlice
 
-  
-  
-  
-  
+
 
   """shape combinData(128, 128, 4)"""
   #            print('nlivout')np.
   #            print(combinedData[0,0,0])
+  dview = c[int(np.floor(i*len(c)/NSlice))]
+  result.append(dview.apply_async(nlinvns.nlinvns, combinedData, nlinvNewtonSteps,
+                     True, nlinvRealConstr))
+
+  
+  
             
-  nlinvout = nlinvns.nlinvns(combinedData, nlinvNewtonSteps,
-                     True, nlinvRealConstr) #(6, 9, 128, 128)
+#  nlinvout = nlinvns.nlinvns(combinedData, nlinvNewtonSteps,
+#                     True, nlinvRealConstr) #(6, 9, 128, 128)
 
   #% coil sensitivities are stored in par.C
 
-  par.C[:,i,:,:] = nlinvout[2:,-1,:,:]
+  
+
+  
+for i in range(NSlice):  
+  par.C[:,i,:,:] = result[i].get()[2:,-1,:,:]
 
   if not nlinvRealConstr:
-    par.phase_map[i,:,:] = np.exp(1j * np.angle(nlinvout[0,-1,:,:]))
-    par.C[:,i,:,:] = par.C[:,i,:,:]* np.exp(1j * np.angle(nlinvout[1,-1,:,:]))
+    par.phase_map[i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
+    par.C[:,i,:,:] = par.C[:,i,:,:]* np.exp(1j * np.angle( result[i].get()[1,-1,:,:]))
     
     # standardize coil sensitivity profiles
 sumSqrC = np.sqrt(np.sum((par.C * np.conj(par.C)),0)) #4, 9, 128, 128
@@ -166,8 +179,7 @@ if NC == 1:
   par.C = sumSqrC 
 else:
   par.C = par.C / np.tile(sumSqrC, (NC,1,1,1)) 
-  
-#  par.C = np.expand_dims(par.C,axis=1)
+
 
 ################################################################### 
 ## Choose undersampling mode
@@ -236,9 +248,12 @@ par.dimY        = dimY
 par.dimX        = dimX
 par.fa          = fa
 par.NSlice      = NSlice
-
+par.NScan       = NScan
 par.N = N
 par.Nproj = Nproj
+
+
+par.unknowns = 2
 
 
 
@@ -308,7 +323,7 @@ def nFTH(x,plan,dcf,NScan,NC,NSlice,dimY,dimX):
   for i in range(siz[0]):
     for j in range(siz[1]):  
       for k in range(siz[2]):
-        plan[i][j].f = x[i,j,k,:]*np.sqrt(dcf).flatten()
+        plan[i][j].f = x[i,j,k,:]*np.sqrt(dcf)
         result[i,j,k,:,:] = plan[i][j].adjoint()
       
   return result/dimX
@@ -340,7 +355,7 @@ def FTH(x):
 plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
 #
 
-uData = np.reshape(uData,(NScan,NC,NSlice,N*Nproj))* dscale
+uData = np.reshape(uData,(NScan,NC,NSlice,Nproj,N))* dscale
 
 images= (np.sum(nFTH(uData,plan,dcf,NScan,NC,NSlice,dimY,dimX)[:None,:,:,:]*(np.conj(par.C)),axis = 1))
 
@@ -357,7 +372,7 @@ par.U = np.ones((uData).shape, dtype=bool)
 par.U[abs(uData) == 0] = False
 ########################################################################
 #Init optimizer
-opt = Model_Reco.Model_Reco()
+opt = Model_Reco.Model_Reco(par)
 
 opt.par = par
 opt.data =  uData
@@ -366,10 +381,12 @@ opt.images = images
 opt.fft_forward = fft_forward
 opt.fft_back = fft_back
 opt.nfftplan = plan
-opt.dcf = dcf.flatten()
+opt.dcf = np.sqrt(dcf)
+opt.dcf_flat =np.sqrt( dcf.flatten())
 opt.model = model
 
-opt.unknowns = 2
+
+opt.traj = traj
 
 #
 ##
@@ -385,20 +402,20 @@ opt.unknowns = 2
 ########################################################################
 #IRGN Params
 irgn_par = struct()
-irgn_par.start_iters = 2
+irgn_par.start_iters = 10
 irgn_par.max_iters = 2000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e0
-irgn_par.gamma = 1e0
+irgn_par.gamma = 1e-1
 irgn_par.delta = 1e2
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par
 
 
+opt.dz = 3.0
 
-
-opt.execute_2D()
+opt.execute_3D()
 
 #
 #import cProfile
