@@ -146,7 +146,7 @@ else:
 
 ################################################################### 
 ## Choose undersampling mode
-Nproj = 21
+Nproj = 34
 #
 for i in range(NScan):
   data[i,:,:,:Nproj,:] = data[i,:,:,i*Nproj:(i+1)*Nproj,:]
