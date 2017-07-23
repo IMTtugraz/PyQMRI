@@ -78,7 +78,7 @@ dimY = 206
 NSlice = 1
 data = data[None,:,:,:,:]
 
-[NScan,NC,Nproj, N] = data.shape
+[NScan,NC,NSlice,Nproj, N] = data.shape
 #[NScan,NC,NSlice,dimY,dimX] = data.shape
 
 
@@ -113,7 +113,7 @@ for i in range(0,(NSlice)):
   
   
   ##### RADIAL PART
-  combinedData = np.transpose(data,(1,0,2,3))
+  combinedData = np.transpose(data[:,:,i,:,:],(1,0,2,3))
   combinedData = np.reshape(combinedData,(NC,NScan*Nproj,N))
   coilData = np.zeros((NC,dimY,dimX),dtype='complex128')
   for j in range(NC):
@@ -137,21 +137,22 @@ for i in range(0,(NSlice)):
                      True, nlinvRealConstr) #(6, 9, 128, 128)
 
   #% coil sensitivities are stored in par.C
-  par.C = np.zeros(nlinvout[2:,-1,:,:].shape, dtype='complex128')
-  par.C[:,:,:] = nlinvout[2:,-1,:,:]
+  par.C = np.zeros((NC,NSlice,dimY,dimX), dtype='complex128')
+  par.phase_map = np.zeros((NC,NSlice,dimY,dimX), dtype='complex128') 
+  par.C[:,i,:,:] = nlinvout[2:,-1,:,:]
 
   if not nlinvRealConstr:
-    par.phase_map = np.exp(1j * np.angle(nlinvout[0,-1,:,:]))
-    par.C = par.C* np.exp(1j * np.angle(nlinvout[1,-1,:,:]))
+    par.phase_map[:,i,:,:] = np.exp(1j * np.angle(nlinvout[0,-1,:,:]))
+    par.C[:,i,:,:] = par.C[:,i,:,:]* np.exp(1j * np.angle(nlinvout[1,-1,:,:]))
     
     # standardize coil sensitivity profiles
-  sumSqrC = np.sqrt(np.sum((par.C * np.conj(par.C)),0)) #4, 9, 128, 128
-  if NC == 1:
+sumSqrC = np.sqrt(np.sum((par.C * np.conj(par.C)),0)) #4, 9, 128, 128
+if NC == 1:
     par.C = sumSqrC 
-  else:
-    par.C = par.C / np.tile(sumSqrC, (NC,1,1)) 
+else:
+    par.C = par.C / np.tile(sumSqrC, (NC,1,1,1)) 
   
-  par.C = np.expand_dims(par.C,axis=1)
+#  par.C = np.expand_dims(par.C,axis=1)
 
 ################################################################### 
 ## Choose undersampling mode
