@@ -52,7 +52,7 @@ def compute_mask (mask,is_irgn):
     #
     
     if is_irgn:
-        BW1 = np.array(binary_opening(BW1,circle2),dtype = int)
+        BW1 = np.array(binary_opening(BW1,circle2,iterations=4),dtype = int)
         BW_final = remove_small_objects(BW1, min_size=(np.sum(BW1)/3), connectivity=8)
         BW_final = binary_fill_holes(BW_final).astype('int') #scipy.ndimage.morphology.binary_fill_holes
         BW_final = np.array(binary_closing(BW_final,circle4),dtype = int)
