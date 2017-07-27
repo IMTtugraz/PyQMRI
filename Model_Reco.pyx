@@ -516,7 +516,7 @@ cdef class Model_Reco:
         plt.imshow(np.transpose(np.abs(x[0,0,:,:]*self.model.M0_sc)))
         plt.pause(0.05)
         plt.figure(2)
-        plt.imshow(np.transpose(np.abs(-self.par.TR/np.log(x[1,0,:,:]))),vmin=0,vmax=3000)
+        plt.imshow(np.transpose(np.abs(x[1,0,:,:])),vmin=0,vmax=3000)
 #        plt.imshow(np.transpose(np.abs(x[1,0,:,:]*self.model.T1_sc)),vmin=0,vmax=3000)
         plt.pause(0.05)
         primal= np.real(self.irgn_par.lambd/2*np.linalg.norm((Ax-res).flatten())**2+alpha*np.sum(np.abs((gradx-v))) +
