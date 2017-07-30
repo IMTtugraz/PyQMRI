@@ -5,7 +5,7 @@ Created on Fri Jun  9 11:33:09 2017
 
 @author: omaier
 """
-# cython: profile=True
+# cython: profile=False
 # filename: IRLL_Model.pyx
 #cython: boundscheck=False, wraparound=False, nonecheck=False
 
