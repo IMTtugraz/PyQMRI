@@ -71,23 +71,24 @@ cdef class IRLL_Model:
     cdef int m=0, n=0
     cdef DTYPE_t[:,:,::1] sin_phi = self.sin_phi
     cdef DTYPE_t[:,:,::1] cos_phi = self.cos_phi    
-    for i in range(self.NLL):
-      for j in range(self.Nproj):
-        for m in range(self.dimY):
-          for n in range(self.dimX):
-            n_i = i*self.Nproj+j+1
-            S[i,j,m,n] = (x[0,m,n]*self.M0_sc*sin_phi[islice,m,n]*(((cexp(-self.TR/(x[1,m,n]*self.T1_sc)) - 
-                    2*cexp(-self.td/(x[1,m,n]*self.T1_sc)) + (cexp(-self.TR/(x[1,m,n]*self.T1_sc))
-                    *cexp(-self.td/(x[1,m,n]*self.T1_sc))*cos_phi[islice,m,n]*((cexp(-self.tau/(x[1,m,n]
-                    *self.T1_sc))*cos_phi[islice,m,n])**(self.NLL - 1) - 1)*(cexp(-self.tau/(x[1,m,n]*
-                    self.T1_sc)) - 1))/(cexp(-self.tau/(x[1,m,n]*self.T1_sc))*cos_phi[islice,m,n] - 1)
-                    + 1)/(cexp(-self.TR/(x[1,m,n]*self.T1_sc))*cexp(-self.td/(x[1,m,n]*self.T1_sc))
-                    *cos_phi[islice,m,n]*(cexp(-self.tau/(x[1,m,n]*self.T1_sc))
-                    *cos_phi[islice,m,n])**(self.NLL - 1) + 1) - (cexp(-self.tau/(x[1,m,n]*self.T1_sc)) 
-                    - 1)/(cexp(-self.tau/(x[1,m,n]*self.T1_sc))*cos_phi[islice,m,n] - 1))*
-                    (cexp(-self.tau/(x[1,m,n]*self.T1_sc))*cos_phi[islice,m,n])**(n_i - 1) 
-                    + (cexp(-self.tau/(x[1,m,n]*self.T1_sc)) - 1)/(cexp(-self.tau/(x[1,m,n]
-                    *self.T1_sc))*cos_phi[islice,m,n] - 1)))
+    with nogil, parallel():
+      for i in range(self.NLL):
+        for j in range(self.Nproj):
+          for m in range(self.dimY):
+            for n in prange(self.dimX):
+              n_i = i*self.Nproj+j+1
+              S[i,j,m,n] = (x[0,m,n]*self.M0_sc*sin_phi[islice,m,n]*(((cexp(-self.TR/(x[1,m,n]*self.T1_sc)) - 
+                      2*cexp(-self.td/(x[1,m,n]*self.T1_sc)) + (cexp(-self.TR/(x[1,m,n]*self.T1_sc))
+                      *cexp(-self.td/(x[1,m,n]*self.T1_sc))*cos_phi[islice,m,n]*((cexp(-self.tau/(x[1,m,n]
+                      *self.T1_sc))*cos_phi[islice,m,n])**(self.NLL - 1) - 1)*(cexp(-self.tau/(x[1,m,n]*
+                      self.T1_sc)) - 1))/(cexp(-self.tau/(x[1,m,n]*self.T1_sc))*cos_phi[islice,m,n] - 1)
+                      + 1)/(cexp(-self.TR/(x[1,m,n]*self.T1_sc))*cexp(-self.td/(x[1,m,n]*self.T1_sc))
+                      *cos_phi[islice,m,n]*(cexp(-self.tau/(x[1,m,n]*self.T1_sc))
+                      *cos_phi[islice,m,n])**(self.NLL - 1) + 1) - (cexp(-self.tau/(x[1,m,n]*self.T1_sc)) 
+                      - 1)/(cexp(-self.tau/(x[1,m,n]*self.T1_sc))*cos_phi[islice,m,n] - 1))*
+                      (cexp(-self.tau/(x[1,m,n]*self.T1_sc))*cos_phi[islice,m,n])**(n_i - 1) 
+                      + (cexp(-self.tau/(x[1,m,n]*self.T1_sc)) - 1)/(cexp(-self.tau/(x[1,m,n]
+                      *self.T1_sc))*cos_phi[islice,m,n] - 1)))
     
 #    S[~np.isfinite(S)] = 1e-20
     return np.mean(S,axis=1)

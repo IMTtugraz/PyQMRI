@@ -25,7 +25,7 @@ class VFA_Model:
     self.fa = fa
     self.fa_corr = fa_corr
     
-    siz = images.shape
+#    siz = images.shape
     
     phi_corr = np.zeros_like(images,dtype='complex128')
     for i in range(np.size(fa)):
@@ -88,7 +88,8 @@ class VFA_Model:
 #        
     print( 'done in', time.clock() - th)
 
-    result = np.concatenate(((gf(M0_guess,5)*np.exp(1j*np.angle(phase_map)))[None,:,:,:],gf(T1_guess,5)[None,None,:,:]),axis=0)
+#    result = np.concatenate(((gf(M0_guess,5)*np.exp(1j*np.angle(phase_map)))[None,:,:,:],gf(T1_guess,5)[None,None,:,:]),axis=0)
+    result = np.concatenate((((M0_guess)*np.exp(1j*np.angle(phase_map)))[None,:,:,:],(T1_guess)[None,None,:,:]),axis=0)
 #    result = np.array([(0.01+0*M0_guess*np.exp(1j*np.angle(phase_map))),0.3+0*(T1_guess)])
 #    result = np.array([1/self.M0_sc*np.ones((siz[1],siz[2],siz[3]),dtype='complex128'),1500/self.T1_sc*np.ones((siz[1],siz[2],siz[3]),dtype='complex128')])
     self.guess = result               

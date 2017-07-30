@@ -7,7 +7,7 @@ import scipy.io as sio
 from tkinter import filedialog
 from tkinter import Tk
 import nlinvns_maier as nlinvns
-import Model_Reco as Model_Reco
+import Model_Reco_old as Model_Reco
 import multiprocessing as mp
 
 import mkl
@@ -48,6 +48,8 @@ traj = traj['traj'].astype('complex128')
 
 traj = np.transpose(traj)
 
+#traj = traj[0,:,:] + 1j*traj[1,:,:]
+
 root = Tk()
 root.withdraw()
 root.update()
@@ -62,14 +64,14 @@ dcf = np.transpose(dcf)
 
 
 #data = data[:,:,0,:,:]
-dimX = 206
-dimY = 206
+dimX = 128
+dimY = 128
 #data = data*np.sqrt(dcf)
 
-NSlice = 1
-data = data[None,:,:,:]
+#NSlice = 1
+data = data[None,:,None,:,:]
 
-[NScan,NC,Nproj, N] = data.shape
+[NScan,NC,NSlice,Nproj, N] = data.shape
 #[NScan,NC,NSlice,dimY,dimX] = data.shape
 
 
@@ -90,7 +92,7 @@ par.B1_correction = False
 #% Estimates sensitivities and complex image.
 #%(see Martin Uecker: Image reconstruction by regularized nonlinear
 #%inversion joint estimation of coil sensitivities and image content)
-nlinvNewtonSteps = 9
+nlinvNewtonSteps = 7
 nlinvRealConstr  = False
 
 traj_coil = np.reshape(traj,(NScan*Nproj,N))
@@ -104,7 +106,7 @@ for i in range(0,(NSlice)):
   
   
   ##### RADIAL PART
-  combinedData = np.transpose(data,(1,0,2,3))
+  combinedData = np.transpose(data[:,:,i,:,:],(1,0,2,3))
   combinedData = np.reshape(combinedData,(NC,NScan*Nproj,N))
   coilData = np.zeros((NC,dimY,dimX),dtype='complex128')
   for j in range(NC):
@@ -146,9 +148,9 @@ for i in range(0,(NSlice)):
 
 ################################################################### 
 ## Choose undersampling mode
-Nproj = 34
-NScan = 35
-data = np.transpose(np.reshape(data[:,:,:Nproj*NScan,:],(NC,NScan,Nproj,N)),(1,0,2,3))
+Nproj = 13
+NScan = 46
+data = np.transpose(np.reshape(data[:,:,:,:Nproj*NScan,:],(NC,NScan,Nproj,N)),(1,0,2,3))
 traj =np.reshape(traj[:Nproj*NScan,:],(NScan,Nproj,N))
 dcf = dcf[:Nproj,:]
 
@@ -198,7 +200,7 @@ fa = np.divide(FA , np.complex128(180)) * np.pi;   #  % flip angle in rad FA sie
 #alpha = [1,3,5,7,9,11,13,15,17,19]*pi/180;
 
 par.TR          = 10000-(6*Nproj*NScan+14.7)#10000-(6*Nproj*NScan+14.7)
-par.tau         = 6
+par.tau         = 6#6
 par.td          = 14.7
 par.NC          = NC
 par.dimY        = dimY
@@ -328,12 +330,12 @@ opt.unknowns = 2
 
 #
 #
-xx = np.random.randn(NScan,NC,dimX,dimY)
-yy = np.random.randn(NScan,NC,Nproj*N)
-a = np.vdot(xx,nFTH(yy,plan,dcf,NScan,NC,dimY,dimX))
-b = np.vdot(nFT(xx,plan,dcf,NScan,NC,Nproj,N,dimX),yy)
-test = np.abs(a-b)
-print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,test))
+#xx = np.random.randn(NScan,NC,dimX,dimY)
+#yy = np.random.randn(NScan,NC,Nproj*N)
+#a = np.vdot(xx,nFTH(yy,plan,dcf,NScan,NC,dimY,dimX))
+#b = np.vdot(nFT(xx,plan,dcf,NScan,NC,Nproj,N,dimX),yy)
+#test = np.abs(a-b)
+#print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,test))
 
 
 
