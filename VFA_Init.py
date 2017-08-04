@@ -201,7 +201,7 @@ options[undersampling_mode]()
 
 FA = np.array([2,3,4,5,7,9,11,14,17,22],np.complex128)
 #FA = np.array([1,3,5,7,9,11,13,15,17],np.complex128)
-fa = np.divide(FA , np.complex128(180)) * np.pi;   #  % flip angle in rad FA siehe FLASH phantom generierung
+fa = FA    #  % flip angle in rad FA siehe FLASH phantom generierung
 #alpha = [1,3,5,7,9,11,13,15,17,19]*pi/180;
 
 par.TR          = 5.0#3.4 #TODO
@@ -231,7 +231,7 @@ fa_corr = fa_corr['fa_mid_3mm']
 
 fa_corr = np.transpose(fa_corr)
 fa_corr[[fa_corr==0]] = 1
-par.fa_corr = fa_corr[None,:,:]*180/np.pi
+par.fa_corr = fa_corr[None,:,:]
 
 '''standardize the data'''
 
@@ -366,15 +366,15 @@ opt.traj = traj
 irgn_par = struct()
 irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 5
+irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e0
-irgn_par.gamma = 5e-2
-irgn_par.delta = 1e2
+irgn_par.gamma = 3e-2
+irgn_par.delta = 5e2
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par
 
-#opt.execute_2D()
+opt.execute_2D()
 #
 
 import cProfile
