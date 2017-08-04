@@ -51,7 +51,7 @@ class VFA_Model:
     M0_guess = np.abs(M0_guess)
     
 #
-    hist =  np.histogram(np.abs(M0_guess),int(1e2))
+    hist =  np.histogram(np.abs(M0_guess),int(1e3))
     aa = np.array(hist[0], dtype=np.float64)
     #bb = hist[1] #hist0[1][:-1] + np.diff(hist0[1])/2
     bb = np.array(hist[1][:-1] + np.diff(hist[1])/2, dtype=np.float64)
@@ -62,8 +62,10 @@ class VFA_Model:
 #    print(M0_guess)
     
     
+
     M0_guess = np.squeeze(gf(M0_guess,2))
     T1_guess = gf(T1_guess,2)
+
 #    mask_guess = compute_mask(M0_guess,False)
 
 #    self.mask = mask_guess#par.mask[:,63] is different
@@ -75,8 +77,10 @@ class VFA_Model:
     print('T1 scale: ',self.T1_sc,
                               '/ M0_scale: ',self.M0_sc)
     #print(M0_guess[39,11]) M0 guess is gleich
+
 #    self.T1_sc = 5e3
 #    self.M0_sc = 30
+
     M0_guess = M0_guess / self.M0_sc
     T1_guess = T1_guess / self.T1_sc
 
@@ -88,7 +92,9 @@ class VFA_Model:
 #        
     print( 'done in', time.clock() - th)
 
+
     result = np.concatenate(((M0_guess*np.exp(1j*np.angle(phase_map)))[None,:,:,:],T1_guess[None,None,:,:]),axis=0)
+
 #    result = np.concatenate((((M0_guess)*np.exp(1j*np.angle(phase_map)))[None,:,:,:],(T1_guess)[None,None,:,:]),axis=0)
 #    result = np.array([(0.01+0*M0_guess*np.exp(1j*np.angle(phase_map))),0.3+0*(T1_guess)])
 #    result = np.array([1/self.M0_sc*np.ones((siz[1],siz[2],siz[3]),dtype='complex128'),1500/self.T1_sc*np.ones((siz[1],siz[2],siz[3]),dtype='complex128')])

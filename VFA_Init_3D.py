@@ -106,9 +106,9 @@ fa_corr = sio.loadmat(file)
 fa_corr = fa_corr['fa_corr']
 
 fa_corr = np.transpose(fa_corr)
-par.fa_corr = np.repeat(fa_corr[None,:,:,:],NScan,axis=0)*180/np.pi
+par.fa_corr =fa_corr*180/np.pi
 par.fa_corr[par.fa_corr==0] = 1
-par.fa_corr = par.fa_corr[:,11:-11,:,:]
+par.fa_corr = par.fa_corr[11:-11,:,:]
 
 
 
@@ -276,7 +276,7 @@ par.unknowns = 2
 '''standardize the data'''
 
 
-dscale = np.sqrt(NSlice)*np.complex128(100)/(np.linalg.norm(uData.flatten()))
+dscale = np.sqrt(NSlice)*np.complex128(255)/(np.linalg.norm(uData.flatten()))
 par.dscale = dscale
 
 ######################################################################## 
@@ -357,7 +357,7 @@ plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
 
 uData = np.reshape(uData,(NScan,NC,NSlice,Nproj,N))* dscale
 
-images= (np.sum(nFTH(uData,plan,dcf,NScan,NC,NSlice,dimY,dimX)[:None,:,:,:]*(np.conj(par.C)),axis = 1))
+images= (np.sum(nFTH(uData,plan,dcf* N*np.pi/(4*Nproj),NScan,NC,NSlice,dimY,dimX)[:None,:,:,:]*(np.conj(par.C)),axis = 1))
 
 #images= (np.sum(FTH(uData*dscale)*(np.conj(par.C)),axis = 1))
 
@@ -381,8 +381,8 @@ opt.images = images
 opt.fft_forward = fft_forward
 opt.fft_back = fft_back
 opt.nfftplan = plan
-opt.dcf = np.sqrt(dcf)
-opt.dcf_flat =np.sqrt( dcf.flatten())
+opt.dcf = np.sqrt(dcf)* N*np.pi/(4*Nproj)
+opt.dcf_flat =np.sqrt( dcf.flatten())* N*np.pi/(4*Nproj)
 opt.model = model
 
 
@@ -403,10 +403,10 @@ opt.traj = traj
 #IRGN Params
 irgn_par = struct()
 irgn_par.start_iters = 10
-irgn_par.max_iters = 2000
+irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e0
-irgn_par.gamma = 1e-1
+irgn_par.gamma = 5e-2
 irgn_par.delta = 1e2
 irgn_par.display_iterations = True
 
