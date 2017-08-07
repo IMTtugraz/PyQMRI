@@ -8,3 +8,4 @@ output/
 data/
 Memory*
 eval_speed*
+*.mat
