@@ -5,7 +5,11 @@ import time
 import decimal
 import gradients_divergences_old as gd
 import matplotlib.pyplot as plt
-import scipy.optimize as optimizer
+
+#import ipyparallel as ipp
+#
+#c = ipp.Client()
+#lview = c.load_balanced_view()
 
 plt.ion()
 
@@ -529,35 +533,35 @@ class Model_Reco:
   
   def FT_2D(self,  x):
 
-    nscan = np.shape(x)[0]
-    NC = np.shape(x)[1]
-    scale =  np.sqrt(np.shape(x)[2]*np.shape(x)[3])
-        
-    result = np.zeros_like(x,dtype=DTYPE)
-#    cdef int scan=0
-#    cdef int coil=0
-    for scan in range(nscan):
-      for coil in range(NC):
-        result[scan,coil,:,:] = self.fft_forward(x[scan,coil,:,:])/scale
+#    nscan = np.shape(x)[0]
+#    NC = np.shape(x)[1]
+#    scale =  np.sqrt(np.shape(x)[2]*np.shape(x)[3])
+#        
+#    result = np.zeros_like(x,dtype=DTYPE)
+##    cdef int scan=0
+##    cdef int coil=0
+#    for scan in range(nscan):
+#      for coil in range(NC):
+#       result[scan,coil,:,:] = self.fft_forward(x[scan,coil,:,:])/scale
       
-    return result
+    return self.fft_forward(x)/np.sqrt(np.shape(x)[2]*np.shape(x)[3])
  
   
   
       
   def FTH_2D(self, x):
-    nscan = np.shape(x)[0]
-    NC = np.shape(x)[1]
-    scale =  np.sqrt(np.shape(x)[2]*np.shape(x)[3])
-        
-    result = np.zeros_like(x,dtype=DTYPE)
+#    nscan = np.shape(x)[0]
+#    NC = np.shape(x)[1]
+#    scale =  np.sqrt(np.shape(x)[2]*np.shape(x)[3])
+#        
+#    result = np.zeros_like(x,dtype=DTYPE)
 #    cdef int scan=0
 #    cdef int coil=0
-    for scan in range(nscan):
-      for coil in range(NC):
-        result[scan,coil,:,:] = self.fft_back(x[scan,coil,:,:])*scale
+#    for scan in range(nscan):
+#      for coil in range(NC):
+#        result[scan,coil,:,:] = self.fft_back(x[scan,coil,:,:])*scale
       
-    return result
+    return self.fft_back(x)*np.sqrt(np.shape(x)[2]*np.shape(x)[3])
 
 
   def nFT_2D(self, x):
