@@ -140,27 +140,27 @@ cdef class Model_Reco:
 
       
       
-      result = np.copy(self.model.guess)
+      self.result = np.zeros((self.irgn_par.max_GN_it+1,self.unknowns,self.par.NSlice,self.par.dimY,self.par.dimX),dtype='complex128')
+      self.result[0,:,:,:,:] = np.copy(self.model.guess)
+
       self.Coils = np.squeeze(self.par.C)        
       for i in range(self.irgn_par.max_GN_it):
         start = time.time()       
-        self.step_val = self.model.execute_forward_3D(result)
-        self.grad_x = self.model.execute_gradient_3D(result)
+        self.step_val = self.model.execute_forward_3D(self.result[i,:,:,:,:])
+        self.grad_x = self.model.execute_gradient_3D(self.result[i,:,:,:,:])
         self.conj_grad_x = np.conj(self.grad_x)
           
           
-        result = self.irgn_solve_3D(result, iters, self.data)
-          
-          
+        self.result[i+1,:,:,:,:] = self.irgn_solve_3D(self.result[i,:,:,:,:], iters, self.data)
+
+
         iters = np.fmin(iters*2,self.irgn_par.max_iters)
-        self.irgn_par.gamma = self.irgn_par.gamma*0.8
+        self.irgn_par.gamma = self.irgn_par.gamma*0.7
         self.irgn_par.delta = self.irgn_par.delta*2
           
         end = time.time()-start
         print("Elapsed time: %f seconds" %end)
             
-        
-      self.result = result
                
       
   cdef operator_forward_2D(self,np.ndarray[DTYPE_t,ndim=3] x):

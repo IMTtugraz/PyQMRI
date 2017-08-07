@@ -83,7 +83,7 @@ data = data*np.sqrt(dcf)
 
 #NSlice = 1
 data = data[None,:,:,:,:]
-data = data[:,:,20:-20,:,:]
+data = data[:,:,25:-25,:,:]
 [NScan,NC,NSlice,Nproj, N] = data.shape
 #[NScan,NC,NSlice,dimY,dimX] = data.shape
 
@@ -366,10 +366,10 @@ print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi
 #IRGN Params
 irgn_par = struct()
 irgn_par.start_iters = 10
-irgn_par.max_iters = 2000
+irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e0
-irgn_par.gamma = 1e0
+irgn_par.gamma = 1e-1
 irgn_par.delta = 1e0
 irgn_par.display_iterations = True
 
