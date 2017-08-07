@@ -51,7 +51,7 @@ class VFA_Model:
     M0_guess = np.abs(M0_guess)
     
 #
-    hist =  np.histogram(np.abs(M0_guess),int(1e3))
+    hist =  np.histogram(np.abs(M0_guess),int(1e2))
     aa = np.array(hist[0], dtype=np.float64)
     #bb = hist[1] #hist0[1][:-1] + np.diff(hist0[1])/2
     bb = np.array(hist[1][:-1] + np.diff(hist[1])/2, dtype=np.float64)
@@ -63,8 +63,8 @@ class VFA_Model:
     
     
 
-    M0_guess = np.squeeze(gf(M0_guess,2))
-    T1_guess = gf(T1_guess,2)
+    M0_guess = np.squeeze(gf(M0_guess,5))
+    T1_guess = gf(T1_guess,5)
 
 #    mask_guess = compute_mask(M0_guess,False)
 
