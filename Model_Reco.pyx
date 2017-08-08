@@ -304,18 +304,18 @@ cdef class Model_Reco:
            xx = yy
        yy = self.operator_adjoint_2D(self.operator_forward_2D(xx))
        l1 = np.vdot(yy.flatten(),xx.flatten());
-    L = np.max(np.abs(l1))**2 ## Lipschitz constant estimate   
+    L = np.max(np.abs(l1)) ## Lipschitz constant estimate   
 #    L1 = np.max(np.abs(self.grad_x[0,:,None,:,:]*self.Coils
 #                                   *np.conj(self.grad_x[0,:,None,:,:])*np.conj(self.Coils)))
 #    L2 = np.max(np.abs(self.grad_x[1,:,None,:,:]*self.Coils
 #                                   *np.conj(self.grad_x[1,:,None,:,:])*np.conj(self.Coils)))
 #
 #    L = np.max((L1,L2))*self.unknowns*self.par.NScan*self.par.NC*sigma0*tau0+1
-    L =(L**2+8+16)
+    L = (L**2+8**2+16**2)
     print("Operatornorm estimate L: %f "%(L))    
     
     
-    cdef double tau = 1/np.sqrt(16**2+8**2)
+    cdef double tau = 1/np.sqrt(L)
     cdef double tau_new = 0
     
     cdef np.ndarray[DTYPE_t, ndim=3] xk = x
