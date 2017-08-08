@@ -9,7 +9,7 @@ from tkinter import Tk
 import nlinvns_maier as nlinvns
 
 import pyximport; pyximport.install()
-import Model_Reco as Model_Reco
+import Model_Reco_old as Model_Reco
 import multiprocessing as mp
 
 import mkl
@@ -368,8 +368,8 @@ irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e0
-irgn_par.gamma = 1e-1
-irgn_par.delta = 1e1
+irgn_par.gamma = 8e-2
+irgn_par.delta = 1e-1
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par
