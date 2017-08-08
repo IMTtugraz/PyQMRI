@@ -292,6 +292,28 @@ cdef class Model_Reco:
     cdef double alpha = self.irgn_par.gamma
     cdef double beta = self.irgn_par.gamma*2
     
+    cdef np.ndarray[DTYPE_t,ndim=3] xx = np.zeros_like(x,dtype=DTYPE)
+    cdef np.ndarray[DTYPE_t,ndim=3] yy = np.zeros_like(x,dtype=DTYPE)
+    xx = np.random.random_sample(np.shape(x)).astype('complex128')
+    yy = self.operator_adjoint_2D(self.operator_forward_2D(xx));
+    cdef int j = 0
+    for j in range(10):
+       if not np.isclose(np.linalg.norm(yy.flatten()),0):
+           xx = yy/np.linalg.norm(yy.flatten())
+       else:
+           xx = yy
+       yy = self.operator_adjoint_2D(self.operator_forward_2D(xx))
+       l1 = np.vdot(yy.flatten(),xx.flatten());
+    L = np.max(np.abs(l1))**2 ## Lipschitz constant estimate   
+#    L1 = np.max(np.abs(self.grad_x[0,:,None,:,:]*self.Coils
+#                                   *np.conj(self.grad_x[0,:,None,:,:])*np.conj(self.Coils)))
+#    L2 = np.max(np.abs(self.grad_x[1,:,None,:,:]*self.Coils
+#                                   *np.conj(self.grad_x[1,:,None,:,:])*np.conj(self.Coils)))
+#
+#    L = np.max((L1,L2))*self.unknowns*self.par.NScan*self.par.NC*sigma0*tau0+1
+    L =(L**2+8+16)
+    print("Operatornorm estimate L: %f "%(L))    
+    
     
     cdef double tau = 1/np.sqrt(16**2+8**2)
     cdef double tau_new = 0

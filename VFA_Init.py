@@ -9,7 +9,7 @@ from tkinter import Tk
 import nlinvns_maier as nlinvns
 
 import pyximport; pyximport.install()
-import Model_Reco_old as Model_Reco
+import Model_Reco as Model_Reco
 import multiprocessing as mp
 
 import mkl
@@ -236,7 +236,7 @@ par.fa_corr = fa_corr[None,:,:]
 '''standardize the data'''
 
 
-dscale = np.sqrt(NSlice)*np.complex128(255)/(np.linalg.norm(uData.flatten()))
+dscale = np.sqrt(NSlice)*np.complex128(1000)/(np.linalg.norm(uData.flatten()))
 par.dscale = dscale
 
 ######################################################################## 
@@ -369,7 +369,7 @@ irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e0
 irgn_par.gamma = 8e-2
-irgn_par.delta = 1e-1
+irgn_par.delta = 5e-1
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par
