@@ -33,8 +33,8 @@ file = filedialog.askopenfilename()
 root.destroy()
 
 data = sio.loadmat(file)
-data = data['data_mid']
-#data = data['data']
+#data = data['data_mid']
+data = data['data']
 
 data = np.transpose(data)
 
@@ -56,15 +56,15 @@ file = filedialog.askopenfilename()
 root.destroy()
 
 dcf = sio.loadmat(file)
-dcf = dcf['dcf']
+dcf = dcf['w']
 
 dcf = np.transpose(dcf)
 #dcf = dcf/np.max(dcf)
 
 
 #data = data[:,:,0,:,:]
-dimX = 256
-dimY = 256
+dimX = 128
+dimY = 128
 data = data*np.sqrt(dcf)
 
 #NSlice = 1
@@ -148,9 +148,9 @@ else:
 ## Choose undersampling mode
 Nproj = 21
 #
-for i in range(NScan):
-  data[i,:,:,:Nproj,:] = data[i,:,:,i*Nproj:(i+1)*Nproj,:]
-  traj[i,:Nproj,:] = traj[i,i*Nproj:(i+1)*Nproj,:]
+#for i in range(NScan):
+#  data[i,:,:,:Nproj,:] = data[i,:,:,i*Nproj:(i+1)*Nproj,:]
+#  traj[i,:Nproj,:] = traj[i,i*Nproj:(i+1)*Nproj,:]
 
 
 data = data[:,:,:,:Nproj,:]
@@ -199,8 +199,8 @@ options[undersampling_mode]()
 ######################################################################## 
 ## struct par init
 
-FA = np.array([2,3,4,5,7,9,11,14,17,22],np.complex128)
-#FA = np.array([1,3,5,7,9,11,13,15,17],np.complex128)
+#FA = np.array([2,3,4,5,7,9,11,14,17,22],np.complex128)
+FA = np.array([1,3,5,7,9,11,13,15,17],np.complex128)*np.pi/180
 fa = FA    #  % flip angle in rad FA siehe FLASH phantom generierung
 #alpha = [1,3,5,7,9,11,13,15,17,19]*pi/180;
 
@@ -220,23 +220,23 @@ par.Nproj = Nproj
 ##### No FA correction
 par.fa_corr = np.ones([NSlice,dimX,dimY],dtype='complex128')
 
-root = Tk()
-root.withdraw()
-root.update()
-file = filedialog.askopenfilename()
-root.destroy()
-
-fa_corr = sio.loadmat(file)
-fa_corr = fa_corr['fa_mid_3mm']
-
-fa_corr = np.transpose(fa_corr)
-fa_corr[[fa_corr==0]] = 1
-par.fa_corr = fa_corr[None,:,:]
+#root = Tk()
+#root.withdraw()
+#root.update()
+#file = filedialog.askopenfilename()
+#root.destroy()
+#
+#fa_corr = sio.loadmat(file)
+#fa_corr = fa_corr['fa_mid_3mm']
+#
+#fa_corr = np.transpose(fa_corr)
+#fa_corr[[fa_corr==0]] = 1
+#par.fa_corr = fa_corr[None,:,:]
 
 '''standardize the data'''
 
 
-dscale = np.sqrt(NSlice)*np.complex128(1000)/(np.linalg.norm(uData.flatten()))
+dscale = np.sqrt(NSlice)*np.complex128(255)/(np.linalg.norm(uData.flatten()))
 par.dscale = dscale
 
 ######################################################################## 
@@ -349,13 +349,15 @@ opt.model = model
 opt.traj = traj
 
 
-
 #
-##
-#xx = np.random.randn(NScan,NC,NSlice,dimX,dimY)
-#yy = np.random.randn(NScan,NC,NSlice,Nproj*N)
-#a = np.vdot(xx,nFTH(yy,plan,dcf,NScan,NC,NSlice,dimY,dimX))
-#b = np.vdot(nFT(xx,plan,dcf,NScan,NC,NSlice,Nproj,N,dimX),yy)
+#
+#import gradients_divergences as gd
+#dimX = 256
+#dimY = 256
+#xx = np.random.randn(2,2,dimX,dimY).astype('complex128')
+#yy = np.random.randn(2,3,dimX,dimY).astype('complex128')
+#a = np.vdot(xx,-gd.fdiv_2(yy))
+#b = np.sum(gd.sym_bgrad_2(xx)[:,0,:,:]*yy[:,0,:,:]+gd.sym_bgrad_2(xx)[:,1,:,:]*yy[:,1,:,:]+2*gd.sym_bgrad_2(xx)[:,2,:,:]*yy[:,2,:,:])
 #test = np.abs(a-b)
 #print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,test))
 
@@ -368,8 +370,8 @@ irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e0
-irgn_par.gamma = 8e-2
-irgn_par.delta = 5e-1
+irgn_par.gamma = 1e15
+irgn_par.delta = 1e4
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par

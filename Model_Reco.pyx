@@ -311,7 +311,7 @@ cdef class Model_Reco:
 #                                   *np.conj(self.grad_x[1,:,None,:,:])*np.conj(self.Coils)))
 #
 #    L = np.max((L1,L2))*self.unknowns*self.par.NScan*self.par.NC*sigma0*tau0+1
-    L = (L**2+8**2+16**2)
+    L = (L+8**2+16**2)
     print("Operatornorm estimate L: %f "%(L))    
     
     
@@ -435,13 +435,13 @@ cdef class Model_Reco:
             print('Lhs:',lhs,'  Rrhs: ', ynorm)
             tau_new = tau_new*mu_line
             
-      Kyk1 = (Kyk1_new)
-      Kyk2 =  (Kyk2_new)
-      Axold =(Ax)
-      z1 = (z1_new)
-      z2 = (z2_new)
-      r =  (r_new)
-      tau =  (tau_new)
+      Kyk1 = np.copy(Kyk1_new)
+      Kyk2 =  np.copy(Kyk2_new)
+      Axold =np.copy(Ax)
+      z1 = np.copy(z1_new)
+      z2 = np.copy(z2_new)
+      r =  np.copy(r_new)
+      tau =  np.copy(tau_new)
         
   
       x = x_new
