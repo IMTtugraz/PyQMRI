@@ -25,7 +25,7 @@ class VFA_Model:
     self.fa = fa
     self.fa_corr = fa_corr
     
-#    siz = images.shape
+    (NScan,NSlice,dimX,dimY) = images.shape
     
     phi_corr = np.zeros_like(images,dtype='complex128')
     for i in range(np.size(fa)):
@@ -63,8 +63,8 @@ class VFA_Model:
     
     
 
-    M0_guess = np.squeeze(gf(M0_guess,5))
-    T1_guess = gf(T1_guess,5)
+#    M0_guess = np.squeeze(gf(M0_guess,5))
+#    T1_guess = gf(T1_guess,5)
 
 #    mask_guess = compute_mask(M0_guess,False)
 
@@ -94,7 +94,7 @@ class VFA_Model:
 
 
     result = np.concatenate(((M0_guess*np.exp(1j*np.angle(phase_map)))[None,:,:,:],T1_guess[None,None,:,:]),axis=0)
-
+#    result = np.array([0.05*np.ones((NSlice,dimY,dimX),dtype='complex128'),0.3*np.ones((NSlice,dimY,dimX),dtype='complex128')])
 #    result = np.concatenate((((M0_guess)*np.exp(1j*np.angle(phase_map)))[None,:,:,:],(T1_guess)[None,None,:,:]),axis=0)
 #    result = np.array([(0.01+0*M0_guess*np.exp(1j*np.angle(phase_map))),0.3+0*(T1_guess)])
 #    result = np.array([1/self.M0_sc*np.ones((siz[1],siz[2],siz[3]),dtype='complex128'),1500/self.T1_sc*np.ones((siz[1],siz[2],siz[3]),dtype='complex128')])
@@ -136,5 +136,22 @@ class VFA_Model:
     return grad
   
 
-    
+  def execute_forward_2D_ns(self,x,slice):
+    E1 = np.exp(-self.TR/(x[1,:,:]))#
+#    E1 = x[1,:,:]
+    S = x[0,:,:]*self.sin_phi[:,slice,:,:]*(1-E1)/(1-E1*self.cos_phi[:,slice,:,:])
+    S[~np.isfinite(S)] = 1e-20
+    return S
+  def execute_gradient_2D_ns(self,x,slice):
+    E1 = np.exp(self.TR/(x[1,:,:]))  ####no minus!!!  
+#    E1 = x[1,:,:]
+#    E1[~np.isfinite(E1)] = 0
+    grad_M0 = (self.sin_phi[:,slice,:,:]*(E1-1))/(E1-self.cos_phi[:,slice,:,:])
+    grad_T1 = (-(x[0,:,:]*self.TR*E1*(2*self.sin_phi[:,slice,:,:]-2*self.sin_phi[:,slice,:,:]*self.cos_phi[:,slice,:,:]))/
+               (2*x[1,:,:]**2*(E1-self.cos_phi[:,slice,:,:])**2))
+#    grad_M0 = (self.M0_sc*self.sin_phi[:,slice,:,:]*(1 - E1))/(-self.cos_phi[:,slice,:,:]*E1 + 1)
+#    grad_T1 = (x[0,:,:]*self.M0_sc*self.sin_phi[:,slice,:,:]*(self.cos_phi[:,slice,:,:] - 1))/(E1*self.cos_phi[:,slice,:,:] - 1)**2
+    grad = np.array([grad_M0,grad_T1])
+    grad[~np.isfinite(grad)] = 1e-20
+    return grad   
   
