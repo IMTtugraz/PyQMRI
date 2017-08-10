@@ -350,7 +350,7 @@ cdef class Model_Reco:
     cdef double theta_line = 1.0
 
     
-    cdef double beta_line = 1.0
+    cdef double beta_line = 1e4
     cdef double beta_new = 0
     
     cdef double mu_line = 0.1

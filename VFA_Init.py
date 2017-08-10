@@ -236,7 +236,7 @@ par.fa_corr = np.ones([NSlice,dimX,dimY],dtype='complex128')
 '''standardize the data'''
 
 
-dscale = np.sqrt(NSlice)*np.complex128(255)/(np.linalg.norm(uData.flatten()))
+dscale = np.sqrt(NSlice)*np.complex128(100)/(np.linalg.norm(uData.flatten()))
 par.dscale = dscale
 
 ######################################################################## 
@@ -370,8 +370,8 @@ irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e0
-irgn_par.gamma = 1e15
-irgn_par.delta = 1e4
+irgn_par.gamma = 1e-1
+irgn_par.delta = 1e0
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par
