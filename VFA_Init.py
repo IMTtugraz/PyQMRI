@@ -146,7 +146,7 @@ else:
 
 ################################################################### 
 ## Choose undersampling mode
-Nproj = 21
+Nproj = 55
 #
 #for i in range(NScan):
 #  data[i,:,:,:Nproj,:] = data[i,:,:,i*Nproj:(i+1)*Nproj,:]
@@ -236,7 +236,7 @@ par.fa_corr = np.ones([NSlice,dimX,dimY],dtype='complex128')
 '''standardize the data'''
 
 
-dscale = np.sqrt(NSlice)*np.complex128(100)/(np.linalg.norm(uData.flatten()))
+dscale = np.sqrt(NSlice)*np.complex128(0.1)/(np.linalg.norm(uData.flatten()))
 par.dscale = dscale
 
 ######################################################################## 
@@ -369,9 +369,9 @@ irgn_par = struct()
 irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
-irgn_par.lambd = 1e0
-irgn_par.gamma = 1e-1
-irgn_par.delta = 1e0
+irgn_par.lambd = 1e6
+irgn_par.gamma = 1e-24
+irgn_par.delta = 1e2
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par
