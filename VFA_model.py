@@ -76,7 +76,7 @@ class VFA_Model:
                               '/ M0_scale: ',self.M0_sc)
     #print(M0_guess[39,11]) M0 guess is gleich
     self.T1_sc = 5e3
-    self.M0_sc = 50
+    self.M0_sc = 30
     M0_guess = M0_guess / self.M0_sc
     T1_guess = T1_guess / self.T1_sc
 

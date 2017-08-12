@@ -11,7 +11,7 @@ import numpy as np
 
 DTYPE = np.complex128
 
-cdef bdiv_1(np.ndarray[DTYPE_t, ndim=4] v, int dx=1, int dy=1):
+cdef np.ndarray[DTYPE_t, ndim=3] bdiv_1(np.ndarray[DTYPE_t, ndim=4] v, int dx=1, int dy=1):
 
 
     cdef int n = v.shape[3]
@@ -31,7 +31,7 @@ cdef bdiv_1(np.ndarray[DTYPE_t, ndim=4] v, int dx=1, int dy=1):
 
     return div_v
 
-cdef fgrad_1(np.ndarray[DTYPE_t, ndim=3] u,int dx=1, int dy=1):
+cdef np.ndarray[DTYPE_t, ndim=4] fgrad_1(np.ndarray[DTYPE_t, ndim=3] u,int dx=1, int dy=1):
 
     
     cdef int n = u.shape[2]
@@ -47,7 +47,7 @@ cdef fgrad_1(np.ndarray[DTYPE_t, ndim=3] u,int dx=1, int dy=1):
 
     return grad
   
-cdef fdiv_2(np.ndarray[DTYPE_t, ndim=4] x,int dx=1, int dy=1):
+cdef np.ndarray[DTYPE_t, ndim=4] fdiv_2(np.ndarray[DTYPE_t, ndim=4] x,int dx=1, int dy=1):
 
 
       
@@ -65,7 +65,7 @@ cdef fdiv_2(np.ndarray[DTYPE_t, ndim=4] x,int dx=1, int dy=1):
     div_x[:,1,:-1,:] = div_x[:,1,:-1,:] + (x[:,1,1:,:]-x[:,1,:-1,:])/dy
     return div_x
     
-cdef sym_bgrad_2(np.ndarray[DTYPE_t, ndim=4] x, int dx=1, int dy=1):
+cdef np.ndarray[DTYPE_t, ndim=4] sym_bgrad_2(np.ndarray[DTYPE_t, ndim=4] x, int dx=1, int dy=1):
 
 
     cdef int k = np.shape(x)[0]
