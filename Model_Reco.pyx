@@ -42,6 +42,7 @@ cdef class Model_Reco:
   cdef int N
   cdef int Nproj
   cdef double scale
+  cdef int dz
   cdef DTYPE_t[:,:,:,::1] grad_x_2D
   cdef DTYPE_t[:,:,:,::1] conj_grad_x_2D
   cdef DTYPE_t[:,:,::1] Coils, conjCoils

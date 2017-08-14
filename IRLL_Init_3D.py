@@ -377,7 +377,7 @@ irgn_par.display_iterations = True
 opt.irgn_par = irgn_par
 
 
-
+opt.dz = 3
 
 opt.execute_3D()
 #
