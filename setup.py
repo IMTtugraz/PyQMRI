@@ -18,7 +18,7 @@ import numpy
 ext_modules=[ Extension("*",
               ["*.pyx"],
               libraries=["m","stdc++"],
-              extra_compile_args = ["-ffast-math","-O3",'-fopenmp'],
+              extra_compile_args = ["-ffast-math","-O3",'-fopenmp','-ggdb'],
               extra_link_args=['-fopenmp'],
               include_dirs = [numpy.get_include()])]
 
