@@ -42,6 +42,7 @@ class VFA_Model:
     T1_guess[np.isnan(T1_guess)] = np.spacing(1)
     T1_guess[np.isinf(T1_guess)] = np.spacing(1)
     T1_guess[T1_guess<0] = 0 
+
     T1_guess = np.abs(T1_guess)
 #    T1_guess[T1_guess>5000] = 5000
 #    T1_guess = np.abs(T1_guess)
@@ -87,8 +88,10 @@ class VFA_Model:
 #    mask_guess = compute_mask(M0_guess,False)
 
 #    self.mask = mask_guess#par.mask[:,63] is different
+
     self.M0_sc = np.max(np.abs(M0_guess))    
     self.T1_sc = np.max(np.abs(T1_guess))*dscale
+
 
     
     #print(mask_guess)
@@ -106,7 +109,6 @@ class VFA_Model:
     M0_guess[np.isnan(M0_guess)] = 0;
     
 
-#        
     print( 'done in', time.clock() - th)
 
 
