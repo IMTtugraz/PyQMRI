@@ -170,9 +170,9 @@ cdef class Model_Reco:
       self.conjCoils = np.conj(self.Coils)        
       for i in range(self.irgn_par.max_GN_it):
         start = time.time()       
-        self.step_val = self.model.execute_forward_2D(result[:,islice,:,:],islice)
-        self.grad_x_2D = self.model.execute_gradient_2D(result[:,islice,:,:],islice)
-        self.conj_grad_x_2D = np.conj(self.grad_x_2D)
+        self.step_val = np.nan_to_num(self.model.execute_forward_2D(result[:,islice,:,:],islice))
+        self.grad_x_2D = np.nan_to_num(self.model.execute_gradient_2D(result[:,islice,:,:],islice))
+        self.conj_grad_x_2D = np.nan_to_num(np.conj(self.grad_x_2D))
         
         
         result[:,islice,:,:] = self.irgn_solve_2D(result[:,islice,:,:], iters, self.data[:,:,islice,:,:])
@@ -202,9 +202,9 @@ cdef class Model_Reco:
       self.conjCoils3D = np.conj(self.Coils3D)
       for i in range(self.irgn_par.max_GN_it):
         start = time.time()       
-        self.step_val = self.model.execute_forward_3D(self.result[i,:,:,:,:])
-        self.grad_x = self.model.execute_gradient_3D(self.result[i,:,:,:,:])
-        self.conj_grad_x = np.conj(self.grad_x)
+        self.step_val = np.nan_to_num(self.model.execute_forward_3D(self.result[i,:,:,:,:]))
+        self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(self.result[i,:,:,:,:]))
+        self.conj_grad_x = np.nan_to_num(np.conj(self.grad_x))
           
           
         self.result[i+1,:,:,:,:] = self.irgn_solve_3D(self.result[i,:,:,:,:], iters, self.data)

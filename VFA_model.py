@@ -16,7 +16,7 @@ from createInitGuess_FLASH import createInitGuess_FLASH
 
 
 class VFA_Model:
-  def __init__(self,fa,fa_corr,TR,images,phase_map):
+  def __init__(self,fa,fa_corr,TR,images,phase_map,dscale):
 
 
 
@@ -51,34 +51,35 @@ class VFA_Model:
     M0_guess[np.isinf(M0_guess)] = np.spacing(1)   
     M0_guess = np.abs(M0_guess)
     
-    self.T1_guess = T1_guess
-    self.M0_guess = M0_guess 
+    self.T1_guess = np.copy(T1_guess)
+    self.M0_guess = np.copy(M0_guess )
 #
-    hist =  np.histogram((M0_guess),int(1e5))
+    hist =  np.histogram((M0_guess),int(1e3),range=(0,10*(np.max((np.median(M0_guess),np.mean(M0_guess))))))
     aa = np.array(hist[0], dtype=np.float64)
     #bb = hist[1] #hist0[1][:-1] + np.diff(hist0[1])/2
-    bb = np.array(hist[1])
+    bb =(hist[1])
    
-    max_val = bb[np.argmax(aa[1:-1])]
-#    FWHM = 2*np.abs(bb[np.argwhere(bb>max_val/2)[0][0]]-max_val)
-#    std = FWHM/(2*np.sqrt(2*np.log(2)))
+    max_val = aa[np.argmax(aa[1:-1])+1]
+    FWHM = 2*np.abs(np.argwhere(aa[np.argmax(aa[1:-1])+1:]<max_val/2)[0][0])
+    std = FWHM/(2*np.sqrt(2*np.log(2)))
 #    
     
 
-    M0_guess[M0_guess > max_val] = max_val #passst
+    M0_guess[M0_guess > bb[np.argmax(aa[1:-1])+ 1+ int(5*std)]] =  bb[np.argmax(aa[1:-1])+ 1+ int(5*std)] #passst
 #    print(M0_guess)
     
-    hist =  np.histogram((T1_guess),int(1e5))
+    hist =  np.histogram((T1_guess),int(1e3),range=(0,10*(np.max((np.median(T1_guess),np.mean(T1_guess))))))
     aa = np.array(hist[0], dtype=np.float64)
 #    bb = hist[1] #hist0[1][:-1] + np.diff(hist0[1])/2
-    bb = np.array(hist[1])
+    bb =(hist[1])
    
-    max_val = bb[np.argmax(aa[1:-1])]
-#    FWHM = 2*np.abs(bb[np.argwhere(bb>max_val/2)[0][0]]-max_val)
-#    std = FWHM/(2*np.sqrt(2*np.log(2)))
+    max_val = aa[np.argmax(aa[1:-1])+1]
+    FWHM = 2*np.abs(np.argwhere(aa[np.argmax(aa[1:-1])+1:]<max_val/2)[0][0])
+    std = FWHM/(2*np.sqrt(2*np.log(2)))
+#    
     
 
-    T1_guess[T1_guess > max_val*100] = max_val*100 #passst
+    T1_guess[T1_guess > bb[np.argmax(aa[1:-1])+ 1+ int(5*std)]] =  bb[np.argmax(aa[1:-1])+ 1+ int(5*std)] #passst
 
 #    M0_guess = np.squeeze(gf(M0_guess,5))
 #    T1_guess = gf(T1_guess,5)
@@ -86,9 +87,9 @@ class VFA_Model:
 #    mask_guess = compute_mask(M0_guess,False)
 
 #    self.mask = mask_guess#par.mask[:,63] is different
-    
-    self.T1_sc = np.max(np.abs(T1_guess))
-    self.M0_sc = np.max(np.abs(M0_guess))
+    self.M0_sc = np.max(np.abs(M0_guess))    
+    self.T1_sc = np.max(np.abs(T1_guess))*dscale
+
     
     #print(mask_guess)
     print('T1 scale: ',self.T1_sc,
@@ -110,7 +111,7 @@ class VFA_Model:
 
 
     result = np.concatenate(((M0_guess*np.exp(1j*np.angle(phase_map)))[None,:,:,:],T1_guess[None,None,:,:]),axis=0)
-    result = np.array([1/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype='complex128'),100/self.T1_sc*np.ones((NSlice,dimY,dimX),dtype='complex128')])
+    result = np.array([2.5/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype='complex128'),1000/self.T1_sc*np.ones((NSlice,dimY,dimX),dtype='complex128')])
 #    result = np.concatenate((((M0_guess)*np.exp(1j*np.angle(phase_map)))[None,:,:,:],(T1_guess)[None,None,:,:]),axis=0)
 #    result = np.array([(0.01+0*M0_guess*np.exp(1j*np.angle(phase_map))),0.3+0*(T1_guess)])
 #    result = np.array([1/self.M0_sc*np.ones((siz[1],siz[2],siz[3]),dtype='complex128'),1500/self.T1_sc*np.ones((siz[1],siz[2],siz[3]),dtype='complex128')])

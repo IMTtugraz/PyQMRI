@@ -33,8 +33,8 @@ file = filedialog.askopenfilename()
 root.destroy()
 
 data = sio.loadmat(file)
-#data = data['data_mid']
 data = data['data']
+#data = data['data']
 
 data = np.transpose(data)
 
@@ -62,7 +62,8 @@ dcf = np.transpose(dcf)
 #dcf = dcf/np.max(dcf)
 
 
-#data = data[:,:,0,:,:]
+data = data[:,:,20,:,:]
+data = data[:,:,None,:,:]
 dimX = 256
 dimY = 256
 data = data*np.sqrt(dcf)
@@ -145,8 +146,8 @@ else:
 #  par.C = np.expand_dims(par.C,axis=1)
 
 ################################################################### 
-## Choose undersampling mode
-#Nproj = 13
+# Choose undersampling mode
+#Nproj = 21
 #
 #for i in range(NScan):
 #  data[i,:,:,:Nproj,:] = data[i,:,:,i*Nproj:(i+1)*Nproj,:]
@@ -156,7 +157,7 @@ else:
 #data = data[:,:,:,:Nproj,:]
 #traj = traj[:,:Nproj,:]
 #dcf = dcf[:Nproj,:]
-
+#
 
 
 
@@ -227,11 +228,11 @@ file = filedialog.askopenfilename()
 root.destroy()
 
 fa_corr = sio.loadmat(file)
-fa_corr = fa_corr['fa_mid_3mm']
+fa_corr = fa_corr['fa_corr']
 
 fa_corr = np.transpose(fa_corr)
 fa_corr[[fa_corr==0]] = 1
-par.fa_corr = fa_corr[None,:,:]
+par.fa_corr = fa_corr[16,:,:]
 
 '''standardize the data'''
 
@@ -324,7 +325,7 @@ images= (np.sum(nFTH(uData,plan,dcf*N*(np.pi/(4*Nproj)),NScan,NC,NSlice,dimY,dim
 
 ########################################################################
 #Init Forward Model
-model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images,par.phase_map)
+model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images,par.phase_map,par.dscale)
 
 
 
@@ -354,7 +355,7 @@ opt.traj = traj
 #import gradients_divergences as gd
 #dimX = 256
 #dimY = 256
-#xx = np.random.randn(2,2,dimX,dimY).astype('complex128')
+#xx = np.random.randn(2,2,dimX,dimY).astype('complex128')im
 #yy = np.random.randn(2,3,dimX,dimY).astype('complex128')
 #a = np.vdot(xx,-gd.fdiv_2(yy))
 #b = np.sum(gd.sym_bgrad_2(xx)[:,0,:,:]*yy[:,0,:,:]+gd.sym_bgrad_2(xx)[:,1,:,:]*yy[:,1,:,:]+2*gd.sym_bgrad_2(xx)[:,2,:,:]*yy[:,2,:,:])
@@ -370,8 +371,8 @@ irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e0
-irgn_par.gamma = 1e-20
-irgn_par.delta = 1e20
+irgn_par.gamma = 1e-6
+irgn_par.delta = 1e6
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par
