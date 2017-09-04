@@ -106,7 +106,7 @@ fa_corr = sio.loadmat(file)
 fa_corr = fa_corr['fa_corr']
 
 fa_corr = np.transpose(fa_corr)
-par.fa_corr =fa_corr*180/np.pi
+par.fa_corr =fa_corr
 par.fa_corr[par.fa_corr==0] = 1
 par.fa_corr = par.fa_corr[11:-11,:,:]
 
@@ -238,7 +238,7 @@ options[undersampling_mode]()
 
 FA = np.array([2,3,4,5,7,9,11,14,17,22],np.complex128)
 #FA = np.array([1,3,5,7,9,11,13,15,17],np.complex128)
-fa = np.divide(FA , np.complex128(180)) * np.pi;   #  % flip angle in rad FA siehe FLASH phantom generierung
+fa = FA    #  % flip angle in rad FA siehe FLASH phantom generierung
 #alpha = [1,3,5,7,9,11,13,15,17,19]*pi/180;
 
 par.TR          = 5.0#3.4 #TODO
@@ -443,7 +443,7 @@ os.makedirs("output/"+ outdir)
 
 os.chdir("output/"+ outdir)
 
-sio.savemat("result.mat",{"result":opt.result})
+sio.savemat("result.mat",{"result":opt.result,"model":model})
 
 import pickle
 with open("par" + ".p", "wb") as pickle_file:

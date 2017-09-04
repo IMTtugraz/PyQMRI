@@ -490,7 +490,7 @@ cdef class Model_Reco:
     cdef double beta_new = 0
     
     cdef double mu_line = 0.1
-    cdef double delta_line = 0.3
+    cdef double delta_line = 0.5
     
     cdef np.ndarray[DTYPE_t,ndim=3] scal = np.zeros((self.par.NSlice,self.par.dimX,self.par.dimY),dtype=DTYPE)
     
@@ -533,7 +533,8 @@ cdef class Model_Reco:
 #      print('vnew: ',np.sum(~np.isfinite(v_new)))     
       beta_new = beta_line*(1+mu*tau)
       
-      tau_new = tau*np.sqrt(beta_line/beta_new*(1+theta_line))
+#      tau_new = tau*np.sqrt(beta_line/beta_new*(1+theta_line))
+      tau_new = tau*np.sqrt(beta_line/beta_new)      
       beta_line = beta_new
       
       gradx = gd.fgrad_3(x_new,1,1,dz)
@@ -573,7 +574,7 @@ cdef class Model_Reco:
         
         ynorm = np.linalg.norm(np.concatenate([(r_new-r).flatten(),(z1_new-z1).flatten(),(z2_new-z2).flatten()]))
         lhs = np.sqrt(beta_line)*tau_new*np.linalg.norm(np.concatenate([(Kyk1_new-Kyk1).flatten(),(Kyk2_new-Kyk2).flatten()]))        
-        if lhs <= ynorm*delta_line:
+        if lhs <= ynorm:
             break
         else:
 #            print('Lhs:',lhs,'  Rrhs: ', ynorm)           

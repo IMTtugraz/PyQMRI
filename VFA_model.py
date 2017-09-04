@@ -51,7 +51,7 @@ class VFA_Model:
     M0_guess = np.abs(M0_guess)
     
 #
-    hist =  np.histogram(np.abs(M0_guess),int(1e3))
+    hist =  np.histogram(np.abs(M0_guess),int(1e2))
     aa = np.array(hist[0], dtype=np.float64)
     #bb = hist[1] #hist0[1][:-1] + np.diff(hist0[1])/2
     bb = np.array(hist[1][:-1] + np.diff(hist[1])/2, dtype=np.float64)
@@ -76,7 +76,7 @@ class VFA_Model:
     print('T1 scale: ',self.T1_sc,
                               '/ M0_scale: ',self.M0_sc)
     #print(M0_guess[39,11]) M0 guess is gleich
-    self.T1_sc = 5e3
+#    self.T1_sc = 5e3
 #    self.M0_sc = 50
     M0_guess = M0_guess / self.M0_sc
     T1_guess = T1_guess / self.T1_sc
