@@ -61,17 +61,18 @@ class VFA_Model:
     M0_guess[M0_guess > bb[int(np.sum(idx))]] = bb[int(np.sum(idx))] #passst
 #    print(M0_guess)
     
-    
+    self.T1_guess = T1_guess
+    self.M0_guess = M0_guess
 
-    M0_guess = np.squeeze(gf(M0_guess,2))
-    T1_guess = gf(T1_guess,2)
+    M0_guess = np.squeeze(gf(M0_guess,5))
+    T1_guess = gf(T1_guess,5)
 
 #    mask_guess = compute_mask(M0_guess,False)
 
 #    self.mask = mask_guess#par.mask[:,63] is different
     
-    self.T1_sc = np.max(T1_guess)
-    self.M0_sc = np.max(np.abs(M0_guess))
+    self.T1_sc = np.min(np.max(T1_guess,(-1,-2)))
+    self.M0_sc = np.min(np.max(np.abs(M0_guess),(-1,-2)))
     
     #print(mask_guess)
     print('T1 scale: ',self.T1_sc,
@@ -87,13 +88,13 @@ class VFA_Model:
     T1_guess[np.isnan(T1_guess)] = 0;
     M0_guess[np.isnan(M0_guess)] = 0;
     
-    self.T1_guess = T1_guess * self.T1_sc
-    self.M0_guess = M0_guess * self.M0_sc
+#    self.T1_guess = T1_guess * self.T1_sc
+#    self.M0_guess = M0_guess * self.M0_sc
 #        
     print( 'done in', time.clock() - th)
 
 
-    result = np.concatenate(((M0_guess*np.exp(1j*np.angle(phase_map)))[None,:,:,:],T1_guess[None,None,:,:]),axis=0)
+    result = np.concatenate(((M0_guess*np.exp(1j*np.angle(phase_map)))[None,:,:,:],T1_guess[None,:,:,:]),axis=0)
 
 #    result = np.concatenate((((M0_guess)*np.exp(1j*np.angle(phase_map)))[None,:,:,:],(T1_guess)[None,None,:,:]),axis=0)
 #    result = np.array([(0.01+0*M0_guess*np.exp(1j*np.angle(phase_map))),0.3+0*(T1_guess)])
