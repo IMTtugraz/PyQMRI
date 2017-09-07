@@ -146,7 +146,7 @@ else:
 
 ################################################################### 
 ## Choose undersampling mode
-Nproj = 34
+Nproj = 21
 #
 for i in range(NScan):
   data[i,:,:,:Nproj,:] = data[i,:,:,i*Nproj:(i+1)*Nproj,:]
@@ -236,7 +236,7 @@ par.fa_corr = fa_corr[None,:,:]
 '''standardize the data'''
 
 
-dscale = np.sqrt(NSlice)*np.complex128(100)/(np.linalg.norm(uData.flatten()))
+dscale = np.sqrt(NSlice)*np.complex128(255)/(np.linalg.norm(uData.flatten()))
 par.dscale = dscale
 
 ######################################################################## 
@@ -317,7 +317,7 @@ plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
 
 uData = uData* dscale
 
-images= (np.sum(nFTH(uData,plan,dcf,NScan,NC,NSlice,dimY,dimX)[:None,:,:,:]*(np.conj(par.C)),axis = 1))
+images= (np.sum(nFTH(uData,plan,dcf*N*(np.pi/(4*Nproj)),NScan,NC,NSlice,dimY,dimX)[:None,:,:,:]*(np.conj(par.C)),axis = 1))
 
 #images= (np.sum(FTH(uData*dscale)*(np.conj(par.C)),axis = 1))
 
@@ -343,8 +343,8 @@ opt.images = images
 opt.fft_forward = fft_forward
 opt.fft_back = fft_back
 opt.nfftplan = plan
-opt.dcf = np.sqrt(dcf)
-opt.dcf_flat = np.sqrt(dcf).flatten()
+opt.dcf = np.sqrt(dcf*(N*(np.pi/(4*Nproj))))
+opt.dcf_flat = np.sqrt(dcf*(N*(np.pi/(4*Nproj)))).flatten()
 opt.model = model
 opt.traj = traj
 
@@ -368,28 +368,28 @@ irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e0
-irgn_par.gamma = 3e-2
-irgn_par.delta = 5e2
+irgn_par.gamma = 1e-1
+irgn_par.delta = 1e1
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par
 
 opt.execute_2D()
 #
-
-import cProfile
-cProfile.run("opt.execute_2D()","eval_speed_3")
 #
-import pstats
-p=pstats.Stats("eval_speed_3")
-p.sort_stats('time').print_stats(20)
-
-p=pstats.Stats("eval_speed_2")
-p.sort_stats('time').print_stats(20)
-
-p=pstats.Stats("eval_speed")
-p.sort_stats('time').print_stats(20)
-
+#import cProfile
+#cProfile.run("opt.execute_2D()","eval_speed_3")
+##
+#import pstats
+#p=pstats.Stats("eval_speed_3")
+#p.sort_stats('time').print_stats(20)
+#
+#p=pstats.Stats("eval_speed_2")
+#p.sort_stats('time').print_stats(20)
+#
+#p=pstats.Stats("eval_speed")
+#p.sort_stats('time').print_stats(20)
+#
 
 
 
@@ -406,12 +406,13 @@ os.makedirs("output/"+ outdir)
 
 os.chdir("output/"+ outdir)
 
-sio.savemat("result.mat",{"result":opt.result})
+sio.savemat("result.mat",{"result":opt.result,"model":model})
 
 import pickle
 with open("par" + ".p", "wb") as pickle_file:
     pickle.dump(par, pickle_file)
 
+os.chdir('..')
 os.chdir('..')
 #with open("par.txt", "rb") as myFile:
     #par = pickle.load(myFile)
