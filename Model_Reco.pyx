@@ -292,8 +292,30 @@ cdef class Model_Reco:
     cdef double alpha = self.irgn_par.gamma
     cdef double beta = self.irgn_par.gamma*2
     
+    cdef np.ndarray[DTYPE_t,ndim=3] xx = np.zeros_like(x,dtype=DTYPE)
+    cdef np.ndarray[DTYPE_t,ndim=3] yy = np.zeros_like(x,dtype=DTYPE)
+    xx = np.random.random_sample(np.shape(x)).astype('complex128')
+    yy = self.operator_adjoint_2D(self.operator_forward_2D(xx));
+    cdef int j = 0
+    for j in range(10):
+       if not np.isclose(np.linalg.norm(yy.flatten()),0):
+           xx = yy/np.linalg.norm(yy.flatten())
+       else:
+           xx = yy
+       yy = self.operator_adjoint_2D(self.operator_forward_2D(xx))
+       l1 = np.vdot(yy.flatten(),xx.flatten());
+    L = np.max(np.abs(l1)) ## Lipschitz constant estimate   
+#    L1 = np.max(np.abs(self.grad_x[0,:,None,:,:]*self.Coils
+#                                   *np.conj(self.grad_x[0,:,None,:,:])*np.conj(self.Coils)))
+#    L2 = np.max(np.abs(self.grad_x[1,:,None,:,:]*self.Coils
+#                                   *np.conj(self.grad_x[1,:,None,:,:])*np.conj(self.Coils)))
+#
+#    L = np.max((L1,L2))*self.unknowns*self.par.NScan*self.par.NC*sigma0*tau0+1
+    L = (L+8**2+16**2)
+    print("Operatornorm estimate L: %f "%(L))    
     
-    cdef double tau = 1/np.sqrt(16**2+8**2)
+    
+    cdef double tau = 1/np.sqrt(L)
     cdef double tau_new = 0
     
     cdef np.ndarray[DTYPE_t, ndim=3] xk = x
@@ -328,7 +350,7 @@ cdef class Model_Reco:
     cdef double theta_line = 1.0
 
     
-    cdef double beta_line = 1.0
+    cdef double beta_line = 1e4
     cdef double beta_new = 0
     
     cdef double mu_line = 0.1
@@ -413,13 +435,13 @@ cdef class Model_Reco:
             print('Lhs:',lhs,'  Rrhs: ', ynorm)
             tau_new = tau_new*mu_line
             
-      Kyk1 = (Kyk1_new)
-      Kyk2 =  (Kyk2_new)
-      Axold =(Ax)
-      z1 = (z1_new)
-      z2 = (z2_new)
-      r =  (r_new)
-      tau =  (tau_new)
+      Kyk1 = np.copy(Kyk1_new)
+      Kyk2 =  np.copy(Kyk2_new)
+      Axold =np.copy(Ax)
+      z1 = np.copy(z1_new)
+      z2 = np.copy(z2_new)
+      r =  np.copy(r_new)
+      tau =  np.copy(tau_new)
         
   
       x = x_new
