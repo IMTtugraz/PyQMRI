@@ -74,11 +74,13 @@ dcf = np.transpose(dcf)
 
 data = data_real+1j*data_imag
 data = np.fft.fftshift(data,axes=2)
-data = data[:,:,15:-15,:,:]
+data = data[:,:,24,:,:]
 #data = data[:,:,0,:,:]
 dimX = 256
 dimY = 256
 data = data*np.sqrt(dcf)
+
+data = data[:,:,None,:,:]
 
 #NSlice = 1
 [NScan,NC,NSlice,Nproj, N] = data.shape
@@ -108,7 +110,7 @@ fa_corr = fa_corr['fa_corr']
 fa_corr = np.transpose(fa_corr)
 par.fa_corr =fa_corr
 par.fa_corr[par.fa_corr==0] = 1
-par.fa_corr = par.fa_corr[11:-11,:,:]
+par.fa_corr = par.fa_corr[20,:,:]
 
 
 
@@ -183,7 +185,7 @@ else:
 
 ################################################################### 
 ## Choose undersampling mode
-Nproj = 34
+Nproj = 21
 
 for i in range(NScan):
   data[i,:,:,:Nproj,:] = data[i,:,:,i*Nproj:(i+1)*Nproj,:]
@@ -406,8 +408,8 @@ irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e0
-irgn_par.gamma = 1e-1
-irgn_par.delta = 1e1
+irgn_par.gamma = 8e-2
+irgn_par.delta = 1e-1
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par
@@ -415,7 +417,7 @@ opt.irgn_par = irgn_par
 
 opt.dz = 3.0
 
-opt.execute_3D()
+opt.execute_2D()
 
 #
 #import cProfile
