@@ -13,7 +13,7 @@ from scipy.ndimage.filters import gaussian_filter as gf
 
 from createInitGuess_FLASH import createInitGuess_FLASH
 #from compute_mask import compute_mask
-
+DTYPE = np.complex64
 
 class VFA_Model:
   def __init__(self,fa,fa_corr,TR,images,phase_map,dscale):
@@ -27,7 +27,7 @@ class VFA_Model:
     
     (NScan,NSlice,dimX,dimY) = images.shape
     
-    phi_corr = np.zeros_like(images,dtype='complex128')
+    phi_corr = np.zeros_like(images,dtype=DTYPE)
     for i in range(np.size(fa)):
       phi_corr[i,:,:,:] = fa[i]*fa_corr
     
@@ -113,10 +113,10 @@ class VFA_Model:
 
 
     result = np.concatenate(((M0_guess*np.exp(1j*np.angle(phase_map)))[None,:,:,:],T1_guess[None,None,:,:]),axis=0)
-    result = np.array([2.5/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype='complex128'),1000/self.T1_sc*np.ones((NSlice,dimY,dimX),dtype='complex128')])
+    result = np.array([2.5/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),3000/self.T1_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE)])
 #    result = np.concatenate((((M0_guess)*np.exp(1j*np.angle(phase_map)))[None,:,:,:],(T1_guess)[None,None,:,:]),axis=0)
 #    result = np.array([(0.01+0*M0_guess*np.exp(1j*np.angle(phase_map))),0.3+0*(T1_guess)])
-#    result = np.array([1/self.M0_sc*np.ones((siz[1],siz[2],siz[3]),dtype='complex128'),1500/self.T1_sc*np.ones((siz[1],siz[2],siz[3]),dtype='complex128')])
+#    result = np.array([1/self.M0_sc*np.ones((siz[1],siz[2],siz[3]),dtype=DTYPE),1500/self.T1_sc*np.ones((siz[1],siz[2],siz[3]),dtype=DTYPE)])
     self.guess = result               
     
     

@@ -11,7 +11,7 @@ import numpy as np
 
 cimport cython
 
-DTYPE = np.complex128
+DTYPE = np.complex64
 @cython.cdivision(True) 
 @cython.initializedcheck(False)
 cpdef np.ndarray[DTYPE_t, ndim=3] bdiv_1(np.ndarray[DTYPE_t, ndim=4] v, float dx=1, float dy=1):

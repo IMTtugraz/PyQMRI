@@ -15,8 +15,8 @@ cimport gradients_divergences as gd
 import matplotlib.pyplot as plt
 plt.ion()
 np.import_array()
-DTYPE = np.complex128
-ctypedef np.complex128_t DTYPE_t
+DTYPE = np.complex64
+ctypedef np.complex64_t DTYPE_t
 from numpy cimport ndarray
 
 import pynfft.nfft as nfft
@@ -69,12 +69,12 @@ cdef class Model_Reco:
 
     ###################################
     ### Adjointness     
-    xx = np.random.random_sample(np.shape(x)).astype('complex128')
-    yy = np.random.random_sample(np.shape(data)).astype('complex128')
+    xx = np.random.random_sample(np.shape(x)).astype(DTYPE)
+    yy = np.random.random_sample(np.shape(data)).astype(DTYPE)
     a = np.vdot(xx.flatten(),self.operator_adjoint_2D(yy).flatten())
     b = np.vdot(self.operator_forward_2D(xx).flatten(),yy.flatten())
     test = np.abs(a-b)
-    print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,decimal.Decimal(test)))
+    print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,(test)))
     cdef np.ndarray[DTYPE_t,ndim=3] x_old = x
 #    a = 
 #    b = 
@@ -95,12 +95,12 @@ cdef class Model_Reco:
 
     ###################################
     ### Adjointness     
-    xx = np.random.random_sample(np.shape(x)).astype('complex128')
-    yy = np.random.random_sample(np.shape(data)).astype('complex128')
+    xx = np.random.random_sample(np.shape(x)).astype(DTYPE)
+    yy = np.random.random_sample(np.shape(data)).astype(DTYPE)
     a = np.vdot(xx.flatten(),self.operator_adjoint_3D(yy).flatten())
     b = np.vdot(self.operator_forward_3D(xx).flatten(),yy.flatten())
     test = np.abs(a-b)
-    print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,decimal.Decimal(test)))
+    print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,(test)))
     cdef np.ndarray[DTYPE_t,ndim=4] x_old = x
     a = self.FT(self.step_val[:,None,:,:]*self.Coils3D)
     b = self.operator_forward_3D(x)
@@ -124,9 +124,9 @@ cdef class Model_Reco:
       self.FT = self.nFT_2D
       self.FTH = self.nFTH_2D
       iters = self.irgn_par.start_iters
-      self.v = np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype='complex128')
+      self.v = np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
       
-      self.result = np.zeros((self.irgn_par.max_GN_it,self.unknowns,self.par.NSlice,self.par.dimY,self.par.dimX),dtype='complex128')
+      self.result = np.zeros((self.irgn_par.max_GN_it,self.unknowns,self.par.NSlice,self.par.dimY,self.par.dimX),dtype=DTYPE)
       result = np.copy(self.model.guess)
       for islice in range(self.par.NSlice):
         self.Coils = np.squeeze(self.par.C[:,islice,:,:])    
@@ -154,7 +154,7 @@ cdef class Model_Reco:
     self.FT = self.FT_2D
     self.FTH = self.FTH_2D
     iters = self.irgn_par.start_iters
-    self.v = np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype='complex128')
+    self.v = np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
   
     self.dimX = self.par.dimX
     self.dimY = self.par.dimY
@@ -163,7 +163,7 @@ cdef class Model_Reco:
     self.NC = self.par.NC
     self.unknowns = 2
     
-    self.result = np.zeros((self.irgn_par.max_GN_it,self.unknowns,self.par.NSlice,self.par.dimY,self.par.dimX),dtype='complex128')
+    self.result = np.zeros((self.irgn_par.max_GN_it,self.unknowns,self.par.NSlice,self.par.dimY,self.par.dimX),dtype=DTYPE)
     result = np.copy(self.model.guess)
     for islice in range(self.par.NSlice):
       self.Coils = np.squeeze(self.par.C[:,islice,:,:])
@@ -195,7 +195,7 @@ cdef class Model_Reco:
 
       
       
-      self.result = np.zeros((self.irgn_par.max_GN_it+1,self.unknowns,self.par.NSlice,self.par.dimY,self.par.dimX),dtype='complex128')
+      self.result = np.zeros((self.irgn_par.max_GN_it+1,self.unknowns,self.par.NSlice,self.par.dimY,self.par.dimX),dtype=DTYPE)
       self.result[0,:,:,:,:] = np.copy(self.model.guess)
 
       self.Coils3D = np.squeeze(self.par.C)        
@@ -294,7 +294,7 @@ cdef class Model_Reco:
     
     cdef np.ndarray[DTYPE_t,ndim=3] xx = np.zeros_like(x,dtype=DTYPE)
     cdef np.ndarray[DTYPE_t,ndim=3] yy = np.zeros_like(x,dtype=DTYPE)
-    xx = np.random.random_sample(np.shape(x)).astype('complex128')
+    xx = np.random.random_sample(np.shape(x)).astype(DTYPE)
     yy = self.operator_adjoint_2D(self.operator_forward_2D(xx));
     cdef int j = 0
     for j in range(10):
@@ -692,7 +692,7 @@ cdef class Model_Reco:
     cdef int nscan = np.shape(x)[0]
     cdef int NC = np.shape(x)[1]     
     cdef np.ndarray[DTYPE_t,ndim=4] result = np.zeros((nscan,NC,self.par.dimX,self.par.dimY),dtype=DTYPE)
-    cdef np.ndarray[np.float64_t,ndim=2] dcf = self.dcf
+    cdef np.ndarray[DTYPE_t,ndim=2] dcf = self.dcf
     cdef int scan=0
     cdef int coil=0
     cdef list plan = self._plan
@@ -731,7 +731,7 @@ cdef class Model_Reco:
     cdef int NC = np.shape(x)[1]  
     cdef int NSlice = self.par.NSlice
     cdef np.ndarray[DTYPE_t,ndim=5] result = np.zeros((nscan,NC,NSlice,self.par.dimX,self.par.dimY),dtype=DTYPE)
-    cdef np.ndarray[np.float64_t,ndim=2] dcf = self.dcf  
+    cdef np.ndarray[DTYPE_t,ndim=2] dcf = self.dcf  
     cdef int scan=0
     cdef int coil=0
     cdef int islice=0    
@@ -768,7 +768,7 @@ cdef class Model_Reco:
 #    cdef double L = 0
 #    
 #    ##estimate operator norm using power iteration
-#    cdef np.ndarray[DTYPE_t, ndim=3] xx = np.random.random_sample(np.shape(x)).astype('complex128')
+#    cdef np.ndarray[DTYPE_t, ndim=3] xx = np.random.random_sample(np.shape(x)).astype(DTYPE)
 #    cdef np.ndarray[DTYPE_t, ndim=3] yy = 1+sigma0*tau0*self.operator_adjoint_2D(self.operator_forward_2D(xx));
 #    for i in range(10):
 #       if not np.isclose(np.linalg.norm(yy.flatten()),0):

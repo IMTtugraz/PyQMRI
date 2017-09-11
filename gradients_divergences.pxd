@@ -10,7 +10,7 @@ cimport numpy as np
 np.import_array()
 import numpy as np
 
-ctypedef np.complex128_t DTYPE_t
+ctypedef np.complex64_t DTYPE_t
 
 cpdef np.ndarray[DTYPE_t, ndim=3] bdiv_1(np.ndarray[DTYPE_t, ndim=4] v, float dx=*, float dy=*)
 cpdef np.ndarray[DTYPE_t, ndim=4] fgrad_1(np.ndarray[DTYPE_t, ndim=3] u,float dx=*, float dy=*)

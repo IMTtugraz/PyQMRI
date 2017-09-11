@@ -320,7 +320,7 @@ class Model_Reco:
         np.add(z1 , beta_line*tau_new*( gradx + theta_line*gradx_xold - v_new - theta_line*v_vold  ),z1_new)
         np.divide(z1_new,np.maximum(1,(np.sqrt(np.sum(z1_new**2,axis=(0,1)))/alpha)),z1_new)
      
-        np.add(z2, beta_line*tau_new*( symgrad_v + theta_line*symgrad_v_vold ))
+        np.add(z2, beta_line*tau_new*( symgrad_v + theta_line*symgrad_v_vold ),z2_new)
         np.sqrt( np.sum(z2_new[:,0,:,:]**2 + z2_new[:,1,:,:]**2 + 2*z2_new[:,2,:,:]**2,axis=0) ,scal)
         np.maximum(1,scal/(beta),scal)
         np.divide(z2_new,scal,z2_new)
