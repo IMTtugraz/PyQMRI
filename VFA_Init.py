@@ -80,6 +80,23 @@ class struct:
     pass
 par = struct()
 
+
+##### No FA correction
+par.fa_corr = np.ones([NSlice,dimX,dimY],dtype=DTYPE)
+
+root = Tk()
+root.withdraw()
+root.update()
+file = filedialog.askopenfilename()
+root.destroy()
+
+fa_corr = sio.loadmat(file)
+fa_corr = fa_corr['fa_mid_3mm']
+
+fa_corr = np.transpose(fa_corr)
+fa_corr[[fa_corr==0]] = 1*np.pi/180
+par.fa_corr = fa_corr*180/np.pi#[16,:,:]
+
 par.NScan         = NScan 
 #no b1 correction              
 par.B1_correction = False 
@@ -220,21 +237,6 @@ par.Nproj = Nproj
 
 
 
-##### No FA correction
-par.fa_corr = np.ones([NSlice,dimX,dimY],dtype=DTYPE)
-
-root = Tk()
-root.withdraw()
-root.update()
-file = filedialog.askopenfilename()
-root.destroy()
-
-fa_corr = sio.loadmat(file)
-fa_corr = fa_corr['fa_mid_3mm']
-
-fa_corr = np.transpose(fa_corr)
-fa_corr[[fa_corr==0]] = 1*np.pi/180
-par.fa_corr = fa_corr*180/np.pi#[16,:,:]
 
 '''standardize the data'''
 
@@ -369,12 +371,12 @@ opt.traj = traj
 ########################################################################
 #IRGN Params
 irgn_par = struct()
-irgn_par.start_iters = 200
+irgn_par.start_iters = 100
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e3
-irgn_par.gamma = 1e1
-irgn_par.delta = 1e-2
+irgn_par.gamma = 1e3
+irgn_par.delta = 1e-1
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par

@@ -59,7 +59,7 @@ cdef class Model_Reco:
     self.N = par.N
     self.Nproj = par.Nproj
     self.dz = 3
-    
+
 
     print("Please Set Parameters, Data and Initial images")
 
@@ -124,18 +124,30 @@ cdef class Model_Reco:
       self.FT = self.nFT_2D
       self.FTH = self.nFTH_2D
       iters = self.irgn_par.start_iters
-      self.v = np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+
       
       self.result = np.zeros((self.irgn_par.max_GN_it,self.unknowns,self.par.NSlice,self.par.dimY,self.par.dimX),dtype=DTYPE)
       result = np.copy(self.model.guess)
       for islice in range(self.par.NSlice):
         self.Coils = np.squeeze(self.par.C[:,islice,:,:])    
-        self.conjCoils = np.conj(self.Coils)          
+        self.conjCoils = np.conj(self.Coils)   
+        self.v = np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+        self.r = np.zeros(([self.NScan,self.NC,self.Nproj,self.N]),dtype=DTYPE)
+        self.z1 = np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+        self.z2 = np.zeros(([self.unknowns,3,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+
         for i in range(self.irgn_par.max_GN_it):
           start = time.time()       
           self.step_val = self.model.execute_forward_2D(result[:,islice,:,:],islice)
           self.grad_x_2D = self.model.execute_gradient_2D(result[:,islice,:,:],islice)
           self.conj_grad_x_2D = np.conj(self.grad_x_2D)
+          
+#          if np.mod(i,2):
+#            self.hold_M0 = False
+#            self.hold_T1 = True
+#          else:
+          self.hold_M0 = False
+          self.hold_T1 = False
           
           
           result[:,islice,:,:] = self.irgn_solve_2D(result[:,islice,:,:], iters, self.data[:,:,islice,:])
@@ -321,10 +333,10 @@ cdef class Model_Reco:
     cdef np.ndarray[DTYPE_t, ndim=3] xk = x
     cdef np.ndarray[DTYPE_t, ndim=3] x_new = np.zeros_like(x,dtype=DTYPE)
     
-    cdef np.ndarray[DTYPE_t, ndim=4] r = np.zeros_like(res,dtype=DTYPE)
-    cdef np.ndarray[DTYPE_t, ndim=4] z1 = np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-    cdef np.ndarray[DTYPE_t, ndim=4] z2 = np.zeros(([self.unknowns,3,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-    cdef np.ndarray[DTYPE_t, ndim=4] v = np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+    cdef np.ndarray[DTYPE_t, ndim=4] r = self.r#np.zeros_like(res,dtype=DTYPE)
+    cdef np.ndarray[DTYPE_t, ndim=4] z1 = self.z1#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+    cdef np.ndarray[DTYPE_t, ndim=4] z2 = self.z2#np.zeros(([self.unknowns,3,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+    cdef np.ndarray[DTYPE_t, ndim=4] v = self.v#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
     
     cdef np.ndarray[DTYPE_t, ndim=4] r_new = np.zeros_like(res,dtype=DTYPE)
     cdef np.ndarray[DTYPE_t, ndim=4] z1_new = np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
@@ -350,7 +362,7 @@ cdef class Model_Reco:
     cdef double theta_line = 1.0
 
     
-    cdef double beta_line = 1e3
+    cdef double beta_line = 1
     cdef double beta_new = 0
     
     cdef double mu_line = 0.1
@@ -383,8 +395,13 @@ cdef class Model_Reco:
       
       
       np.maximum(0,np.minimum(300/self.model.M0_sc,x_new[0,:,:],x_new[0,:,:]),x_new[0,:,:])
-      np.abs(np.maximum(50/self.model.T1_sc,np.minimum(5000/self.model.T1_sc,x_new[1,:,:],x_new[1,:,:]),x_new[1,:,:]),x_new[1,:,:])
-
+#      np.real(np.maximum(50/self.model.T1_sc,np.minimum(5000/self.model.T1_sc,x_new[1,:,:],x_new[1,:,:]),x_new[1,:,:]),x_new[1,:,:])
+      x_new[1,:,:] = np.real(np.maximum(np.exp(-self.par.TR/50),np.minimum(np.exp(-self.par.TR/5000),x_new[1,:,:],x_new[1,:,:]),x_new[1,:,:]))
+      if self.hold_M0:
+        x_new[0,:,:] = xk[0,:,:]
+      elif self.hold_T1:
+        x_new[1,:,:] = xk[1,:,:]
+        
 #      np.abs(x_new[1,:,:],x_new[1,:,:])
       
       
@@ -444,16 +461,16 @@ cdef class Model_Reco:
       tau =  np.copy(tau_new)
         
   
-      x = x_new
-      v = v_new
+      x = np.copy(x_new)
+      v = np.copy(v_new)
         
       if not np.mod(i,20):
         plt.figure(1)
         plt.imshow(np.transpose(np.abs(x[0,:,:]*self.model.M0_sc)))
         plt.pause(0.05)
         plt.figure(2)
-#        plt.imshow(np.transpose(np.abs(-self.par.TR/np.log(x[1,:,:]))),vmin=0,vmax=3000)
-        plt.imshow(np.transpose(np.abs(x[1,:,:]*self.model.T1_sc)),vmin=0,vmax=3000)
+        plt.imshow(np.transpose(np.abs(-self.par.TR/np.log(x[1,:,:]))),vmin=0,vmax=3000)
+#        plt.imshow(np.transpose(np.abs(x[1,:,:]*self.model.T1_sc)),vmin=0,vmax=3000)
         plt.pause(0.05)
         primal= np.real(self.irgn_par.lambd/2*np.linalg.norm((Ax-res).flatten())**2+alpha*np.sum(np.abs((gradx-v))) +
                  beta*np.sum(np.abs(symgrad_v)) + 1/(2*delta)*np.linalg.norm((x-xk).flatten())**2)
@@ -633,6 +650,9 @@ cdef class Model_Reco:
         
         
     self.v = v
+    self.z1 = z1
+    self.z2 = z2
+    self.r = r
     return x  
   
   
