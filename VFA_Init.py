@@ -56,15 +56,15 @@ file = filedialog.askopenfilename()
 root.destroy()
 
 dcf = sio.loadmat(file)
-dcf = dcf['w']
+dcf = dcf['dcf']
 
 dcf = np.transpose(dcf)
 #dcf = dcf/np.max(dcf)
 
 
 #data = data[:,:,0,:,:]
-dimX = 128
-dimY = 128
+dimX = 256
+dimY = 256
 data = data*np.sqrt(dcf)
 
 #NSlice = 1
@@ -146,16 +146,16 @@ else:
 
 ################################################################### 
 ## Choose undersampling mode
-Nproj = 21
+#Nproj = 13
 #
 #for i in range(NScan):
 #  data[i,:,:,:Nproj,:] = data[i,:,:,i*Nproj:(i+1)*Nproj,:]
 #  traj[i,:Nproj,:] = traj[i,i*Nproj:(i+1)*Nproj,:]
-
-
-data = data[:,:,:,:Nproj,:]
-traj = traj[:,:Nproj,:]
-dcf = dcf[:Nproj,:]
+#
+#
+#data = data[:,:,:,:Nproj,:]
+#traj = traj[:,:Nproj,:]
+#dcf = dcf[:Nproj,:]
 
 
 
@@ -199,8 +199,8 @@ options[undersampling_mode]()
 ######################################################################## 
 ## struct par init
 
-#FA = np.array([2,3,4,5,7,9,11,14,17,22],np.complex128)
-FA = np.array([1,3,5,7,9,11,13,15,17],np.complex128)*np.pi/180
+FA = np.array([2,3,4,5,7,9,11,14,17,22],np.complex128)*np.pi/180
+#FA = np.array([1,3,5,7,9,11,13,15,17],np.complex128)*np.pi/180
 fa = FA    #  % flip angle in rad FA siehe FLASH phantom generierung
 #alpha = [1,3,5,7,9,11,13,15,17,19]*pi/180;
 
@@ -220,18 +220,18 @@ par.Nproj = Nproj
 ##### No FA correction
 par.fa_corr = np.ones([NSlice,dimX,dimY],dtype='complex128')
 
-#root = Tk()
-#root.withdraw()
-#root.update()
-#file = filedialog.askopenfilename()
-#root.destroy()
-#
-#fa_corr = sio.loadmat(file)
-#fa_corr = fa_corr['fa_mid_3mm']
-#
-#fa_corr = np.transpose(fa_corr)
-#fa_corr[[fa_corr==0]] = 1
-#par.fa_corr = fa_corr[None,:,:]
+root = Tk()
+root.withdraw()
+root.update()
+file = filedialog.askopenfilename()
+root.destroy()
+
+fa_corr = sio.loadmat(file)
+fa_corr = fa_corr['fa_mid_3mm']
+
+fa_corr = np.transpose(fa_corr)
+fa_corr[[fa_corr==0]] = 1
+par.fa_corr = fa_corr[None,:,:]
 
 '''standardize the data'''
 
@@ -370,8 +370,8 @@ irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e0
-irgn_par.gamma = 1e-1
-irgn_par.delta = 1e0
+irgn_par.gamma = 1e-20
+irgn_par.delta = 1e20
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par
