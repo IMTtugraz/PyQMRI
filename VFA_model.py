@@ -42,7 +42,7 @@ class VFA_Model:
     T1_guess[np.isnan(T1_guess)] = np.spacing(1)
     T1_guess[np.isinf(T1_guess)] = np.spacing(1)
     T1_guess[T1_guess<0] = 0 
-    T1_guess[T1_guess>5000] = 5000
+#    T1_guess[T1_guess>5000] = 5000
     T1_guess = np.abs(T1_guess)
 
     M0_guess[M0_guess<0] = 0 
@@ -60,12 +60,20 @@ class VFA_Model:
 
     M0_guess[M0_guess > bb[int(np.sum(idx))]] = bb[int(np.sum(idx))] #passst
 #    print(M0_guess)
-    
+#
+    hist =  np.histogram(np.abs(T1_guess),int(1e2))
+    aa = np.array(hist[0], dtype=np.float64)
+    #bb = hist[1] #hist0[1][:-1] + np.diff(hist0[1])/2
+    bb = np.array(hist[1][:-1] + np.diff(hist[1])/2, dtype=np.float64)
+   
+    idx = np.array(aa > 0.01*aa[0],dtype=np.float64)
+
+    T1_guess[T1_guess > bb[int(np.sum(idx))]] = bb[int(np.sum(idx))] #passst    
     self.T1_guess = T1_guess
     self.M0_guess = M0_guess
 
-    M0_guess = np.squeeze(gf(M0_guess,5))
-    T1_guess = gf(T1_guess,5)
+#    M0_guess = np.squeeze(gf(M0_guess,5))
+#    T1_guess = gf(T1_guess,5)
 
 #    mask_guess = compute_mask(M0_guess,False)
 
