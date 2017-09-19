@@ -95,15 +95,16 @@ cdef class Model_Reco:
 
     ###################################
     ### Adjointness     
-    xx = np.random.random_sample(np.shape(x)).astype(DTYPE)
-    yy = np.random.random_sample(np.shape(data)).astype(DTYPE)
-    a = np.vdot(xx.flatten(),self.operator_adjoint_3D(yy).flatten())
-    b = np.vdot(self.operator_forward_3D(xx).flatten(),yy.flatten())
-    test = np.abs(a-b)
-    print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,(test)))
+#    xx = np.random.random_sample(np.shape(x)).astype('complex128')
+#    yy = np.random.random_sample(np.shape(data)).astype('complex128')
+#    a = np.vdot(xx.flatten(),self.operator_adjoint_3D(yy).flatten())
+#    b = np.vdot(self.operator_forward_3D(xx).flatten(),yy.flatten())
+#    test = np.abs(a-b)
+#    print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,decimal.Decimal(test)))
+
     cdef np.ndarray[DTYPE_t,ndim=4] x_old = x
-    a = self.FT(self.step_val[:,None,:,:]*self.Coils3D)
-    b = self.operator_forward_3D(x)
+    cdef np.ndarray[DTYPE_t,ndim=5] a = self.FT(self.step_val[:,None,:,:]*self.Coils3D)
+    cdef np.ndarray[DTYPE_t,ndim=5] b = self.operator_forward_3D(x)
     res = data - a + b
     print("Test the norm: %2.2E  a=%2.2E   b=%2.2E" %(np.linalg.norm(res.flatten()),np.linalg.norm(a.flatten()), np.linalg.norm(b.flatten())))
   
@@ -205,7 +206,10 @@ cdef class Model_Reco:
       self.FTH = self.nFTH_3D
       iters = self.irgn_par.start_iters
 
-      
+      self.v = np.zeros(([self.unknowns,3,self.NSlice,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+      self.r = np.zeros_like(self.data,dtype=DTYPE)
+      self.z1 = np.zeros(([self.unknowns,3,self.NSlice,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+      self.z2 = np.zeros(([self.unknowns,6,self.NSlice,self.par.dimX,self.par.dimY]),dtype=DTYPE)        
       
       self.result = np.zeros((self.irgn_par.max_GN_it+1,self.unknowns,self.par.NSlice,self.par.dimY,self.par.dimX),dtype=DTYPE)
       self.result[0,:,:,:,:] = np.copy(self.model.guess)
@@ -214,16 +218,18 @@ cdef class Model_Reco:
       self.conjCoils3D = np.conj(self.Coils3D)
       for i in range(self.irgn_par.max_GN_it):
         start = time.time()       
+
         self.step_val = np.nan_to_num(self.model.execute_forward_3D(self.result[i,:,:,:,:]))
         self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(self.result[i,:,:,:,:]))
         self.conj_grad_x = np.nan_to_num(np.conj(self.grad_x))
+
           
           
         self.result[i+1,:,:,:,:] = self.irgn_solve_3D(self.result[i,:,:,:,:], iters, self.data)
 
 
         iters = np.fmin(iters*2,self.irgn_par.max_iters)
-        self.irgn_par.gamma = self.irgn_par.gamma*0.7
+        self.irgn_par.gamma = self.irgn_par.gamma*0.8 ##0.7
         self.irgn_par.delta = self.irgn_par.delta*2
           
         end = time.time()-start
@@ -391,17 +397,12 @@ cdef class Model_Reco:
     Kyk2 = -z1 - gd.fdiv_2(z2)
     cdef int i=0
     for i in range(iters):
-      x_new = np.maximum(0,((x - tau*(Kyk1))+(tau/delta)*xk)/(1+tau/delta))
-      
-      
-      x_new[0,...] = np.maximum(0,np.minimum(300/self.model.M0_sc,x_new[0,:,:]))
-#      np.real(np.maximum(50/self.model.T1_sc,np.minimum(5000/self.model.T1_sc,x_new[1,:,:],x_new[1,:,:]),x_new[1,:,:]),x_new[1,:,:])
-      x_new[1,...] = np.real(np.maximum(self.model.min_T1,np.minimum(self.model.max_T1,x_new[1,:,:])))
-      if self.hold_M0:
-        x_new[0,:,:] = xk[0,:,:]
-      elif self.hold_T1:
-        x_new[1,:,:] = xk[1,:,:]
         
+      x_new = np.maximum(0,((x - tau*(Kyk1))+(tau/delta)*xk)/(1+tau/delta))
+
+      x_new[0,:,:] = np.maximum(0,np.minimum(300/self.model.M0_sc,x_new[0,...],x_new[0,...]),x_new[0,...])
+      x_new[1,:,:] = np.real(np.maximum(self.model.min_T1,np.minimum(self.model.max_T1,x_new[1,...],x_new[1,...]),x_new[1,...]))
+
 #      np.abs(x_new[1,:,:],x_new[1,:,:])
       
       
@@ -432,7 +433,9 @@ cdef class Model_Reco:
      
         z2_new = z2 + beta_line*tau_new*( symgrad_v + theta_line*symgrad_v_vold )
         scal = np.sqrt( np.sum(z2_new[:,0,:,:]**2 + z2_new[:,1,:,:]**2 + 2*z2_new[:,2,:,:]**2,axis=0) )
-        scal = np.maximum(1,scal/(beta),scal)
+
+        scal = np.maximum(1,scal/(beta))
+
         z2_new = z2_new/scal
         
         
@@ -451,7 +454,7 @@ cdef class Model_Reco:
         else:
 #            print('Lhs:',lhs,'  Rrhs: ', ynorm)
             tau_new = tau_new*mu_line
-            
+             
       Kyk1 = np.copy(Kyk1_new)
       Kyk2 =  np.copy(Kyk2_new)
       Axold =np.copy(Ax)
@@ -465,13 +468,7 @@ cdef class Model_Reco:
       v = np.copy(v_new)
         
       if not np.mod(i,20):
-        plt.figure(1)
-        plt.imshow(np.transpose(np.abs(x[0,:,:]*self.model.M0_sc)))
-        plt.pause(0.05)
-        plt.figure(2)
-        plt.imshow(np.transpose(np.abs(-self.par.TR/np.log(x[1,:,:]))),vmin=0,vmax=3000)
-#        plt.imshow(np.transpose(np.abs(x[1,:,:]*self.model.T1_sc)),vmin=0,vmax=3000)
-        plt.pause(0.05)
+        self.model.plot_unknonws(x,True)
         primal= np.real(self.irgn_par.lambd/2*np.linalg.norm((Ax-res).flatten())**2+alpha*np.sum(np.abs((gradx-v))) +
                  beta*np.sum(np.abs(symgrad_v)) + 1/(2*delta)*np.linalg.norm((x-xk).flatten())**2)
     
@@ -501,10 +498,10 @@ cdef class Model_Reco:
     cdef np.ndarray[DTYPE_t,ndim=4] xk = x
     cdef np.ndarray[DTYPE_t,ndim=4] x_new = np.zeros_like(x,dtype=DTYPE)
     
-    cdef np.ndarray[DTYPE_t,ndim=5] r = np.zeros_like(res,dtype=DTYPE)
-    cdef np.ndarray[DTYPE_t,ndim=5] z1 = np.zeros(([self.unknowns,3,self.par.NSlice,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-    cdef np.ndarray[DTYPE_t,ndim=5] z2 = np.zeros(([self.unknowns,6,self.par.NSlice,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-    cdef np.ndarray[DTYPE_t,ndim=5] v = np.zeros_like(z1,dtype=DTYPE)
+    cdef np.ndarray[DTYPE_t,ndim=5] r = np.copy(self.r)#np.zeros_like(res,dtype=DTYPE)
+    cdef np.ndarray[DTYPE_t,ndim=5] z1 = np.copy(self.z1)#np.zeros(([self.unknowns,3,self.par.NSlice,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+    cdef np.ndarray[DTYPE_t,ndim=5] z2 = np.copy(self.z2)#np.zeros(([self.unknowns,6,self.par.NSlice,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+    cdef np.ndarray[DTYPE_t,ndim=5] v = np.copy(self.v)#np.zeros_like(z1,dtype=DTYPE)
     
     cdef np.ndarray[DTYPE_t,ndim=5] r_new = np.zeros_like(r,dtype=DTYPE)
     cdef np.ndarray[DTYPE_t,ndim=5] z1_new = np.zeros_like(z1,dtype=DTYPE)
@@ -530,7 +527,7 @@ cdef class Model_Reco:
     cdef double theta_line = 1.0
 
     
-    cdef double beta_line = 1.0
+    cdef double beta_line = 1e0
     cdef double beta_new = 0
     
     cdef double mu_line = 0.1
@@ -562,24 +559,24 @@ cdef class Model_Reco:
     cdef int i=0
     
     for i in range(iters):
-      np.maximum(0,((x - tau*(Kyk1))+(tau/delta)*xk)/(1+tau/delta),x_new)
+      x_new = np.maximum(0,((x - tau*(Kyk1))+(tau/delta)*xk)/(1+tau/delta))
       
       
-      np.maximum(0,np.minimum(300/self.model.M0_sc,x_new[0,:,:,:],x_new[0,:,:,:]),x_new[0,:,:,:])
-      np.abs(np.maximum(50/self.model.T1_sc,np.minimum(5000/self.model.T1_sc,
-                                                       x_new[1,:,:,:],x_new[1,:,:,:]),
-                                                       x_new[1,:,:,:]),x_new[1,:,:,:])
+      x_new[0,...] = np.maximum(0,np.minimum(300/self.model.M0_sc,x_new[0,...]))
+      x_new[1,...] = np.real(np.maximum(self.model.min_T1,np.minimum(self.model.max_T1,
+                                                       x_new[1,...])))
 
 #      np.abs(x_new[1,:,:],x_new[1,:,:])
       
 #      print('x_new: ',np.sum(~np.isfinite(x_new)))       
       v_new = v-tau*Kyk2
 #      print('vnew: ',np.sum(~np.isfinite(v_new)))     
-      beta_new = beta_line*(1+mu*tau)
+#      beta_new = beta_line*(1+mu*tau)
       
 #      tau_new = tau*np.sqrt(beta_line/beta_new*(1+theta_line))
-      tau_new = tau*np.sqrt(beta_line/beta_new)      
-      beta_line = beta_new
+      tau_new = tau*np.sqrt((1+theta_line))
+#      tau_new = tau*np.sqrt(beta_line/beta_new)      
+#      beta_line = beta_new
       
       gradx = gd.fgrad_3(x_new,1,1,dz)
       gradx_xold = gradx - gd.fgrad_3(x,1,1,dz)
@@ -602,7 +599,7 @@ cdef class Model_Reco:
         scal = np.sqrt( np.sum(z2_new[:,0,:,:,:]**2 + z2_new[:,1,:,:,:]**2 +
                     z2_new[:,2,:,:,:]**2+ 2*z2_new[:,3,:,:,:]**2 + 
                     2*z2_new[:,4,:,:,:]**2+2*z2_new[:,5,:,:,:]**2,axis=0))
-        np.maximum(1,scal/(beta),scal)
+        scal = np.maximum(1,scal/(beta),scal)
         z2_new = z2_new/scal
         
 #        print('z2_new: ',np.sum(~np.isfinite(z2_new))) 
@@ -618,7 +615,7 @@ cdef class Model_Reco:
         
         ynorm = np.linalg.norm(np.concatenate([(r_new-r).flatten(),(z1_new-z1).flatten(),(z2_new-z2).flatten()]))
         lhs = np.sqrt(beta_line)*tau_new*np.linalg.norm(np.concatenate([(Kyk1_new-Kyk1).flatten(),(Kyk2_new-Kyk2).flatten()]))        
-        if lhs <= ynorm:
+        if lhs <= ynorm*delta_line:
             break
         else:
 #            print('Lhs:',lhs,'  Rrhs: ', ynorm)           
@@ -637,13 +634,7 @@ cdef class Model_Reco:
       v = v_new
         
       if not np.mod(i,20):
-        plt.figure(1)
-        plt.imshow(np.transpose(np.abs(x[0,0,:,:]*self.model.M0_sc)))
-        plt.pause(0.05)
-        plt.figure(2)
-        plt.imshow(np.transpose(np.abs(x[1,0,:,:]*self.model.T1_sc)),vmin=0,vmax=3000)
-#        plt.imshow(np.transpose(np.abs(x[1,0,:,:]*self.model.T1_sc)),vmin=0,vmax=3000)
-        plt.pause(0.05)
+        self.model.plot_unknowns(x)
         primal= np.real(self.irgn_par.lambd/2*np.linalg.norm((Ax-res).flatten())**2+alpha*np.sum(np.abs((gradx-v))) +
                  beta*np.sum(np.abs(symgrad_v)) + 1/(2*delta)*np.linalg.norm((x-xk).flatten())**2)
     
