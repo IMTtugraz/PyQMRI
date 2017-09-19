@@ -63,7 +63,7 @@ dcf = dcf['dcf'].astype(DTYPE)
 dcf = np.transpose(dcf)
 #dcf = dcf/np.max(dcf)
 
-#
+#data = np.fft.fft(data,axis=2).astype(DTYPE)
 #data = data[:,:,20,:,:]
 #data = data[:,:,None,:,:]
 dimX = 256
@@ -95,7 +95,7 @@ fa_corr = fa_corr['fa_mid_3mm']
 
 fa_corr = np.transpose(fa_corr)
 fa_corr[[fa_corr==0]] = 1*np.pi/180
-par.fa_corr = fa_corr*180/np.pi#[16,:,:]
+par.fa_corr = fa_corr*180/np.pi#[16,:,:]#
 
 par.NScan         = NScan 
 #no b1 correction              
@@ -166,7 +166,7 @@ else:
 
 ################################################################### 
 # Choose undersampling mode
-Nproj = 21
+Nproj = 13
 
 for i in range(NScan):
   data[i,:,:,:Nproj,:] = data[i,:,:,i*Nproj:(i+1)*Nproj,:]
@@ -176,7 +176,7 @@ for i in range(NScan):
 data = data[:,:,:,:Nproj,:]
 traj = traj[:,:Nproj,:]
 dcf = dcf[:Nproj,:]
-#
+
 
 
 
@@ -241,7 +241,7 @@ par.Nproj = Nproj
 '''standardize the data'''
 
 
-dscale = np.sqrt(NSlice)*np.complex128(100)/(np.linalg.norm(uData.flatten()))
+dscale = np.sqrt(NSlice)*np.complex128(1)/(np.linalg.norm(uData.flatten()))
 par.dscale = dscale
 
 ######################################################################## 
@@ -367,16 +367,15 @@ opt.traj = traj
 #print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,test))
 
 
-
 ########################################################################
 #IRGN Params
 irgn_par = struct()
-irgn_par.start_iters = 100
+irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 10
-irgn_par.lambd = 1e3
-irgn_par.gamma = 1e3
-irgn_par.delta = 1e-1
+irgn_par.max_GN_it = 13
+irgn_par.lambd = 1e2
+irgn_par.gamma = 5e-2
+irgn_par.delta = 1e-2
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par
@@ -413,7 +412,7 @@ os.makedirs("output/"+ outdir)
 
 os.chdir("output/"+ outdir)
 
-sio.savemat("result.mat",{"result":opt.result,"model":model})
+sio.savemat("result_8spk.mat",{"result":opt.result,"model":model})
 
 import pickle
 with open("par" + ".p", "wb") as pickle_file:

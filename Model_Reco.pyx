@@ -365,7 +365,7 @@ cdef class Model_Reco:
     cdef double beta_line = 1
     cdef double beta_new = 0
     
-    cdef double mu_line = 0.1
+    cdef double mu_line = 0.5
     cdef double delta_line = 0.8
     cdef np.ndarray[DTYPE_t, ndim=2] scal = np.zeros((self.par.dimX,self.par.dimY),dtype=DTYPE)
     
@@ -391,12 +391,12 @@ cdef class Model_Reco:
     Kyk2 = -z1 - gd.fdiv_2(z2)
     cdef int i=0
     for i in range(iters):
-      np.maximum(0,((x - tau*(Kyk1))+(tau/delta)*xk)/(1+tau/delta),x_new)
+      x_new = np.maximum(0,((x - tau*(Kyk1))+(tau/delta)*xk)/(1+tau/delta))
       
       
-      np.maximum(0,np.minimum(300/self.model.M0_sc,x_new[0,:,:],x_new[0,:,:]),x_new[0,:,:])
+      x_new[0,...] = np.maximum(0,np.minimum(300/self.model.M0_sc,x_new[0,:,:]))
 #      np.real(np.maximum(50/self.model.T1_sc,np.minimum(5000/self.model.T1_sc,x_new[1,:,:],x_new[1,:,:]),x_new[1,:,:]),x_new[1,:,:])
-      x_new[1,:,:] = np.real(np.maximum(np.exp(-self.par.TR/50),np.minimum(np.exp(-self.par.TR/5000),x_new[1,:,:],x_new[1,:,:]),x_new[1,:,:]))
+      x_new[1,...] = np.real(np.maximum(self.model.min_T1,np.minimum(self.model.max_T1,x_new[1,:,:])))
       if self.hold_M0:
         x_new[0,:,:] = xk[0,:,:]
       elif self.hold_T1:
@@ -407,13 +407,13 @@ cdef class Model_Reco:
       
       v_new = v-tau*Kyk2
       
-      beta_new = beta_line*(1+mu*tau)
+#      beta_new = beta_line*(1+mu*tau)
       
 #      tau_new = tau*np.sqrt(beta_line/beta_new*(1+theta_line))
-      tau_new = tau*np.sqrt(beta_line/beta_new)      
-#      tau_new = tau*np.sqrt((1+theta_line))     
+#      tau_new = tau*np.sqrt(beta_line/beta_new)      
+      tau_new = tau*np.sqrt((1+theta_line))     
       
-      beta_line = beta_new
+#      beta_line = beta_new
       
       gradx = gd.fgrad_1(x_new)
       gradx_xold = gradx - gd.fgrad_1(x)
@@ -432,7 +432,7 @@ cdef class Model_Reco:
      
         z2_new = z2 + beta_line*tau_new*( symgrad_v + theta_line*symgrad_v_vold )
         scal = np.sqrt( np.sum(z2_new[:,0,:,:]**2 + z2_new[:,1,:,:]**2 + 2*z2_new[:,2,:,:]**2,axis=0) )
-        np.maximum(1,scal/(beta),scal)
+        scal = np.maximum(1,scal/(beta),scal)
         z2_new = z2_new/scal
         
         
@@ -446,10 +446,10 @@ cdef class Model_Reco:
         
         ynorm = np.linalg.norm(np.concatenate([(r_new-r).flatten(),(z1_new-z1).flatten(),(z2_new-z2).flatten()]))
         lhs = np.sqrt(beta_line)*tau_new*np.linalg.norm(np.concatenate([(Kyk1_new-Kyk1).flatten(),(Kyk2_new-Kyk2).flatten()]))        
-        if lhs <= ynorm:
+        if lhs <= ynorm*delta_line:
             break
         else:
-            print('Lhs:',lhs,'  Rrhs: ', ynorm)
+#            print('Lhs:',lhs,'  Rrhs: ', ynorm)
             tau_new = tau_new*mu_line
             
       Kyk1 = np.copy(Kyk1_new)
@@ -482,6 +482,10 @@ cdef class Model_Reco:
         
         
     self.v = v
+    self.r = r
+    self.z1 = z1
+    self.z2 = z2
+    
     return x
   
   cdef np.ndarray[DTYPE_t,ndim=4] tgv_solve_3D(self, np.ndarray[DTYPE_t,ndim=4] x, np.ndarray[DTYPE_t,ndim=5] res, int iters):
