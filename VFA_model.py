@@ -115,7 +115,7 @@ class VFA_Model:
 #    result = np.array([1/self.M0_sc*np.ones((siz[1],siz[2],siz[3]),dtype=DTYPE),1500/self.T1_sc*np.ones((siz[1],siz[2],siz[3]),dtype=DTYPE)])
     self.guess = result               
     self.min_T1 = np.exp(-self.TR/50)
-    self.max_T1 = np.exp(-self.TR/5000)      
+    self.max_T1 = np.exp(-self.TR/5500)      
 
   def execute_forward_2D(self,x,slice):
 #    E1 = np.exp(-self.TR/(x[1,:,:]*self.T1_sc))#

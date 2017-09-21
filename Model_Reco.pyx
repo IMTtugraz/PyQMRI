@@ -468,7 +468,7 @@ cdef class Model_Reco:
       v = np.copy(v_new)
         
       if not np.mod(i,20):
-        self.model.plot_unknonws(x,True)
+        self.model.plot_unknowns(x,True)
         primal= np.real(self.irgn_par.lambd/2*np.linalg.norm((Ax-res).flatten())**2+alpha*np.sum(np.abs((gradx-v))) +
                  beta*np.sum(np.abs(symgrad_v)) + 1/(2*delta)*np.linalg.norm((x-xk).flatten())**2)
     

@@ -9,3 +9,5 @@ data/
 Memory*
 eval_speed*
 *.mat
+phantom/
+Phantom/
