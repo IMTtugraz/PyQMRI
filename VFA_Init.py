@@ -197,7 +197,7 @@ dcf_full = np.copy(dcf)
 
 
 # Choose undersampling mode
-Nproj = 13
+Nproj = 5
 
 for i in range(NScan):
   data[i,:,:,:Nproj,:] = data[i,:,:,i*Nproj:(i+1)*Nproj,:]
@@ -404,8 +404,8 @@ irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 13
 irgn_par.lambd = 1e2
-irgn_par.gamma = 5e-2   #### 5e-2
-irgn_par.delta = 1e-2   #### 8spk in-vivo 1e-2
+irgn_par.gamma = 5e-3   #### 5e-2
+irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par
@@ -443,7 +443,7 @@ os.makedirs("output/"+ outdir)
 
 os.chdir("output/"+ outdir)
 
-sio.savemat("result_phantom_13spk.mat",{"result":opt.result,"model":model})
+sio.savemat("result_phantom_05spk.mat",{"result":opt.result,"model":model})
 
 import pickle
 with open("par" + ".p", "wb") as pickle_file:
@@ -457,6 +457,22 @@ os.chdir('..')
 
 
 
+##### Save hdf5
+outdir = time.strftime("%Y-%m-%d  %H-%M-%S")
+if not os.path.exists('./output'):
+    os.makedirs('./output')
+os.makedirs("output/"+ outdir)
+
+os.chdir("output/"+ outdir)  
+
+f = h5py.File("output.h5","w")
+dset_result = f.create_dataset("full_result",opt.result.shape,dtype=np.complex64,data=opt.result)
+dset_T1 = f.create_dataset("T1_final",np.squeeze(opt.result[-1,1,...]).shape,dtype=np.complex64,data=np.squeeze(opt.result[-1,1,...]))
+dset_M0 = f.create_dataset("M0_final",np.squeeze(opt.result[-1,0,...]).shape,dtype=np.complex64,data=np.squeeze(opt.result[-1,0,...]))
+f.flush()
+f.close()
+os.chdir('..')
+os.chdir('..')
 ##                
 def multi_slice_viewer(volume):
 
