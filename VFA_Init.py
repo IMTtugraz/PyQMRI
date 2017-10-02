@@ -60,7 +60,7 @@ data = file['real_dat'][()].astype(DTYPE) + 1j*file['imag_dat'][()].astype(DTYPE
 
 #file = h5py.File(file)
 
-traj = file['traj_real'][()].astype(DTYPE) + 1j*file['traj_imag'][()].astype(DTYPE)
+traj = file['real_traj'][()].astype(DTYPE) + 1j*file['imag_traj'][()].astype(DTYPE)
 
 
 
@@ -90,10 +90,10 @@ dcf = file['dcf'][()].astype(DTYPE)
 #dcf = dcf/np.max(dcf)
 
 #data = np.fft.fft(data,axis=2).astype(DTYPE)
-data = data[:,:,8,:,:]
+data = data[:,:,20,:,:]
 data = data[:,:,None,:,:]
-dimX = 216
-dimY = 216
+dimX = 256
+dimY = 256
 #data = data*np.sqrt(dcf) ## only in-vivo
 
 #NSlice = 1
@@ -108,7 +108,8 @@ par = struct()
 
 
 ##### No FA correction
-par.fa_corr = np.ones([NSlice,dimX,dimY],dtype=DTYPE)
+par.fa_corr = file['fa_corr'][()].astype(DTYPE)#np.ones([NSlice,dimX,dimY],dtype=DTYPE)
+par.fa_corr = par.fa_corr[16,:,:]
 #
 #root = Tk()
 #root.withdraw()
@@ -191,22 +192,22 @@ else:
 #  par.C = np.expand_dims(par.C,axis=1)
 
 ################################################################### 
-data_full = np.copy(data)
-traj_full = np.copy(traj)
-dcf_full = np.copy(dcf)
-
-
-# Choose undersampling mode
-Nproj = 5
-
-for i in range(NScan):
-  data[i,:,:,:Nproj,:] = data[i,:,:,i*Nproj:(i+1)*Nproj,:]
-  traj[i,:Nproj,:] = traj[i,i*Nproj:(i+1)*Nproj,:]
-
-
-data = data[:,:,:,:Nproj,:]
-traj = traj[:,:Nproj,:]
-dcf = dcf[:Nproj,:]
+#data_full = np.copy(data)
+#traj_full = np.copy(traj)
+#dcf_full = np.copy(dcf)
+#
+#
+## Choose undersampling mode
+#Nproj = 5
+#
+#for i in range(NScan):
+#  data[i,:,:,:Nproj,:] = data[i,:,:,i*Nproj:(i+1)*Nproj,:]
+#  traj[i,:Nproj,:] = traj[i,i*Nproj:(i+1)*Nproj,:]
+#
+#
+#data = data[:,:,:,:Nproj,:]
+#traj = traj[:,:Nproj,:]
+#dcf = dcf[:Nproj,:]
 
 
 
@@ -250,7 +251,8 @@ options[undersampling_mode]()
 ######################################################################## 
 ## struct par init
 
-FA = np.array([1,2,4,5,7,9,11,14,17,23],np.complex128)*np.pi/180
+#FA = np.array([1,2,4,5,7,9,11,14,17,23],np.complex128)*np.pi/180
+FA = np.array([1,2,3,4,5,6,7,9,11,13],np.complex128)*np.pi/180
 #FA = np.array([1,3,5,7,9,11,13,15,17],np.complex128)*np.pi/180
 fa = FA    #  % flip angle in rad FA siehe FLASH phantom generierung
 #alpha = [1,3,5,7,9,11,13,15,17,19]*pi/180;
