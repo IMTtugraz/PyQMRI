@@ -94,7 +94,7 @@ data = data[:,:,20,:,:]
 data = data[:,:,None,:,:]
 dimX = 256
 dimY = 256
-#data = data*np.sqrt(dcf) ## only in-vivo
+data = data*np.sqrt(dcf) ## only in-vivo
 
 #NSlice = 1
 [NScan,NC,NSlice,Nproj, N] = data.shape
@@ -406,7 +406,7 @@ irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 13
 irgn_par.lambd = 1e2
-irgn_par.gamma = 5e-3   #### 5e-2
+irgn_par.gamma = 1e-2   #### 5e-2   5e-3 phantom
 irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
 irgn_par.display_iterations = True
 
