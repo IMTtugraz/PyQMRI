@@ -10,6 +10,10 @@ import nlinvns_maier as nlinvns
 
 import pyximport; pyximport.install()
 import Model_Reco as Model_Reco
+
+import Model_Reco_old as Model_Reco_Tikh
+
+
 import multiprocessing as mp
 
 import mkl
@@ -90,7 +94,7 @@ dcf = file['dcf'][()].astype(DTYPE)
 #dcf = dcf/np.max(dcf)
 
 #data = np.fft.fft(data,axis=2).astype(DTYPE)
-data = data[:,:,20,:,:]
+data = data[:,:,8,:,:]
 data = data[:,:,None,:,:]
 dimX = 256
 dimY = 256
@@ -109,7 +113,7 @@ par = struct()
 
 ##### No FA correction
 par.fa_corr = file['fa_corr'][()].astype(DTYPE)#np.ones([NSlice,dimX,dimY],dtype=DTYPE)
-par.fa_corr = par.fa_corr[16,:,:]
+par.fa_corr = np.flip(par.fa_corr,axis=0)[6,:,:]
 #
 #root = Tk()
 #root.withdraw()
@@ -355,7 +359,7 @@ plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
 
 uData = uData* dscale
 
-images= (np.sum(nFTH(uData,plan,dcf*N*(np.pi/(4*Nproj)),NScan,NC,NSlice,dimY,dimX)[:None,:,:,:]*(np.conj(par.C)),axis = 1))
+images= (np.sum(nFTH(uData,plan,dcf*N*(np.pi/(4*Nproj)),NScan,NC,NSlice,dimY,dimX)*(np.conj(par.C)),axis = 1))
 
 #images= (np.sum(FTH(uData*dscale)*(np.conj(par.C)),axis = 1))
 
@@ -404,7 +408,7 @@ opt.traj = traj
 irgn_par = struct()
 irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 13
+irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e2
 irgn_par.gamma = 1e-2   #### 5e-2   5e-3 phantom
 irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
@@ -413,6 +417,41 @@ irgn_par.display_iterations = True
 opt.irgn_par = irgn_par
 
 opt.execute_2D()
+
+
+
+################################################################################
+
+opt_t = Model_Reco_Tikh.Model_Reco(par)
+
+
+opt_t.par = par
+opt_t.data =  uData
+#model.data = uData*dscale
+opt_t.images = images
+opt_t.fft_forward = fft_forward
+opt_t.fft_back = fft_back
+opt_t.nfftplan = plan
+opt_t.dcf = np.sqrt(dcf*(N*(np.pi/(4*Nproj))))
+opt_t.dcf_flat = np.sqrt(dcf*(N*(np.pi/(4*Nproj)))).flatten()
+opt_t.model = model
+opt_t.traj = traj 
+
+###############################################################################
+#IRGN Params
+irgn_par = struct()
+irgn_par.start_iters = 10
+irgn_par.max_iters = 1000
+irgn_par.max_GN_it = 10
+irgn_par.lambd = 1e2
+irgn_par.gamma = 5e-2   #### 5e-2   5e-3 phantom
+irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
+irgn_par.display_iterations = True
+
+opt_t.irgn_par = irgn_par
+
+opt_t.execute_2D()
+
 #
 ########################################################################
 #
@@ -445,8 +484,8 @@ os.makedirs("output/"+ outdir)
 
 os.chdir("output/"+ outdir)
 
-sio.savemat("result_phantom_05spk.mat",{"result":opt.result,"model":model})
-
+sio.savemat("resultinvivo_21spk_pro.mat",{"result":opt.result,"model":model})
+sio.savemat("resultinvivo_21spk_pro_tikh.mat",{"result":opt_t.result,"model":model})
 import pickle
 with open("par" + ".p", "wb") as pickle_file:
     pickle.dump(par, pickle_file)
