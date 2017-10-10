@@ -17,8 +17,8 @@ plt.ion()
 cimport cython
 from cython.parallel import parallel, prange
 
-DTYPE = np.complex128
-ctypedef double complex DTYPE_t
+DTYPE = np.complex64
+ctypedef float complex DTYPE_t
 
 cdef extern from "complex.h":
     DTYPE_t cexp(DTYPE_t z) nogil
@@ -46,7 +46,7 @@ cdef class IRLL_Model:
     self.fa_corr = fa_corr
     
     self.T1_sc = 5000#5000
-    self.M0_sc = 10#50
+    self.M0_sc = 1#50
     
     self.tau = tau
     self.td = td
@@ -62,12 +62,12 @@ cdef class IRLL_Model:
     self.sin_phi = np.sin(phi_corr)
     self.cos_phi = np.cos(phi_corr)    
 
-    self.guess = np.array([0/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1600/self.T1_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE)])               
+    self.guess = np.array([0/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),3000.0/self.T1_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE)])               
     self.min_T1 = 50/self.T1_sc
     self.max_T1 = 5000/self.T1_sc
 
   cpdef execute_forward_2D(self,DTYPE_t[:,:,::1] x,int islice):
-    cdef DTYPE_t[:,:,:,::1] S = np.zeros((self.NLL,self.Nproj,self.dimY,self.dimX),dtype='complex128')
+    cdef DTYPE_t[:,:,:,::1] S = np.zeros((self.NLL,self.Nproj,self.dimY,self.dimX),dtype=DTYPE)
     cdef int i = 0
     cdef int j = 0
     cdef int n_i = 0
@@ -199,7 +199,7 @@ cdef class IRLL_Model:
   
   
   cpdef execute_forward_3D(self,DTYPE_t[:,:,:,::1] x):
-    cdef DTYPE_t[:,:,:,:,::1] S = np.zeros((self.NLL,self.Nproj,self.NSlice,self.dimY,self.dimX),dtype='complex128')
+    cdef DTYPE_t[:,:,:,:,::1] S = np.zeros((self.NLL,self.Nproj,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
     cdef int i = 0
     cdef int j = 0
     cdef int k = 0
@@ -350,9 +350,9 @@ cdef class IRLL_Model:
            result[i,:,:,:,:] = result[i,:,:,:,:]/np.sum(result[i,:,:,:,:],0)
             
       return np.squeeze(result)
-  def plot_unknowns(self,x):
+  def plot_unknowns(self,x,dim_2D=False):
       
-      if self.NSlice==1:
+      if dim_2D:
           plt.figure(1)
           plt.imshow(np.transpose(np.abs(x[0,...]*self.M0_sc)))
           plt.pause(0.05)
@@ -362,10 +362,10 @@ cdef class IRLL_Model:
           plt.pause(0.05)          
       else:         
           plt.figure(1)
-          plt.imshow(np.transpose(np.abs(x[0,0,...]*self.M0_sc)))
+          plt.imshow(np.transpose(np.abs(x[0,int(self.NSlice/2),...]*self.M0_sc)))
           plt.pause(0.05)
           plt.figure(2)
-          plt.imshow(np.transpose(np.abs(x[1,0,...]*self.T1_sc)))
+          plt.imshow(np.transpose(np.abs(x[1,int(self.NSlice/2),...]*self.T1_sc)))
         #      plt.imshow(np.transpose(np.abs(x[1,0,:,:]*self.model.T1_sc)),vmin=0,vmax=3000)
           plt.pause(0.05)
            

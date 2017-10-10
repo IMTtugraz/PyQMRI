@@ -577,8 +577,8 @@ class Model_Reco:
 #    cdef int coil=0
     for scan in range(nscan):
       for coil in range(NC):
-          self.nfftplan[scan][coil].f_hat = x[scan,coil,:,:]/np.sqrt(self.par.dimX*self.par.dimY)
-          result[scan,coil,:] = self.nfftplan[scan][coil].trafo()*self.dcf_flat
+          self._plan[scan][coil].f_hat = x[scan,coil,:,:]/np.sqrt(self.par.dimX*self.par.dimY)
+          result[scan,coil,:] = self._plan[scan][coil].trafo()*self.dcf_flat
       
     return np.reshape(result,(nscan,NC,self.par.Nproj,self.par.N))
 
@@ -590,7 +590,7 @@ class Model_Reco:
     result = np.zeros((nscan,NC,self.par.dimX,self.par.dimY),dtype=DTYPE)
     for scan in range(nscan):
         for coil in range(NC):  
-            self.nfftplan[scan][coil].f = x[scan,coil,:]*self.dcf
+            self._plan[scan][coil].f = x[scan,coil,:]*self.dcf
             result[scan,coil,:,:] = self.nfftplan[scan][coil].adjoint()
       
     return result/np.sqrt(self.par.dimX*self.par.dimY)

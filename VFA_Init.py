@@ -8,10 +8,12 @@ from tkinter import Tk
 import nlinvns_maier as nlinvns
 
 import pyximport; pyximport.install()
-import Model_Reco as Model_Reco
 
+
+import Model_Reco as Model_Reco
 import Model_Reco_old as Model_Reco_Tikh
 
+import scipy.io as sio
 
 import multiprocessing as mp
 import mkl
@@ -101,8 +103,8 @@ dcf = file['dcf'][()].astype(DTYPE)
 #data = np.fft.fft(data,axis=2).astype(DTYPE)
 data = data[:,:,8,:,:]
 data = data[:,:,None,:,:]
-dimX = 256
-dimY = 256
+dimX = 256#192
+dimY = 256#192
 data = data*np.sqrt(dcf) ## only in-vivo
 
 #NSlice = 1
@@ -121,7 +123,7 @@ par = struct()
 ################################################################################
 
 par.fa_corr = file['fa_corr'][()].astype(DTYPE)#np.ones([NSlice,dimX,dimY],dtype=DTYPE)
-par.fa_corr = par.fa_corr[6,:,:]
+par.fa_corr = par.fa_corr[8,:,:]
 #
 #root = Tk()
 #root.withdraw()
@@ -140,7 +142,7 @@ par.fa_corr = par.fa_corr[6,:,:]
 ### Estimate coil sensitivities ################################################
 ################################################################################
 
-nlinvNewtonSteps = 7
+nlinvNewtonSteps = 9
 nlinvRealConstr  = False
 
 traj_coil = np.reshape(traj,(NScan*Nproj,N))
@@ -255,7 +257,7 @@ else:
 
 #FA = np.array([1,2,4,5,7,9,11,14,17,23],np.complex128)*np.pi/180
 par.fa = np.array([1,2,3,4,5,6,7,9,11,13],np.complex128)*np.pi/180
-#FA = np.array([1,3,5,7,9,11,13,15,17],np.complex128)*np.pi/180
+#par.fa = np.array([1,2,4,5,7,9,11,14,17,20],np.complex128)*np.pi/180
 
 par.TR          = 5.0#3.4 #TODO
 #par.TE          = list(range(20,40*20+1,20)) #TODO
@@ -266,7 +268,7 @@ par.NSlice      = NSlice
 par.NScan       = NScan 
 par.N = N
 par.Nproj = Nproj
-
+par.unknowns = 2
 
 
 
@@ -375,7 +377,6 @@ par.U[abs(data) == 0] = False
 ################################################################################
 ### IRGN - TGV Reco ############################################################
 ################################################################################
-par.unknowns = 2
 
 opt = Model_Reco.Model_Reco(par)
 
@@ -396,8 +397,8 @@ irgn_par = struct()
 irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
-irgn_par.lambd = 1e2
-irgn_par.gamma = 1e-2   #### 5e-2   5e-3 phantom
+irgn_par.lambd = 1e2 * 21/Nproj
+irgn_par.gamma = 1e-2   #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
 irgn_par.display_iterations = True
 
@@ -425,20 +426,7 @@ opt_t.model = model
 opt_t.traj = traj 
 
 ################################################################################
-#IRGN Params
-irgn_par_t = struct()
-irgn_par_t.start_iters = 10
-irgn_par_t.max_iters = 1000
-irgn_par_t.max_GN_it = 10
-irgn_par_t.lambd = 1e2
-irgn_par_t.gamma = 5e-2   #### 5e-2   5e-3 phantom
-irgn_par_t.delta = 1e-1   #### 8spk in-vivo 1e-2
-irgn_par_t.display_iterations = True
-
-opt_t.irgn_par = irgn_par_t
-
-opt_t.execute_2D()
-
+#IRGN Params 
 ################################################################################
 ### Profiling ##################################################################
 ################################################################################
