@@ -21,6 +21,7 @@ class VFA_Model:
 
 
 
+
     self.TR = TR
     self.images = images
     self.fa = fa
@@ -57,6 +58,7 @@ class VFA_Model:
     
     self.T1_guess = np.copy(T1_guess)
     self.M0_guess = np.copy(M0_guess)
+
 #
     hist =  np.histogram((M0_guess),int(1e3),range=(0,10*(np.max((np.median(M0_guess),np.mean(M0_guess))))))
     aa = np.array(hist[0], dtype=np.float64)
@@ -84,17 +86,10 @@ class VFA_Model:
     
 
     T1_guess[T1_guess > bb[np.argmax(aa[1:-1])+ 1+ int(5*std)]] =  bb[np.argmax(aa[1:-1])+ 1+ int(5*std)] #passst
-
-
-#    M0_guess = np.squeeze(gf(M0_guess,5))
-#    T1_guess = gf(T1_guess,5)
-
-#    mask_guess = compute_mask(M0_guess,False)
-
-#    self.mask = mask_guess#par.mask[:,63] is different
     
     self.T1_sc = np.max(np.abs(T1_guess))
     self.M0_sc = 1#np.max(np.abs(M0_guess))
+
 
     
     #print(mask_guess)
@@ -113,6 +108,7 @@ class VFA_Model:
     
 
     print( 'done in', time.clock() - th)
+
 
 
 #    result = np.concatenate(((M0_guess*np.exp(1j*np.angle(phase_map)))[None,:,:,:],T1_guess[None,:,:,:]),axis=0)
