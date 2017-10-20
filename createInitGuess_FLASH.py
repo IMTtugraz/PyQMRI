@@ -25,7 +25,6 @@ def createInitGuess_FLASH(dat,FA,TR):
   
   #    if numAlpha is not len(alpha):
   #        print('Error.Dimension missmatch')
-  
   for iSlice in range(0,dimSlice):
   #        mask = np.ones([numAlpha, dimX,dimY])
       #MaskToUse = 1 wenn keine maskierung verwendet wird

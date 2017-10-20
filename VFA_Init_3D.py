@@ -29,25 +29,36 @@ import h5py
 plt.ion()
 pyfftw.interfaces.cache.enable()
 
+##### Read Mat
 root = Tk()
 root.withdraw()
 root.update()
 file = filedialog.askopenfilename()
 root.destroy()
 
-data = h5py.File(file)
-data_real = data['real_dat_comp'][()].astype("double")
+data = sio.loadmat(file)
+#data = data['data_mid']
+data = data['data']
+##### Read H5
+#root = Tk()
+#root.withdraw()
+#root.update()
+#file = filedialog.askopenfilename()
+#root.destroy()
+#
+#data = h5py.File(file)
+#data_real = data['real_dat_comp'][()].astype("double")
+#
+#root = Tk()
+#root.withdraw()
+#root.update()
+#file = filedialog.askopenfilename()
+#root.destroy()
+#
+#data = h5py.File(file)
+#data_imag = data['imag_dat_comp'][()].astype("double")
 
-root = Tk()
-root.withdraw()
-root.update()
-file = filedialog.askopenfilename()
-root.destroy()
-
-data = h5py.File(file)
-data_imag = data['imag_dat_comp'][()].astype("double")
-
-#data = np.transpose(data)
+data = np.transpose(data)
 
 root = Tk()
 root.withdraw()
@@ -72,15 +83,15 @@ dcf = dcf['dcf']
 dcf = np.transpose(dcf)
 #dcf = dcf/np.max(dcf)
 
-data = data_real+1j*data_imag
-data = np.fft.fftshift(data,axes=2)
-data = data[:,:,24,:,:]
+#data = data_real+1j*data_imag
+data = np.fft.fft(data,axis=2)
+data = data[:,:,12:-12,:,:]
 #data = data[:,:,0,:,:]
 dimX = 256
 dimY = 256
 data = data*np.sqrt(dcf)
 
-data = data[:,:,None,:,:]
+#data = data[:,:,None,:,:]
 
 #NSlice = 1
 [NScan,NC,NSlice,Nproj, N] = data.shape
@@ -110,9 +121,9 @@ fa_corr = fa_corr['fa_corr']
 fa_corr = np.transpose(fa_corr)
 par.fa_corr =fa_corr
 par.fa_corr[par.fa_corr==0] = 1
-par.fa_corr = par.fa_corr[20,:,:]
+par.fa_corr = par.fa_corr[8:-8,:,:]
 
-
+#par.fa_corr = np.ones((NSlice,dimY,dimX),dtype='complex128')
 
 ################################################################### 
 ## Coil sensitivity estimate
@@ -185,16 +196,16 @@ else:
 
 ################################################################### 
 ## Choose undersampling mode
-Nproj = 21
-
-for i in range(NScan):
-  data[i,:,:,:Nproj,:] = data[i,:,:,i*Nproj:(i+1)*Nproj,:]
-  traj[i,:Nproj,:] = traj[i,i*Nproj:(i+1)*Nproj,:]
-
-
-data = data[:,:,:,:Nproj,:]
-traj = traj[:,:Nproj,:]
-dcf = dcf[:Nproj,:]
+#Nproj = 21
+#
+#for i in range(NScan):
+#  data[i,:,:,:Nproj,:] = data[i,:,:,i*Nproj:(i+1)*Nproj,:]
+#  traj[i,:Nproj,:] = traj[i,i*Nproj:(i+1)*Nproj,:]
+#
+#
+#data = data[:,:,:,:Nproj,:]
+#traj = traj[:,:Nproj,:]
+#dcf = dcf[:Nproj,:]
 
 
 
@@ -238,7 +249,7 @@ options[undersampling_mode]()
 ######################################################################## 
 ## struct par init
 
-FA = np.array([2,3,4,5,7,9,11,14,17,22],np.complex128)
+FA = np.array([2,3,4,5,7,9,11,14,17,22],np.complex128)*np.pi/180
 #FA = np.array([1,3,5,7,9,11,13,15,17],np.complex128)
 fa = FA    #  % flip angle in rad FA siehe FLASH phantom generierung
 #alpha = [1,3,5,7,9,11,13,15,17,19]*pi/180;
@@ -261,16 +272,16 @@ par.unknowns = 2
 
 ##### No FA correction
 #par.fa_corr = np.ones([NSlice,dimX,dimY],dtype='complex128')
-
+#
 #root = Tk()
 #root.withdraw()
 #root.update()
 #file = filedialog.askopenfilename()
 #root.destroy()
-
+#
 #fa_corr = sio.loadmat(file)
 #fa_corr = fa_corr['fa_mid_3mm']
-
+#
 #fa_corr = np.transpose(fa_corr)
 #fa_corr[[fa_corr==0]] = 1
 #par.fa_corr = fa_corr[None,:,:]*180/np.pi
@@ -278,7 +289,7 @@ par.unknowns = 2
 '''standardize the data'''
 
 
-dscale = np.sqrt(NSlice)*np.complex128(0.1)/(np.linalg.norm(uData.flatten()))
+dscale = np.sqrt(NSlice)*np.complex128(1)/(np.linalg.norm(uData.flatten()))
 par.dscale = dscale
 
 ######################################################################## 
@@ -359,14 +370,14 @@ plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
 
 uData = np.reshape(uData,(NScan,NC,NSlice,Nproj,N))* dscale
 
-images= (np.sum(nFTH(uData,plan,dcf* N*np.pi/(4*Nproj),NScan,NC,NSlice,dimY,dimX)[:None,:,:,:]*(np.conj(par.C)),axis = 1))
+images= (np.sum(nFTH(uData,plan,dcf* N*np.pi/(4*Nproj),NScan,NC,NSlice,dimY,dimX)[:,:,:,:]*(np.conj(par.C)),axis = 1))
 
 #images= (np.sum(FTH(uData*dscale)*(np.conj(par.C)),axis = 1))
 
 
 ########################################################################
 #Init Forward Model
-model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images,par.phase_map)
+model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images,par.phase_map,NSlice)
 
 
 
@@ -407,17 +418,17 @@ irgn_par = struct()
 irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
-irgn_par.lambd = 1e6
-irgn_par.gamma = 1e-8
-irgn_par.delta = 1e4
+irgn_par.lambd = 1e2
+irgn_par.gamma = 5e-3
+irgn_par.delta = 1e-2
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par
 
 
-opt.dz = 3.0
+opt.dz = 3.6/1.171875
 
-opt.execute_2D()
+opt.execute_3D()
 
 #
 #import cProfile
@@ -450,7 +461,6 @@ sio.savemat("result.mat",{"result":opt.result,"model":model})
 import pickle
 with open("par" + ".p", "wb") as pickle_file:
     pickle.dump(par, pickle_file)
-#with open("par.txt", "rb") as myFile:
-    #par = pickle.load(myFile)
-#par.dump("par.dat")
 
+os.chdir('..')
+os.chdir('..')
