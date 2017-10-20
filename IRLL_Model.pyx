@@ -12,7 +12,8 @@ Created on Fri Jun  9 11:33:09 2017
 import numpy as np
 cimport numpy as np
 np.import_array()
-
+import matplotlib.pyplot as plt
+plt.ion()
 cimport cython
 from cython.parallel import parallel, prange
 
@@ -28,10 +29,11 @@ cdef extern from "complex.h":
 @cython.wraparound(False)  # turn off negative index wrapping for entire function    
 cdef class IRLL_Model:
   
-  cdef public DTYPE_t TR, fa, T1_sc, M0_sc, tau, td
+  cdef public DTYPE_t TR, fa, T1_sc, M0_sc, tau, td, min_T1, max_T1
   cdef public int NLL, Nproj, dimY, dimX, NSlice
   cdef public DTYPE_t[:,:,::1] fa_corr, phi_corr, sin_phi, cos_phi
   cdef public DTYPE_t[:,:,:,::1] guess
+  cdef public DTYPE_t 
   
   
   def __init__(self,DTYPE_t fa, DTYPE_t[:,:,::1] fa_corr,DTYPE_t TR,DTYPE_t tau,DTYPE_t td,
@@ -43,8 +45,8 @@ cdef class IRLL_Model:
     self.fa = fa
     self.fa_corr = fa_corr
     
-    self.T1_sc = 5000
-    self.M0_sc = 50
+    self.T1_sc = 5000#5000
+    self.M0_sc = 10#50
     
     self.tau = tau
     self.td = td
@@ -60,8 +62,9 @@ cdef class IRLL_Model:
     self.sin_phi = np.sin(phi_corr)
     self.cos_phi = np.cos(phi_corr)    
 
-    self.guess = np.array([0.05*np.ones((NSlice,dimY,dimX),dtype=DTYPE),0.3*np.ones((NSlice,dimY,dimX),dtype=DTYPE)])               
-    
+    self.guess = np.array([0/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1600/self.T1_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE)])               
+    self.min_T1 = 50/self.T1_sc
+    self.max_T1 = 5000/self.T1_sc
 
   cpdef execute_forward_2D(self,DTYPE_t[:,:,::1] x,int islice):
     cdef DTYPE_t[:,:,:,::1] S = np.zeros((self.NLL,self.Nproj,self.dimY,self.dimX),dtype='complex128')
@@ -90,7 +93,7 @@ cdef class IRLL_Model:
                       + (cexp(-self.tau/(x[1,m,n]*self.T1_sc)) - 1)/(cexp(-self.tau/(x[1,m,n]
                       *self.T1_sc))*cos_phi[islice,m,n] - 1)))
     
-#    S[~np.isfinite(S)] = 1e-20
+#    return np.average(np.array(S),axis=1,weights=self.calc_weights(np.tile(x[1,:,:],(1,1,1))))
     return np.mean(S,axis=1)
   cpdef execute_gradient_2D(self,DTYPE_t[:,:,::1] x,int islice):
     cdef DTYPE_t[:,:,:,:,::1] grad = np.zeros((2,self.NLL,self.Nproj,self.dimY,self.dimX),dtype=DTYPE)
@@ -191,7 +194,7 @@ cdef class IRLL_Model:
                                 **(n_i - 2))/(x[1,m,n]**2*T1_sc)))                     
                               
                             
-                                       
+#    return np.average(np.array(grad),axis=2,weights=np.tile(self.calc_weights(np.tile(x[1,:,:],(1,1,1))),(2,1,1,1,1)))                       
     return np.mean(grad,axis=2)
   
   
@@ -224,8 +227,8 @@ cdef class IRLL_Model:
                           + (cexp(-self.tau/(x[1,k,m,n]*self.T1_sc)) - 1)/(cexp(-self.tau/(x[1,k,m,n]
                           *self.T1_sc))*cos_phi[k,m,n] - 1)))
     
-#    S[~np.isfinite(S)] = 1e-20
     return np.mean(S,axis=1)
+#    return np.average(np.array(S),axis=1,weights=self.calc_weights(x[1,:,:,:]))
   cpdef execute_gradient_3D(self,DTYPE_t[:,:,:,::1] x):
     cdef DTYPE_t[:,:,:,:,:,::1] grad = np.zeros((2,self.NLL,self.Nproj,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
     cdef int i = 0
@@ -327,7 +330,62 @@ cdef class IRLL_Model:
                                   **(n_i - 2))/(x[1,k,m,n]**2*T1_sc)))                     
                               
                             
-                                       
     return np.mean(grad,axis=2)
-    
-  
+                                         
+#    return np.average(np.array(grad),axis=2,weights=np.tile(self.calc_weights(x[1,:,:,:]),(2,1,1,1,1,1)))
+
+
+           
+  cpdef calc_weights(self,DTYPE_t[:,:,::1] x):
+      cdef int i=0,j=0
+      cdef np.ndarray[ndim=3,dtype=DTYPE_t] T1 = np.array(x)*self.T1_sc
+      cdef np.ndarray[ndim=3,dtype=DTYPE_t] w = np.zeros_like(T1)
+      cdef np.ndarray[ndim=3,dtype=DTYPE_t] V = np.ones_like(T1)
+      cdef np.ndarray[ndim=5,dtype=DTYPE_t] result = np.zeros((self.NLL,self.Nproj,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
+      for i in range(self.NLL):
+#           w = 1-np.exp(-(self.tau)/T1)
+#           V[~(w==1)] = (1-w[~(w==1)]**self.Nproj)/(1-w[~(w==1)])
+           for j in range(self.Nproj):
+               result[i,j,:,:,:] = np.exp(-(self.td+self.tau*j+self.tau*self.Nproj*i)/T1)/np.exp(-(self.td+self.tau*self.Nproj*i)/T1)
+           result[i,:,:,:,:] = result[i,:,:,:,:]/np.sum(result[i,:,:,:,:],0)
+            
+      return np.squeeze(result)
+  def plot_unknowns(self,x):
+      
+      if self.NSlice==1:
+          plt.figure(1)
+          plt.imshow(np.transpose(np.abs(x[0,...]*self.M0_sc)))
+          plt.pause(0.05)
+          plt.figure(2)
+          plt.imshow(np.transpose(np.abs(x[1,...]*self.T1_sc)))
+        #      plt.imshow(np.transpose(np.abs(x[1,0,:,:]*self.model.T1_sc)),vmin=0,vmax=3000)
+          plt.pause(0.05)          
+      else:         
+          plt.figure(1)
+          plt.imshow(np.transpose(np.abs(x[0,0,...]*self.M0_sc)))
+          plt.pause(0.05)
+          plt.figure(2)
+          plt.imshow(np.transpose(np.abs(x[1,0,...]*self.T1_sc)))
+        #      plt.imshow(np.transpose(np.abs(x[1,0,:,:]*self.model.T1_sc)),vmin=0,vmax=3000)
+          plt.pause(0.05)
+           
+           
+           
+           
+           
+           
+           
+           
+           
+           
+           
+           
+           
+           
+           
+           
+           
+           
+           
+           
+           
