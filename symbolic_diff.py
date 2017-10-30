@@ -10,14 +10,15 @@ from sympy import *
 
 
 
-M0, M0_sc, Etau, fa,fa_corr,TR,tau,td,N,n = symbols('M0,M0_sc,Etau,fa,fa_corr,TR,tau,td,N,n')
+M0, M0_sc, Efit, fa,fa_corr,TR,tau,td,N,n = symbols('M0,M0_sc,Efit,fa,fa_corr,TR,tau,td,N,n')
 init_printing(use_unicode=True)
 
 #E1 = exp(-TR/(T1*T1_sc))
 #Etau = exp(-tau/(T1*T1_sc))
 #Etd = exp(-td/(T1*T1_sc))
-Etd = Etau**(td/tau)
-E1 = Etau**(TR/tau)
+Etau = Efit**(tau/1000)
+Etd = Efit**(td/1000)
+E1 = Efit**(TR/1000)
 
 F = (1-Etau)/(1-cos(fa*fa_corr)*Etau)
 Q = (-F*cos(fa*fa_corr)*E1*Etd*(1-(cos(fa*fa_corr)*Etau)**(N-1))-2*Etd+E1+1)/(1+cos(fa*fa_corr)*E1*Etd*(cos(fa*fa_corr)*Etau)**(N-1))
@@ -28,5 +29,5 @@ S = M0*M0_sc*sin(fa*fa_corr)*(F+(cos(fa*fa_corr)*Etau)**(n-1)*(Q-F))
 #S = M0*M0_sc*sin(fa*fa_corr)*(1-E1)/(1-E1*cos(fa*fa_corr))
 
 M0_grad = str((diff(S,M0)))
-Etau_grad = str((diff(S,Etau)))
+Etau_grad = str((diff(S,Efit)))
 FA_grad = str((diff(S,fa_corr)))
