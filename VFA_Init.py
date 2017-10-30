@@ -20,7 +20,7 @@ import mkl
 
 from pynfft.nfft import NFFT
 
-import VFA_model
+import VFA_model_FA as VFA_model
 
 import h5py  
 
@@ -101,11 +101,11 @@ dcf = file['dcf'][()].astype(DTYPE)
 #dcf = dcf/np.max(dcf)
 
 #data = np.fft.fft(data,axis=2).astype(DTYPE)
-data = data[:,:,8,:,:]
+data = data[:,:,20,:,:]
 data = data[:,:,None,:,:]
 dimX = 256#192
 dimY = 256#192
-data = data*np.sqrt(dcf) ## only in-vivo
+
 
 #NSlice = 1
 [NScan,NC,NSlice,Nproj, N] = data.shape
@@ -122,8 +122,8 @@ par = struct()
 ### FA correction ##############################################################
 ################################################################################
 
-par.fa_corr = file['fa_corr'][()].astype(DTYPE)#np.ones([NSlice,dimX,dimY],dtype=DTYPE)
-par.fa_corr = par.fa_corr[8,:,:]
+#par.fa_corr = file['fa_corr'][()].astype(DTYPE)#np.ones([NSlice,dimX,dimY],dtype=DTYPE)
+par.fa_corr = np.ones([NSlice,dimX,dimY],dtype=DTYPE)#par.fa_corr[8,:,:]
 #
 #root = Tk()
 #root.withdraw()
@@ -142,7 +142,7 @@ par.fa_corr = par.fa_corr[8,:,:]
 ### Estimate coil sensitivities ################################################
 ################################################################################
 
-nlinvNewtonSteps = 9
+nlinvNewtonSteps = 6
 nlinvRealConstr  = False
 
 traj_coil = np.reshape(traj,(NScan*Nproj,N))
@@ -193,6 +193,8 @@ if NC == 1:
 else:
   par.C = par.C / np.tile(sumSqrC, (NC,1,1,1)) 
   
+  
+data = data*np.sqrt(dcf) ## only in-vivo
 
 ################################################################################ 
 ### Artificial Subsampling #####################################################
@@ -268,7 +270,10 @@ par.NSlice      = NSlice
 par.NScan       = NScan 
 par.N = N
 par.Nproj = Nproj
-par.unknowns = 2
+
+#### TEST
+par.unknowns_TGV = 2
+par.unknowns_H1 = 1
 
 
 
@@ -400,6 +405,7 @@ irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e2
 irgn_par.gamma = 1e-2   #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
+irgn_par.omega = 1e0
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par
@@ -484,11 +490,11 @@ os.chdir("output/"+ outdir)
 
 f = h5py.File("output_"+name,"w")
 dset_result = f.create_dataset("full_result",opt.result.shape,dtype=np.complex64,data=opt.result)
-dset_result_ref = f.create_dataset("ref_full_result",opt_t.result.shape,dtype=np.complex64,data=opt_t.result)
+#dset_result_ref = f.create_dataset("ref_full_result",opt_t.result.shape,dtype=np.complex64,data=opt_t.result)
 dset_T1 = f.create_dataset("T1_final",np.squeeze(opt.result[-1,1,...]).shape,dtype=np.complex64,data=np.squeeze(opt.result[-1,1,...]))
 dset_M0 = f.create_dataset("M0_final",np.squeeze(opt.result[-1,0,...]).shape,dtype=np.complex64,data=np.squeeze(opt.result[-1,0,...]))
-dset_T1_ref = f.create_dataset("T1_ref",np.squeeze(opt_t.result[-1,1,...]).shape,dtype=np.complex64,data=np.squeeze(opt_t.result[-1,1,...]))
-dset_M0_ref = f.create_dataset("M0_ref",np.squeeze(opt_t.result[-1,0,...]).shape,dtype=np.complex64,data=np.squeeze(opt_t.result[-1,0,...]))
+#dset_T1_ref = f.create_dataset("T1_ref",np.squeeze(opt_t.result[-1,1,...]).shape,dtype=np.complex64,data=np.squeeze(opt_t.result[-1,1,...]))
+#dset_M0_ref = f.create_dataset("M0_ref",np.squeeze(opt_t.result[-1,0,...]).shape,dtype=np.complex64,data=np.squeeze(opt_t.result[-1,0,...]))
 f.flush()
 f.close()
 
