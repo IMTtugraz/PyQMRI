@@ -56,7 +56,7 @@ cdef class IRLL_Model:
     self.dimX = dimX
     
 #    phi_corr = np.zeros_like(fa_corr,dtype='complex128')
-    phi_corr = np.real(fa)*np.real(fa_corr) + 1j*np.imag(fa)*np.imag(fa_corr)
+    phi_corr = np.real(fa)*np.real(fa_corr) + 1j*np.imag(fa)*np.real(fa_corr)
 
     
     self.sin_phi = np.sin(phi_corr)

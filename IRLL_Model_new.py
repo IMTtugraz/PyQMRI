@@ -367,10 +367,11 @@ class IRLL_Model:
     Q = (-cos_phi*F*(-cosEtauN + 1)*Etr*Etd + 1 - 2*Etd + Etr)/(cos_phi*cosEtauN*Etr*Etd + 1)
     Q_F = Q-F   
   
+
     for i in range(self.NLL):
       for j in range(self.Nproj):
             n = i*self.Nproj+j+1
-            S[i,j,...] = x[0,...]*M0_sc*sin_phi[islice,...]*((cosEtau)**(n - 1)*(Q_F) + F)
+            S[i,j,...] = x[0,...]*M0_sc*sin_phi*((cosEtau)**(n - 1)*(Q_F) + F)
     
     return np.mean(S,axis=1)
   
@@ -429,10 +430,10 @@ class IRLL_Model:
       for j in range(self.Nproj):
             n = i*self.Nproj+j+1
             
-            grad[0,i,j,...] =M0_sc*sin_phi[islice,...]*((cosEtau)**(n - 1)*Q_F + F)
+            grad[0,i,j,...] =M0_sc*sin_phi*((cosEtau)**(n - 1)*Q_F + F)
             
             grad[1,i,j,...] =x[0,...]*M0_sc*((Etau*cos_phi)**(n - 1)*tmp1 + tmp2 + tau*(Etau*cos_phi)**(n - 1)*(n - 1)\
-                    *tmp3)*sin_phi[islice,...]
+                    *tmp3)*sin_phi
             
     return np.mean(grad,axis=2)
            
