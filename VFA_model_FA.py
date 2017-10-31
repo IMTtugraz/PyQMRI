@@ -109,14 +109,14 @@ class VFA_Model:
 
 
 #    result = np.concatenate(((M0_guess*np.exp(1j*np.angle(phase_map)))[None,:,:,:],T1_guess[None,None,:,:]),axis=0)
-    result = np.array([0/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),np.exp(-self.TR/(3000*np.ones((NSlice,dimY,dimX),dtype=DTYPE)))\
+    result = np.array([0/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),np.exp(-1000/(3000*np.ones((NSlice,dimY,dimX),dtype=DTYPE)))\
                        ,np.ones((NSlice,dimY,dimX),dtype=DTYPE)])
 #    result = np.concatenate((((M0_guess)*np.exp(1j*np.angle(phase_map)))[None,:,:,:],(T1_guess)[None,None,:,:]),axis=0)
 #    result = np.array([(0.01+0*M0_guess*np.exp(1j*np.angle(phase_map))),0.3+0*(T1_guess)])
 #    result = np.array([1/self.M0_sc*np.ones((siz[1],siz[2],siz[3]),dtype=DTYPE),1500/self.T1_sc*np.ones((siz[1],siz[2],siz[3]),dtype=DTYPE)])
     self.guess = result               
-    self.min_T1 = np.exp(-self.TR/50)
-    self.max_T1 = np.exp(-self.TR/5500)      
+    self.min_T1 = np.exp(-1000/50)
+    self.max_T1 = np.exp(-1000/5500)      
 
   def execute_forward_2D(self,x,slice):
 #    E1 = np.exp(-self.TR/(x[1,:,:]*self.T1_sc))#
@@ -190,7 +190,7 @@ class VFA_Model:
           plt.imshow(np.transpose(np.abs(x[0,...]*self.M0_sc)))
           plt.pause(0.05)
           plt.figure(2)
-          plt.imshow(np.transpose(np.abs(-self.TR/np.log(x[1,...]))))
+          plt.imshow(np.transpose(np.abs(-1000/np.log(x[1,...]))))
           plt.pause(0.05)
           plt.figure(3)
           plt.imshow(np.transpose(np.abs(x[2,...])))
