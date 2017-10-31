@@ -360,11 +360,11 @@ class IRLL_Model:
     Etau =x[1,...]**(tau/1000) #np.exp(-tau/(x[1,...]*T1_sc))    
     Etr = x[1,...]**(TR/1000)#np.exp(-TR/(x[1,...]*T1_sc))
     Etd = x[1,...]**(td/1000)#np.exp(-td/(x[1,...]*T1_sc))    
-    cosEtau = cos_phi[islice,...]*Etau        
+    cosEtau = cos_phi*Etau        
     cosEtauN = cosEtau**(N-1)           
 
     F = (1 - Etau)/(-cosEtau + 1)
-    Q = (-cos_phi[islice,...]*F*(-cosEtauN + 1)*Etr*Etd + 1 - 2*Etd + Etr)/(cos_phi[islice,...]*cosEtauN*Etr*Etd + 1)
+    Q = (-cos_phi*F*(-cosEtauN + 1)*Etr*Etd + 1 - 2*Etd + Etr)/(cos_phi*cosEtauN*Etr*Etd + 1)
     Q_F = Q-F   
   
     for i in range(self.NLL):
@@ -390,40 +390,40 @@ class IRLL_Model:
     Etd = x[1,...]**(td/1000)#np.exp(-td/(x[1,...]*T1_sc))    
     
     
-    cosEtau = cos_phi[islice,...]*Etau        
+    cosEtau = cos_phi*Etau        
     cosEtauN = cosEtau**(N-1)           
 
     F = (1 - Etau)/(-cosEtau + 1)
-    cos_phi_Etau_tmp = cos_phi[islice,...]*cosEtauN*Etr*Etd    
-    Q = (-cos_phi[islice,...]*F*(-cosEtauN + 1)*Etr*Etd + 1 - 2*Etd + Etr)/(cos_phi_Etau_tmp + 1)
+    cos_phi_Etau_tmp = cos_phi*cosEtauN*Etr*Etd    
+    Q = (-cos_phi*F*(-cosEtauN + 1)*Etr*Etd + 1 - 2*Etd + Etr)/(cos_phi_Etau_tmp + 1)
     Q_F = Q-F
 
     tmp1 = ((-Etr*Etau*\
-                Etd*tau*(-Etau + 1)*(-(Etau*cos_phi[islice,...])**(N - 1) + 1)*cos_phi[islice,...]**2/\
-                (1000*Efit*(-Etau*cos_phi[islice,...] + 1)**2) + Etr*Etau*Etd*tau*\
-                (-(Etau*cos_phi[islice,...])**(N - 1) + 1)*cos_phi[islice,...]/(1000*Efit*(-Etau*cos_phi[islice,...] + 1)\
-                 ) - Etr*Etd*TR*(-Etau + 1)*(-(Etau*cos_phi[islice,...])**(N - 1) + 1)\
-                 *cos_phi[islice,...]/(1000*Efit*(-Etau*cos_phi[islice,...] + 1)) + Etr*Etd*tau*\
-                 (Etau*cos_phi[islice,...])**(N - 1)*(-Etau + 1)*(N - 1)*cos_phi[islice,...]/\
-                 (1000*Efit*(-Etau*cos_phi[islice,...] + 1)) - Etr*Etd*td*(-Etau + 1)*\
-                 (-(Etau*cos_phi[islice,...])**(N - 1) + 1)*cos_phi[islice,...]/(1000*Efit*(-Etau*cos_phi[islice,...] +\
+                Etd*tau*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi**2/\
+                (1000*Efit*(-Etau*cos_phi + 1)**2) + Etr*Etau*Etd*tau*\
+                (-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(1000*Efit*(-Etau*cos_phi + 1)\
+                 ) - Etr*Etd*TR*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)\
+                 *cos_phi/(1000*Efit*(-Etau*cos_phi + 1)) + Etr*Etd*tau*\
+                 (Etau*cos_phi)**(N - 1)*(-Etau + 1)*(N - 1)*cos_phi/\
+                 (1000*Efit*(-Etau*cos_phi + 1)) - Etr*Etd*td*(-Etau + 1)*\
+                 (-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(1000*Efit*(-Etau*cos_phi +\
                     1)) + Etr*TR/(1000*Efit) - Etd*td/(500*Efit))/(Etr*Etd*\
-                    (Etau*cos_phi[islice,...])**(N - 1)*cos_phi[islice,...] + 1) + (-Etr*Etd*TR*\
-                    (Etau*cos_phi[islice,...])**(N - 1)*cos_phi[islice,...]/(1000*Efit) - Etr*Etd*tau*\
-                    (Etau*cos_phi[islice,...])**(N - 1)*(N - 1)*cos_phi[islice,...]/(1000*Efit) - Etr*\
-                    Etd*td*(Etau*cos_phi[islice,...])**(N - 1)*cos_phi[islice,...]/(1000*Efit))*(-Etr*\
-                          Etd*(-Etau + 1)*(-(Etau*cos_phi[islice,...])**(N - 1) + 1)*\
-                          cos_phi[islice,...]/(-Etau*cos_phi[islice,...] + 1) + Etr - 2*Etd + 1)/\
-                    (Etr*Etd*(Etau*cos_phi[islice,...])**(N - 1)*cos_phi[islice,...] + 1)**2 -\
-                    Etau*tau*(-Etau + 1)*cos_phi[islice,...]/(1000*Efit*(-Etau*\
-                                          cos_phi[islice,...] + 1)**2) + Etau*tau/(1000*Efit*(-Etau*\
-                                             cos_phi[islice,...] + 1)))
-    tmp2 =  Etau*tau*(-Etau + 1)*cos_phi[islice,...]/(1000*Efit*(-Etau*cos_phi[islice,...] + 1)**2) - Etau*\
-                    tau/(1000*Efit*(-Etau*cos_phi[islice,...] + 1)) 
-    tmp3 = (-(-Etau + 1)/(-Etau*cos_phi[islice,...] + 1) + (-Etr*Etd*\
-                        (-Etau + 1)*(-(Etau*cos_phi[islice,...])**(N - 1) + 1)*\
-                        cos_phi[islice,...]/(-Etau*cos_phi[islice,...] + 1) + Etr - 2*Etd + 1)/\
-                    (Etr*Etd*(Etau*cos_phi[islice,...])**(N - 1)*cos_phi[islice,...] + 1))/(1000*Efit)
+                    (Etau*cos_phi)**(N - 1)*cos_phi + 1) + (-Etr*Etd*TR*\
+                    (Etau*cos_phi)**(N - 1)*cos_phi/(1000*Efit) - Etr*Etd*tau*\
+                    (Etau*cos_phi)**(N - 1)*(N - 1)*cos_phi/(1000*Efit) - Etr*\
+                    Etd*td*(Etau*cos_phi)**(N - 1)*cos_phi/(1000*Efit))*(-Etr*\
+                          Etd*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*\
+                          cos_phi/(-Etau*cos_phi + 1) + Etr - 2*Etd + 1)/\
+                    (Etr*Etd*(Etau*cos_phi)**(N - 1)*cos_phi + 1)**2 -\
+                    Etau*tau*(-Etau + 1)*cos_phi/(1000*Efit*(-Etau*\
+                                          cos_phi + 1)**2) + Etau*tau/(1000*Efit*(-Etau*\
+                                             cos_phi + 1)))
+    tmp2 =  Etau*tau*(-Etau + 1)*cos_phi/(1000*Efit*(-Etau*cos_phi + 1)**2) - Etau*\
+                    tau/(1000*Efit*(-Etau*cos_phi + 1)) 
+    tmp3 = (-(-Etau + 1)/(-Etau*cos_phi + 1) + (-Etr*Etd*\
+                        (-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*\
+                        cos_phi/(-Etau*cos_phi + 1) + Etr - 2*Etd + 1)/\
+                    (Etr*Etd*(Etau*cos_phi)**(N - 1)*cos_phi + 1))/(1000*Efit)
 
     for i in range(self.NLL):  
       for j in range(self.Nproj):
@@ -431,11 +431,10 @@ class IRLL_Model:
             
             grad[0,i,j,...] =M0_sc*sin_phi[islice,...]*((cosEtau)**(n - 1)*Q_F + F)
             
-            grad[1,i,j,...] =x[0,...]*M0_sc*((Etau*cos_phi[islice,...])**(n - 1)*tmp1 + tmp2 + tau*(Etau*cos_phi[islice,...])**(n - 1)*(n - 1)\
+            grad[1,i,j,...] =x[0,...]*M0_sc*((Etau*cos_phi)**(n - 1)*tmp1 + tmp2 + tau*(Etau*cos_phi)**(n - 1)*(n - 1)\
                     *tmp3)*sin_phi[islice,...]
             
-    return np.mean(grad,axis=2) 
-           
+    return np.mean(grad,axis=2)
            
            
            
