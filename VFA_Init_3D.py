@@ -113,8 +113,8 @@ dcf = file['dcf'][()].astype(DTYPE)
 #data = np.fft.fft(data,axis=2)
 data = data[:,:,18:-18,:,:]
 #data = data[:,:,0,:,:]
-dimX = 192
-dimY = 192
+dimX = 256
+dimY = 256
 data = data*np.sqrt(dcf)
 
 #data = data[:,:,None,:,:]

@@ -13,7 +13,7 @@ from sympy import *
 M0, M0_sc, Efit, fa,fa_corr,TR,tau,td,N,n = symbols('M0,M0_sc,Efit,fa,fa_corr,TR,tau,td,N,n')
 init_printing(use_unicode=True)
 
-E1 = Efit**(TR/1000)#exp(-TR/(T1*T1_sc))
+E1 = Efit#**(TR/1000)#exp(-TR/(T1*T1_sc))
 #Etau = exp(-tau/(T1*T1_sc))
 #Etd = exp(-td/(T1*T1_sc))
 #Etau = Efit**(tau/1000)
