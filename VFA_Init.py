@@ -274,7 +274,7 @@ par.Nproj = Nproj
 #### TEST
 par.unknowns_TGV = 2
 par.unknowns_H1 = 1
-
+par.unknowns = 3
 
 
 ################################################################################
@@ -403,8 +403,8 @@ irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e2
-irgn_par.gamma = 5e-3   #### 5e-2   5e-3 phantom ##### brain 1e-2
-irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
+irgn_par.gamma = 1e-3   #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.delta = 1e1   #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e0
 irgn_par.display_iterations = True
 
