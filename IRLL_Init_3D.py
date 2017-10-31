@@ -119,7 +119,7 @@ dcf = file['dcf'][()].astype(DTYPE)
 #dcf = dcf/np.max(dcf)
 
 #data = np.fft.fft(data,axis=2).astype(DTYPE)
-data = data[:,10:-10,:,:]
+data = data[:,28:-28,:,:]
 data = data[None,:,:,:,:]
 dimX = 224
 dimY = 224
@@ -138,7 +138,7 @@ par = struct()
 
 ##### No FA correction
 par.fa_corr = file['fa_corr'][()].astype(DTYPE)#np.ones([NSlice,dimX,dimY],dtype=DTYPE)
-par.fa_corr = np.flip(par.fa_corr[10:-10,:,:],axis=0)
+par.fa_corr = np.flip(par.fa_corr[28:-28,:,:],axis=0)
 #
 
 par.NScan         = NScan 
@@ -283,7 +283,8 @@ par.NScan       = NScan
 par.N = N
 par.Nproj = Nproj
 
-
+par.unknowns_TGV = 2
+par.unknowns_H1 = 0
 par.unknowns = 2
 ##### No FA correction
 #par.fa_corr = np.ones([NSlice,dimX,dimY],dtype='complex128')
