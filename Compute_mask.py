@@ -19,10 +19,14 @@ def compute(image):
     for i in range(image.shape[0]):
       thres = threshold_otsu(image[i,...])
       mask[i,...] = image[i,...]>=thres
+      mask[i,...] = binary_closing(mask[i,...],iterations=2)          
       mask[i,...] = binary_fill_holes((mask[i,...]))
+
       
   else:
     thres = threshold_otsu(image)
     mask = image>=thres      
+    mask = binary_closing(mask)    
   mask = remove_small_objects(mask, 10)
+
   return mask

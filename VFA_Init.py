@@ -101,7 +101,7 @@ dcf = file['dcf'][()].astype(DTYPE)
 #dcf = dcf/np.max(dcf)
 
 #data = np.fft.fft(data,axis=2).astype(DTYPE)
-data = data[:,:,16,:,:]
+data = data[:,:,-15,:,:]
 data = data[:,:,None,:,:]
 dimX = 256#192
 dimY = 256#192
@@ -123,7 +123,7 @@ par = struct()
 ################################################################################
 
 par.fa_corr = file['fa_corr'][()].astype(DTYPE)#np.ones([NSlice,dimX,dimY],dtype=DTYPE)
-par.fa_corr = par.fa_corr[16,:,:]
+par.fa_corr = par.fa_corr[-15,:,:]
 #
 #root = Tk()
 #root.withdraw()
@@ -382,35 +382,35 @@ par.U[abs(data) == 0] = False
 ################################################################################
 ### IRGN - TGV Reco ############################################################
 ################################################################################
-
-opt = Model_Reco.Model_Reco(par)
-
-opt.par = par
-opt.data =  data
-opt.images = images
-opt.fft_forward = fft_forward
-opt.fft_back = fft_back
-opt.nfftplan = plan
-opt.dcf = np.sqrt(dcf*(N*(np.pi/(4*Nproj))))
-opt.dcf_flat = np.sqrt(dcf*(N*(np.pi/(4*Nproj)))).flatten()
-opt.model = model
-opt.traj = traj 
-
-################################################################################
-#IRGN Params
-irgn_par = struct()
-irgn_par.start_iters = 10
-irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 10
-irgn_par.lambd = 1e2
-irgn_par.gamma = 1e-2   #### 5e-2   5e-3 phantom ##### brain 1e-2
-irgn_par.delta = 1e0  #### 8spk in-vivo 1e-2
-irgn_par.omega = 1e0
-irgn_par.display_iterations = True
-
-opt.irgn_par = irgn_par
-
-opt.execute_2D()
+#
+#opt = Model_Reco.Model_Reco(par)
+#
+#opt.par = par
+#opt.data =  data
+#opt.images = images
+#opt.fft_forward = fft_forward
+#opt.fft_back = fft_back
+#opt.nfftplan = plan
+#opt.dcf = np.sqrt(dcf*(N*(np.pi/(4*Nproj))))
+#opt.dcf_flat = np.sqrt(dcf*(N*(np.pi/(4*Nproj)))).flatten()
+#opt.model = model
+#opt.traj = traj 
+#
+#################################################################################
+##IRGN Params
+#irgn_par = struct()
+#irgn_par.start_iters = 10
+#irgn_par.max_iters = 1000
+#irgn_par.max_GN_it = 10
+#irgn_par.lambd = 1e2
+#irgn_par.gamma = 5e-2   #### 5e-2   5e-3 phantom ##### brain 1e-2
+#irgn_par.delta = 1e0  #### 8spk in-vivo 1e-2
+#irgn_par.omega = 1e0
+#irgn_par.display_iterations = True
+#
+#opt.irgn_par = irgn_par
+#
+#opt.execute_2D()
 
 
 
@@ -433,6 +433,19 @@ opt_t.traj = traj
 
 ################################################################################
 #IRGN Params 
+irgn_par = struct()
+irgn_par.start_iters = 10
+irgn_par.max_iters = 1000
+irgn_par.max_GN_it = 10
+irgn_par.lambd = 1e2
+irgn_par.gamma = 5e-2   #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.delta = 1e0  #### 8spk in-vivo 1e-2
+irgn_par.omega = 1e0
+irgn_par.display_iterations = True
+
+opt_t.irgn_par = irgn_par
+
+opt_t.execute_2D()
 ################################################################################
 ### Profiling ##################################################################
 ################################################################################

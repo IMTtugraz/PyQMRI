@@ -92,8 +92,8 @@ dcf = file['dcf'][()].astype(DTYPE)
 #data = np.fft.fft(data,axis=2).astype(DTYPE)
 data = data[:,30,:,:]
 data = data[None,:,None,:,:]
-dimX = 212#192
-dimY = 212#192
+dimX = 224#192
+dimY = 224#192
 #data = data*np.sqrt(dcf) ## only in-vivo
 
 #NSlice = 1
@@ -191,7 +191,7 @@ else:
 data = data*np.sqrt(dcf) ## only in-vivo  
   
 Nproj = 21
-NScan = 21
+NScan = 25
 data = np.transpose(np.reshape(data[:,:,:,:Nproj*NScan,:],(NC,NScan,NSlice,Nproj,N)),(1,0,2,3,4))
 traj =np.reshape(traj[:Nproj*NScan,:],(NScan,Nproj,N))
 dcf = dcf[:Nproj,:]
@@ -241,8 +241,8 @@ FA = 5.0
 fa = np.divide(FA , DTYPE(180)) * np.pi;   #  % flip angle in rad FA siehe FLASH phantom generierung
 #alpha = [1,3,5,7,9,11,13,15,17,19]*pi/180;
 
-par.TR          = 3500-(5.5*Nproj*NScan+14.3)#10000-(6*Nproj*NScan+14.7)
-par.tau         = 5.5#6
+par.TR          = 8000-(6*Nproj*NScan+14.3)#10000-(6*Nproj*NScan+14.7)
+par.tau         = 6#6
 par.td          = 14.3
 par.NC          = NC
 par.dimY        = dimY
@@ -255,6 +255,7 @@ par.Nproj = Nproj
 
 par.unknowns_TGV = 2
 par.unknowns_H1 = 0
+par.unknowns = 2
 ################################################################################
 ### Standardize data norm ######################################################
 ################################################################################
@@ -380,10 +381,10 @@ opt.traj = traj
 irgn_par = struct()
 irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 13
+irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e2
-irgn_par.gamma = 1e-2   #### 5e-2   5e-3 phantom ##### brain 1e-2
-irgn_par.delta = 1e0  #### 8spk in-vivo 1e-2
+irgn_par.gamma = 1e-3   #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.delta = 5e2  #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e-2
 irgn_par.display_iterations = True
 
