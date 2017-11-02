@@ -618,7 +618,7 @@ cdef class Model_Reco:
         if lhs <= ynorm*delta_line:
             break
         else:
-#            print('Lhs:',lhs,'  Rrhs: ', ynorm)           
+            print('Lhs:',lhs,'  Rrhs: ', ynorm)           
             tau_new = tau_new*mu_line
             
       Kyk1 = (Kyk1_new)

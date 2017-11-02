@@ -15,6 +15,7 @@ import ipyparallel as ipp
 c = ipp.Client()
 #dview = c[:]
 
+DTYPE = np.complex64
 
 import mkl
 from pynfft.nfft import NFFT
@@ -65,7 +66,7 @@ root.destroy()
 
 data = sio.loadmat(file)
 #data = data['data_mid']
-data = data['data']
+data = data['data'].astype(DTYPE)
 
 data = np.transpose(data)
 
@@ -76,7 +77,7 @@ file = filedialog.askopenfilename()
 root.destroy()
 
 traj = sio.loadmat(file)
-traj = traj['traj']
+traj = traj['traj'].astype(DTYPE)
 
 traj = np.transpose(traj)
 traj = traj[0,:,:]+1j*traj[1,:,:]
@@ -88,7 +89,7 @@ file = filedialog.askopenfilename()
 root.destroy()
 
 dcf = sio.loadmat(file)
-dcf = dcf['dcf']
+dcf = dcf['dcf'].astype(DTYPE)
 
 dcf = np.transpose(dcf)
 #dcf = dcf/np.max(dcf)
@@ -100,7 +101,7 @@ data = data*np.sqrt(dcf)
 
 #NSlice = 1
 data = data[None,:,:,:,:]
-data = data[:,:,28:-28,:,:]
+data = data[:,:,10:-10,:,:]
 [NScan,NC,NSlice,Nproj, N] = data.shape
 
 
@@ -118,12 +119,12 @@ file = filedialog.askopenfilename()
 root.destroy()
 
 fa_corr = sio.loadmat(file)
-fa_corr = fa_corr['fa_corr']
+fa_corr = fa_corr['fa_corr'].astype(DTYPE)
 
 fa_corr = np.transpose(fa_corr)
 par.fa_corr =fa_corr + 1j*fa_corr
 par.fa_corr[par.fa_corr==0] = 1
-par.fa_corr = par.fa_corr[23:-23,:,:]
+par.fa_corr = par.fa_corr[5:-5,:,:]
 
 par.NScan         = NScan 
 #no b1 correction              
@@ -145,8 +146,8 @@ coil_plan = NFFT((dimY,dimX),NScan*Nproj*N)
 coil_plan.x = np.transpose(np.array([np.imag(traj_coil.flatten()),np.real(traj_coil.flatten())]))
 coil_plan.precompute()
        
-par.C = np.zeros((NC,NSlice,dimY,dimX), dtype="complex128")       
-par.phase_map = np.zeros((NSlice,dimY,dimX), dtype="complex128")   
+par.C = np.zeros((NC,NSlice,dimY,dimX), dtype=DTYPE)       
+par.phase_map = np.zeros((NSlice,dimY,dimX), dtype=DTYPE)   
 
 result = []
 for i in range(NSlice):
@@ -156,12 +157,12 @@ for i in range(NSlice):
   ##### RADIAL PART
   combinedData = np.transpose(data[:,:,i,:,:],(1,0,2,3))
   combinedData = np.reshape(combinedData,(NC,NScan*Nproj,N))
-  coilData = np.zeros((NC,dimY,dimX),dtype='complex128')
+  coilData = np.zeros((NC,dimY,dimX),dtype=DTYPE)
   for j in range(NC):
       coil_plan.f = combinedData[j,:,:]*np.repeat(np.sqrt(dcf),NScan,axis=0)
       coilData[j,:,:] = coil_plan.adjoint()
       
-  combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)     
+  combinedData = np.fft.fft2(coilData,norm=None).astype(DTYPE)/np.sqrt(dimX*dimY)     
   ### CARTESIAN PART    
 #  combinedData = np.squeeze(np.sum(data[:,:,i,:,:],0))/NSlice
 
@@ -252,8 +253,8 @@ FA = 5.0
 fa = np.divide(FA , np.complex128(180)) * np.pi;   #  % flip angle in rad FA siehe FLASH phantom generierung
 #alpha = [1,3,5,7,9,11,13,15,17,19]*pi/180;
 
-par.TR          = 10000-(6*Nproj*NScan+14.7)#2070.3#1685.4#5000-(5.5*Nproj*NScan+14.3)#
-par.tau         = 6#5.5
+par.TR          = 5000-(5.5*Nproj*NScan+14.3)#10000-(6*Nproj*NScan+14.7)#2070.3#1685.4#5000-(5.5*Nproj*NScan+14.3)#
+par.tau         = 5.5#6
 par.td          = 14.3
 par.NC          = NC
 par.dimY        = dimY
@@ -281,8 +282,8 @@ par.dscale = dscale
 
 uData = pyfftw.byte_align(uData)
 
-fftw_ksp = pyfftw.empty_aligned((dimX,dimY),dtype='complex128')
-fftw_img = pyfftw.empty_aligned((dimX,dimY),dtype='complex128')
+fftw_ksp = pyfftw.empty_aligned((dimX,dimY),dtype=DTYPE)
+fftw_img = pyfftw.empty_aligned((dimX,dimY),dtype=DTYPE)
 
 fft_forward = pyfftw.FFTW(fftw_img,fftw_ksp,axes=(0,1))
 fft_back = pyfftw.FFTW(fftw_ksp,fftw_img,axes=(0,1),direction='FFTW_BACKWARD')
@@ -304,7 +305,7 @@ def nfft(NScan,NC,dimX,dimY,N,Nproj,traj):
           
 def nFT(x,plan,dcf,NScan,NC,Nproj,N,dimX):
   siz = np.shape(x)
-  result = np.zeros((NScan,NC,Nproj*N),dtype='complex128')
+  result = np.zeros((NScan,NC,Nproj*N),dtype=DTYPE)
   for i in range(siz[0]):
     for j in range(siz[1]):    
       plan[i][j].f_hat = x[i,j,:,:]/dimX
@@ -315,7 +316,7 @@ def nFT(x,plan,dcf,NScan,NC,Nproj,N,dimX):
 
 def nFTH(x,plan,dcf,NScan,NC,dimY,dimX):
   siz = np.shape(x)
-  result = np.zeros((NScan,NC,dimY,dimX),dtype='complex128')
+  result = np.zeros((NScan,NC,dimY,dimX),dtype=DTYPE)
   for i in range(siz[0]):
     for j in range(siz[1]):  
       plan[i][j].f = x[i,j,:,:]*np.sqrt(dcf)
@@ -351,7 +352,7 @@ plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
 #
 
 uData = np.reshape(uData,(NScan,NC,NSlice,Nproj,N))* dscale
-tmp = np.zeros((NScan,NC,NSlice,dimY,dimX),dtype='complex128')
+tmp = np.zeros((NScan,NC,NSlice,dimY,dimX),dtype=DTYPE)
 for i in range(NSlice):
     tmp[:,:,i,:,:]=nFTH(uData[:,:,i,:,:],plan,dcf,NScan,NC,dimY,dimX)
     
@@ -400,9 +401,9 @@ opt.traj = traj
 irgn_par = struct()
 irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 13
+irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e0
-irgn_par.gamma = 1e-1 #5e-1
+irgn_par.gamma = 5e-1 #5e-1
 irgn_par.delta = 1e2
 irgn_par.display_iterations = True
 
@@ -447,4 +448,5 @@ with open("par" + ".p", "wb") as pickle_file:
 #with open("par.txt", "rb") as myFile:
     #par = pickle.load(myFile)
 #par.dump("par.dat")
-
+os.chdir('..')
+os.chdir('..')

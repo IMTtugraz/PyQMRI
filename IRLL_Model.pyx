@@ -17,8 +17,8 @@ plt.ion()
 cimport cython
 from cython.parallel import parallel, prange
 
-DTYPE = np.complex128
-ctypedef double complex DTYPE_t
+DTYPE = np.complex64
+ctypedef float complex DTYPE_t
 
 cdef extern from "complex.h":
     DTYPE_t cexp(DTYPE_t z) nogil
@@ -67,7 +67,7 @@ cdef class IRLL_Model:
     self.max_T1 = 5000/self.T1_sc
 
   cpdef execute_forward_2D(self,DTYPE_t[:,:,::1] x,int islice):
-    cdef DTYPE_t[:,:,:,::1] S = np.zeros((self.NLL,self.Nproj,self.dimY,self.dimX),dtype='complex128')
+    cdef DTYPE_t[:,:,:,::1] S = np.zeros((self.NLL,self.Nproj,self.dimY,self.dimX),dtype=DTYPE)
     cdef int i = 0
     cdef int j = 0
     cdef int n_i = 0
@@ -199,7 +199,7 @@ cdef class IRLL_Model:
   
   
   cpdef execute_forward_3D(self,DTYPE_t[:,:,:,::1] x):
-    cdef DTYPE_t[:,:,:,:,::1] S = np.zeros((self.NLL,self.Nproj,self.NSlice,self.dimY,self.dimX),dtype='complex128')
+    cdef DTYPE_t[:,:,:,:,::1] S = np.zeros((self.NLL,self.Nproj,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
     cdef int i = 0
     cdef int j = 0
     cdef int k = 0
