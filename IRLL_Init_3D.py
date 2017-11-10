@@ -30,7 +30,7 @@ os.system("taskset -p 0xff %d" % os.getpid())
   
 plt.ion()
 pyfftw.interfaces.cache.enable()
-#import h5py  
+import h5py  
 #  
 #plt.ion()
 #pyfftw.interfaces.cache.enable()
@@ -58,53 +58,76 @@ pyfftw.interfaces.cache.enable()
 
 
 ##### Read Mat
+
+#root = Tk()
+#root.withdraw()
+#root.update()
+#file = filedialog.askopenfilename()
+#root.destroy()
+#
+#data = sio.loadmat(file)
+#data = data['data_mid'].astype(DTYPE)
+##data = data['data']
+#
+#data = np.transpose(data)
+
+##### Read H5
 root = Tk()
 root.withdraw()
 root.update()
 file = filedialog.askopenfilename()
 root.destroy()
 
-data = sio.loadmat(file)
-#data = data['data_mid']
-data = data['data'].astype(DTYPE)
+file = h5py.File(file)
+data = file['real_dat'][()].astype(DTYPE) + 1j*file['imag_dat'][()].astype(DTYPE)
 
-data = np.transpose(data)
+#root = Tk()
+#root.withdraw()
+#root.update()
+#file = filedialog.askopenfilename()
+#root.destroy()
 
-root = Tk()
-root.withdraw()
-root.update()
-file = filedialog.askopenfilename()
-root.destroy()
+#file = h5py.File(file)
 
-traj = sio.loadmat(file)
-traj = traj['traj'].astype(DTYPE)
+traj = file['real_traj'][()].astype(DTYPE) + 1j*file['imag_traj'][()].astype(DTYPE)
 
-traj = np.transpose(traj)
-traj = traj[0,:,:]+1j*traj[1,:,:]
 
-root = Tk()
-root.withdraw()
-root.update()
-file = filedialog.askopenfilename()
-root.destroy()
 
-dcf = sio.loadmat(file)
-dcf = dcf['dcf'].astype(DTYPE)
-
-dcf = np.transpose(dcf)
+dcf = file['dcf'][()].astype(DTYPE)
+#
+#root = Tk()
+#root.withdraw()
+#root.update()
+#file = filedialog.askopenfilename()
+#root.destroy()
+#
+#traj = sio.loadmat(file)
+#traj = file['traj'].astype(DTYPE)
+#
+#traj = np.transpose(traj)
+#
+#root = Tk()
+#root.withdraw()
+#root.update()
+#file = filedialog.askopenfilename()
+#root.destroy()
+#
+#dcf = sio.loadmat(file)
+#dcf = dcf['dcf'].astype(DTYPE)
+#
+#dcf = np.transpose(dcf)
 #dcf = dcf/np.max(dcf)
 
-#data = data_real+1j*data_imag
-dimX = 224
-dimY = 224
-data = data*np.sqrt(dcf)
+#data = np.fft.fft(data,axis=2).astype(DTYPE)
+data = data[:,10:-10,:,:]
+data = data[None,:,:,:,:]
+dimX = 256
+dimY = 256
+data = data*np.sqrt(dcf) ## only in-vivo
 
 #NSlice = 1
-data = data[None,:,:,:,:]
-data = data[:,:,10:-10,:,:]
 [NScan,NC,NSlice,Nproj, N] = data.shape
-
-
+#[NScan,NC,NSlice,dimY,dimX] = data.shape
 
 
 #Create par struct to store everyting
@@ -112,19 +135,11 @@ class struct:
     pass
 par = struct()
 
-root = Tk()
-root.withdraw()
-root.update()
-file = filedialog.askopenfilename()
-root.destroy()
 
-fa_corr = sio.loadmat(file)
-fa_corr = fa_corr['fa_corr'].astype(DTYPE)
-
-fa_corr = np.transpose(fa_corr)
-par.fa_corr =fa_corr + 1j*fa_corr
-par.fa_corr[par.fa_corr==0] = 1
-par.fa_corr = par.fa_corr[5:-5,:,:]
+##### No FA correction
+par.fa_corr = file['fa_corr'][()].astype(DTYPE)#np.ones([NSlice,dimX,dimY],dtype=DTYPE)
+par.fa_corr = par.fa_corr[10:-10,:,:]
+#
 
 par.NScan         = NScan 
 #no b1 correction              
@@ -202,8 +217,8 @@ else:
 
 ################################################################### 
 ## Choose undersampling mode
-Nproj = 34
-NScan = 15
+Nproj = 13
+NScan = 40
 data = np.transpose(np.reshape(data[:,:,:,:Nproj*NScan,:],(NC,NSlice,NScan,Nproj,N)),(2,0,1,3,4))
 traj =np.reshape(traj[:Nproj*NScan,:],(NScan,Nproj,N))
 dcf = dcf[:Nproj,:]
@@ -274,7 +289,7 @@ par.unknowns = 2
 '''standardize the data'''
 
 
-dscale = np.sqrt(NSlice)*np.complex128(100)/(np.linalg.norm(uData.flatten()))
+dscale = np.sqrt(NSlice)*np.complex128(1)/(np.linalg.norm(uData.flatten()))
 par.dscale = dscale
 
 ######################################################################## 
@@ -402,9 +417,9 @@ irgn_par = struct()
 irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
-irgn_par.lambd = 1e0
-irgn_par.gamma = 5e-1 #5e-1
-irgn_par.delta = 1e2
+irgn_par.lambd = 1e2
+irgn_par.gamma = 1e-2 #5e-1
+irgn_par.delta = 1e0
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par

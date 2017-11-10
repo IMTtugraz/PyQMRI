@@ -14,11 +14,12 @@ import mkl
 from pynfft.nfft import NFFT
 from optimizedPattern import optimizedPattern
 import VFA_model
+
+DTYPE = np.complex64
 np.seterr(divide='ignore', invalid='ignore')# TODO:
   
 mkl.set_num_threads(mp.cpu_count())  
 os.system("taskset -p 0xff %d" % os.getpid()) 
-  
 
 import ipyparallel as ipp
 
@@ -29,25 +30,61 @@ import h5py
 plt.ion()
 pyfftw.interfaces.cache.enable()
 
-##### Read Mat
+
+
 root = Tk()
 root.withdraw()
 root.update()
 file = filedialog.askopenfilename()
 root.destroy()
 
-data = sio.loadmat(file)
-#data = data['data_mid']
-data = data['data']
-##### Read H5
+file = h5py.File(file)
+data = file['real_dat'][()].astype(DTYPE) + 1j*file['imag_dat'][()].astype(DTYPE)
+
+#root = Tk()
+#root.withdraw()
+#root.update()
+#file = filedialog.askopenfilename()
+#root.destroy()
+
+#file = h5py.File(file)
+
+traj = file['real_traj'][()].astype(DTYPE) + 1j*file['imag_traj'][()].astype(DTYPE)
+
+
+
+dcf = file['dcf'][()].astype(DTYPE)
+
+###### Read Mat
 #root = Tk()
 #root.withdraw()
 #root.update()
 #file = filedialog.askopenfilename()
 #root.destroy()
 #
-#data = h5py.File(file)
-#data_real = data['real_dat_comp'][()].astype("double")
+#data = sio.loadmat(file)
+##data = data['data_mid']
+#data = data['data']
+###### Read H5
+##root = Tk()
+##root.withdraw()
+##root.update()
+##file = filedialog.askopenfilename()
+##root.destroy()
+##
+##data = h5py.File(file)
+##data_real = data['real_dat_comp'][()].astype("double")
+##
+##root = Tk()
+##root.withdraw()
+##root.update()
+##file = filedialog.askopenfilename()
+##root.destroy()
+##
+##data = h5py.File(file)
+##data_imag = data['imag_dat_comp'][()].astype("double")
+#
+#data = np.transpose(data)
 #
 #root = Tk()
 #root.withdraw()
@@ -55,37 +92,26 @@ data = data['data']
 #file = filedialog.askopenfilename()
 #root.destroy()
 #
-#data = h5py.File(file)
-#data_imag = data['imag_dat_comp'][()].astype("double")
-
-data = np.transpose(data)
-
-root = Tk()
-root.withdraw()
-root.update()
-file = filedialog.askopenfilename()
-root.destroy()
-
-traj = sio.loadmat(file)
-traj = traj['traj']
-
-traj = np.transpose(traj)
-
-root = Tk()
-root.withdraw()
-root.update()
-file = filedialog.askopenfilename()
-root.destroy()
-
-dcf = sio.loadmat(file)
-dcf = dcf['dcf']
-
-dcf = np.transpose(dcf)
-#dcf = dcf/np.max(dcf)
+#traj = sio.loadmat(file)
+#traj = traj['traj']
+#
+#traj = np.transpose(traj)
+#
+#root = Tk()
+#root.withdraw()
+#root.update()
+#file = filedialog.askopenfilename()
+#root.destroy()
+#
+#dcf = sio.loadmat(file)
+#dcf = dcf['dcf']
+#
+#dcf = np.transpose(dcf)
+##dcf = dcf/np.max(dcf)
 
 #data = data_real+1j*data_imag
-data = np.fft.fft(data,axis=2)
-data = data[:,:,12:-12,:,:]
+#data = np.fft.fft(data,axis=2)
+data = data[:,:,10:-10,:,:]
 #data = data[:,:,0,:,:]
 dimX = 256
 dimY = 256
@@ -107,21 +133,24 @@ par = struct()
 
 par.NScan         = NScan 
 #no b1 correction              
-par.B1_correction = False 
+par.B1_correction = True 
 
-root = Tk()
-root.withdraw()
-root.update()
-file = filedialog.askopenfilename()
-root.destroy()
-
-fa_corr = sio.loadmat(file)
-fa_corr = fa_corr['fa_corr']
-
-fa_corr = np.transpose(fa_corr)
-par.fa_corr =fa_corr
-par.fa_corr[par.fa_corr==0] = 1
-par.fa_corr = par.fa_corr[8:-8,:,:]
+par.fa_corr = file['fa_corr'][()].astype(DTYPE)#np.ones([NSlice,dimX,dimY],dtype=DTYPE)
+par.fa_corr = np.flip(par.fa_corr,axis=0)[6:-6,:,:]
+#
+#root = Tk()
+#root.withdraw()
+#root.update()
+#file = filedialog.askopenfilename()
+#root.destroy()
+#
+#fa_corr = sio.loadmat(file)
+#fa_corr = fa_corr['fa_corr']
+#
+#fa_corr = np.transpose(fa_corr)
+#par.fa_corr =fa_corr
+#par.fa_corr[par.fa_corr==0] = 1
+#par.fa_corr = par.fa_corr[8:-8,:,:]
 
 #par.fa_corr = np.ones((NSlice,dimY,dimX),dtype='complex128')
 
@@ -139,8 +168,8 @@ coil_plan = NFFT((dimY,dimX),NScan*Nproj*N)
 coil_plan.x = np.transpose(np.array([np.imag(traj_coil.flatten()),np.real(traj_coil.flatten())]))
 coil_plan.precompute()
        
-par.C = np.zeros((NC,NSlice,dimY,dimX), dtype="complex128")       
-par.phase_map = np.zeros((NSlice,dimY,dimX), dtype="complex128")   
+par.C = np.zeros((NC,NSlice,dimY,dimX), dtype=DTYPE)       
+par.phase_map = np.zeros((NSlice,dimY,dimX), dtype=DTYPE)   
 
 result = []
 for i in range(NSlice):
@@ -150,7 +179,7 @@ for i in range(NSlice):
   ##### RADIAL PART
   combinedData = np.transpose(data[:,:,i,:,:],(1,0,2,3))
   combinedData = np.reshape(combinedData,(NC,NScan*Nproj,N))
-  coilData = np.zeros((NC,dimY,dimX),dtype='complex128')
+  coilData = np.zeros((NC,dimY,dimX),dtype=DTYPE)
   for j in range(NC):
       coil_plan.f = combinedData[j,:,:]*np.repeat(np.sqrt(dcf),NScan,axis=0)
       coilData[j,:,:] = coil_plan.adjoint()
@@ -249,7 +278,9 @@ options[undersampling_mode]()
 ######################################################################## 
 ## struct par init
 
-FA = np.array([2,3,4,5,7,9,11,14,17,22],np.complex128)*np.pi/180
+#FA = np.array([2,3,4,5,7,9,11,14,17,22],np.complex128)*np.pi/180
+
+FA = np.array([1,2,3,4,5,6,7,9,11,13],DTYPE)*np.pi/180
 #FA = np.array([1,3,5,7,9,11,13,15,17],np.complex128)
 fa = FA    #  % flip angle in rad FA siehe FLASH phantom generierung
 #alpha = [1,3,5,7,9,11,13,15,17,19]*pi/180;
@@ -289,7 +320,7 @@ par.unknowns = 2
 '''standardize the data'''
 
 
-dscale = np.sqrt(NSlice)*np.complex128(1)/(np.linalg.norm(uData.flatten()))
+dscale = np.sqrt(NSlice)*DTYPE(1)/(np.linalg.norm(uData.flatten()))
 par.dscale = dscale
 
 ######################################################################## 
@@ -297,8 +328,8 @@ par.dscale = dscale
 
 uData = pyfftw.byte_align(uData)
 
-fftw_ksp = pyfftw.empty_aligned((dimX,dimY),dtype='complex128')
-fftw_img = pyfftw.empty_aligned((dimX,dimY),dtype='complex128')
+fftw_ksp = pyfftw.empty_aligned((dimX,dimY),dtype=DTYPE)
+fftw_img = pyfftw.empty_aligned((dimX,dimY),dtype=DTYPE)
 
 fft_forward = pyfftw.FFTW(fftw_img,fftw_ksp,axes=(0,1))
 fft_back = pyfftw.FFTW(fftw_ksp,fftw_img,axes=(0,1),direction='FFTW_BACKWARD')
@@ -320,7 +351,7 @@ def nfft(NScan,NC,dimX,dimY,N,Nproj,traj):
           
 def nFT(x,plan,dcf,NScan,NC,NSlice,Nproj,N,dimX):
   siz = np.shape(x)
-  result = np.zeros((NScan,NC,NSlice,Nproj*N),dtype='complex128')
+  result = np.zeros((NScan,NC,NSlice,Nproj*N),dtype=DTYPE)
   for i in range(siz[0]):
     for j in range(siz[1]): 
       for k in range(siz[2]):
@@ -332,7 +363,7 @@ def nFT(x,plan,dcf,NScan,NC,NSlice,Nproj,N,dimX):
 
 def nFTH(x,plan,dcf,NScan,NC,NSlice,dimY,dimX):
   siz = np.shape(x)
-  result = np.zeros((NScan,NC,NSlice,dimY,dimX),dtype='complex128')
+  result = np.zeros((NScan,NC,NSlice,dimY,dimX),dtype=DTYPE)
   for i in range(siz[0]):
     for j in range(siz[1]):  
       for k in range(siz[2]):
@@ -345,7 +376,7 @@ def nFTH(x,plan,dcf,NScan,NC,NSlice,dimY,dimX):
 
 def FT(x):
   siz = np.shape(x)
-  result = np.zeros_like(x,dtype='complex128')
+  result = np.zeros_like(x,dtype=DTYPE)
   for i in range(siz[0]):
     for j in range(siz[1]):
       for k in range(siz[2]):
@@ -356,7 +387,7 @@ def FT(x):
 
 def FTH(x):
   siz = np.shape(x)
-  result = np.zeros_like(x,dtype='complex128')
+  result = np.zeros_like(x,dtype=DTYPE)
   for i in range(siz[0]):
     for j in range(siz[1]):
       for k in range(siz[2]):
@@ -370,7 +401,7 @@ plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
 
 uData = np.reshape(uData,(NScan,NC,NSlice,Nproj,N))* dscale
 
-images= (np.sum(nFTH(uData,plan,dcf* N*np.pi/(4*Nproj),NScan,NC,NSlice,dimY,dimX)[:,:,:,:]*(np.conj(par.C)),axis = 1))
+images= (np.sum(nFTH(uData,plan,dcf* N*np.pi/(4*Nproj),NScan,NC,NSlice,dimY,dimX)*(np.conj(par.C)),axis = 1))
 
 #images= (np.sum(FTH(uData*dscale)*(np.conj(par.C)),axis = 1))
 
@@ -419,14 +450,14 @@ irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e2
-irgn_par.gamma = 5e-3
-irgn_par.delta = 5e-1
+irgn_par.gamma = 1e-2
+irgn_par.delta = 1e-1
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par
 
 
-opt.dz = 3.6/1.171875
+opt.dz = 3/1
 
 opt.execute_3D()
 
