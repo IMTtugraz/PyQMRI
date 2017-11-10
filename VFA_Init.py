@@ -3,18 +3,23 @@ import numpy as np
 import matplotlib.pyplot as plt
 import time
 import os
-import scipy.io as sio
 from tkinter import filedialog
 from tkinter import Tk
 import nlinvns_maier as nlinvns
 
 import pyximport; pyximport.install()
-import Model_Reco as Model_Reco
-import multiprocessing as mp
 
+
+import Model_Reco as Model_Reco
+import Model_Reco_old as Model_Reco_Tikh
+
+import scipy.io as sio
+
+import multiprocessing as mp
 import mkl
+
 from pynfft.nfft import NFFT
-from optimizedPattern import optimizedPattern
+
 import VFA_model
 
 import h5py  
@@ -29,6 +34,10 @@ os.system("taskset -p 0xff %d" % os.getpid())
   
 plt.ion()
 pyfftw.interfaces.cache.enable()
+
+################################################################################
+### Read input data ############################################################
+################################################################################
 
 #root = Tk()
 #root.withdraw()
@@ -48,6 +57,8 @@ root.withdraw()
 root.update()
 file = filedialog.askopenfilename()
 root.destroy()
+
+name = file.split('/')[-1]
 
 file = h5py.File(file)
 data = file['real_dat'][()].astype(DTYPE) + 1j*file['imag_dat'][()].astype(DTYPE)
@@ -90,11 +101,11 @@ dcf = file['dcf'][()].astype(DTYPE)
 #dcf = dcf/np.max(dcf)
 
 #data = np.fft.fft(data,axis=2).astype(DTYPE)
-data = data[:,:,20,:,:]
+data = data[:,:,8,:,:]
 data = data[:,:,None,:,:]
-dimX = 256
-dimY = 256
-#data = data*np.sqrt(dcf) ## only in-vivo
+dimX = 256#192
+dimY = 256#192
+data = data*np.sqrt(dcf) ## only in-vivo
 
 #NSlice = 1
 [NScan,NC,NSlice,Nproj, N] = data.shape
@@ -107,9 +118,12 @@ class struct:
 par = struct()
 
 
-##### No FA correction
+################################################################################
+### FA correction ##############################################################
+################################################################################
+
 par.fa_corr = file['fa_corr'][()].astype(DTYPE)#np.ones([NSlice,dimX,dimY],dtype=DTYPE)
-par.fa_corr = par.fa_corr[16,:,:]
+par.fa_corr = par.fa_corr[8,:,:]
 #
 #root = Tk()
 #root.withdraw()
@@ -124,19 +138,11 @@ par.fa_corr = par.fa_corr[16,:,:]
 #fa_corr[[fa_corr==0]] = 1*np.pi/180
 #par.fa_corr = fa_corr*180/np.pi#[16,:,:]#
 
-par.NScan         = NScan 
-#no b1 correction              
-par.B1_correction = False 
-########################################################################
+################################################################################
+### Estimate coil sensitivities ################################################
+################################################################################
 
-
-################################################################### 
-## Coil sensitivity estimate
-
-#% Estimates sensitivities and complex image.
-#%(see Martin Uecker: Image reconstruction by regularized nonlinear
-#%inversion joint estimation of coil sensitivities and image content)
-nlinvNewtonSteps = 7
+nlinvNewtonSteps = 9
 nlinvRealConstr  = False
 
 traj_coil = np.reshape(traj,(NScan*Nproj,N))
@@ -158,7 +164,8 @@ for i in range(0,(NSlice)):
       coil_plan.f = combinedData[j,:,:]*np.repeat(np.sqrt(dcf),NScan,axis=0)
       coilData[j,:,:] = coil_plan.adjoint()
       
-  combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)     
+  combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)  
+   
   ### CARTESIAN PART    
 #  combinedData = np.squeeze(np.sum(data[:,:,i,:,:],0))/NSlice
 
@@ -168,14 +175,11 @@ for i in range(0,(NSlice)):
   
 
   """shape combinData(128, 128, 4)"""
-  #            print('nlivout')np.
-  #            print(combinedData[0,0,0])
             
   nlinvout = nlinvns.nlinvns(combinedData, nlinvNewtonSteps,
-                     True, nlinvRealConstr) #(6, 9, 128, 128)
+                     True, nlinvRealConstr)
 
-  #% coil sensitivities are stored in par.C
-
+  # coil sensitivities are stored in par.C
   par.C[:,i,:,:] = nlinvout[2:,-1,:,:]
 
   if not nlinvRealConstr:
@@ -189,9 +193,10 @@ if NC == 1:
 else:
   par.C = par.C / np.tile(sumSqrC, (NC,1,1,1)) 
   
-#  par.C = np.expand_dims(par.C,axis=1)
 
-################################################################### 
+################################################################################ 
+### Artificial Subsampling #####################################################
+################################################################################
 #data_full = np.copy(data)
 #traj_full = np.copy(traj)
 #dcf_full = np.copy(dcf)
@@ -212,75 +217,74 @@ else:
 
 
 
+#print("**undersampling")
+#  
+#undersampling_mode = 1
+#
+#def one():
+#    # Fully Sampled
+#    global uData
+#    par.AF = 1
+#    par.ACL = 32
+#    uData = data
+#
+#def two():
+#    # radial Pattern
+#    global uData
+#    AF = 6
+#    par.AF = AF
+#    ACL = 32
+#    par.ACL = ACL
+#    uData = np.zeros(data.shape)
+#    uData      = optimizedPattern(data,AF,ACL); #data?
+#    
+#def three():
+#    # Random Pattern %% Vorerst nicht portieren
+#    uData = np.zeros_like(data)
+#    uData[:,:,:,:,list(range(0,dimY,3))] = data[:,:,:,:,list(range(0,dimY,3))]
+#    print(" Random Pattern")
+#    
+#options = {1 : one,
+#           2 : two,
+#           3 : three,}
+#
+#options[undersampling_mode]()
 
 
-print("**undersampling")
-  
-undersampling_mode = 1
-
-def one():
-    # Fully Sampled
-    global uData
-    par.AF = 1
-    par.ACL = 32
-    uData = data
-
-def two():
-    # radial Pattern
-    global uData
-    AF = 6
-    par.AF = AF
-    ACL = 32
-    par.ACL = ACL
-    uData = np.zeros(data.shape)
-    uData      = optimizedPattern(data,AF,ACL); #data?
-    
-def three():
-    # Random Pattern %% Vorerst nicht portieren
-    uData = np.zeros_like(data)
-    uData[:,:,:,:,list(range(0,dimY,3))] = data[:,:,:,:,list(range(0,dimY,3))]
-    print(" Random Pattern")
-    
-options = {1 : one,
-           2 : two,
-           3 : three,}
-
-options[undersampling_mode]()
-
-
-######################################################################## 
-## struct par init
+################################################################################
+### Set sequence related parameters ############################################
+################################################################################
 
 #FA = np.array([1,2,4,5,7,9,11,14,17,23],np.complex128)*np.pi/180
-FA = np.array([1,2,3,4,5,6,7,9,11,13],np.complex128)*np.pi/180
-#FA = np.array([1,3,5,7,9,11,13,15,17],np.complex128)*np.pi/180
-fa = FA    #  % flip angle in rad FA siehe FLASH phantom generierung
-#alpha = [1,3,5,7,9,11,13,15,17,19]*pi/180;
+par.fa = np.array([1,2,3,4,5,6,7,9,11,13],np.complex128)*np.pi/180
+#par.fa = np.array([1,2,4,5,7,9,11,14,17,20],np.complex128)*np.pi/180
 
 par.TR          = 5.0#3.4 #TODO
-par.TE          = list(range(20,40*20+1,20)) #TODO
+#par.TE          = list(range(20,40*20+1,20)) #TODO
 par.NC          = NC
 par.dimY        = dimY
 par.dimX        = dimX
-par.fa          = fa
 par.NSlice      = NSlice
-
+par.NScan       = NScan 
 par.N = N
 par.Nproj = Nproj
+par.unknowns = 2
 
 
 
+################################################################################
+### Standardize data norm ######################################################
+################################################################################
 
-'''standardize the data'''
 
-
-dscale = np.sqrt(NSlice)*np.complex128(1)/(np.linalg.norm(uData.flatten()))
+dscale = np.sqrt(NSlice)*np.complex128(1)/(np.linalg.norm(data.flatten()))
 par.dscale = dscale
 
-######################################################################## 
-#### generate FFTW
+################################################################################
+### generate FFTW for cartesian cases ##########################################
+################################################################################
 
-uData = pyfftw.byte_align(uData)
+data = pyfftw.byte_align(data)
 
 fftw_ksp = pyfftw.empty_aligned((dimX,dimY),dtype=DTYPE)
 fftw_img = pyfftw.empty_aligned((dimX,dimY),dtype=DTYPE)
@@ -288,6 +292,32 @@ fftw_img = pyfftw.empty_aligned((dimX,dimY),dtype=DTYPE)
 fft_forward = pyfftw.FFTW(fftw_img,fftw_ksp,axes=(0,1))
 fft_back = pyfftw.FFTW(fftw_ksp,fftw_img,axes=(0,1),direction='FFTW_BACKWARD')
 
+
+
+def FT(x):
+  siz = np.shape(x)
+  result = np.zeros_like(x,dtype=DTYPE)
+  for i in range(siz[0]):
+    for j in range(siz[1]):
+      for k in range(siz[2]):
+        result[i,j,k,:,:] = fft_forward(x[i,j,k,:,:])/np.sqrt(siz[4]*(siz[3]))
+      
+  return result
+
+
+def FTH(x):
+  siz = np.shape(x)
+  result = np.zeros_like(x,dtype=DTYPE)
+  for i in range(siz[0]):
+    for j in range(siz[1]):
+      for k in range(siz[2]):
+        result[i,j,k,:,:] = fft_back(x[i,j,k,:,:])*np.sqrt(siz[4]*(siz[3]))
+      
+  return result
+
+################################################################################
+### generate nFFT for radial cases #############################################
+################################################################################
 
 def nfft(NScan,NC,dimX,dimY,N,Nproj,traj):
   plan = []
@@ -327,55 +357,31 @@ def nFTH(x,plan,dcf,NScan,NC,NSlice,dimY,dimX):
   return result/dimX
 
 
-
-def FT(x):
-  siz = np.shape(x)
-  result = np.zeros_like(x,dtype=DTYPE)
-  for i in range(siz[0]):
-    for j in range(siz[1]):
-      for k in range(siz[2]):
-        result[i,j,k,:,:] = fft_forward(x[i,j,k,:,:])/np.sqrt(siz[4]*(siz[3]))
-      
-  return result
-
-
-def FTH(x):
-  siz = np.shape(x)
-  result = np.zeros_like(x,dtype=DTYPE)
-  for i in range(siz[0]):
-    for j in range(siz[1]):
-      for k in range(siz[2]):
-        result[i,j,k,:,:] = fft_back(x[i,j,k,:,:])*np.sqrt(siz[4]*(siz[3]))
-      
-  return result
-
-
 plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
-#
 
-uData = uData* dscale
+data = data* dscale
 
-images= (np.sum(nFTH(uData,plan,dcf*N*(np.pi/(4*Nproj)),NScan,NC,NSlice,dimY,dimX)[:None,:,:,:]*(np.conj(par.C)),axis = 1))
-
-#images= (np.sum(FTH(uData*dscale)*(np.conj(par.C)),axis = 1))
+images= (np.sum(nFTH(data,plan,dcf*N*(np.pi/(4*Nproj)),NScan,NC,NSlice,dimY,dimX)*(np.conj(par.C)),axis = 1))
 
 
-#Init Forward Model
+
+################################################################################
+### Init forward model and initial guess #######################################
+################################################################################
 model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images,par.phase_map,1)
 
 
 
-par.U = np.ones((uData).shape, dtype=bool)
-par.U[abs(uData) == 0] = False
-########################################################################
-#Init optimizer
-par.unknowns = 2
+par.U = np.ones((data).shape, dtype=bool)
+par.U[abs(data) == 0] = False
+################################################################################
+### IRGN - TGV Reco ############################################################
+################################################################################
 
 opt = Model_Reco.Model_Reco(par)
 
 opt.par = par
-opt.data =  uData
-#model.data = uData*dscale
+opt.data =  data
 opt.images = images
 opt.fft_forward = fft_forward
 opt.fft_back = fft_back
@@ -385,37 +391,46 @@ opt.dcf_flat = np.sqrt(dcf*(N*(np.pi/(4*Nproj)))).flatten()
 opt.model = model
 opt.traj = traj 
 
-
-#
-#
-#import gradients_divergences as gd
-#dimX = 256
-#dimY = 256
-#xx = np.random.randn(2,2,dimX,dimY).astype(DTYPE)im
-#yy = np.random.randn(2,3,dimX,dimY).astype(DTYPE)
-#a = np.vdot(xx,-gd.fdiv_2(yy))
-#b = np.sum(gd.sym_bgrad_2(xx)[:,0,:,:]*yy[:,0,:,:]+gd.sym_bgrad_2(xx)[:,1,:,:]*yy[:,1,:,:]+2*gd.sym_bgrad_2(xx)[:,2,:,:]*yy[:,2,:,:])
-#test = np.abs(a-b)
-#print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,test))
-
-
-########################################################################
+################################################################################
 #IRGN Params
 irgn_par = struct()
 irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 13
-irgn_par.lambd = 1e2
-irgn_par.gamma = 5e-3   #### 5e-2
+irgn_par.max_GN_it = 10
+irgn_par.lambd = 1e2 * 21/Nproj
+irgn_par.gamma = 1e-2   #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par
 
 opt.execute_2D()
-#
-########################################################################
-#
+
+
+
+################################################################################
+### IRGN - Tikhonov referenz ###################################################
+################################################################################
+
+opt_t = Model_Reco_Tikh.Model_Reco(par)
+
+opt_t.par = par
+opt_t.data =  data
+opt_t.images = images
+opt_t.fft_forward = fft_forward
+opt_t.fft_back = fft_back
+opt_t.nfftplan = plan
+opt_t.dcf = np.sqrt(dcf*(N*(np.pi/(4*Nproj))))
+opt_t.dcf_flat = np.sqrt(dcf*(N*(np.pi/(4*Nproj)))).flatten()
+opt_t.model = model
+opt_t.traj = traj 
+
+################################################################################
+#IRGN Params 
+################################################################################
+### Profiling ##################################################################
+################################################################################
+
 #import cProfile
 #cProfile.run("opt.execute_2D()","eval_speed_3")
 ##
@@ -433,33 +448,33 @@ opt.execute_2D()
 
 
 
-########################################################################
-#starte reco
+################################################################################
+### Old .mat save files ########################################################
+################################################################################
 
-#result,guess,par = DESPOT1_Model_Reco(par)
-
-outdir = time.strftime("%Y-%m-%d  %H-%M-%S")
-if not os.path.exists('./output'):
-    os.makedirs('./output')
-os.makedirs("output/"+ outdir)
-
-os.chdir("output/"+ outdir)
-
-sio.savemat("result_phantom_05spk.mat",{"result":opt.result,"model":model})
-
-import pickle
-with open("par" + ".p", "wb") as pickle_file:
-    pickle.dump(par, pickle_file)
-
-os.chdir('..')
-os.chdir('..')
+#outdir = time.strftime("%Y-%m-%d  %H-%M-%S")
+#if not os.path.exists('./output'):
+#    os.makedirs('./output')
+#os.makedirs("output/"+ outdir)
+#
+#os.chdir("output/"+ outdir)
+#
+#sio.savemat("resultinvivo_21spk_pro.mat",{"result":opt.result,"model":model})
+#sio.savemat("resultinvivo_21spk_pro_tikh.mat",{"result":opt_t.result,"model":model})
+#import pickle
+#with open("par" + ".p", "wb") as pickle_file:
+#    pickle.dump(par, pickle_file)
+#
+#os.chdir('..')
+#os.chdir('..')
 #with open("par.txt", "rb") as myFile:
-    #par = pickle.load(myFile)
+#    par = pickle.load(myFile)
 #par.dump("par.dat")
 
 
-
-##### Save hdf5
+################################################################################
+### New .hdf5 save files #######################################################
+################################################################################
 outdir = time.strftime("%Y-%m-%d  %H-%M-%S")
 if not os.path.exists('./output'):
     os.makedirs('./output')
@@ -467,15 +482,24 @@ os.makedirs("output/"+ outdir)
 
 os.chdir("output/"+ outdir)  
 
-f = h5py.File("output.h5","w")
+f = h5py.File("output_"+name,"w")
 dset_result = f.create_dataset("full_result",opt.result.shape,dtype=np.complex64,data=opt.result)
+dset_result_ref = f.create_dataset("ref_full_result",opt_t.result.shape,dtype=np.complex64,data=opt_t.result)
 dset_T1 = f.create_dataset("T1_final",np.squeeze(opt.result[-1,1,...]).shape,dtype=np.complex64,data=np.squeeze(opt.result[-1,1,...]))
 dset_M0 = f.create_dataset("M0_final",np.squeeze(opt.result[-1,0,...]).shape,dtype=np.complex64,data=np.squeeze(opt.result[-1,0,...]))
+dset_T1_ref = f.create_dataset("T1_ref",np.squeeze(opt_t.result[-1,1,...]).shape,dtype=np.complex64,data=np.squeeze(opt_t.result[-1,1,...]))
+dset_M0_ref = f.create_dataset("M0_ref",np.squeeze(opt_t.result[-1,0,...]).shape,dtype=np.complex64,data=np.squeeze(opt_t.result[-1,0,...]))
 f.flush()
 f.close()
+
 os.chdir('..')
 os.chdir('..')
-##                
+
+
+
+################################################################################
+### 3D viewer  ##########s######################################################
+################################################################################              
 def multi_slice_viewer(volume):
 
   if volume.ndim<=3: 

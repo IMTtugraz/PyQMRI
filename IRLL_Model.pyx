@@ -62,7 +62,11 @@ cdef class IRLL_Model:
     self.sin_phi = np.sin(phi_corr)
     self.cos_phi = np.cos(phi_corr)    
 
+<<<<<<< HEAD
     self.guess = np.array([0/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),3000/self.T1_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE)])               
+=======
+    self.guess = np.array([0/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),3000.0/self.T1_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE)])               
+>>>>>>> 3dd2456c6b5aed9fc48a2ef13e3dd97079eb2457
     self.min_T1 = 50/self.T1_sc
     self.max_T1 = 5000/self.T1_sc
 
@@ -350,9 +354,9 @@ cdef class IRLL_Model:
            result[i,:,:,:,:] = result[i,:,:,:,:]/np.sum(result[i,:,:,:,:],0)
             
       return np.squeeze(result)
-  def plot_unknowns(self,x):
+  def plot_unknowns(self,x,dim_2D=False):
       
-      if self.NSlice==1:
+      if dim_2D:
           plt.figure(1)
           plt.imshow(np.transpose(np.abs(x[0,...]*self.M0_sc)))
           plt.pause(0.05)
@@ -362,10 +366,10 @@ cdef class IRLL_Model:
           plt.pause(0.05)          
       else:         
           plt.figure(1)
-          plt.imshow(np.transpose(np.abs(x[0,0,...]*self.M0_sc)))
+          plt.imshow(np.transpose(np.abs(x[0,int(self.NSlice/2),...]*self.M0_sc)))
           plt.pause(0.05)
           plt.figure(2)
-          plt.imshow(np.transpose(np.abs(x[1,0,...]*self.T1_sc)))
+          plt.imshow(np.transpose(np.abs(x[1,int(self.NSlice/2),...]*self.T1_sc)))
         #      plt.imshow(np.transpose(np.abs(x[1,0,:,:]*self.model.T1_sc)),vmin=0,vmax=3000)
           plt.pause(0.05)
            
