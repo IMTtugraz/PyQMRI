@@ -119,11 +119,11 @@ dcf = file['dcf'][()].astype(DTYPE)
 #dcf = dcf/np.max(dcf)
 
 #data = np.fft.fft(data,axis=2).astype(DTYPE)
-data = data[:,10:-10,:,:]
+data = data[:,15:-15,:,:]
 data = data[None,:,:,:,:]
-dimX = 256
-dimY = 256
-data = data*np.sqrt(dcf) ## only in-vivo
+dimX = 224
+dimY = 224
+
 
 #NSlice = 1
 [NScan,NC,NSlice,Nproj, N] = data.shape
@@ -138,7 +138,7 @@ par = struct()
 
 ##### No FA correction
 par.fa_corr = file['fa_corr'][()].astype(DTYPE)#np.ones([NSlice,dimX,dimY],dtype=DTYPE)
-par.fa_corr = par.fa_corr[10:-10,:,:]
+par.fa_corr = np.flip(par.fa_corr[15:-15,:,:],axis=0)
 #
 
 par.NScan         = NScan 
@@ -217,6 +217,9 @@ else:
 
 ################################################################### 
 ## Choose undersampling mode
+data = data*np.sqrt(dcf) ## only in-vivo
+
+
 Nproj = 13
 NScan = 40
 data = np.transpose(np.reshape(data[:,:,:,:Nproj*NScan,:],(NC,NSlice,NScan,Nproj,N)),(2,0,1,3,4))
@@ -289,7 +292,7 @@ par.unknowns = 2
 '''standardize the data'''
 
 
-dscale = np.sqrt(NSlice)*np.complex128(1)/(np.linalg.norm(uData.flatten()))
+dscale = np.sqrt(NSlice)*np.complex128(1)/(np.linalg.norm(data.flatten()))
 par.dscale = dscale
 
 ######################################################################## 
@@ -366,7 +369,7 @@ def FTH(x):
 plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
 #
 
-uData = np.reshape(uData,(NScan,NC,NSlice,Nproj,N))* dscale
+uData = np.reshape(data,(NScan,NC,NSlice,Nproj,N))* dscale
 tmp = np.zeros((NScan,NC,NSlice,dimY,dimX),dtype=DTYPE)
 for i in range(NSlice):
     tmp[:,:,i,:,:]=nFTH(uData[:,:,i,:,:],plan,dcf,NScan,NC,dimY,dimX)
