@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import time
 import os
 import scipy.io as sio
+import h5py
 from tkinter import filedialog
 from tkinter import Tk
 import nlinvns_maier as nlinvns
@@ -14,7 +15,7 @@ import mkl
 from pynfft.nfft import NFFT
 #from optimizedPattern import optimizedPattern
 
-import IRLL_Model
+import IRLL_Model_new as IRLL_Model
 
 DTYPE = np.complex64
 
@@ -23,57 +24,80 @@ np.seterr(divide='ignore', invalid='ignore')# TODO:
 mkl.set_num_threads(mp.cpu_count())  
 os.system("taskset -p 0xff %d" % os.getpid()) 
   
-  
-  
-plt.ion()
-pyfftw.interfaces.cache.enable()
+################################################################################
+### Read input data ############################################################
+################################################################################
 
+#root = Tk()
+#root.withdraw()
+#root.update()
+#file = filedialog.askopenfilename()
+#root.destroy()
+#
+#data = sio.loadmat(file)
+#data = data['data_mid'].astype(DTYPE)
+##data = data['data']
+#
+#data = np.transpose(data)
+
+##### Read H5
 root = Tk()
 root.withdraw()
 root.update()
 file = filedialog.askopenfilename()
 root.destroy()
 
-data = sio.loadmat(file)
-data = data['data'].astype(DTYPE)
+name = file.split('/')[-1]
 
-data = np.transpose(data)
+file = h5py.File(file)
+data = file['real_dat'][()].astype(DTYPE) + 1j*file['imag_dat'][()].astype(DTYPE)
 
-root = Tk()
-root.withdraw()
-root.update()
-file = filedialog.askopenfilename()
-root.destroy()
+#root = Tk()
+#root.withdraw()
+#root.update()
+#file = filedialog.askopenfilename()
+#root.destroy()
 
-traj = sio.loadmat(file)
-traj = traj['traj'].astype(DTYPE)
+#file = h5py.File(file)
 
-traj = np.transpose(traj)
+traj = file['real_traj'][()].astype(DTYPE) + 1j*file['imag_traj'][()].astype(DTYPE)
 
-traj = traj[0,:,:] + 1j*traj[1,:,:]
 
-root = Tk()
-root.withdraw()
-root.update()
-file = filedialog.askopenfilename()
-root.destroy()
 
-dcf = sio.loadmat(file)
-dcf = dcf['dcf'].astype(DTYPE)
-
-dcf = np.transpose(dcf)
+dcf = file['dcf'][()].astype(DTYPE)
+#
+#root = Tk()
+#root.withdraw()
+#root.update()
+#file = filedialog.askopenfilename()
+#root.destroy()
+#
+#traj = sio.loadmat(file)
+#traj = file['traj'].astype(DTYPE)
+#
+#traj = np.transpose(traj)
+#
+#root = Tk()
+#root.withdraw()
+#root.update()
+#file = filedialog.askopenfilename()
+#root.destroy()
+#
+#dcf = sio.loadmat(file)
+#dcf = dcf['dcf'].astype(DTYPE)
+#
+#dcf = np.transpose(dcf)
 #dcf = dcf/np.max(dcf)
 
-
-#data = data[:,:,0,:,:]
-dimX = 224
-dimY = 224
-data = data*np.sqrt(dcf)
+#data = np.fft.fft(data,axis=2).astype(DTYPE)
+data = data[:,30,:,:]
+data = data[None,:,None,:,:]
+dimX = 224#192
+dimY = 224#192
+#data = data*np.sqrt(dcf) ## only in-vivo
 
 #NSlice = 1
-data = data[None,:,30,:,:]
-data = data[:,:,None,:,:]
-[NScan,NC,NSlice,Nproj,N] = data.shape
+[NScan,NC,NSlice,Nproj, N] = data.shape
 #[NScan,NC,NSlice,dimY,dimX] = data.shape
 
 
@@ -82,25 +106,28 @@ class struct:
     pass
 par = struct()
 
-root = Tk()
-root.withdraw()
-root.update()
-file = filedialog.askopenfilename()
-root.destroy()
 
-fa_corr = sio.loadmat(file)
-fa_corr = fa_corr['fa_corr'].astype(DTYPE)
+################################################################################
+### FA correction ##############################################################
+################################################################################
 
-fa_corr = np.transpose(fa_corr)
-par.fa_corr =fa_corr + 1j*fa_corr
-par.fa_corr[par.fa_corr==0] = 1
-par.fa_corr = par.fa_corr[25,:,:]
-par.fa_corr = par.fa_corr[None,:,:]
-
-#par.NScan         = NScan 
-#no b1 correction              
-par.B1_correction = False 
-########################################################################
+par.fa_corr = file['fa_corr'][()].astype(DTYPE)#np.ones([NSlice,dimX,dimY],dtype=DTYPE)
+par.fa_corr = np.flip(par.fa_corr,axis=0)
+par.fa_corr = par.fa_corr[30,:,:]
+par.fa_corr = par.fa_corr[None,...]
+#
+#root = Tk()
+#root.withdraw()
+#root.update()
+#file = filedialog.askopenfilename()
+#root.destroy()
+#
+#fa_corr = sio.loadmat(file)
+#fa_corr = fa_corr['fa_mid_3mm']
+#
+#fa_corr = np.transpose(fa_corr)
+#fa_corr[[fa_corr==0]] = 1*np.pi/180
+#par.fa_corr = fa_corr*180/np.pi#[16,:,:]#
 
 
 ################################################################################
@@ -160,6 +187,9 @@ else:
   
 ################################################################### 
 ## Choose undersampling mode
+  
+data = data*np.sqrt(dcf) ## only in-vivo  
+  
 Nproj = 34
 NScan = 15
 data = np.transpose(np.reshape(data[:,:,:,:Nproj*NScan,:],(NC,NScan,NSlice,Nproj,N)),(1,0,2,3,4))
@@ -211,8 +241,8 @@ FA = 5.0
 fa = np.divide(FA , DTYPE(180)) * np.pi;   #  % flip angle in rad FA siehe FLASH phantom generierung
 #alpha = [1,3,5,7,9,11,13,15,17,19]*pi/180;
 
-par.TR          = 5000-(5.5*Nproj*NScan+14.3)#10000-(6*Nproj*NScan+14.7)
-par.tau         = 5.5#6
+par.TR          = 8000-(6*Nproj*NScan+14.3)#10000-(6*Nproj*NScan+14.7)
+par.tau         = 6#6
 par.td          = 14.3
 par.NC          = NC
 par.dimY        = dimY
@@ -352,7 +382,7 @@ irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e2
 irgn_par.gamma = 1e-2   #### 5e-2   5e-3 phantom ##### brain 1e-2
-irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
+irgn_par.delta = 1e2   #### 8spk in-vivo 1e-2
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par

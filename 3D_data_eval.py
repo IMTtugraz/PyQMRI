@@ -16,6 +16,7 @@ from tkinter import Tk
 import h5py  
 import scipy.io as sio
 from matplotlib import cm
+import Compute_mask as masking
 
 root = Tk()
 root.withdraw()
@@ -45,7 +46,10 @@ else:
   print("Unsupported format")  
 
 
+mask = masking.compute(M0)
 
+T1 = T1*mask
+M0 = M0*mask
 
 T1_plot=[]
 
@@ -60,11 +64,14 @@ T1_max = 3000
 
 M0_plot=[]
 
-M0_plot.append(np.squeeze(M0[2,:,:,]))
-M0_plot.append(np.squeeze(M0[:,:,10]))
-M0_plot.append(np.squeeze(M0[:,10,:]))
+M0_plot.append(np.squeeze(M0[2,:,:,]).T)
+M0_plot.append(np.flip(np.squeeze(M0[:,120,:]).T,1))
+M0_plot.append([])
+M0_plot.append(np.squeeze(M0[:,:,120]))
 M0_plot.append(np.zeros((20,20)))
-
+M0_plot.append([])
+M0_min = 0
+M0_max = 0.02
 
 fig = plt.figure(figsize = (8,8))
 fig.subplots_adjust(hspace=0, wspace=0)
@@ -88,13 +95,48 @@ for i in range(6):
 #  ax[i].axis('scaled')
 ax[0].set_anchor("SE")  
 ax[1].set_anchor("SW")  
-ax[2].set_anchor("NW")  
+ax[2].set_anchor("C")  
 ax[3].set_anchor("NE")  
 ax[4].set_anchor("NW")  
-ax[5].set_anchor("NW")  
+ax[5].set_anchor("C")  
 cax = plt.subplot(gs[:,2])
 cbar = fig.colorbar(im, cax=cax)
-cbar.ax.tick_params(labelsize=16,colors='white')
+cbar.ax.tick_params(labelsize=12,colors='white')
+for spine in cbar.ax.spines:
+  cbar.ax.spines[spine].set_color('white')
+#fig.colorbar(im, pad=0)
+plt.show()  
+
+
+fig = plt.figure(figsize = (8,8))
+fig.subplots_adjust(hspace=0, wspace=0)
+fig.patch.set_facecolor(cm.viridis.colors[0])
+gs = gridspec.GridSpec(2,3, width_ratios=[3,1,1/10],height_ratios=[3,1])
+#ax = [fig.add_subplot(2,2,i+1) for i in range(4)]
+ax = []
+plot_extend_x = [1,1/3,1/10,1,1/3,1/10]
+plot_extend_y = [1,1,1,1/3,1/3,1/3]
+
+for i in range(6):
+  ax.append(plt.subplot(gs[i]))  
+  if i==2 or i==5:
+    ax[i].axis('off')    
+  else:
+    im = ax[i].imshow(np.abs(M0_plot[i]),vmin=M0_min,vmax=M0_max, extent=[0,plot_extend_x[i],0,plot_extend_y[i]],aspect=1,cmap=cm.viridis)
+    ax[i].axis('off')
+
+    
+    
+#  ax[i].axis('scaled')
+ax[0].set_anchor("SE")  
+ax[1].set_anchor("SW")  
+ax[2].set_anchor("C")  
+ax[3].set_anchor("NE")  
+ax[4].set_anchor("NW")  
+ax[5].set_anchor("C")  
+cax = plt.subplot(gs[:,2])
+cbar = fig.colorbar(im, cax=cax)
+cbar.ax.tick_params(labelsize=12,colors='white')
 for spine in cbar.ax.spines:
   cbar.ax.spines[spine].set_color('white')
 #fig.colorbar(im, pad=0)
