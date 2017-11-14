@@ -17,7 +17,7 @@ def compute(image):
   image = np.abs(image)
   if len(image.shape) > 2:
     for i in range(image.shape[0]):
-      thres = threshold_otsu(image[i,...])
+      thres = threshold_otsu(image[i,...])*0.5
       mask[i,...] = image[i,...]>=thres
       mask[i,...] = binary_closing(mask[i,...],iterations=2)          
       mask[i,...] = binary_fill_holes((mask[i,...]))
@@ -27,6 +27,6 @@ def compute(image):
     thres = threshold_otsu(image)
     mask = image>=thres      
     mask = binary_closing(mask)    
-  mask = remove_small_objects(mask, 10)
+  mask = remove_small_objects(mask, 200)
 
   return mask

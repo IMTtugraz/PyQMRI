@@ -9,7 +9,7 @@ from cython.parallel import parallel, prange
 cimport numpy as np
 import numpy as np
 import time
-import VFA_model
+
 import decimal
 cimport gradients_divergences as gd
 import matplotlib.pyplot as plt
@@ -356,7 +356,7 @@ cdef class Model_Reco:
       x_new[1,:,:] = np.real(np.maximum(self.model.min_T1,np.minimum(self.model.max_T1,x_new[1,...])))
       
       if self.unknowns_H1 > 0:      
-        x_new[2,...] = np.real(np.maximum(np.minimum(2,x_new[2,...]),0))
+        x_new[2,...] = np.real(np.maximum(np.minimum(1.3,x_new[2,...]),0.7))
 
 
       v_new = v-tau*Kyk2

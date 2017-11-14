@@ -35,8 +35,12 @@ if ftype == 'h5':
   for name in file:
     names.append(name)
     data.append(file[name][()])
-  M0 = data[7]
-  T1 = (data[9])
+  M0 = data[0]
+  M0_ref = data[1]
+  T1 = -5/np.log(data[2])
+  T1_ref = -5/np.log(data[3])
+  result = data[4]
+  result_ref = data[5]
 elif ftype =='mat':
   result = sio.loadmat(file)
   result = result['result']
@@ -56,10 +60,10 @@ M0 = M0*mask
 
 T1_plot=[]
 
-T1_plot.append(np.squeeze(T1[20,:,:,]).T)
-T1_plot.append(np.flip(np.squeeze(T1[:,120,:]).T,1))
+T1_plot.append(np.squeeze(T1[21,:,:,]).T)
+T1_plot.append(np.flip(np.squeeze(T1[:,110,:]).T,1))
 T1_plot.append([])
-T1_plot.append(np.squeeze(T1[:,:,120]))
+T1_plot.append(np.squeeze(T1[:,:,110]))
 T1_plot.append(np.zeros((20,20)))
 T1_plot.append([])
 T1_min = 300
@@ -67,10 +71,10 @@ T1_max = 3000
 
 M0_plot=[]
 
-M0_plot.append(np.squeeze(M0[20,:,:,]).T)
-M0_plot.append(np.flip(np.squeeze(M0[:,120,:]).T,1))
+M0_plot.append(np.squeeze(M0[21,:,:,]).T)
+M0_plot.append(np.flip(np.squeeze(M0[:,110,:]).T,1))
 M0_plot.append([])
-M0_plot.append(np.squeeze(M0[:,:,120]))
+M0_plot.append(np.squeeze(M0[:,:,110]))
 M0_plot.append(np.zeros((20,20)))
 M0_plot.append([])
 M0_min = 0
@@ -146,14 +150,14 @@ for spine in cbar.ax.spines:
 plt.show()  
 
 
-
-
+#
+#
 
 
 T1_plot=[]
 
-T1_plot.append(np.squeeze(T1[20,6:-6,6:-6]).T)
-T1_plot.append(np.squeeze(T1_ref).T)
+T1_plot.append(np.squeeze(T1[-2,6:-6,6:-6]).T)
+T1_plot.append(np.squeeze(T1_ref*mask[-2,...]).T)
 T1_plot.append([])
 T1_min = 300
 T1_max = 3000
@@ -176,15 +180,7 @@ for i in range(3):
     im = ax[i].imshow(np.abs(T1_plot[i]),vmin=T1_min,vmax=T1_max, extent=[0,plot_extend_x[i],0,plot_extend_y[i]],aspect=1,cmap=cm.viridis)
     ax[i].axis('off')
 
-    
-    
-#  ax[i].axis('scaled')
-ax[0].set_anchor("SE")  
-ax[1].set_anchor("SW")  
-ax[2].set_anchor("C")  
-ax[3].set_anchor("NE")  
-ax[4].set_anchor("NW")  
-ax[5].set_anchor("C")  
+
 cax = plt.subplot(gs[:,2])
 cbar = fig.colorbar(im, cax=cax)
 cbar.ax.tick_params(labelsize=12,colors='white')

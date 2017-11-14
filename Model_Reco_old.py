@@ -18,6 +18,8 @@ DTYPE = np.complex64
 class Model_Reco: 
   def __init__(self,par):
     self.par = par
+    self.unknowns_TGV = par.unknowns_TGV
+    self.unknowns_H1 = par.unknowns_H1
     self.unknowns = par.unknowns
     self.NSlice = par.NSlice
     self.NScan = par.NScan
@@ -27,7 +29,6 @@ class Model_Reco:
     self.NC = par.NC
     self.N = par.N
     self.Nproj = par.Nproj
-    
     print("Please Set Parameters, Data and Initial images")
 
     
@@ -36,12 +37,12 @@ class Model_Reco:
 
     ###################################
 #    ### Adjointness     
-#    xx = np.random.random_sample(np.shape(x)).astype(DTYPE)
-#    yy = np.random.random_sample(np.shape(data)).astype(DTYPE)
-#    a = np.vdot(xx.flatten(),self.operator_adjoint_2D(yy).flatten())
-#    b = np.vdot(self.operator_forward_2D(xx).flatten(),yy.flatten())
-#    test = np.abs(a-b)
-#    print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,decimal.Decimal(test)))
+    xx = np.random.random_sample(np.shape(x)).astype(DTYPE)
+    yy = np.random.random_sample(np.shape(data)).astype(DTYPE)
+    a = np.vdot(xx.flatten(),self.operator_adjoint_2D(yy).flatten())
+    b = np.vdot(self.operator_forward_2D(xx).flatten(),yy.flatten())
+    test = np.abs(a-b)
+    print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,(test)))
     x_old = x
     a = self.FT(self.step_val[:,None,:,:]*self.Coils)
     b = self.operator_forward_2D(x)
@@ -99,26 +100,23 @@ class Model_Reco:
       iters = self.irgn_par.start_iters
 
       
-      self.result = np.zeros((self.irgn_par.max_GN_it,self.unknowns,self.par.NSlice,self.par.dimY,self.par.dimX),dtype=DTYPE)
-      result = np.copy(self.model.guess).astype(DTYPE)
+      self.result = np.zeros((self.irgn_par.max_GN_it,self.unknowns_TGV+self.unknowns_H1,self.par.NSlice,self.par.dimY,self.par.dimX),dtype=DTYPE)
+      result = np.copy(self.model.guess)
       for islice in range(self.par.NSlice):
-        self.Coils = np.squeeze(self.par.C[:,islice,:,:])     
-        self.v = np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-        self.d1 = np.zeros(([self.unknowns,self.par.dimX,self.par.dimY]),dtype=DTYPE)  
-        self.d2 = np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)  
-        self.rhat = np.zeros_like(self.data[:,:,islice,:],dtype=DTYPE)
-        self.z1hat = np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-        self.z2hat = np.zeros(([self.unknowns,3,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-        self.r = np.zeros_like(self.data[:,:,islice,:],dtype=DTYPE)
-        self.z1 = np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-        self.z2 = np.zeros(([self.unknowns,3,self.par.dimX,self.par.dimY]),dtype=DTYPE)        
+        self.Coils = np.squeeze(self.par.C[:,islice,:,:])    
+        self.conjCoils = np.conj(self.Coils)   
+        self.v = np.zeros(([self.unknowns_TGV,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+        self.r = np.zeros(([self.NScan,self.NC,self.Nproj,self.N]),dtype=DTYPE)
+        self.z1 = np.zeros(([self.unknowns_TGV,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+        self.z2 = np.zeros(([self.unknowns_TGV,3,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+        self.z3 = np.zeros(([self.unknowns_H1,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)  
+        
         for i in range(self.irgn_par.max_GN_it):
           start = time.time()       
           self.step_val = self.model.execute_forward_2D(result[:,islice,:,:],islice)
-          self.grad_x = self.model.execute_gradient_2D(result[:,islice,:,:],islice)
-          self.conj_grad_x = np.conj(self.grad_x)
-          
-          
+          self.grad_x_2D = self.model.execute_gradient_2D(result[:,islice,:,:],islice)
+          self.conj_grad_x_2D = np.conj(self.grad_x_2D)
+
           result[:,islice,:,:] = self.irgn_solve_2D(result[:,islice,:,:], iters, self.data[:,:,islice,:])
           self.result[i,:,islice,:,:] = result[:,islice,:,:]
           
@@ -166,75 +164,12 @@ class Model_Reco:
       
   def operator_forward_2D(self, x):
     
-#    tmp = np.zeros_like(self.grad_x)
-#      
-#    for i in range(self.unknowns):
-#      tmp[i,:,:,:] = 
-      
-    return self.FT(np.sum(x[:,None,:,:]*self.grad_x,axis=0)[:,None,:,:]*self.Coils)
-#      
-#      tmp1 = x[0,:,:]*self.grad_x[0,:,:,:]
-#      tmp2 = x[1,:,:]*self.grad_x[1,:,:,:]
-      
-#      tmp1 = np.expand_dims(np.expand_dims(tmp1,axis=1), axis=1)
-#      tmp2 = np.expand_dims(np.expand_dims(tmp2,axis=1), axis=1)
-      
-#      tmp1[~np.isfinite(tmp1)] = 1e-20
-#      tmp2[~np.isfinite(tmp2)] = 1e-20
-#      
-#      return self.FT((tmp1[:,None,:,:]+tmp2[:,None,:,:])*self.Coils)
+    return self.FT(np.sum(x[:,None,:,:]*self.grad_x_2D,axis=0)[:,None,:,:]*self.Coils)
 
     
   def operator_adjoint_2D(self, x):
     
-#    x[~np.isfinite(x)] = 1e-20
-#    fdx = 
-      
-#    dx = 
-      
-#     = np.zeros((self.unknowns,self.par.dimX,self.par.dimY),dtype=DTYPE)
-#    for i in range(self.unknowns):   
-#      dx[i,:,:] = np.sum(fdx,axis=0)
-#      dx[0,:,:] = np.sum(self.conj_grad_x[0,:,:,:]*fdx,axis=0)
-#      dx[1,:,:] = np.sum(self.conj_grad_x[1,:,:,:]*fdx,axis=0)
-      
-    return np.squeeze(np.sum(np.squeeze(np.sum(self.FTH(x)*np.conj(self.Coils),axis=1)*self.conj_grad_x),axis=1))
-  
-#  def operator_forward_3D(self, x):
-#    
-#    tmp = np.zeros_like(self.grad_x)
-#      
-#    for i in range(self.unknowns):
-#      tmp[i,:,:,:,:] = x[i,:,:,:]*self.grad_x[i,:,:,:,:]
-#      
-#    return self.FT(np.sum(tmp,axis=0)[:,None,:,:,:]*self.Coils)
-#      
-#      tmp1 = x[0,:,:]*self.grad_x[0,:,:,:]
-#      tmp2 = x[1,:,:]*self.grad_x[1,:,:,:]
-      
-#      tmp1 = np.expand_dims(np.expand_dims(tmp1,axis=1), axis=1)
-#      tmp2 = np.expand_dims(np.expand_dims(tmp2,axis=1), axis=1)
-      
-#      tmp1[~np.isfinite(tmp1)] = 1e-20
-#      tmp2[~np.isfinite(tmp2)] = 1e-20
-#      
-#      return self.FT((tmp1[:,None,:,:]+tmp2[:,None,:,:])*self.Coils)
-#
-#    
-#  def operator_adjoint_3D(self, x):
-#    
-#    x[~np.isfinite(x)] = 1e-20
-#    fdx = self.FTH(x)
-#      
-#    fdx = np.squeeze(np.sum(fdx*np.conj(self.Coils),axis=1))
-#      
-#    dx = np.zeros((self.unknowns,self.par.NSlice,self.par.dimX,self.par.dimY),dtype=DTYPE)
-#    for i in range(self.unknowns):   
-#      dx[i,:,:,:] = np.sum(self.conj_grad_x[i,:,:,:,:]*fdx,axis=0)
-##      dx[0,:,:] = np.sum(self.conj_grad_x[0,:,:,:]*fdx,axis=0)
-##      dx[1,:,:] = np.sum(self.conj_grad_x[1,:,:,:]*fdx,axis=0)
-#      
-#    return dx    
+    return np.squeeze(np.sum(np.squeeze(np.sum(self.FTH(x)*self.conjCoils,axis=1))*self.conj_grad_x_2D,axis=1)) 
     
   def tgv_solve_2D(self, x, res, iters):
     alpha = self.irgn_par.gamma
@@ -567,20 +502,21 @@ class Model_Reco:
       
     return self.fft_back(x)*np.sqrt(np.shape(x)[2]*np.shape(x)[3])
 
-
   def nFT_2D(self, x):
 
     nscan = np.shape(x)[0]
     NC = np.shape(x)[1]   
     result = np.zeros((nscan,NC,self.par.Nproj*self.par.N),dtype=DTYPE)
-#    cdef int scan=0
-#    cdef int coil=0
+    scal = self.scale
+    scan=0
+    coil=0
+    plan = self._plan
     for scan in range(nscan):
       for coil in range(NC):
-          self._plan[scan][coil].f_hat = x[scan,coil,:,:]/np.sqrt(self.par.dimX*self.par.dimY)
-          result[scan,coil,:] = self._plan[scan][coil].trafo()*self.dcf_flat
+          plan[scan][coil].f_hat = x[scan,coil,:,:]/scal
+          result[scan,coil,:] = plan[scan][coil].trafo()
       
-    return np.reshape(result,(nscan,NC,self.par.Nproj,self.par.N))
+    return np.reshape(result*self.dcf_flat,[nscan,NC,self.par.Nproj,self.par.N])
 
 
 
@@ -588,12 +524,16 @@ class Model_Reco:
     nscan = np.shape(x)[0]
     NC = np.shape(x)[1]     
     result = np.zeros((nscan,NC,self.par.dimX,self.par.dimY),dtype=DTYPE)
+    dcf = self.dcf
+    scan=0
+    coil=0
+    plan = self._plan
     for scan in range(nscan):
         for coil in range(NC):  
-            self._plan[scan][coil].f = x[scan,coil,:]*self.dcf
-            result[scan,coil,:,:] = self.nfftplan[scan][coil].adjoint()
+            plan[scan][coil].f = x[scan,coil,:,:]*dcf
+            result[scan,coil,:,:] = plan[scan][coil].adjoint()
       
-    return result/np.sqrt(self.par.dimX*self.par.dimY)
+    return result/self.scale
       
   
   
@@ -602,39 +542,58 @@ class Model_Reco:
     nscan = np.shape(x)[0]
     NC = np.shape(x)[1]   
     NSlice = self.par.NSlice
-    dimX = self.par.dimX
-    dimY = self.par.dimY
     result = np.zeros((nscan,NC,NSlice,self.par.Nproj*self.par.N),dtype=DTYPE)
     scan=0
     coil=0
     islice=0
+    plan = self._plan    
+    scal = self.scale
     for scan in range(nscan):
       for coil in range(NC):
         for islice in range(NSlice):
-          self.nfftplan[scan][coil].f_hat = x[scan,coil,islice,:,:]/np.sqrt(dimX*dimY)
-          result[scan,coil,islice,:] = self.nfftplan[scan][coil].trafo()*self.dcf_flat
+          plan[scan][coil].f_hat = x[scan,coil,islice,:,:]/scal
+          result[scan,coil,islice,:] = plan[scan][coil].trafo()
       
-    return result
+    return np.reshape(result*self.dcf_flat,[nscan,NC,NSlice,self.par.Nproj,self.par.N])
 
 
 
-  def nFTH_3D(self, x):
+  def  nFTH_3D(self, x):
     nscan = np.shape(x)[0]
     NC = np.shape(x)[1]  
     NSlice = self.par.NSlice
-    dimX = self.par.dimX
-    dimY = self.par.dimY
-    result = np.zeros((nscan,NC,NSlice,dimX,dimY),dtype=DTYPE)
+    result = np.zeros((nscan,NC,NSlice,self.par.dimX,self.par.dimY),dtype=DTYPE)
+    dcf = self.dcf  
     scan=0
     coil=0
     islice=0    
+    plan = self._plan      
     for scan in range(nscan):
         for coil in range(NC): 
           for islice in range(NSlice):
-            self.nfftplan[scan][coil].f = x[scan,coil,islice,:]*self.dcf
-            result[scan,coil,islice,:,:] = self.nfftplan[scan][coil].adjoint()
+            plan[scan][coil].f = x[scan,coil,islice,:,:]*dcf
+            result[scan,coil,islice,:,:] = plan[scan][coil].adjoint()
       
-    return result/np.sqrt(dimX*dimY)  
+    return result/self.scale
+
+
+  def init_plan(self):
+    plan = []
+
+    traj_x = np.imag(np.asarray(self.traj))
+    traj_y = np.real(np.asarray(self.traj))
+
+    for i in range(self.NScan):
+
+        plan.append([])
+        points = np.transpose(np.array([traj_x[i,:,:].flatten(),traj_y[i,:,:].flatten()]))      
+        for j in range(self.NC):
+
+            plan[i].append(nfft.NFFT([self.dimX,self.dimY],self.N*self.Nproj))
+            plan[i][j].x = points
+            plan[i][j].precompute()
+    self._plan = plan
+
 
 
 
@@ -879,34 +838,20 @@ class Model_Reco:
     print ("Function value after GN-Step: %f" %fval)   
     return x     
       
-  def init_plan(self):
-    plan = []
 
-    traj_x = np.imag(np.asarray(self.traj))
-    traj_y = np.real(np.asarray(self.traj))
 
-    for i in range(self.NScan):
-
-        plan.append([])
-        points = np.transpose(np.array([traj_x[i,:,:].flatten(),traj_y[i,:,:].flatten()]))      
-        for j in range(self.NC):
-
-            plan[i].append(nfft.NFFT([self.dimX,self.dimY],self.N*self.Nproj))
-            plan[i][j].x = points
-            plan[i][j].precompute()
-    self._plan = plan
     
   def fun_val(self,x,xk,data):
     x = np.reshape(x,(self.unknowns*2,self.dimX,self.dimY))    
     x = x[:self.unknowns,:,:] + 1j*x[self.unknowns:,:,:]
     return (self.irgn_par.lambd/2*np.linalg.norm(self.operator_forward_2D(x)-data)**2+
-            self.irgn_par.gamma/2*np.linalg.norm(x)**2 + 1/(2*self.irgn_par.delta)*np.linalg.norm(x-xk)**2).flatten()
+            self.irgn_par.gamma/2*np.linalg.norm((x))**2 + 1/(2*self.irgn_par.delta)*np.linalg.norm(x-xk)**2).flatten()
     
   def lhs_2D(self,x,xk,data):
     x = np.reshape(x,(self.unknowns*2,self.dimX,self.dimY))    
     x = x[:self.unknowns,:,:] + 1j*x[self.unknowns:,:,:]
     tmp = (self.irgn_par.lambd*self.operator_adjoint_2D(self.operator_forward_2D(x))
-           +self.irgn_par.gamma*x+1/self.irgn_par.delta*x - 
+           +self.irgn_par.gamma*x+1/self.irgn_par.delta*((x)) - 
             self.irgn_par.lambd*self.operator_adjoint_2D(data)-1/self.irgn_par.delta*xk).flatten()
     return np.concatenate((np.real(tmp),np.imag(tmp)),axis=0)
       

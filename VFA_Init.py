@@ -76,7 +76,7 @@ traj = file['real_traj'][()].astype(DTYPE) + 1j*file['imag_traj'][()].astype(DTY
 
 
 dcf = file['dcf'][()].astype(DTYPE)
-#
+#dcf = dcf[0,:,:]
 #root = Tk()
 #root.withdraw()
 #root.update()
@@ -101,7 +101,7 @@ dcf = file['dcf'][()].astype(DTYPE)
 #dcf = dcf/np.max(dcf)
 
 #data = np.fft.fft(data,axis=2).astype(DTYPE)
-data = data[:,:,-15,:,:]
+data = data[:,:,32,:,:]
 data = data[:,:,None,:,:]
 dimX = 256#192
 dimY = 256#192
@@ -123,7 +123,8 @@ par = struct()
 ################################################################################
 
 par.fa_corr = file['fa_corr'][()].astype(DTYPE)#np.ones([NSlice,dimX,dimY],dtype=DTYPE)
-par.fa_corr = par.fa_corr[-15,:,:]
+par.fa_corr = par.fa_corr[32,:,:]
+par.fa_corr[par.fa_corr==0] = 1
 #
 #root = Tk()
 #root.withdraw()
@@ -258,7 +259,8 @@ data = data*np.sqrt(dcf) ## only in-vivo
 ################################################################################
 
 #FA = np.array([1,2,4,5,7,9,11,14,17,23],np.complex128)*np.pi/180
-par.fa = np.array([1,2,3,4,5,6,7,9,11,13],np.complex128)*np.pi/180
+#par.fa = np.array([1,2,3,4,5,6,7,9,11,13],DTYPE)*np.pi/180
+par.fa = np.array([1,3,5,7,9,11,13,15,17,19],DTYPE)*np.pi/180
 #par.fa = np.array([1,2,4,5,7,9,11,14,17,20],np.complex128)*np.pi/180
 
 par.TR          = 5.0#3.4 #TODO
@@ -290,35 +292,35 @@ par.dscale = dscale
 ################################################################################
 
 data = pyfftw.byte_align(data)
-
-fftw_ksp = pyfftw.empty_aligned((dimX,dimY),dtype=DTYPE)
-fftw_img = pyfftw.empty_aligned((dimX,dimY),dtype=DTYPE)
-
-fft_forward = pyfftw.FFTW(fftw_img,fftw_ksp,axes=(0,1))
-fft_back = pyfftw.FFTW(fftw_ksp,fftw_img,axes=(0,1),direction='FFTW_BACKWARD')
-
-
-
-def FT(x):
-  siz = np.shape(x)
-  result = np.zeros_like(x,dtype=DTYPE)
-  for i in range(siz[0]):
-    for j in range(siz[1]):
-      for k in range(siz[2]):
-        result[i,j,k,:,:] = fft_forward(x[i,j,k,:,:])/np.sqrt(siz[4]*(siz[3]))
-      
-  return result
-
-
-def FTH(x):
-  siz = np.shape(x)
-  result = np.zeros_like(x,dtype=DTYPE)
-  for i in range(siz[0]):
-    for j in range(siz[1]):
-      for k in range(siz[2]):
-        result[i,j,k,:,:] = fft_back(x[i,j,k,:,:])*np.sqrt(siz[4]*(siz[3]))
-      
-  return result
+#
+#fftw_ksp = pyfftw.empty_aligned((dimX,dimY),dtype=DTYPE)
+#fftw_img = pyfftw.empty_aligned((dimX,dimY),dtype=DTYPE)
+#
+#fft_forward = pyfftw.FFTW(fftw_img,fftw_ksp,axes=(0,1))
+#fft_back = pyfftw.FFTW(fftw_ksp,fftw_img,axes=(0,1),direction='FFTW_BACKWARD')
+#
+#
+#
+#def FT(x):
+#  siz = np.shape(x)
+#  result = np.zeros_like(x,dtype=DTYPE)
+#  for i in range(siz[0]):
+#    for j in range(siz[1]):
+#      for k in range(siz[2]):
+#        result[i,j,k,:,:] = fft_forward(x[i,j,k,:,:])/np.sqrt(siz[4]*(siz[3]))
+#      
+#  return result
+#
+#
+#def FTH(x):
+#  siz = np.shape(x)
+#  result = np.zeros_like(x,dtype=DTYPE)
+#  for i in range(siz[0]):
+#    for j in range(siz[1]):
+#      for k in range(siz[2]):
+#        result[i,j,k,:,:] = fft_back(x[i,j,k,:,:])*np.sqrt(siz[4]*(siz[3]))
+#      
+#  return result
 
 ################################################################################
 ### generate nFFT for radial cases #############################################
@@ -369,7 +371,6 @@ data = data* dscale
 images= (np.sum(nFTH(data,plan,dcf*N*(np.pi/(4*Nproj)),NScan,NC,NSlice,dimY,dimX)*(np.conj(par.C)),axis = 1))
 
 
-
 ################################################################################
 ### Init forward model and initial guess #######################################
 ################################################################################
@@ -382,70 +383,71 @@ par.U[abs(data) == 0] = False
 ################################################################################
 ### IRGN - TGV Reco ############################################################
 ################################################################################
-#
-#opt = Model_Reco.Model_Reco(par)
-#
-#opt.par = par
-#opt.data =  data
-#opt.images = images
+
+opt = Model_Reco.Model_Reco(par)
+
+opt.par = par
+opt.data =  data
+opt.images = images
 #opt.fft_forward = fft_forward
 #opt.fft_back = fft_back
-#opt.nfftplan = plan
-#opt.dcf = np.sqrt(dcf*(N*(np.pi/(4*Nproj))))
-#opt.dcf_flat = np.sqrt(dcf*(N*(np.pi/(4*Nproj)))).flatten()
-#opt.model = model
-#opt.traj = traj 
-#
-#################################################################################
-##IRGN Params
-#irgn_par = struct()
-#irgn_par.start_iters = 10
-#irgn_par.max_iters = 1000
-#irgn_par.max_GN_it = 10
-#irgn_par.lambd = 1e2
-#irgn_par.gamma = 5e-2   #### 5e-2   5e-3 phantom ##### brain 1e-2
-#irgn_par.delta = 1e0  #### 8spk in-vivo 1e-2
-#irgn_par.omega = 1e0
-#irgn_par.display_iterations = True
-#
-#opt.irgn_par = irgn_par
-#
-#opt.execute_2D()
+opt.nfftplan = plan
+opt.dcf = np.sqrt(dcf*(N*(np.pi/(4*Nproj))))
+opt.dcf_flat = np.sqrt(dcf*(N*(np.pi/(4*Nproj)))).flatten()
+opt.model = model
+opt.traj = traj 
+
+################################################################################
+#IRGN Params
+irgn_par = struct()
+irgn_par.start_iters = 10
+irgn_par.max_iters = 1000
+irgn_par.max_GN_it = 8
+irgn_par.lambd = 1e2
+irgn_par.gamma = 5e-2   #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.delta = 1e0  #### 8spk in-vivo 1e-2
+irgn_par.omega = 1e-8
+irgn_par.display_iterations = True
+
+opt.irgn_par = irgn_par
+
+opt.execute_2D()
 
 
 
 ################################################################################
 ### IRGN - Tikhonov referenz ###################################################
 ################################################################################
+#
+#opt_t = Model_Reco_Tikh.Model_Reco(par)
+#
+#opt_t.par = par
+#opt_t.data =  data
+#opt_t.images = images
+##opt_t.fft_forward = fft_forward
+##opt_t.fft_back = fft_back
+#opt_t.nfftplan = plan
+#opt_t.dcf = np.sqrt(dcf*(N*(np.pi/(4*Nproj))))
+#opt_t.dcf_flat = np.sqrt(dcf*(N*(np.pi/(4*Nproj)))).flatten()
+#opt_t.model = model
+#opt_t.traj = traj 
+#
+##################################################################################
+###IRGN Params
+#irgn_par = struct()
+#irgn_par.start_iters = 10
+#irgn_par.max_iters = 1000
+#irgn_par.max_GN_it = 10
+#irgn_par.lambd = 1e2
+#irgn_par.gamma = 1e-2  #### 5e-2   5e-3 phantom ##### brain 1e-2
+#irgn_par.delta = 1e-3  #### 8spk in-vivo 1e-2
+#irgn_par.omega = 1e0
+#irgn_par.display_iterations = True
+#
+#opt_t.irgn_par = irgn_par
+#
+#opt_t.execute_2D()
 
-opt_t = Model_Reco_Tikh.Model_Reco(par)
-
-opt_t.par = par
-opt_t.data =  data
-opt_t.images = images
-opt_t.fft_forward = fft_forward
-opt_t.fft_back = fft_back
-opt_t.nfftplan = plan
-opt_t.dcf = np.sqrt(dcf*(N*(np.pi/(4*Nproj))))
-opt_t.dcf_flat = np.sqrt(dcf*(N*(np.pi/(4*Nproj)))).flatten()
-opt_t.model = model
-opt_t.traj = traj 
-
-################################################################################
-#IRGN Params 
-irgn_par = struct()
-irgn_par.start_iters = 10
-irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 10
-irgn_par.lambd = 1e2
-irgn_par.gamma = 5e-2   #### 5e-2   5e-3 phantom ##### brain 1e-2
-irgn_par.delta = 1e0  #### 8spk in-vivo 1e-2
-irgn_par.omega = 1e0
-irgn_par.display_iterations = True
-
-opt_t.irgn_par = irgn_par
-
-opt_t.execute_2D()
 ################################################################################
 ### Profiling ##################################################################
 ################################################################################
@@ -494,7 +496,7 @@ opt_t.execute_2D()
 ################################################################################
 ### New .hdf5 save files #######################################################
 ################################################################################
-outdir = time.strftime("%Y-%m-%d  %H-%M-%S")
+outdir = time.strftime("%Y-%m-%d  %H-%M-%S_"+name[:-3])
 if not os.path.exists('./output'):
     os.makedirs('./output')
 os.makedirs("output/"+ outdir)
@@ -508,6 +510,10 @@ dset_T1 = f.create_dataset("T1_final",np.squeeze(opt.result[-1,1,...]).shape,dty
 dset_M0 = f.create_dataset("M0_final",np.squeeze(opt.result[-1,0,...]).shape,dtype=np.complex64,data=np.squeeze(opt.result[-1,0,...]))
 #dset_T1_ref = f.create_dataset("T1_ref",np.squeeze(opt_t.result[-1,1,...]).shape,dtype=np.complex64,data=np.squeeze(opt_t.result[-1,1,...]))
 #dset_M0_ref = f.create_dataset("M0_ref",np.squeeze(opt_t.result[-1,0,...]).shape,dtype=np.complex64,data=np.squeeze(opt_t.result[-1,0,...]))
+f.create_dataset("T1_guess",np.squeeze(model.T1_guess).shape,dtype=np.float64,data=np.squeeze(model.T1_guess))
+f.create_dataset("M0_guess",np.squeeze(model.M0_guess).shape,dtype=np.float64,data=np.squeeze(model.M0_guess))
+dset_result.attrs['data_norm'] = dscale
+dset_result.attrs['dcf_scaling'] = (N*(np.pi/(4*Nproj)))
 f.flush()
 f.close()
 
