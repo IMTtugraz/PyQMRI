@@ -113,7 +113,7 @@ dcf = dcf[0,:,:]
 #data = data_real+1j*data_imag
 #data = np.fft.fft(data,axis=2)
 #data = data[:,:,18:-18,:,:]
-data = data[:,:,3:-3,:,:]
+data = data[:,:,3:-2,:,:]
 dimX = 216
 dimY = 216
 #data = data*np.sqrt(dcf)
@@ -137,7 +137,7 @@ par.NScan         = NScan
 par.B1_correction = True 
 
 par.fa_corr = file['fa_corr'][()].astype(DTYPE)#np.ones([NSlice,dimX,dimY],dtype=DTYPE)
-par.fa_corr = np.flip(par.fa_corr[3:-3,...],axis=0)
+par.fa_corr = np.flip(par.fa_corr[3:-2,...],axis=0)
 #
 #root = Tk()
 #root.withdraw()

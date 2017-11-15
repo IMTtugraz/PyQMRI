@@ -76,7 +76,7 @@ traj = file['real_traj'][()].astype(DTYPE) + 1j*file['imag_traj'][()].astype(DTY
 
 
 dcf = file['dcf'][()].astype(DTYPE)
-#dcf = dcf[0,:,:]
+dcf = dcf[0,:,:]
 #root = Tk()
 #root.withdraw()
 #root.update()
@@ -101,10 +101,10 @@ dcf = file['dcf'][()].astype(DTYPE)
 #dcf = dcf/np.max(dcf)
 
 #data = np.fft.fft(data,axis=2).astype(DTYPE)
-data = data[:,:,32,:,:]
+data = data[:,:,5,:,:]
 data = data[:,:,None,:,:]
-dimX = 256#192
-dimY = 256#192
+dimX = 216#192
+dimY = 216#192
 
 
 #NSlice = 1
@@ -123,8 +123,7 @@ par = struct()
 ################################################################################
 
 par.fa_corr = file['fa_corr'][()].astype(DTYPE)#np.ones([NSlice,dimX,dimY],dtype=DTYPE)
-par.fa_corr = par.fa_corr[32,:,:]
-par.fa_corr[par.fa_corr==0] = 1
+par.fa_corr = par.fa_corr[5,:,:]
 #
 #root = Tk()
 #root.withdraw()
@@ -195,7 +194,7 @@ else:
   par.C = par.C / np.tile(sumSqrC, (NC,1,1,1)) 
   
   
-data = data*np.sqrt(dcf) ## only in-vivo
+#data = data*np.sqrt(dcf) ## only in-vivo
 
 ################################################################################ 
 ### Artificial Subsampling #####################################################
@@ -404,7 +403,7 @@ irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 8
 irgn_par.lambd = 1e2
-irgn_par.gamma = 5e-2   #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.gamma = 5e-3   #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e0  #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e-8
 irgn_par.display_iterations = True
@@ -418,35 +417,35 @@ opt.execute_2D()
 ################################################################################
 ### IRGN - Tikhonov referenz ###################################################
 ################################################################################
-#
-#opt_t = Model_Reco_Tikh.Model_Reco(par)
-#
-#opt_t.par = par
-#opt_t.data =  data
-#opt_t.images = images
-##opt_t.fft_forward = fft_forward
-##opt_t.fft_back = fft_back
-#opt_t.nfftplan = plan
-#opt_t.dcf = np.sqrt(dcf*(N*(np.pi/(4*Nproj))))
-#opt_t.dcf_flat = np.sqrt(dcf*(N*(np.pi/(4*Nproj)))).flatten()
-#opt_t.model = model
-#opt_t.traj = traj 
-#
-##################################################################################
-###IRGN Params
-#irgn_par = struct()
-#irgn_par.start_iters = 10
-#irgn_par.max_iters = 1000
-#irgn_par.max_GN_it = 10
-#irgn_par.lambd = 1e2
-#irgn_par.gamma = 1e-2  #### 5e-2   5e-3 phantom ##### brain 1e-2
-#irgn_par.delta = 1e-3  #### 8spk in-vivo 1e-2
-#irgn_par.omega = 1e0
-#irgn_par.display_iterations = True
-#
-#opt_t.irgn_par = irgn_par
-#
-#opt_t.execute_2D()
+
+opt_t = Model_Reco_Tikh.Model_Reco(par)
+
+opt_t.par = par
+opt_t.data =  data
+opt_t.images = images
+#opt_t.fft_forward = fft_forward
+#opt_t.fft_back = fft_back
+opt_t.nfftplan = plan
+opt_t.dcf = np.sqrt(dcf*(N*(np.pi/(4*Nproj))))
+opt_t.dcf_flat = np.sqrt(dcf*(N*(np.pi/(4*Nproj)))).flatten()
+opt_t.model = model
+opt_t.traj = traj 
+
+#################################################################################
+##IRGN Params
+irgn_par = struct()
+irgn_par.start_iters = 10
+irgn_par.max_iters = 1000
+irgn_par.max_GN_it = 10
+irgn_par.lambd = 1e2
+irgn_par.gamma = 1e-2  #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.delta = 1e-3  #### 8spk in-vivo 1e-2
+irgn_par.omega = 1e0
+irgn_par.display_iterations = True
+
+opt_t.irgn_par = irgn_par
+
+opt_t.execute_2D()
 
 ################################################################################
 ### Profiling ##################################################################
@@ -505,11 +504,11 @@ os.chdir("output/"+ outdir)
 
 f = h5py.File("output_"+name,"w")
 dset_result = f.create_dataset("full_result",opt.result.shape,dtype=np.complex64,data=opt.result)
-#dset_result_ref = f.create_dataset("ref_full_result",opt_t.result.shape,dtype=np.complex64,data=opt_t.result)
+dset_result_ref = f.create_dataset("ref_full_result",opt_t.result.shape,dtype=np.complex64,data=opt_t.result)
 dset_T1 = f.create_dataset("T1_final",np.squeeze(opt.result[-1,1,...]).shape,dtype=np.complex64,data=np.squeeze(opt.result[-1,1,...]))
 dset_M0 = f.create_dataset("M0_final",np.squeeze(opt.result[-1,0,...]).shape,dtype=np.complex64,data=np.squeeze(opt.result[-1,0,...]))
-#dset_T1_ref = f.create_dataset("T1_ref",np.squeeze(opt_t.result[-1,1,...]).shape,dtype=np.complex64,data=np.squeeze(opt_t.result[-1,1,...]))
-#dset_M0_ref = f.create_dataset("M0_ref",np.squeeze(opt_t.result[-1,0,...]).shape,dtype=np.complex64,data=np.squeeze(opt_t.result[-1,0,...]))
+dset_T1_ref = f.create_dataset("T1_ref",np.squeeze(opt_t.result[-1,1,...]).shape,dtype=np.complex64,data=np.squeeze(opt_t.result[-1,1,...]))
+dset_M0_ref = f.create_dataset("M0_ref",np.squeeze(opt_t.result[-1,0,...]).shape,dtype=np.complex64,data=np.squeeze(opt_t.result[-1,0,...]))
 f.create_dataset("T1_guess",np.squeeze(model.T1_guess).shape,dtype=np.float64,data=np.squeeze(model.T1_guess))
 f.create_dataset("M0_guess",np.squeeze(model.M0_guess).shape,dtype=np.float64,data=np.squeeze(model.M0_guess))
 dset_result.attrs['data_norm'] = dscale
