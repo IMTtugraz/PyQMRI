@@ -180,7 +180,7 @@ else:
 #### Close File after everything was read
 file.close()
 
-dscale = np.sqrt(NSlice)*np.complex128(1)/(np.linalg.norm(data.flatten()))
+dscale = np.sqrt(NSlice)*DTYPE(1)/(np.linalg.norm(data.flatten()))
 par.dscale = dscale
 
 ################################################################################
@@ -265,7 +265,7 @@ irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 8
 irgn_par.lambd = 1e2
-irgn_par.gamma = 5e-3   #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.gamma = 5e-2   #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e0  #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e-8
 irgn_par.display_iterations = True
@@ -311,7 +311,7 @@ opt_t.execute_2D()
 ################################################################################
 ### New .hdf5 save files #######################################################
 ################################################################################
-outdir = time.strftime("%Y-%m-%d  %H-%M-%S_"+name[:-3])
+outdir = time.strftime("%Y-%m-%d  %H-%M-%S_2D_"+name[:-3])
 if not os.path.exists('./output'):
     os.makedirs('./output')
 os.makedirs("output/"+ outdir)

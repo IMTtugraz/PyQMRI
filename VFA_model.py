@@ -109,7 +109,7 @@ class VFA_Model:
 
 
 #    result = np.concatenate(((M0_guess*np.exp(1j*np.angle(phase_map)))[None,:,:,:],T1_guess[None,None,:,:]),axis=0)
-    result = np.array([0/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),np.exp(-self.TR/(3000*np.ones((NSlice,dimY,dimX),dtype=DTYPE)))])
+    result = np.array([0/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),np.exp(-self.TR/(3000*np.ones((NSlice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE)
 #    result = np.concatenate((((M0_guess)*np.exp(1j*np.angle(phase_map)))[None,:,:,:],(T1_guess)[None,None,:,:]),axis=0)
 #    result = np.array([(0.01+0*M0_guess*np.exp(1j*np.angle(phase_map))),0.3+0*(T1_guess)])
 #    result = np.array([1/self.M0_sc*np.ones((siz[1],siz[2],siz[3]),dtype=DTYPE),1500/self.T1_sc*np.ones((siz[1],siz[2],siz[3]),dtype=DTYPE)])
@@ -135,7 +135,7 @@ class VFA_Model:
     grad_M0 = self.M0_sc*(-E1 + 1)*self.sin_phi[:,slice,:,:]/(-E1*self.cos_phi[:,slice,:,:] + 1)
     grad_T1 = x[0,...]*self.M0_sc*(-E1 + 1)*self.sin_phi[:,slice,:,:]*self.cos_phi[:,slice,:,:]/(-E1*self.cos_phi[:,slice,:,:] + 1)**2\
     - x[0,...]*self.M0_sc*self.sin_phi[:,slice,:,:]/(-E1*self.cos_phi[:,slice,:,:] + 1)
-    grad = np.array([grad_M0,grad_T1])
+    grad = np.array([grad_M0,grad_T1],dtype=DTYPE)
     grad[~np.isfinite(grad)] = 1e-20
     return grad
   
