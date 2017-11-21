@@ -118,7 +118,7 @@ class Model_Reco:
           self.grad_x_2D = self.model.execute_gradient_2D(result[:,islice,:,:],islice)
           self.conj_grad_x_2D = np.conj(self.grad_x_2D)
 
-          result[:,islice,:,:] = self.irgn_solve_2D(result[:,islice,:,:], iters, self.data[:,:,islice,:])
+          result[:,islice,:,:] = self.irgn_solve_2D(np.squeeze(result[:,islice,:,:]), iters, np.squeeze(self.data[:,:,islice,:]))
           self.result[i,:,islice,:,:] = result[:,islice,:,:]
           
           iters = np.fmin(iters*2,self.irgn_par.max_iters)
@@ -840,7 +840,7 @@ class Model_Reco:
     con = np.concatenate((con_min.flatten()[None,:],con_max.flatten()[None,:]),axis=0).T.tolist()
 
     optres = op.minimize(self.fun_val,x_old,args=(xk,data),method='L-BFGS-B',jac=self.lhs_2D,options={'maxiter':iters,'disp':10},bounds=con)
-    x = np.reshape(optres.x,(self.unknowns*2,self.NSlice,self.dimX,self.dimY))   
+    x = np.squeeze(np.reshape(optres.x,(self.unknowns*2,self.NSlice,self.dimX,self.dimY)))
 #    fval= (self.irgn_par.lambd/2*np.linalg.norm(data - self.FT(self.step_val[:,None,:,:]*self.Coils))**2
 #           +self.irgn_par.gamma*np.sum(np.abs(gd.fgrad_1(x)-self.v))
 #           +self.irgn_par.gamma*(2)*np.sum(np.abs(gd.sym_bgrad_2(self.v))) 
@@ -855,13 +855,13 @@ class Model_Reco:
 
     
   def fun_val(self,x,xk,data):
-    x = np.reshape(x,(self.unknowns*2,self.NSlice,self.dimX,self.dimY))    
+    x = np.squeeze(np.reshape(x,(self.unknowns*2,self.NSlice,self.dimX,self.dimY)))
     x = x[:self.unknowns,...] + 1j*x[self.unknowns:,...]
     return (self.irgn_par.lambd/2*np.linalg.norm(self.operator_forward_2D(x)-data)**2+
             self.irgn_par.gamma/2*np.linalg.norm((x))**2 + 1/(2*self.irgn_par.delta)*np.linalg.norm(x-xk)**2).flatten()
     
   def lhs_2D(self,x,xk,data):
-    x = np.reshape(x,(self.unknowns*2,self.NSlice,self.dimX,self.dimY))    
+    x = np.squeeze(np.reshape(x,(self.unknowns*2,self.NSlice,self.dimX,self.dimY)))
     x = x[:self.unknowns,...] + 1j*x[self.unknowns:,...]
     tmp = (self.irgn_par.lambd*self.operator_adjoint_2D(self.operator_forward_2D(x))
            +self.irgn_par.gamma*x+1/self.irgn_par.delta*((x)) - 
