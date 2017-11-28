@@ -49,7 +49,7 @@ for attributes in test_attributes:
   if not (attributes in list(file.attrs)):
     file.close()
     raise NameError("Error: '" + attributes +
-                    "' was not provided/wrongly as an attribute!")
+                    "' was not provided/wrongly named as an attribute!")
 
 ################################################################################
 ### Read Data ##################################################################
@@ -353,10 +353,10 @@ dset_T1_ref=f.create_dataset("T1_ref",np.squeeze(opt_t.result[-1,1,...]).shape\
 dset_M0_ref=f.create_dataset("M0_ref",np.squeeze(opt_t.result[-1,0,...]).shape\
                              ,dtype=np.complex64,\
                              data=np.squeeze(opt_t.result[-1,0,...]))
-f.create_dataset("T1_guess",np.squeeze(model.T1_guess).shape,\
-                 dtype=np.float64,data=np.squeeze(model.T1_guess))
-f.create_dataset("M0_guess",np.squeeze(model.M0_guess).shape,\
-                 dtype=np.float64,data=np.squeeze(model.M0_guess))
+#f.create_dataset("T1_guess",np.squeeze(model.T1_guess).shape,\
+#                 dtype=np.float64,data=np.squeeze(model.T1_guess))
+#f.create_dataset("M0_guess",np.squeeze(model.M0_guess).shape,\
+#                 dtype=np.float64,data=np.squeeze(model.M0_guess))
 dset_result.attrs['data_norm'] = dscale
 dset_result.attrs['dcf_scaling'] = (N*(np.pi/(4*Nproj)))
 f.flush()
