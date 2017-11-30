@@ -45,7 +45,7 @@ cdef class IRLL_Model:
     self.fa = fa
     self.fa_corr = fa_corr
     
-    self.T1_sc = 5000#5000
+    self.T1_sc = 10000#5000
     self.M0_sc = 1#50
     
     self.tau = tau
@@ -62,7 +62,7 @@ cdef class IRLL_Model:
     self.sin_phi = np.sin(phi_corr)
     self.cos_phi = np.cos(phi_corr)    
 
-    self.guess = np.array([0/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1e-5/self.T1_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE)])               
+    self.guess = np.array([0/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1000/self.T1_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE)])               
     self.min_T1 = 50/self.T1_sc
     self.max_T1 = 5000/self.T1_sc
 
