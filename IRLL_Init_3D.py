@@ -21,7 +21,7 @@ import mkl
 from pynfft.nfft import NFFT
 from optimizedPattern import optimizedPattern
 
-import IRLL_Model
+import IRLL_Model_new as IRLL_Model
 
 np.seterr(divide='ignore', invalid='ignore')# TODO:
   
@@ -119,7 +119,7 @@ dcf = file['dcf'][()].astype(DTYPE)
 #dcf = dcf/np.max(dcf)
 
 #data = np.fft.fft(data,axis=2).astype(DTYPE)
-data = data[:,15:-15,:,:]
+data = data[:,10:-10,:,:]
 data = data[None,:,:,:,:]
 dimX = 224
 dimY = 224
@@ -138,7 +138,7 @@ par = struct()
 
 ##### No FA correction
 par.fa_corr = file['fa_corr'][()].astype(DTYPE)#np.ones([NSlice,dimX,dimY],dtype=DTYPE)
-par.fa_corr = np.flip(par.fa_corr[15:-15,:,:],axis=0)
+par.fa_corr = np.flip(par.fa_corr[10:-10,:,:],axis=0)
 #
 
 par.NScan         = NScan 
@@ -220,8 +220,8 @@ else:
 data = data*np.sqrt(dcf) ## only in-vivo
 
 
-Nproj = 13
-NScan = 40
+Nproj = 21
+NScan = 25
 data = np.transpose(np.reshape(data[:,:,:,:Nproj*NScan,:],(NC,NSlice,NScan,Nproj,N)),(2,0,1,3,4))
 traj =np.reshape(traj[:Nproj*NScan,:],(NScan,Nproj,N))
 dcf = dcf[:Nproj,:]
@@ -421,8 +421,8 @@ irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e2
-irgn_par.gamma = 1e-2 #5e-1
-irgn_par.delta = 1e0
+irgn_par.gamma = 1e-3 #5e-1
+irgn_par.delta = 5e2
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par

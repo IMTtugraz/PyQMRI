@@ -130,15 +130,15 @@ class IRLL_Model:
     sin_phi = self.sin_phi
     cos_phi = self.cos_phi    
     N = self.NLL
+    cosEtau = cos_phi*np.exp(-tau/(x[1,...]*T1_sc))        
+    cosEtauN = cosEtau**(N-1)           
+    Etr = np.exp(-TR/(x[1,...]*T1_sc))
+    Etd = np.exp(-td/(x[1,...]*T1_sc))
+    Etau = np.exp(-tau/(x[1,...]*T1_sc))
+    F = (1 - Etau)/(-cosEtau + 1)
+    Q = (-cos_phi*F*(-cosEtauN + 1)*Etr*Etd + 1 - 2*Etd + Etr)/(cos_phi*cosEtauN*Etr*Etd + 1)
+    Q_F = Q-F
     for i in range(self.NLL):
-      cosEtau = cos_phi*np.exp(-tau/(x[1,...]*T1_sc))        
-      cosEtauN = cosEtau**(N-1)           
-      Etr = np.exp(-TR/(x[1,...]*T1_sc))
-      Etd = np.exp(-td/(x[1,...]*T1_sc))
-      Etau = np.exp(-tau/(x[1,...]*T1_sc))
-      F = (1 - Etau)/(-cosEtau + 1)
-      Q = (-cos_phi*F*(-cosEtauN + 1)*Etr*Etd + 1 - 2*Etd + Etr)/(cos_phi*cosEtauN*Etr*Etd + 1)
-      Q_F = Q-F
       for j in range(self.Nproj):
             n = i*self.Nproj+j+1
             S[i,j,...] = x[0,...]*M0_sc*sin_phi*((cosEtau)**(n - 1)*(Q_F) + F)
@@ -176,7 +176,9 @@ class IRLL_Model:
                cos_phi*tau*cosEtauN*(N - 1)*Etr*Etd/(T1sqrt) - cos_phi*td*cosEtauN*Etr*Etd/(T1sqrt))*\
                (-cos_phi*(1 - Etau)*(-cosEtauN + 1)*Etr*Etd/(-cosEtau + 1) + 1 - 2*Etd + Etr)/(cos_phi*cosEtauN*Etr*\
                    Etd + 1)**2 - cos_phi*tau*(1 - Etau)*Etau/(T1sqrt*(-cosEtau + 1)**2) + tau*Etau/(T1sqrt*(-cosEtau + 1)))
-    tmp2 = cos_phi*tau*(1 - Etau)*Etau/(T1sqrt*(-cosEtau + 1)**2) - tau*Etau/(T1sqrt*(-cosEtau + 1))        
+    tmp2 = cos_phi*tau*(1 - Etau)*Etau/(T1sqrt*(-cosEtau + 1)**2) - tau*Etau/(T1sqrt*(-cosEtau + 1))  
+    tmp3 = (-(1 - Etau)/(-cosEtau + 1) + (-cos_phi*(1 - Etau)*(-cosEtauN + 1)*Etr*Etd/(-cosEtau + 1) + 1 - 2*Etd +\
+                Etr)/(cos_phi_Etau_tmp + 1))/(T1sqrt)
     
     
     for i in range(self.NLL):  
@@ -186,8 +188,7 @@ class IRLL_Model:
             grad[0,i,j,...] = M0_sc*sin_phi*((cosEtau)**(n - 1)*(Q_F) + F)
             
             grad[1,i,j,...] =x[0,...]*M0_sc*sin_phi*((cosEtau)**(n - 1)*tmp1 + tmp2 + \
-                tau*(cosEtau)**(n - 1)*(n - 1)*(-(1 - Etau)/(-cosEtau + 1) + (-cos_phi*(1 - Etau)*(-cosEtauN + 1)*Etr*Etd/(-cosEtau + 1) + 1 - 2*Etd +\
-                Etr)/(cos_phi_Etau_tmp + 1))/(T1sqrt))
+                tau*(cosEtau)**(n - 1)*(n - 1)*tmp3)
             
     return np.mean(grad,axis=2)
                                          

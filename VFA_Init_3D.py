@@ -111,10 +111,10 @@ dcf = file['dcf'][()].astype(DTYPE)
 
 #data = data_real+1j*data_imag
 #data = np.fft.fft(data,axis=2)
-data = data[:,:,10:-10,:,:]
+data = data[:,:,18:-18,:,:]
 #data = data[:,:,0,:,:]
-dimX = 256
-dimY = 256
+dimX = 192
+dimY = 192
 data = data*np.sqrt(dcf)
 
 #data = data[:,:,None,:,:]
@@ -136,7 +136,7 @@ par.NScan         = NScan
 par.B1_correction = True 
 
 par.fa_corr = file['fa_corr'][()].astype(DTYPE)#np.ones([NSlice,dimX,dimY],dtype=DTYPE)
-par.fa_corr = np.flip(par.fa_corr,axis=0)[6:-6,:,:]
+par.fa_corr = np.flip(par.fa_corr[18:-18,...],axis=0)
 #
 #root = Tk()
 #root.withdraw()
@@ -280,8 +280,9 @@ options[undersampling_mode]()
 
 #FA = np.array([2,3,4,5,7,9,11,14,17,22],np.complex128)*np.pi/180
 
-FA = np.array([1,2,3,4,5,6,7,9,11,13],DTYPE)*np.pi/180
+#FA = np.array([1,2,3,4,5,6,7,9,11,13],DTYPE)*np.pi/180
 #FA = np.array([1,3,5,7,9,11,13,15,17],np.complex128)
+FA = np.array([1,2,4,5,7,9,11,14,17,20],np.complex128)*np.pi/180
 fa = FA    #  % flip angle in rad FA siehe FLASH phantom generierung
 #alpha = [1,3,5,7,9,11,13,15,17,19]*pi/180;
 
@@ -450,8 +451,8 @@ irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e2
-irgn_par.gamma = 1e-2
-irgn_par.delta = 1e-1
+irgn_par.gamma = 1e-3 #1e-2
+irgn_par.delta = 1e0 #1e-1
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par
@@ -472,6 +473,28 @@ opt.execute_3D()
 
 
 
+################################################################################
+### New .hdf5 save files #######################################################
+################################################################################
+outdir = time.strftime("%Y-%m-%d  %H-%M-%S")
+if not os.path.exists('./output'):
+    os.makedirs('./output')
+os.makedirs("output/"+ outdir)
+
+os.chdir("output/"+ outdir)  
+
+f = h5py.File("output_VFA_21_3mm","w")
+dset_result = f.create_dataset("full_result",opt.result.shape,dtype=np.complex64,data=opt.result)
+#dset_result_ref = f.create_dataset("ref_full_result",opt_t.result.shape,dtype=np.complex64,data=opt_t.result)
+dset_T1 = f.create_dataset("T1_final",np.squeeze(opt.result[-1,1,...]).shape,dtype=np.complex64,data=np.squeeze(opt.result[-1,1,...]))
+dset_M0 = f.create_dataset("M0_final",np.squeeze(opt.result[-1,0,...]).shape,dtype=np.complex64,data=np.squeeze(opt.result[-1,0,...]))
+#dset_T1_ref = f.create_dataset("T1_ref",np.squeeze(opt_t.result[-1,1,...]).shape,dtype=np.complex64,data=np.squeeze(opt_t.result[-1,1,...]))
+#dset_M0_ref = f.create_dataset("M0_ref",np.squeeze(opt_t.result[-1,0,...]).shape,dtype=np.complex64,data=np.squeeze(opt_t.result[-1,0,...]))
+f.flush()
+f.close()
+
+os.chdir('..')
+os.chdir('..')
 
 
 
