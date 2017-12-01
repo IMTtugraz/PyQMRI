@@ -503,8 +503,8 @@ cdef class Model_Reco:
     cdef double beta_line = 1e0
     cdef double beta_new = 0
     
-    cdef double mu_line = 0.1
-    cdef double delta_line = 0.5
+    cdef double mu_line = 0.5
+    cdef double delta_line = 0.8
     
     cdef np.ndarray[DTYPE_t,ndim=3] scal = np.zeros((self.par.NSlice,self.par.dimX,self.par.dimY),dtype=DTYPE)
     
@@ -529,7 +529,7 @@ cdef class Model_Reco:
     cdef int i=0
     
     for i in range(iters):
-      x_new = np.maximum(0,((x - tau*(Kyk1))+(tau/delta)*xk)/(1+tau/delta))
+      x_new = ((x - tau*(Kyk1))+(tau/delta)*xk)/(1+tau/delta)
       
       
       x_new[0,...] = np.maximum(0,np.minimum(300/self.model.M0_sc,x_new[0,...]))

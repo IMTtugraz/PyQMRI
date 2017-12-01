@@ -426,7 +426,6 @@ class IRLL_Model:
                         cos_phi/(-Etau*cos_phi + 1) + Etr - 2*Etd + 1)/\
                     (Etr*Etd*(Etau*cos_phi)**(N - 1)*cos_phi + 1))/(1000*Efit)
 
-
     for i in range(self.NLL):  
       for j in range(self.Nproj):
             n = i*self.Nproj+j+1
@@ -435,10 +434,8 @@ class IRLL_Model:
             
             grad[1,i,j,...] =x[0,...]*M0_sc*((Etau*cos_phi)**(n - 1)*tmp1 + tmp2 + tau*(Etau*cos_phi)**(n - 1)*(n - 1)\
                     *tmp3)*sin_phi
-
             
-    return np.mean(grad,axis=2) 
-           
+    return np.mean(grad,axis=2)
            
            
            
