@@ -32,7 +32,7 @@ import pynfft.nfft as nfft
 cdef class Model_Reco:
   cdef list _plan
   cdef dict __dict__
-  cdef int unknowns
+  cdef int unknowns, unknowns_TGV, unkonws_H1
   cdef int NSlice
   cdef int NScan
   cdef int dimY
@@ -563,7 +563,7 @@ cdef class Model_Reco:
         scal = np.sqrt( np.sum(z2_new[:,0,:,:,:]**2 + z2_new[:,1,:,:,:]**2 +
                     z2_new[:,2,:,:,:]**2+ 2*z2_new[:,3,:,:,:]**2 + 
                     2*z2_new[:,4,:,:,:]**2+2*z2_new[:,5,:,:,:]**2,axis=0))
-        scal = np.maximum(1,scal/(beta),scal)
+        scal = np.maximum(1,scal/(beta))
         z2_new = z2_new/scal
         
         
