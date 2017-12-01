@@ -367,7 +367,6 @@ class IRLL_Model:
     Q = (-cos_phi*F*(-cosEtauN + 1)*Etr*Etd + 1 - 2*Etd + Etr)/(cos_phi*cosEtauN*Etr*Etd + 1)
     Q_F = Q-F   
   
-
     for i in range(self.NLL):
       for j in range(self.Nproj):
             n = i*self.Nproj+j+1
@@ -436,6 +435,7 @@ class IRLL_Model:
                     *tmp3)*sin_phi
             
     return np.mean(grad,axis=2)
+             
            
            
            
