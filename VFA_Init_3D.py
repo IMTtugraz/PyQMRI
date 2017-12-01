@@ -111,10 +111,10 @@ dcf = file['dcf'][()].astype(DTYPE)
 
 #data = data_real+1j*data_imag
 #data = np.fft.fft(data,axis=2)
-data = data[:,:,18:-18,:,:]
+data = data[:,:,13:-13,:,:]
 #data = data[:,:,0,:,:]
-dimX = 192
-dimY = 192
+dimX = 256
+dimY = 256
 data = data*np.sqrt(dcf)
 
 #data = data[:,:,None,:,:]
@@ -136,7 +136,7 @@ par.NScan         = NScan
 par.B1_correction = True 
 
 par.fa_corr = file['fa_corr'][()].astype(DTYPE)#np.ones([NSlice,dimX,dimY],dtype=DTYPE)
-par.fa_corr = np.flip(par.fa_corr[18:-18,...],axis=0)
+par.fa_corr = np.flip(par.fa_corr[13:-13,...],axis=0)
 #
 #root = Tk()
 #root.withdraw()
@@ -280,9 +280,9 @@ options[undersampling_mode]()
 
 #FA = np.array([2,3,4,5,7,9,11,14,17,22],np.complex128)*np.pi/180
 
-#FA = np.array([1,2,3,4,5,6,7,9,11,13],DTYPE)*np.pi/180
+FA = np.array([1,2,3,4,5,6,7,9,11,13],DTYPE)*np.pi/180
 #FA = np.array([1,3,5,7,9,11,13,15,17],np.complex128)
-FA = np.array([1,2,4,5,7,9,11,14,17,20],np.complex128)*np.pi/180
+#FA = np.array([1,2,4,5,7,9,11,14,17,20],np.complex128)*np.pi/180
 fa = FA    #  % flip angle in rad FA siehe FLASH phantom generierung
 #alpha = [1,3,5,7,9,11,13,15,17,19]*pi/180;
 
@@ -299,8 +299,8 @@ par.Nproj = Nproj
 
 
 par.unknowns = 2
-
-
+par.unknowns_TGV = 2
+par.unknowns_H1 = 0
 
 ##### No FA correction
 #par.fa_corr = np.ones([NSlice,dimX,dimY],dtype='complex128')
@@ -451,14 +451,14 @@ irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e2
-irgn_par.gamma = 1e-3 #1e-2
+irgn_par.gamma = 1e-2 #1e-2
 irgn_par.delta = 1e0 #1e-1
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par
 
 
-opt.dz = 3/1
+opt.dz = 1
 
 opt.execute_3D()
 

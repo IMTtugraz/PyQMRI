@@ -119,8 +119,7 @@ dcf = file['dcf'][()].astype(DTYPE)
 #dcf = dcf/np.max(dcf)
 
 #data = np.fft.fft(data,axis=2).astype(DTYPE)
-
-data = data[:,28:-28,:,:]
+data = data[:,20:-20,:,:]
 data = data[None,:,:,:,:]
 dimX = 224
 dimY = 224
@@ -139,9 +138,7 @@ par = struct()
 
 ##### No FA correction
 par.fa_corr = file['fa_corr'][()].astype(DTYPE)#np.ones([NSlice,dimX,dimY],dtype=DTYPE)
-
-par.fa_corr = np.flip(par.fa_corr[28:-28,:,:],axis=0)
-
+par.fa_corr = np.flip(par.fa_corr[20:-20,:,:],axis=0)
 #
 
 par.NScan         = NScan 
@@ -388,43 +385,51 @@ model = IRLL_Model.IRLL_Model(par.fa,par.fa_corr,par.TR,par.tau,par.td,NScan,NSl
 
 
 
-par.U = np.ones((data).shape, dtype=bool)
-par.U[abs(data) == 0] = False
-################################################################################
-### IRGN - TGV Reco ############################################################
-################################################################################
-
-
+par.U = np.ones((uData).shape, dtype=bool)
+par.U[abs(uData) == 0] = False
+########################################################################
+#Init optimizer
 opt = Model_Reco.Model_Reco(par)
 
 opt.par = par
-opt.data =  data
+opt.data =  uData
+#model.data = uData*dscale
 opt.images = images
 opt.fft_forward = fft_forward
 opt.fft_back = fft_back
 opt.nfftplan = plan
-opt.dcf = np.sqrt(dcf*N*(np.pi/(4*Nproj)))
-opt.dcf_flat = np.sqrt(dcf*N*(np.pi/(4*Nproj))).flatten()
+opt.dcf = np.sqrt(dcf)
+opt.dcf_flat =np.sqrt( dcf.flatten())
 opt.model = model
-opt.traj = traj 
 
-opt.dz = 1
 
-################################################################################
+opt.traj = traj
+#
+##
+#xx = np.random.randn(NScan,NC,NSlice,dimX,dimY)
+#yy = np.random.randn(NScan,NC,NSlice,Nproj,N)
+#a = np.vdot(xx,nFTH(yy,plan,dcf,NScan,NC,dimY,dimX))
+#b = np.vdot(nFT(xx,plan,dcf,NScan,NC,Nproj,N,dimX),yy)
+#test = np.abs(a-b)
+#print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,test))
+
+
+
+########################################################################
 #IRGN Params
 irgn_par = struct()
 irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e2
-irgn_par.gamma = 1e-3   #### 5e-2   5e-3 phantom ##### brain 1e-2
-irgn_par.delta = 1e1  #### 8spk in-vivo 1e-2
-irgn_par.omega = 1e-2
+irgn_par.gamma = 1e-3 #5e-1
+irgn_par.delta = 5e2
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par
 
 
+opt.dz = 1
 
 opt.execute_3D()
 #

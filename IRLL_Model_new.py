@@ -245,7 +245,7 @@ class IRLL_Model:
           plt.imshow(np.transpose(np.abs(x[0,int(self.NSlice/2),...]*self.M0_sc)))
           plt.pause(0.05)
           plt.figure(2)
-          plt.imshow(np.transpose(np.abs(x[1,int(self.NSlice/2),...]*self.T1_sc)))
+          plt.imshow(np.transpose(-1000/np.log(np.abs(x[1,int(self.NSlice/2),...]*self.T1_sc))))
         #      plt.imshow(np.transpose(np.abs(x[1,0,:,:]*self.model.T1_sc)),vmin=0,vmax=3000)
           plt.pause(0.05)
            
