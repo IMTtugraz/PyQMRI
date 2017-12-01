@@ -347,7 +347,7 @@ class IRLL_Model:
              
            
            
-  def execute_forward_3D(self, x, islice):
+  def execute_forward_3D(self, x):
     S = np.zeros((self.NLL,self.Nproj,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
     M0_sc = self.M0_sc
 #    T1_sc = self.T1_sc
@@ -360,7 +360,7 @@ class IRLL_Model:
     Etau =x[1,...]**(tau/1000) #np.exp(-tau/(x[1,...]*T1_sc))    
     Etr = x[1,...]**(TR/1000)#np.exp(-TR/(x[1,...]*T1_sc))
     Etd = x[1,...]**(td/1000)#np.exp(-td/(x[1,...]*T1_sc))    
-    cosEtau = cos_phi[islice,...]*Etau        
+    cosEtau = cos_phi*Etau        
     cosEtauN = cosEtau**(N-1)           
 
     F = (1 - Etau)/(-cosEtau + 1)
@@ -375,7 +375,7 @@ class IRLL_Model:
     
     return np.mean(S,axis=1)
   
-  def execute_gradient_3D(self, x, islice):
+  def execute_gradient_3D(self, x):
     grad = np.zeros((2,self.NLL,self.Nproj,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
     M0_sc = self.M0_sc
 #    T1_sc = self.T1_sc

@@ -51,6 +51,7 @@ cdef class Model_Reco:
     self.par = par
     self.unknowns_TGV = par.unknowns_TGV
     self.unknowns_H1 = par.unknowns_H1
+    self.unknowns = par.unknowns
     self.NSlice = par.NSlice
     self.NScan = par.NScan
     self.dimX = par.dimX
