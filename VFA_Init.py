@@ -20,7 +20,7 @@ import mkl
 
 from pynfft.nfft import NFFT
 
-import VFA_model_FA as VFA_model
+import VFA_model as VFA_model
 
 import h5py  
 
@@ -101,7 +101,7 @@ dcf = file['dcf'][()].astype(DTYPE)
 #dcf = dcf/np.max(dcf)
 
 #data = np.fft.fft(data,axis=2).astype(DTYPE)
-data = data[:,:,20,:,:]
+data = data[:,:,16,:,:]
 data = data[:,:,None,:,:]
 dimX = 256#192
 dimY = 256#192
@@ -122,8 +122,8 @@ par = struct()
 ### FA correction ##############################################################
 ################################################################################
 
-#par.fa_corr = file['fa_corr'][()].astype(DTYPE)#np.ones([NSlice,dimX,dimY],dtype=DTYPE)
-par.fa_corr = np.ones([NSlice,dimX,dimY],dtype=DTYPE)#par.fa_corr[8,:,:]
+par.fa_corr = file['fa_corr'][()].astype(DTYPE)#np.ones([NSlice,dimX,dimY],dtype=DTYPE)
+par.fa_corr = par.fa_corr[16,:,:]
 #
 #root = Tk()
 #root.withdraw()
@@ -273,8 +273,8 @@ par.Nproj = Nproj
 
 #### TEST
 par.unknowns_TGV = 2
-par.unknowns_H1 = 1
-par.unknowns = 3
+par.unknowns_H1 = 0
+par.unknowns = 2
 
 
 ################################################################################
@@ -403,8 +403,8 @@ irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e2
-irgn_par.gamma = 1e-3   #### 5e-2   5e-3 phantom ##### brain 1e-2
-irgn_par.delta = 1e1   #### 8spk in-vivo 1e-2
+irgn_par.gamma = 1e-2   #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.delta = 1e0  #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e0
 irgn_par.display_iterations = True
 

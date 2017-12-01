@@ -115,45 +115,46 @@ class VFA_Model:
 #    result = np.array([1/self.M0_sc*np.ones((siz[1],siz[2],siz[3]),dtype=DTYPE),1500/self.T1_sc*np.ones((siz[1],siz[2],siz[3]),dtype=DTYPE)])
     self.guess = result               
     self.min_T1 = np.exp(-self.TR/50)
-    self.max_T1 = np.exp(-self.TR/5500)      
+    self.max_T1 = np.exp(-self.TR/5500)         
 
   def execute_forward_2D(self,x,slice):
 #    E1 = np.exp(-self.TR/(x[1,:,:]*self.T1_sc))#
-    E1 = x[1,:,:]
-    S = x[0,:,:]*self.M0_sc*self.sin_phi[:,slice,:,:]*(1-E1)/(1-E1*self.cos_phi[:,slice,:,:])
+    E1 = x[1,...]
+
+    S = x[0,:,:]*self.M0_sc*(-E1 + 1)*self.sin_phi[:,slice,:,:]/(-E1*self.cos_phi[:,slice,:,:] + 1)
     S[~np.isfinite(S)] = 1e-20
     return S
   def execute_gradient_2D(self,x,slice):
 #    E1 = np.exp(self.TR/(x[1,:,:]*self.T1_sc))  ####no minus!!!  
     E1 = x[1,:,:]
+
 #    E1[~np.isfinite(E1)] = 0
 #    grad_M0 = (self.M0_sc*self.sin_phi[:,slice,:,:]*(E1-1))/(E1-self.cos_phi[:,slice,:,:])
 #    grad_T1 = (-(x[0,:,:]*self.M0_sc*self.TR*E1*(2*self.sin_phi[:,slice,:,:]-2*self.sin_phi[:,slice,:,:]*self.cos_phi[:,slice,:,:]))/
 #               (2*x[1,:,:]**2*self.T1_sc*(E1-self.cos_phi[:,slice,:,:])**2))
-    grad_M0 = (self.M0_sc*self.sin_phi[:,slice,:,:]*(1 - E1))/(-self.cos_phi[:,slice,:,:]*E1 + 1)
-    grad_T1 = (x[0,:,:]*self.M0_sc*self.sin_phi[:,slice,:,:]*(self.cos_phi[:,slice,:,:] - 1))/(E1*self.cos_phi[:,slice,:,:] - 1)**2
-
+    grad_M0 = self.M0_sc*(-E1 + 1)*self.sin_phi[:,slice,:,:]/(-E1*self.cos_phi[:,slice,:,:] + 1)
+    grad_T1 = x[0,...]*self.M0_sc*(-E1 + 1)*self.sin_phi[:,slice,:,:]*self.cos_phi[:,slice,:,:]/(-E1*self.cos_phi[:,slice,:,:] + 1)**2\
+    - x[0,...]*self.M0_sc*self.sin_phi[:,slice,:,:]/(-E1*self.cos_phi[:,slice,:,:] + 1)
     grad = np.array([grad_M0,grad_T1])
     grad[~np.isfinite(grad)] = 1e-20
     return grad
   
   def execute_forward_3D(self,x):
 #    E1 = np.exp(-self.TR/(x[1,:,:,:]*self.T1_sc))
-    E1 = x[1,:,:,:]
+    E1 = x[1,...]
 
-    S = x[0,:,:,:]*self.M0_sc*self.sin_phi*(1-E1)/(1-E1*self.cos_phi)
+    S = x[0,:,:]*self.M0_sc*(-E1 + 1)*self.sin_phi/(-E1*self.cos_phi + 1)
     S[~np.isfinite(S)] = 1e-20
     return S
   def execute_gradient_3D(self,x):
-#    E1 = np.exp(-self.TR/(x[1,...]*self.T1_sc))  
-#    E1_neg = np.exp(self.TR/(x[1,...]*self.T1_sc)) ####no minus!!!  
-    E1 = x[1,...]
+    E1 = x[1,:,:]
 #    E1[~np.isfinite(E1)] = 0
-#    grad_M0 = (self.M0_sc*self.sin_phi*(E1 - 1))/(E1*self.cos_phi - 1)
-#    grad_T1 = (-(x[0,...]*self.M0_sc*self.TR*E1_neg*(2*self.sin_phi 
-#    - 2*self.cos_phi*self.sin_phi))/(2*x[1,...]**2*self.T1_sc*(E1_neg - self.cos_phi)**2))
-    grad_M0 = (self.M0_sc*self.sin_phi*(1 - E1))/(-self.cos_phi*E1 + 1)
-    grad_T1 =  (x[0,...]*self.M0_sc*self.sin_phi*(self.cos_phi - 1))/(E1*self.cos_phi - 1)**2
+#    grad_M0 = (self.M0_sc*self.sin_phi[:,slice,:,:]*(E1-1))/(E1-self.cos_phi[:,slice,:,:])
+#    grad_T1 = (-(x[0,:,:]*self.M0_sc*self.TR*E1*(2*self.sin_phi[:,slice,:,:]-2*self.sin_phi[:,slice,:,:]*self.cos_phi[:,slice,:,:]))/
+#               (2*x[1,:,:]**2*self.T1_sc*(E1-self.cos_phi[:,slice,:,:])**2))
+    grad_M0 = self.M0_sc*(-E1 + 1)*self.sin_phi/(-E1*self.cos_phi + 1)
+    grad_T1 = x[0,...]*self.M0_sc*(-E1 + 1)*self.sin_phi*self.cos_phi/(-E1*self.cos_phi + 1)**2\
+    - x[0,...]*self.M0_sc*self.sin_phi/(-E1*self.cos_phi + 1)
     grad = np.array([grad_M0,grad_T1])
     grad[~np.isfinite(grad)] = 1e-20
     return grad
