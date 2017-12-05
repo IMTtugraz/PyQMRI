@@ -76,7 +76,7 @@ dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
 
 ############### Set number of Slices ###########################################
 reco_Slices = 5
-
+os_slices = 20
 class struct:
     pass
 
@@ -96,12 +96,11 @@ par.fa_corr = file['fa_corr'][()].astype(DTYPE)
 data = data[None,:,int(NSlice/2)-\
             int(np.ceil(reco_Slices/2)):int(NSlice/2)+\
             int(np.floor(reco_Slices/2)),:,:]
-
 if reco_Slices ==1:
   data = data[:,:,None,:,:]
   
-par.fa_corr = np.flip(par.fa_corr,axis=0)[int(NSlice/2)-\
-            int(np.ceil(reco_Slices/2)):int(NSlice/2)+\
+par.fa_corr = np.flip(par.fa_corr,axis=0)[int((NSlice-os_slices)/2)-\
+            int(np.ceil(reco_Slices/2)):int((NSlice-os_slices)/2)+\
             int(np.floor(reco_Slices/2)),:,:]
 
 [NScan,NC,NSlice,Nproj, N] = data.shape
@@ -332,8 +331,8 @@ irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e2
-irgn_par.gamma = 1e-2  #### 5e-2   5e-3 phantom ##### brain 1e-2
-irgn_par.delta = 1e-3  #### 8spk in-vivo 1e-2
+irgn_par.gamma = 1e-4  #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.delta = 1e1  #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e0
 irgn_par.display_iterations = True
 
