@@ -72,6 +72,7 @@ traj = file['real_traj'][()].astype(DTYPE) + \
 
 dcf = file['dcf'][()].astype(DTYPE)
 
+
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
 
 ############### Set number of Slices ###########################################
@@ -208,6 +209,7 @@ par.TR = file.attrs['time_per_slice']-(par.tau*Nproj*NScan+par.td)
 
 #### Close File after everything was read
 file.close()
+
 
 dscale = np.sqrt(NSlice)*DTYPE(1)/(np.linalg.norm(data.flatten()))
 par.dscale = dscale
