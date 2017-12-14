@@ -12,7 +12,7 @@ import Model_Reco_old as Model_Reco_Tikh
 
 from pynfft.nfft import NFFT
 
-import IRLL_Model_new as IRLL_Model
+import IRLL_Model_new_FA as IRLL_Model
 
 DTYPE = np.complex64
 np.seterr(divide='ignore', invalid='ignore')
@@ -111,15 +111,15 @@ par.N = N
 par.Nproj = Nproj
 
 par.unknowns_TGV = 2
-par.unknowns_H1 = 0
-par.unknowns = 2
+par.unknowns_H1 = 1
+par.unknowns = 3
 
 
 ################################################################################
 ### Estimate coil sensitivities ################################################
 ################################################################################
 
-nlinvNewtonSteps = 6
+nlinvNewtonSteps = 10
 nlinvRealConstr  = False
 
 traj_coil = np.reshape(traj,(NScan*Nproj,N))
@@ -168,7 +168,7 @@ else:
 data = data*np.sqrt(dcf)
 
 
-Nproj_new = 21
+Nproj_new = 13
 
 NScan = np.floor_divide(Nproj,Nproj_new)
 Nproj = Nproj_new
@@ -284,7 +284,7 @@ irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e2
 irgn_par.gamma = 1e-3   #### 5e-2   5e-3 phantom ##### brain 1e-3
 irgn_par.delta = 1e1  #### 8spk in-vivo 5e2
-irgn_par.omega = 1e-14
+irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par

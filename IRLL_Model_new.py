@@ -14,7 +14,12 @@ import matplotlib.pyplot as plt
 plt.ion()
 
 DTYPE = np.complex64
-
+class constraint:
+  def __init__(self, min_val=-np.inf, max_val=np.inf, real_const=False):
+    self.min = min_val
+    self.max = max_val
+    self.real = real_const
+    
 
 class IRLL_Model:
   
@@ -22,7 +27,7 @@ class IRLL_Model:
   def __init__(self, fa, fa_corr, TR,tau,td,
                NScan,NSlice,dimY,dimX, Nproj):
 
-
+    self.constraints = []
     self.NSlice = NSlice
     self.TR = TR
     self.fa = fa
@@ -48,8 +53,8 @@ class IRLL_Model:
     self.guess = np.array([0/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),\
                            np.exp(-1000/(3000/self.T1_sc))*np.ones((NSlice,dimY,dimX),dtype=DTYPE)])
 #                           np.ones((NSlice,dimY,dimX),dtype=DTYPE)])               
-    self.min_T1 = np.exp(-1000/(50/self.T1_sc))
-    self.max_T1 = np.exp(-1000/(5000/self.T1_sc))
+    self.constraints.append(constraint(-300,300,False)  )
+    self.constraints.append(constraint(np.exp(-200/(50)), np.exp(-200/(5000)),True))
 
 #  def execute_forward_2D(self, x, islice):
 #    S = np.zeros((self.NLL,self.Nproj,self.dimY,self.dimX),dtype=DTYPE)

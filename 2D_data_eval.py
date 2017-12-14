@@ -63,7 +63,7 @@ for files in filenames:
     names.append(name)
     data.append(file[name][()])  
   if "ref" in files:
-    T1_ref = data[names.index('t1_ref_l2')]
+    T1_ref = np.flip(data[names.index('t1_ref_l2')],axis=0)
     M0_ref = data[names.index('m0_ref_l2')]
     plot_names.append("Reference")
     plot_names.append(" ")
@@ -88,7 +88,7 @@ z = z*dz
 
 T1_plot=[]
 M0_plot=[]
-T1_min = 300
+T1_min = 600
 T1_max = 3000
 M0_min = 0
 M0_max = np.abs(np.max(M0_tgv[0]))
@@ -237,12 +237,12 @@ if roi_num > 0:
   std_TGV = []
   std_Tikh =  []
   col_names = []
-  selector = cv2.cvtColor(np.abs(T1_ref[...].T/2000).astype(np.float32),cv2.COLOR_GRAY2BGR)
+  selector = cv2.cvtColor(np.abs(T1_ref[...].T/3000).astype(np.float32),cv2.COLOR_GRAY2BGR)
   
   for j in range(roi_num):
-    r = (cv2.selectROI(selector))
+    r = (cv2.selectROI(selector,False))
     col_names.append("ROI "+str(j+1))
-    for i in range((NResults+1)):
+    for i in range((NResults)):
       mean_TGV.append(np.abs(np.mean(T1_plot[2*i][int(r[1]):int(r[1]+r[3]), int(r[0]):int(r[0]+r[2])])))
       mean_Tikh.append(np.abs(np.mean(T1_plot[2*i+1][int(r[1]):int(r[1]+r[3]), int(r[0]):int(r[0]+r[2])])))
       std_TGV.append(np.abs(np.std(T1_plot[2*i][int(r[1]):int(r[1]+r[3]), int(r[0]):int(r[0]+r[2])])))
@@ -254,10 +254,10 @@ if roi_num > 0:
     ax[0].text(posy,posx,str(j+1),color='red')
     ax[0].add_patch(rects) 
      
-  mean_TGV = np.round(pd.DataFrame(np.reshape(np.asarray(mean_TGV),(roi_num,NResults+1)).T,index=plot_names[0::2],columns=col_names),decimals=0)
-#  mean_Tikh =  np.round(pd.DataFrame(np.reshape(np.asarray(mean_Tikh),(roi_num,NResults+1)).T,index=plot_names[1::2],columns=col_names),decimals=0)
-  std_TGV =  np.round(pd.DataFrame(np.reshape(np.asarray(std_TGV),(roi_num,NResults+1)).T,index=plot_names[0::2],columns=col_names),decimals=0)
-#  std_Tikh =  np.round(pd.DataFrame(np.reshape(np.asarray(std_Tikh),(roi_num,NResults+1)).T,index=plot_names[1::2],columns=col_names),decimals=0)
+  mean_TGV = np.round(pd.DataFrame(np.reshape(np.asarray(mean_TGV),(roi_num,NResults)).T,index=plot_names[0::2],columns=col_names),decimals=0)
+  mean_Tikh =  np.round(pd.DataFrame(np.reshape(np.asarray(mean_Tikh),(roi_num,NResults)).T,index=plot_names[1::2],columns=col_names),decimals=0)
+  std_TGV =  np.round(pd.DataFrame(np.reshape(np.asarray(std_TGV),(roi_num,NResults)).T,index=plot_names[0::2],columns=col_names),decimals=0)
+  std_Tikh =  np.round(pd.DataFrame(np.reshape(np.asarray(std_Tikh),(roi_num,NResults)).T,index=plot_names[1::2],columns=col_names),decimals=0)
   
   f = open("test.tex","w")
   f.write(mean_TGV.to_latex())
@@ -279,9 +279,9 @@ if roi_num > 0:
   ax_table = []
   my_tabs = []
   my_tabs.append(mean_TGV)
-#  my_tabs.append(mean_Tikh)
+  my_tabs.append(mean_Tikh)
   my_tabs.append(std_TGV)
-#  my_tabs.append(std_Tikh)
+  my_tabs.append(std_Tikh)
   for i in range(len(my_tabs)):
     ax_table.append(plt.subplot(gs[i]))
     table(ax_table[i],np.round(my_tabs[i],1),loc='center')

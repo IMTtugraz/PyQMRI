@@ -16,8 +16,16 @@ from createInitGuess_FLASH import createInitGuess_FLASH
 #from compute_mask import compute_mask
 DTYPE = np.complex64
 
+class constraint:
+  def __init__(self, min_val=-np.inf, max_val=np.inf, real_const=False):
+    self.min = min_val
+    self.max = max_val
+    self.real = real_const
+
+
 class VFA_Model:
   def __init__(self,fa,fa_corr,TR,images,phase_map,NSlice):
+    self.constraints = []    
     self.TR = TR
     self.images = images
     self.fa = fa
@@ -113,10 +121,9 @@ class VFA_Model:
 #    result = np.concatenate((((M0_guess)*np.exp(1j*np.angle(phase_map)))[None,:,:,:],(T1_guess)[None,None,:,:]),axis=0)
 #    result = np.array([(0.01+0*M0_guess*np.exp(1j*np.angle(phase_map))),0.3+0*(T1_guess)])
 #    result = np.array([1/self.M0_sc*np.ones((siz[1],siz[2],siz[3]),dtype=DTYPE),1500/self.T1_sc*np.ones((siz[1],siz[2],siz[3]),dtype=DTYPE)])
-    self.guess = result               
-    self.min_T1 = np.exp(-self.TR/50)
-    self.max_T1 = np.exp(-self.TR/5500)         
-
+    self.guess = result                   
+    self.constraints.append(constraint(-300,300,False)  )
+    self.constraints.append(constraint(np.exp(-self.TR/(50)),np.exp(-self.TR/(5500)),True))
   def execute_forward_2D(self,x,slice):
 #    E1 = np.exp(-self.TR/(x[1,:,:]*self.T1_sc))#
     E1 = x[1,...]

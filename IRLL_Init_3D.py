@@ -12,7 +12,7 @@ import Model_Reco_old as Model_Reco_Tikh
 
 from pynfft.nfft import NFFT
 
-import IRLL_Model_new as IRLL_Model
+import IRLL_Model_new_FA as IRLL_Model
 
 DTYPE = np.complex64
 np.seterr(divide='ignore', invalid='ignore')
@@ -76,7 +76,7 @@ dcf = file['dcf'][()].astype(DTYPE)
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
 
 ############### Set number of Slices ###########################################
-reco_Slices = 5
+reco_Slices = 3
 os_slices = 20
 class struct:
     pass
@@ -100,9 +100,9 @@ data = data[None,:,int(NSlice/2)-\
 if reco_Slices ==1:
   data = data[:,:,None,:,:]
   
-par.fa_corr = np.flip(par.fa_corr,axis=0)[int((NSlice-os_slices)/2)-\
+par.fa_corr = (np.flip(par.fa_corr,axis=0)[int((NSlice-os_slices)/2)-\
             int(np.ceil(reco_Slices/2)):int((NSlice-os_slices)/2)+\
-            int(np.floor(reco_Slices/2)),:,:]
+            int(np.floor(reco_Slices/2)),:,:])
 
 [NScan,NC,NSlice,Nproj, N] = data.shape
 
@@ -122,8 +122,8 @@ par.N = N
 par.Nproj = Nproj
 
 par.unknowns_TGV = 2
-par.unknowns_H1 = 0
-par.unknowns = 2
+par.unknowns_H1 = 1
+par.unknowns = 3
 
 
 
@@ -185,7 +185,7 @@ else:
 data = data*np.sqrt(dcf)
 
 
-Nproj_new = 21
+Nproj_new = 8
 
 NScan = np.floor_divide(Nproj,Nproj_new)
 Nproj = Nproj_new
@@ -302,7 +302,7 @@ irgn_par.max_GN_it = 8
 irgn_par.lambd = 1e2
 irgn_par.gamma = 1e-3   #### 5e-2   5e-3 phantom ##### brain 1e-3
 irgn_par.delta = 1e1  #### 8spk in-vivo 5e2
-irgn_par.omega = 1e-14
+irgn_par.omega = 1e-5
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par
