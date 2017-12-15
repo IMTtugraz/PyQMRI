@@ -186,12 +186,15 @@ else:
   par.C = par.C / np.tile(sumSqrC, (NC,1,1,1)) 
   
 ################################################################### 
-## Choose undersampling mode
+## Choose undersampling modew
   
 data = data*np.sqrt(dcf) ## only in-vivo  
-  
-Nproj = 21
-NScan = 21
+
+Nproj_new = 8
+
+NScan = np.floor_divide(Nproj,Nproj_new)
+Nproj = Nproj_new
+
 data = np.transpose(np.reshape(data[:,:,:,:Nproj*NScan,:],(NC,NScan,NSlice,Nproj,N)),(1,0,2,3,4))
 traj =np.reshape(traj[:Nproj*NScan,:],(NScan,Nproj,N))
 dcf = dcf[:Nproj,:]
@@ -255,6 +258,7 @@ par.Nproj = Nproj
 
 par.unknowns_TGV = 2
 par.unknowns_H1 = 0
+par.unknowns = 2
 ################################################################################
 ### Standardize data norm ######################################################
 ################################################################################
@@ -380,11 +384,11 @@ opt.traj = traj
 irgn_par = struct()
 irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 10
+irgn_par.max_GN_it = 8
 irgn_par.lambd = 1e2
-irgn_par.gamma = 1e-2   #### 5e-2   5e-3 phantom ##### brain 1e-2
-irgn_par.delta = 1e0  #### 8spk in-vivo 1e-2
-irgn_par.omega = 1e-2
+irgn_par.gamma = 1e-3   #### 5e-2   5e-3 phantom ##### brain 1e-3
+irgn_par.delta = 1e1  #### 8spk in-vivo 5e2
+irgn_par.omega = 1e-14
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par

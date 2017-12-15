@@ -55,6 +55,7 @@ traj = file['real_traj'][()].astype(DTYPE) + 1j*file['imag_traj'][()].astype(DTY
 
 dcf = file['dcf'][()].astype(DTYPE)
 
+
 ###### Read Mat
 #root = Tk()
 #root.withdraw()
@@ -111,11 +112,12 @@ dcf = file['dcf'][()].astype(DTYPE)
 
 #data = data_real+1j*data_imag
 #data = np.fft.fft(data,axis=2)
-data = data[:,:,:,:,:]
-#data = data[:,:,0,:,:]
+
+#data = data[:,:,18:-18,:,:]
+data = data[:,:,3:-3,:,:]
 dimX = 256
 dimY = 256
-data = data*np.sqrt(dcf)
+#
 
 #data = data[:,:,None,:,:]
 
@@ -136,8 +138,8 @@ par.NScan         = NScan
 par.B1_correction = True 
 
 par.fa_corr = file['fa_corr'][()].astype(DTYPE)#np.ones([NSlice,dimX,dimY],dtype=DTYPE)
-par.fa_corr = np.flip(par.fa_corr[:,...],axis=0)
-#
+par.fa_corr = np.flip(par.fa_corr[3:-3,...],axis=0)
+par.fa_corr[par.fa_corr==0] = 1
 #root = Tk()
 #root.withdraw()
 #root.update()
@@ -205,7 +207,7 @@ for i in range(NSlice):
 
   #% coil sensitivities are stored in par.C
 
-  
+data = data*np.sqrt(dcf) 
 
   
 for i in range(NSlice):  
@@ -280,27 +282,29 @@ options[undersampling_mode]()
 
 #FA = np.array([2,3,4,5,7,9,11,14,17,22],np.complex128)*np.pi/180
 
-FA = np.array([1,2,3,4,5,6,7,9,11,13],DTYPE)*np.pi/180
+#FA = np.array([1,2,3,4,5,6,7,9,11,13],DTYPE)*np.pi/180
 #FA = np.array([1,3,5,7,9,11,13,15,17],np.complex128)
-#FA = np.array([1,2,4,5,7,9,11,14,17,20],np.complex128)*np.pi/180
-fa = FA    #  % flip angle in rad FA siehe FLASH phantom generierung
-#alpha = [1,3,5,7,9,11,13,15,17,19]*pi/180;
+#par.fa = np.array([1,2,4,5,7,9,11,14,17,20],np.complex128)*np.pi/180
+par.fa = np.array([1,3,5,7,9,11,13,15,17,19],DTYPE)*np.pi/180
+#fa = FA    #  % flip angle in rad FA siehe FLASH phantom generierung
+
 
 par.TR          = 5.0#3.4 #TODO
 par.TE          = list(range(20,40*20+1,20)) #TODO
 par.NC          = NC
 par.dimY        = dimY
 par.dimX        = dimX
-par.fa          = fa
+#par.fa          = fa
 par.NSlice      = NSlice
 par.NScan       = NScan
 par.N = N
 par.Nproj = Nproj
 
 
-par.unknowns = 2
 par.unknowns_TGV = 2
 par.unknowns_H1 = 0
+par.unknowns = 2
+
 
 ##### No FA correction
 #par.fa_corr = np.ones([NSlice,dimX,dimY],dtype='complex128')
@@ -328,12 +332,12 @@ par.dscale = dscale
 #### generate FFTW
 
 uData = pyfftw.byte_align(uData)
-
-fftw_ksp = pyfftw.empty_aligned((dimX,dimY),dtype=DTYPE)
-fftw_img = pyfftw.empty_aligned((dimX,dimY),dtype=DTYPE)
-
-fft_forward = pyfftw.FFTW(fftw_img,fftw_ksp,axes=(0,1))
-fft_back = pyfftw.FFTW(fftw_ksp,fftw_img,axes=(0,1),direction='FFTW_BACKWARD')
+#
+#fftw_ksp = pyfftw.empty_aligned((dimX,dimY),dtype=DTYPE)
+#fftw_img = pyfftw.empty_aligned((dimX,dimY),dtype=DTYPE)
+#
+#fft_forward = pyfftw.FFTW(fftw_img,fftw_ksp,axes=(0,1))
+#fft_back = pyfftw.FFTW(fftw_ksp,fftw_img,axes=(0,1),direction='FFTW_BACKWARD')
 
 
 def nfft(NScan,NC,dimX,dimY,N,Nproj,traj):
@@ -375,26 +379,26 @@ def nFTH(x,plan,dcf,NScan,NC,NSlice,dimY,dimX):
 
 
 
-def FT(x):
-  siz = np.shape(x)
-  result = np.zeros_like(x,dtype=DTYPE)
-  for i in range(siz[0]):
-    for j in range(siz[1]):
-      for k in range(siz[2]):
-        result[i,j,k,:,:] = fft_forward(x[i,j,k,:,:])/np.sqrt(siz[4]*(siz[3]))
-      
-  return result
-
-
-def FTH(x):
-  siz = np.shape(x)
-  result = np.zeros_like(x,dtype=DTYPE)
-  for i in range(siz[0]):
-    for j in range(siz[1]):
-      for k in range(siz[2]):
-        result[i,j,k,:,:] = fft_back(x[i,j,k,:,:])*np.sqrt(siz[4]*(siz[3]))
-      
-  return result
+#def FT(x):
+#  siz = np.shape(x)
+#  result = np.zeros_like(x,dtype=DTYPE)
+#  for i in range(siz[0]):
+#    for j in range(siz[1]):
+#      for k in range(siz[2]):
+#        result[i,j,k,:,:] = fft_forward(x[i,j,k,:,:])/np.sqrt(siz[4]*(siz[3]))
+#      
+#  return result
+#
+#
+#def FTH(x):
+#  siz = np.shape(x)
+#  result = np.zeros_like(x,dtype=DTYPE)
+#  for i in range(siz[0]):
+#    for j in range(siz[1]):
+#      for k in range(siz[2]):
+#        result[i,j,k,:,:] = fft_back(x[i,j,k,:,:])*np.sqrt(siz[4]*(siz[3]))
+#      
+#  return result
 
 
 plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
@@ -423,8 +427,8 @@ opt.par = par
 opt.data =  uData
 #model.data = uData*dscale
 opt.images = images
-opt.fft_forward = fft_forward
-opt.fft_back = fft_back
+#opt.fft_forward = fft_forward
+#opt.fft_back = fft_back
 opt.nfftplan = plan
 opt.dcf = np.sqrt(dcf* N*np.pi/(4*Nproj))
 opt.dcf_flat =np.sqrt( dcf.flatten()* N*np.pi/(4*Nproj))
@@ -502,7 +506,11 @@ os.chdir('..')
 #starte reco
 
 #result,guess,par = DESPOT1_Model_Reco(par)
+<<<<<<< HEAD
 
+=======
+#
+>>>>>>> b4d4f9cbc7b21587bc59d3f074947a820ca4dea3
 #outdir = time.strftime("%Y-%m-%d  %H-%M-%S")
 #if not os.path.exists('./output'):
 #    os.makedirs('./output')
