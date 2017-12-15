@@ -265,7 +265,7 @@ class IRLL_Model:
     td = self.td
     sin_phi = self.sin_phi#np.sin(self.fa*x[2,...])
     cos_phi = self.cos_phi#np.cos(self.fa*x[2,...])+
-    N = self.NLL
+    N = self.NLL*self.Nproj
     Etau =x[1,...]**(tau/1000) #np.exp(-tau/(x[1,...]*T1_sc))    
     Etr = x[1,...]**(TR/1000)#np.exp(-TR/(x[1,...]*T1_sc))
     Etd = x[1,...]**(td/1000)#np.exp(-td/(x[1,...]*T1_sc))    
@@ -292,7 +292,7 @@ class IRLL_Model:
     td = self.td
     sin_phi = self.sin_phi#np.sin(self.fa*x[2,...])
     cos_phi = self.cos_phi#np.cos(self.fa*x[2,...])+
-    N = self.NLL
+    N = self.NLL*self.Nproj
     Efit = x[1,...]
     Etau =x[1,...]**(tau/1000) #np.exp(-tau/(x[1,...]*T1_sc))    
     Etr = x[1,...]**(TR/1000)#np.exp(-TR/(x[1,...]*T1_sc))
@@ -356,7 +356,7 @@ class IRLL_Model:
     td = self.td
     sin_phi = self.sin_phi#np.sin(self.fa*x[2,...])
     cos_phi = self.cos_phi#np.cos(self.fa*x[2,...])+
-    N = self.NLL
+    N = self.NLL*self.Nproj
     Etau =x[1,...]**(tau/1000) #np.exp(-tau/(x[1,...]*T1_sc))    
     Etr = x[1,...]**(TR/1000)#np.exp(-TR/(x[1,...]*T1_sc))
     Etd = x[1,...]**(td/1000)#np.exp(-td/(x[1,...]*T1_sc))    
@@ -383,7 +383,7 @@ class IRLL_Model:
     td = self.td
     sin_phi = self.sin_phi#np.sin(self.fa*x[2,...])
     cos_phi = self.cos_phi#np.cos(self.fa*x[2,...])+
-    N = self.NLL
+    N = self.NLL*self.Nproj
     Efit = x[1,...]
     Etau =x[1,...]**(tau/1000) #np.exp(-tau/(x[1,...]*T1_sc))    
     Etr = x[1,...]**(TR/1000)#np.exp(-TR/(x[1,...]*T1_sc))

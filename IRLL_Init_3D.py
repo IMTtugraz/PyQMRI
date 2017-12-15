@@ -119,7 +119,7 @@ dcf = file['dcf'][()].astype(DTYPE)
 #dcf = dcf/np.max(dcf)
 
 #data = np.fft.fft(data,axis=2).astype(DTYPE)
-data = data[:,20:-20,:,:]
+#data = data[:,20:-20,:,:]
 data = data[None,:,:,:,:]
 dimX = 224
 dimY = 224
@@ -138,7 +138,7 @@ par = struct()
 
 ##### No FA correction
 par.fa_corr = file['fa_corr'][()].astype(DTYPE)#np.ones([NSlice,dimX,dimY],dtype=DTYPE)
-par.fa_corr = np.flip(par.fa_corr[20:-20,:,:],axis=0)
+par.fa_corr = np.flip(par.fa_corr[:,:,:],axis=0)
 #
 
 par.NScan         = NScan 
@@ -220,8 +220,11 @@ else:
 data = data*np.sqrt(dcf) ## only in-vivo
 
 
-Nproj = 21
-NScan = 25
+Nproj_new = 13
+
+NScan = np.floor_divide(Nproj,Nproj_new)
+Nproj = Nproj_new
+
 data = np.transpose(np.reshape(data[:,:,:,:Nproj*NScan,:],(NC,NSlice,NScan,Nproj,N)),(2,0,1,3,4))
 traj =np.reshape(traj[:Nproj*NScan,:],(NScan,Nproj,N))
 dcf = dcf[:Nproj,:]
@@ -420,10 +423,11 @@ opt.traj = traj
 irgn_par = struct()
 irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 10
+irgn_par.max_GN_it = 8
 irgn_par.lambd = 1e2
-irgn_par.gamma = 1e-3 #5e-1
-irgn_par.delta = 5e2
+irgn_par.gamma = 1e-3   #### 5e-2   5e-3 phantom ##### brain 1e-3
+irgn_par.delta = 1e1  #### 8spk in-vivo 5e2
+irgn_par.omega = 1e-2
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par

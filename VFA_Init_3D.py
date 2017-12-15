@@ -111,7 +111,7 @@ dcf = file['dcf'][()].astype(DTYPE)
 
 #data = data_real+1j*data_imag
 #data = np.fft.fft(data,axis=2)
-data = data[:,:,13:-13,:,:]
+data = data[:,:,:,:,:]
 #data = data[:,:,0,:,:]
 dimX = 256
 dimY = 256
@@ -136,7 +136,7 @@ par.NScan         = NScan
 par.B1_correction = True 
 
 par.fa_corr = file['fa_corr'][()].astype(DTYPE)#np.ones([NSlice,dimX,dimY],dtype=DTYPE)
-par.fa_corr = np.flip(par.fa_corr[13:-13,...],axis=0)
+par.fa_corr = np.flip(par.fa_corr[:,...],axis=0)
 #
 #root = Tk()
 #root.withdraw()
@@ -449,9 +449,9 @@ opt.traj = traj
 irgn_par = struct()
 irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 10
+irgn_par.max_GN_it = 8
 irgn_par.lambd = 1e2
-irgn_par.gamma = 1e-2 #1e-2
+irgn_par.gamma = 5e-2 #1e-2
 irgn_par.delta = 1e0 #1e-1
 irgn_par.display_iterations = True
 
@@ -503,18 +503,18 @@ os.chdir('..')
 
 #result,guess,par = DESPOT1_Model_Reco(par)
 
-outdir = time.strftime("%Y-%m-%d  %H-%M-%S")
-if not os.path.exists('./output'):
-    os.makedirs('./output')
-os.makedirs("output/"+ outdir)
-
-os.chdir("output/"+ outdir)
-
-sio.savemat("result.mat",{"result":opt.result,"model":model})
-
-import pickle
-with open("par" + ".p", "wb") as pickle_file:
-    pickle.dump(par, pickle_file)
-
-os.chdir('..')
-os.chdir('..')
+#outdir = time.strftime("%Y-%m-%d  %H-%M-%S")
+#if not os.path.exists('./output'):
+#    os.makedirs('./output')
+#os.makedirs("output/"+ outdir)
+#
+#os.chdir("output/"+ outdir)
+#
+#sio.savemat("result.mat",{"result":opt.result,"model":model})
+#
+#import pickle
+#with open("par" + ".p", "wb") as pickle_file:
+#    pickle.dump(par, pickle_file)
+#
+#os.chdir('..')
+#os.chdir('..')
