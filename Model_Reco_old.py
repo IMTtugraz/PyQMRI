@@ -61,9 +61,9 @@ class Model_Reco:
 #           +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2)  
 
 #    print ("Function value after GN-Step: %f" %fval)
-
+    self.model.plot_unknowns(x,True) 
     return x
-  
+   
   def irgn_solve_3D(self,x, iters,data):
     
 
@@ -71,24 +71,24 @@ class Model_Reco:
     ### Adjointness     
     xx = np.random.random_sample(np.shape(x)).astype(DTYPE)
     yy = np.random.random_sample(np.shape(data)).astype(DTYPE)
-    a = np.vdot(xx.flatten(),self.operator_adjoint_3D(yy).flatten())
-    b = np.vdot(self.operator_forward_3D(xx).flatten(),yy.flatten())
+    a = np.vdot(xx.flatten(),self.operator_adjoint_2D(yy).flatten())
+    b = np.vdot(self.operator_forward_2D(xx).flatten(),yy.flatten())
     test = np.abs(a-b)
     print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,(test)))
     x_old = x
     a = self.FT(self.step_val[:,None,:,:]*self.Coils)
-    b = self.operator_forward_3D(x)
+    b = self.operator_forward_2D(x)
     res = data - a + b
     print("Test the norm: %2.2E  a=%2.2E   b=%2.2E" %(np.linalg.norm(res.flatten()),np.linalg.norm(a.flatten()), np.linalg.norm(b.flatten())))
   
-    x = self.tgv_solve_3D(x,res,iters)
-      
-    fval= (self.irgn_par.lambd/2*np.linalg.norm(data - self.FT(self.step_val[:,None,:,:]*self.Coils))**2
-           +self.irgn_par.gamma*np.sum(np.abs(gd.fgrad_3(x)-self.v))
-           +self.irgn_par.gamma*(2)*np.sum(np.abs(gd.sym_bgrad_3(self.v))) 
-           +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2)    
-    print ("Function value after GN-Step: %f" %fval)
-
+    x = self.tikonov_solve(x_old,res,iters)
+#      
+#    fval= (self.irgn_par.lambd/2*np.linalg.norm(data - self.FT(self.step_val[:,None,:,:]*self.Coils))**2
+#           +self.irgn_par.gamma*np.sum(np.abs(gd.fgrad_3(x)-self.v))
+#           +self.irgn_par.gamma*(2)*np.sum(np.abs(gd.sym_bgrad_3(self.v))) 
+#           +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2)    
+#    print ("Function value after GN-Step: %f" %fval)
+    self.model.plot_unknowns(x)  
     return x
         
 
@@ -131,45 +131,57 @@ class Model_Reco:
       
       
      
-#  def execute_3D(self):
-#     
-#      self.FT = self.nFT_3D
-#      self.FTH = self.nFTH_3D
-#      iters = self.irgn_par.start_iters
-#
-#      
-#      
-#      result = np.copy(self.model.guess)
-#      self.Coils = np.squeeze(self.par.C)        
-#      for i in range(self.irgn_par.max_GN_it):
-#        start = time.time()       
-#        self.step_val = self.model.execute_forward_3D(result)
-#        self.grad_x = self.model.execute_gradient_3D(result)
-#        self.conj_grad_x = np.conj(self.grad_x)
-#          
-#          
-#        result = self.irgn_solve_3D(result, iters, self.data)
-#          
-#          
-#        iters = np.fmin(iters*2,self.irgn_par.max_iters)
-#        self.irgn_par.gamma = self.irgn_par.gamma*0.8
-#        self.irgn_par.delta = self.irgn_par.delta*2
-#          
-#        end = time.time()-start
-#        print("Elapsed time: %f seconds" %end)
-#            
-#        
-#      self.result = result
+  def execute_3D(self):
+      self.init_plan()     
+      self.FT = self.nFT_3D
+      self.FTH = self.nFTH_3D
+      iters = self.irgn_par.start_iters
+
+      self.v = np.zeros(([self.unknowns,3,self.NSlice,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+      self.r = np.zeros_like(self.data,dtype=DTYPE)
+      self.z1 = np.zeros(([self.unknowns,3,self.NSlice,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+      self.z2 = np.zeros(([self.unknowns,6,self.NSlice,self.par.dimX,self.par.dimY]),dtype=DTYPE)        
+      
+      self.result = np.zeros((self.irgn_par.max_GN_it+1,self.unknowns,self.par.NSlice,self.par.dimY,self.par.dimX),dtype=DTYPE)
+      self.result[0,:,:,:,:] = np.copy(self.model.guess)
+
+      self.Coils = np.squeeze(self.par.C)        
+      self.conjCoils = np.conj(self.Coils)
+      for i in range(self.irgn_par.max_GN_it):
+        start = time.time()       
+
+        self.step_val = np.nan_to_num(self.model.execute_forward_3D(self.result[i,:,:,:,:]))
+        self.grad_x_2D = np.nan_to_num(self.model.execute_gradient_3D(self.result[i,:,:,:,:]))
+        self.conj_grad_x_2D = np.nan_to_num(np.conj(self.grad_x_2D))
+          
+        self.result[i+1,:,:,:,:] = self.irgn_solve_3D(self.result[i,:,:,:,:], iters, self.data)
+
+
+        iters = np.fmin(iters*2,self.irgn_par.max_iters)
+        self.irgn_par.gamma = self.irgn_par.gamma*0.8 ##0.7
+        self.irgn_par.delta = self.irgn_par.delta*2
+          
+        end = time.time()-start
+        print("Elapsed time: %f seconds" %end)
                
       
   def operator_forward_2D(self, x):
     
-    return self.FT(np.sum(x[:,None,:,:]*self.grad_x_2D,axis=0)[:,None,:,:]*self.Coils)
+    return self.FT(np.sum(x[:,None,...]*self.grad_x_2D,axis=0)[:,None,...]*self.Coils)
 
     
   def operator_adjoint_2D(self, x):
     
     return np.squeeze(np.sum(np.squeeze(np.sum(self.FTH(x)*self.conjCoils,axis=1))*self.conj_grad_x_2D,axis=1)) 
+
+  def operator_forward_3D(self, x):
+      
+    return self.FT(np.sum(x[:,None,:,:,:]*self.grad_x,axis=0)[:,None,:,:,:]*self.Coils3D)
+
+    
+  def operator_adjoint_3D(self, x):
+      
+    return np.squeeze(np.sum(np.squeeze(np.sum(self.FTH(x)*self.conjCoils3D,axis=1)*self.conj_grad_x),axis=1)) 
     
   def tgv_solve_2D(self, x, res, iters):
     alpha = self.irgn_par.gamma
@@ -827,14 +839,14 @@ class Model_Reco:
     con = np.concatenate((con_min.flatten()[None,:],con_max.flatten()[None,:]),axis=0).T.tolist()
 
     optres = op.minimize(self.fun_val,x_old,args=(xk,data),method='L-BFGS-B',jac=self.lhs_2D,options={'maxiter':iters,'disp':10},bounds=con)
-    x = np.reshape(optres.x,(self.unknowns*2,self.dimX,self.dimY))   
+    x = np.reshape(optres.x,(self.unknowns*2,self.NSlice,self.dimX,self.dimY))   
 #    fval= (self.irgn_par.lambd/2*np.linalg.norm(data - self.FT(self.step_val[:,None,:,:]*self.Coils))**2
 #           +self.irgn_par.gamma*np.sum(np.abs(gd.fgrad_1(x)-self.v))
 #           +self.irgn_par.gamma*(2)*np.sum(np.abs(gd.sym_bgrad_2(self.v))) 
 #           +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2)  
     fval = self.fun_val(optres.x,xk,data)
-    x = x[:self.unknowns,:,:] + 1j*x[self.unknowns:,:,:]
-    self.model.plot_unknowns(x,True)  
+    x = x[:self.unknowns,...] + 1j*x[self.unknowns:,...]
+
     print ("Function value after GN-Step: %f" %fval)   
     return x     
       
@@ -842,14 +854,14 @@ class Model_Reco:
 
     
   def fun_val(self,x,xk,data):
-    x = np.reshape(x,(self.unknowns*2,self.dimX,self.dimY))    
-    x = x[:self.unknowns,:,:] + 1j*x[self.unknowns:,:,:]
+    x = np.reshape(x,(self.unknowns*2,self.NSlice,self.dimX,self.dimY))    
+    x = x[:self.unknowns,...] + 1j*x[self.unknowns:,...]
     return (self.irgn_par.lambd/2*np.linalg.norm(self.operator_forward_2D(x)-data)**2+
             self.irgn_par.gamma/2*np.linalg.norm((x))**2 + 1/(2*self.irgn_par.delta)*np.linalg.norm(x-xk)**2).flatten()
     
   def lhs_2D(self,x,xk,data):
-    x = np.reshape(x,(self.unknowns*2,self.dimX,self.dimY))    
-    x = x[:self.unknowns,:,:] + 1j*x[self.unknowns:,:,:]
+    x = np.reshape(x,(self.unknowns*2,self.NSlice,self.dimX,self.dimY))    
+    x = x[:self.unknowns,...] + 1j*x[self.unknowns:,...]
     tmp = (self.irgn_par.lambd*self.operator_adjoint_2D(self.operator_forward_2D(x))
            +self.irgn_par.gamma*x+1/self.irgn_par.delta*((x)) - 
             self.irgn_par.lambd*self.operator_adjoint_2D(data)-1/self.irgn_par.delta*xk).flatten()

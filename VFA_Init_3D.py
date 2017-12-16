@@ -8,6 +8,7 @@ from tkinter import filedialog
 from tkinter import Tk
 import nlinvns_maier as nlinvns
 import Model_Reco as Model_Reco
+import Model_Reco_old as Model_Reco_Tikh
 import multiprocessing as mp
 
 import mkl
@@ -114,7 +115,7 @@ dcf = file['dcf'][()].astype(DTYPE)
 #data = np.fft.fft(data,axis=2)
 
 #data = data[:,:,18:-18,:,:]
-data = data[:,:,3:-3,:,:]
+data = data[:,:,32-5:32+5,:,:]
 dimX = 256
 dimY = 256
 #
@@ -138,7 +139,7 @@ par.NScan         = NScan
 par.B1_correction = True 
 
 par.fa_corr = file['fa_corr'][()].astype(DTYPE)#np.ones([NSlice,dimX,dimY],dtype=DTYPE)
-par.fa_corr = np.flip(par.fa_corr[3:-3,...],axis=0)
+par.fa_corr = np.flip(par.fa_corr[32-5:32+5,...],axis=0)
 par.fa_corr[par.fa_corr==0] = 1
 #root = Tk()
 #root.withdraw()
@@ -284,8 +285,8 @@ options[undersampling_mode]()
 
 #FA = np.array([1,2,3,4,5,6,7,9,11,13],DTYPE)*np.pi/180
 #FA = np.array([1,3,5,7,9,11,13,15,17],np.complex128)
-#par.fa = np.array([1,2,4,5,7,9,11,14,17,20],np.complex128)*np.pi/180
-par.fa = np.array([1,3,5,7,9,11,13,15,17,19],DTYPE)*np.pi/180
+par.fa = np.array([1,2,4,5,7,9,11,14,17,20],np.complex128)*np.pi/180
+#par.fa = np.array([1,3,5,7,9,11,13,15,17,19],DTYPE)*np.pi/180
 #fa = FA    #  % flip angle in rad FA siehe FLASH phantom generierung
 
 
@@ -462,18 +463,44 @@ irgn_par.display_iterations = True
 opt.irgn_par = irgn_par
 
 
-opt.dz = 1
+opt.dz = 3
 
-opt.execute_3D()
+#opt.execute_3D()
 
+
+
+################################################################################
+### IRGN - Tikhonov referenz ###################################################
+################################################################################
+
+opt_t = Model_Reco_Tikh.Model_Reco(par)
+
+opt_t.par = par
+opt_t.data =  data
+opt_t.images = images
+#opt_t.fft_forward = fft_forward
+#opt_t.fft_back = fft_back
+opt_t.nfftplan = plan
+opt_t.dcf = np.sqrt(dcf*(N*(np.pi/(4*Nproj))))
+opt_t.dcf_flat = np.sqrt(dcf*(N*(np.pi/(4*Nproj)))).flatten()
+opt_t.model = model
+opt_t.traj = traj 
 #
-#import cProfile
-#cProfile.run("opt.execute_2D()","eval_speed")
-##
-#import pstats
-#
-#p=pstats.Stats("eval_speed")
-#p.sort_stats('time').print_stats(20)
+##################################################################################
+###IRGN Params
+irgn_par = struct()
+irgn_par.start_iters = 10
+irgn_par.max_iters = 1000
+irgn_par.max_GN_it = 10
+irgn_par.lambd = 1e2
+irgn_par.gamma = 1e-2  #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.delta = 1e-3  #### 8spk in-vivo 1e-2
+irgn_par.omega = 1e0
+irgn_par.display_iterations = True
+
+opt_t.irgn_par = irgn_par
+
+opt_t.execute_3D()
 
 
 
@@ -487,13 +514,15 @@ os.makedirs("output/"+ outdir)
 
 os.chdir("output/"+ outdir)  
 
-f = h5py.File("output_VFA_21_3mm","w")
-dset_result = f.create_dataset("full_result",opt.result.shape,dtype=np.complex64,data=opt.result)
-#dset_result_ref = f.create_dataset("ref_full_result",opt_t.result.shape,dtype=np.complex64,data=opt_t.result)
-dset_T1 = f.create_dataset("T1_final",np.squeeze(opt.result[-1,1,...]).shape,dtype=np.complex64,data=np.squeeze(opt.result[-1,1,...]))
-dset_M0 = f.create_dataset("M0_final",np.squeeze(opt.result[-1,0,...]).shape,dtype=np.complex64,data=np.squeeze(opt.result[-1,0,...]))
-#dset_T1_ref = f.create_dataset("T1_ref",np.squeeze(opt_t.result[-1,1,...]).shape,dtype=np.complex64,data=np.squeeze(opt_t.result[-1,1,...]))
-#dset_M0_ref = f.create_dataset("M0_ref",np.squeeze(opt_t.result[-1,0,...]).shape,dtype=np.complex64,data=np.squeeze(opt_t.result[-1,0,...]))
+f = h5py.File("output_VFA_Phantom_8_3mm","w")
+#dset_result = f.create_dataset("full_result",opt.result.shape,dtype=np.complex64,data=opt.result)
+dset_result_ref = f.create_dataset("ref_full_result",opt_t.result.shape,dtype=np.complex64,data=opt_t.result)
+#dset_T1 = f.create_dataset("T1_final",np.squeeze(opt.result[-1,1,...]).shape,dtype=np.complex64,data=np.squeeze(opt.result[-1,1,...]))
+#dset_M0 = f.create_dataset("M0_final",np.squeeze(opt.result[-1,0,...]).shape,dtype=np.complex64,data=np.squeeze(opt.result[-1,0,...]))
+dset_T1_ref = f.create_dataset("T1_ref",np.squeeze(opt_t.result[-1,1,...]).shape,dtype=np.complex64,data=np.squeeze(opt_t.result[-1,1,...]))
+dset_M0_ref = f.create_dataset("M0_ref",np.squeeze(opt_t.result[-1,0,...]).shape,dtype=np.complex64,data=np.squeeze(opt_t.result[-1,0,...]))
+#dset_result.attrs['data_norm'] = dscale
+#dset_result.attrs['dcf_scaling'] = (N*(np.pi/(4*Nproj)))
 f.flush()
 f.close()
 
@@ -506,11 +535,7 @@ os.chdir('..')
 #starte reco
 
 #result,guess,par = DESPOT1_Model_Reco(par)
-<<<<<<< HEAD
 
-=======
-#
->>>>>>> b4d4f9cbc7b21587bc59d3f074947a820ca4dea3
 #outdir = time.strftime("%Y-%m-%d  %H-%M-%S")
 #if not os.path.exists('./output'):
 #    os.makedirs('./output')
