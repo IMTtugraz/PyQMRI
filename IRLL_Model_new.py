@@ -25,7 +25,7 @@ class IRLL_Model:
   
   
   def __init__(self, fa, fa_corr, TR,tau,td,
-               NScan,NSlice,dimY,dimX, Nproj):
+               NScan,NSlice,dimY,dimX, Nproj, Nproj_measured):
 
     self.constraints = []
     self.NSlice = NSlice
@@ -40,6 +40,7 @@ class IRLL_Model:
     self.td = td
     self.NLL = NScan
     self.Nproj = Nproj
+    self.Nproj_measured = Nproj
     self.dimY = dimY
     self.dimX = dimX
     
@@ -51,10 +52,10 @@ class IRLL_Model:
     self.cos_phi = np.cos(phi_corr)    
 
     self.guess = np.array([0/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),\
-                           np.exp(-1000/(3000/self.T1_sc))*np.ones((NSlice,dimY,dimX),dtype=DTYPE)])
+                           np.exp(-300/(1000/self.T1_sc))*np.ones((NSlice,dimY,dimX),dtype=DTYPE)])
 #                           np.ones((NSlice,dimY,dimX),dtype=DTYPE)])               
     self.constraints.append(constraint(-300,300,False)  )
-    self.constraints.append(constraint(np.exp(-200/(50)), np.exp(-200/(5000)),True))
+    self.constraints.append(constraint(np.exp(-300/(15)), np.exp(-300/(8000)),True))
 
 #  def execute_forward_2D(self, x, islice):
 #    S = np.zeros((self.NLL,self.Nproj,self.dimY,self.dimX),dtype=DTYPE)
@@ -237,7 +238,7 @@ class IRLL_Model:
           plt.imshow(np.transpose(np.abs(x[0,...]*self.M0_sc)))
           plt.pause(0.05)
           plt.figure(2)
-          plt.imshow(np.transpose(-1000/np.log(np.abs(x[1,...]*self.T1_sc))))
+          plt.imshow(np.transpose(-300/np.log(np.abs(x[1,...]*self.T1_sc))))
           plt.pause(0.05)          
         #      plt.imshow(np.transpose(np.abs(x[1,0,:,:]*self.model.T1_sc)),vmin=0,vmax=3000)
 #          plt.pause(0.05)
@@ -250,7 +251,7 @@ class IRLL_Model:
           plt.imshow(np.transpose(np.abs(x[0,int(self.NSlice/2),...]*self.M0_sc)))
           plt.pause(0.05)
           plt.figure(2)
-          plt.imshow(np.transpose(-1000/np.log(np.abs(x[1,int(self.NSlice/2),...]*self.T1_sc))))
+          plt.imshow(np.transpose(-300/np.log(np.abs(x[1,int(self.NSlice/2),...]*self.T1_sc))))
         #      plt.imshow(np.transpose(np.abs(x[1,0,:,:]*self.model.T1_sc)),vmin=0,vmax=3000)
           plt.pause(0.05)
            
@@ -268,23 +269,23 @@ class IRLL_Model:
     TR = self.TR
     tau = self.tau
     td = self.td
-    sin_phi = self.sin_phi#np.sin(self.fa*x[2,...])
-    cos_phi = self.cos_phi#np.cos(self.fa*x[2,...])+
-    N = self.NLL*self.Nproj
-    Etau =x[1,...]**(tau/1000) #np.exp(-tau/(x[1,...]*T1_sc))    
-    Etr = x[1,...]**(TR/1000)#np.exp(-TR/(x[1,...]*T1_sc))
-    Etd = x[1,...]**(td/1000)#np.exp(-td/(x[1,...]*T1_sc))    
-    cosEtau = cos_phi[islice,...]*Etau        
-    cosEtauN = cosEtau**(N-1)           
+    sin_phi = self.sin_phi[islice,...]#np.sin(self.fa*x[2,...])
+    cos_phi = self.cos_phi[islice,...]#np.cos(self.fa*x[2,...])+
+    N = self.Nproj_measured
+    Etau =x[1,...]**(tau/300) #np.exp(-tau/(x[1,...]*T1_sc))    
+    Etr = x[1,...]**(TR/300)#np.exp(-TR/(x[1,...]*T1_sc))
+    Etd = x[1,...]**(td/300)#np.exp(-td/(x[1,...]*T1_sc)) 
+    M0 = x[0,...]
+        
 
-    F = (1 - Etau)/(1-cosEtau)
-    Q = (-F*cos_phi[islice,...]*Etr*Etd*(1-cosEtauN) + 1 - 2*Etd + Etr*Etd)/(cos_phi[islice,...]*cosEtauN*Etr*Etd + 1)
+    F = (1 - Etau)/(1-Etau*cos_phi)
+    Q = (-Etr*Etd*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(-Etau*cos_phi + 1) + Etr*Etd - 2*Etd + 1)/(Etr*Etd*(Etau*cos_phi)**(N - 1)*cos_phi + 1)
     Q_F = Q-F   
   
     for i in range(self.NLL):
       for j in range(self.Nproj):
             n = i*self.Nproj+j+1
-            S[i,j,...] = x[0,...]*M0_sc*sin_phi[islice,...]*((cosEtau)**(n - 1)*(Q_F) + F)
+            S[i,j,...] = M0*M0_sc*((Etau*cos_phi)**(n - 1)*Q_F + F)*sin_phi
     
     return np.mean(S,axis=1)
   
@@ -295,51 +296,39 @@ class IRLL_Model:
     TR = self.TR
     tau = self.tau
     td = self.td
-    sin_phi = self.sin_phi#np.sin(self.fa*x[2,...])
-    cos_phi = self.cos_phi#np.cos(self.fa*x[2,...])+
+    sin_phi = self.sin_phi[islice,...]#np.sin(self.fa*x[2,...])
+    cos_phi = self.cos_phi[islice,...]#np.cos(self.fa*x[2,...])+
     N = self.NLL*self.Nproj
     Efit = x[1,...]
-    Etau =x[1,...]**(tau/1000) #np.exp(-tau/(x[1,...]*T1_sc))    
-    Etr = x[1,...]**(TR/1000)#np.exp(-TR/(x[1,...]*T1_sc))
-    Etd = x[1,...]**(td/1000)#np.exp(-td/(x[1,...]*T1_sc))    
+    Etau =x[1,...]**(tau/300) #np.exp(-tau/(x[1,...]*T1_sc))    
+    Etr = x[1,...]**(TR/300)#np.exp(-TR/(x[1,...]*T1_sc))
+    Etd = x[1,...]**(td/300)#np.exp(-td/(x[1,...]*T1_sc))   
+    M0 = x[0,...]
+    M0_sc = self.M0_sc
     
+  
+    F = (1 - Etau)/(1-Etau*cos_phi)
+    Q = (-Etr*Etd*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(-Etau*cos_phi + 1) + Etr*Etd - 2*Etd + 1)/(Etr*Etd*(Etau*cos_phi)**(N - 1)*cos_phi + 1)
+    Q_F = Q-F  
     
-    cosEtau = cos_phi[islice,...]*Etau        
-    cosEtauN = cosEtau**(N-1)           
-
-    F = (1 - Etau)/(1-cosEtau)
-    Q = (-F*cos_phi[islice,...]*Etr*Etd*(1-cosEtauN) + 1 - 2*Etd + Etr*Etd)/(cos_phi[islice,...]*cosEtauN*Etr*Etd + 1)
-    Q_F = Q-F 
-
-    tmp1 = ((-Etr*Etau*Etd*tau*(-Etau + 1)\
-                *(-(Etau*cos_phi[islice,...])**(N - 1) + 1)*cos_phi[islice,...]**2/(1000*Efit*(-Etau*cos_phi[islice,...] + 1)**2)\
-                + Etr*Etau*Etd*tau*(-(Etau*cos_phi[islice,...])**(N - 1) + 1)*cos_phi[islice,...]/\
-                (1000*Efit*(-Etau*cos_phi[islice,...] + 1)) - Etr*Etd*TR*(-Etau + 1)*(-(Etau*cos_phi[islice,...])**(N - 1) + 1)*\
-                cos_phi[islice,...]/(1000*Efit*(-Etau*cos_phi[islice,...] + 1)) + Etr*Etd*TR/(1000*Efit) + \
-                Etr*Etd*tau*(Etau*cos_phi[islice,...])**(N - 1)*(-Etau + 1)*(N - 1)*cos_phi[islice,...]/\
-                (1000*Efit*(-Etau*cos_phi[islice,...] + 1)) - Etr*Etd*td*(-Etau + 1)*(-(Etau*cos_phi[islice,...])**(N - 1) + 1)\
-                *cos_phi[islice,...]/(1000*Efit*(-Etau*cos_phi[islice,...] + 1)) + Etr*Etd*td/(1000*Efit) - Etd*td/(500*Efit))/\
-                (Etr*Etd*(Etau*cos_phi[islice,...])**(N - 1)*cos_phi[islice,...] + 1) + (-Etr*Etd*TR*(Etau*cos_phi[islice,...])**(N - 1)\
-                 *cos_phi[islice,...]/(1000*Efit) - Etr*Etd*tau*(Etau*cos_phi[islice,...])**(N - 1)*(N - 1)*cos_phi[islice,...]\
-                 /(1000*Efit) - Etr*Etd*td*(Etau*cos_phi[islice,...])**(N - 1)*cos_phi[islice,...]/(1000*Efit))*(-Etr*Etd*(-Etau + 1)\
-                  *(-(Etau*cos_phi[islice,...])**(N - 1) + 1)*cos_phi[islice,...]/(-Etau*cos_phi[islice,...] + 1) + Etr*Etd - 2*Etd \
-                  + 1)/(Etr*Etd*(Etau*cos_phi[islice,...])**(N - 1)*cos_phi[islice,...] + 1)**2 - Etau*tau*(-Etau + 1)*\
-                 cos_phi[islice,...]/(1000*Efit*(-Etau*cos_phi[islice,...] + 1)**2) + Etau*tau/(1000*Efit*(-Etau*cos_phi[islice,...] \
-                        + 1)))
-    tmp2 =  Etau*tau*(-Etau + 1)*cos_phi[islice,...]/(1000*Efit*(-Etau*cos_phi[islice,...] + 1)**2) - \
-                 Etau*tau/(1000*Efit*(-Etau*cos_phi[islice,...] + 1))
-    tmp3 =   (-(-Etau + 1)/(-Etau*cos_phi[islice,...] + 1) + (-Etr*Etd*(-Etau + 1)*(-(Etau*cos_phi[islice,...])**(N - 1) + 1)\
-                    *cos_phi[islice,...]/(-Etau*cos_phi[islice,...] + 1) + Etr*Etd - 2*Etd + 1)/\
-                 (Etr*Etd*(Etau*cos_phi[islice,...])**(N - 1)*cos_phi[islice,...] + 1))/(1000*Efit)
-
+    tmp1 = ((-Etr*Etau*Etd*tau*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)\
+                *cos_phi**2/(300*Efit*(-Etau*cos_phi + 1)**2) + Etr*Etau*Etd*tau*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/\
+                (300*Efit*(-Etau*cos_phi + 1)) - Etr*Etd*TR*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(300*Efit*(-Etau*cos_phi + 1)) \
+                + Etr*Etd*TR/(300*Efit) + Etr*Etd*tau*(Etau*cos_phi)**(N - 1)*(-Etau + 1)*(N - 1)*cos_phi/(300*Efit*(-Etau*cos_phi + 1)) \
+                - Etr*Etd*td*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(300*Efit*(-Etau*cos_phi + 1)) + Etr*Etd*td/(300*Efit) \
+                - Etd*td/(150*Efit))/(Etr*Etd*(Etau*cos_phi)**(N - 1)*cos_phi + 1) + (-Etr*Etd*TR*(Etau*cos_phi)**(N - 1)*cos_phi/(300*Efit) -\
+                         Etr*Etd*tau*(Etau*cos_phi)**(N - 1)*(N - 1)*cos_phi/(300*Efit) - Etr*Etd*td*(Etau*cos_phi)**(N - 1)*\
+                         cos_phi/(300*Efit))*Q**2 - Etau*tau*(-Etau + 1)*cos_phi/(300*Efit*(-Etau*cos_phi + 1)**2) + \
+              Etau*tau/(300*Efit*(-Etau*cos_phi + 1)))
+    tmp2 = Etau*tau*(-Etau + 1)*cos_phi/(300*Efit*(-Etau*cos_phi + 1)**2) -\
+              Etau*tau/(300*Efit*(-Etau*cos_phi + 1))
     for i in range(self.NLL):  
       for j in range(self.Nproj):
             n = i*self.Nproj+j+1
             
-            grad[0,i,j,...] =M0_sc*sin_phi[islice,...]*((cosEtau)**(n - 1)*Q_F + F)
+            grad[0,i,j,...] = M0_sc*((Etau*cos_phi)**(n - 1)*Q_F + F)*sin_phi
             
-            grad[1,i,j,...] =x[0,...]*M0_sc*((Etau*cos_phi[islice,...])**(n - 1)*tmp1 + tmp2 + tau*(Etau*cos_phi[islice,...])**(n - 1)\
-                *(n - 1)*tmp3)*sin_phi[islice,...]
+            grad[1,i,j,...] = M0*M0_sc*((Etau*cos_phi)**(n - 1)*tmp1 + tmp2 + tau*(Etau*cos_phi)**(n - 1)*(n - 1)*Q_F/(300*Efit))*sin_phi
             
     return np.mean(grad,axis=2)
              
@@ -355,27 +344,26 @@ class IRLL_Model:
     sin_phi = self.sin_phi#np.sin(self.fa*x[2,...])
     cos_phi = self.cos_phi#np.cos(self.fa*x[2,...])+
     N = self.NLL*self.Nproj
-    Etau =x[1,...]**(tau/1000) #np.exp(-tau/(x[1,...]*T1_sc))    
-    Etr = x[1,...]**(TR/1000)#np.exp(-TR/(x[1,...]*T1_sc))
-    Etd = x[1,...]**(td/1000)#np.exp(-td/(x[1,...]*T1_sc))    
-    cosEtau = cos_phi*Etau        
-    cosEtauN = cosEtau**(N-1)           
+    Etau =x[1,...]**(tau/300) #np.exp(-tau/(x[1,...]*T1_sc))    
+    Etr = x[1,...]**(TR/300)#np.exp(-TR/(x[1,...]*T1_sc))
+    Etd = x[1,...]**(td/300)#np.exp(-td/(x[1,...]*T1_sc)) 
+    M0 = x[0,...]
+        
 
-    F = (1 - Etau)/(-cosEtau + 1)
-    Q = (-cos_phi*F*(-cosEtauN + 1)*Etr*Etd + 1 - 2*Etd + Etr)/(cos_phi*cosEtauN*Etr*Etd + 1)
+    F = (1 - Etau)/(1-Etau*cos_phi)
+    Q = (-Etr*Etd*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(-Etau*cos_phi + 1) + Etr*Etd - 2*Etd + 1)/(Etr*Etd*(Etau*cos_phi)**(N - 1)*cos_phi + 1)
     Q_F = Q-F   
   
     for i in range(self.NLL):
       for j in range(self.Nproj):
             n = i*self.Nproj+j+1
-            S[i,j,...] = x[0,...]*M0_sc*sin_phi*((cosEtau)**(n - 1)*(Q_F) + F)
+            S[i,j,...] = M0*M0_sc*((Etau*cos_phi)**(n - 1)*Q_F + F)*sin_phi
     
     return np.mean(S,axis=1)
   
   def execute_gradient_3D(self, x):
     grad = np.zeros((2,self.NLL,self.Nproj,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
     M0_sc = self.M0_sc
-#    T1_sc = self.T1_sc
     TR = self.TR
     tau = self.tau
     td = self.td
@@ -383,54 +371,35 @@ class IRLL_Model:
     cos_phi = self.cos_phi#np.cos(self.fa*x[2,...])+
     N = self.NLL*self.Nproj
     Efit = x[1,...]
-    Etau =x[1,...]**(tau/1000) #np.exp(-tau/(x[1,...]*T1_sc))    
-    Etr = x[1,...]**(TR/1000)#np.exp(-TR/(x[1,...]*T1_sc))
-    Etd = x[1,...]**(td/1000)#np.exp(-td/(x[1,...]*T1_sc))    
+    Etau =x[1,...]**(tau/300) #np.exp(-tau/(x[1,...]*T1_sc))    
+    Etr = x[1,...]**(TR/300)#np.exp(-TR/(x[1,...]*T1_sc))
+    Etd = x[1,...]**(td/300)#np.exp(-td/(x[1,...]*T1_sc))   
+    M0 = x[0,...]
+    M0_sc = self.M0_sc
     
+  
+    F = (1 - Etau)/(1-Etau*cos_phi)
+    Q = (-Etr*Etd*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(-Etau*cos_phi + 1) + Etr*Etd - 2*Etd + 1)/(Etr*Etd*(Etau*cos_phi)**(N - 1)*cos_phi + 1)
+    Q_F = Q-F  
     
-    cosEtau = cos_phi*Etau        
-    cosEtauN = cosEtau**(N-1)           
-
-    F = (1 - Etau)/(-cosEtau + 1)
-    cos_phi_Etau_tmp = cos_phi*cosEtauN*Etr*Etd    
-    Q = (-cos_phi*F*(-cosEtauN + 1)*Etr*Etd + 1 - 2*Etd + Etr)/(cos_phi_Etau_tmp + 1)
-    Q_F = Q-F
-
-    tmp1 = ((-Etr*Etau*\
-                Etd*tau*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi**2/\
-                (1000*Efit*(-Etau*cos_phi + 1)**2) + Etr*Etau*Etd*tau*\
-                (-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(1000*Efit*(-Etau*cos_phi + 1)\
-                 ) - Etr*Etd*TR*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)\
-                 *cos_phi/(1000*Efit*(-Etau*cos_phi + 1)) + Etr*Etd*tau*\
-                 (Etau*cos_phi)**(N - 1)*(-Etau + 1)*(N - 1)*cos_phi/\
-                 (1000*Efit*(-Etau*cos_phi + 1)) - Etr*Etd*td*(-Etau + 1)*\
-                 (-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(1000*Efit*(-Etau*cos_phi +\
-                    1)) + Etr*TR/(1000*Efit) - Etd*td/(500*Efit))/(Etr*Etd*\
-                    (Etau*cos_phi)**(N - 1)*cos_phi + 1) + (-Etr*Etd*TR*\
-                    (Etau*cos_phi)**(N - 1)*cos_phi/(1000*Efit) - Etr*Etd*tau*\
-                    (Etau*cos_phi)**(N - 1)*(N - 1)*cos_phi/(1000*Efit) - Etr*\
-                    Etd*td*(Etau*cos_phi)**(N - 1)*cos_phi/(1000*Efit))*(-Etr*\
-                          Etd*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*\
-                          cos_phi/(-Etau*cos_phi + 1) + Etr - 2*Etd + 1)/\
-                    (Etr*Etd*(Etau*cos_phi)**(N - 1)*cos_phi + 1)**2 -\
-                    Etau*tau*(-Etau + 1)*cos_phi/(1000*Efit*(-Etau*\
-                                          cos_phi + 1)**2) + Etau*tau/(1000*Efit*(-Etau*\
-                                             cos_phi + 1)))
-    tmp2 =  Etau*tau*(-Etau + 1)*cos_phi/(1000*Efit*(-Etau*cos_phi + 1)**2) - Etau*\
-                    tau/(1000*Efit*(-Etau*cos_phi + 1)) 
-    tmp3 = (-(-Etau + 1)/(-Etau*cos_phi + 1) + (-Etr*Etd*\
-                        (-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*\
-                        cos_phi/(-Etau*cos_phi + 1) + Etr - 2*Etd + 1)/\
-                    (Etr*Etd*(Etau*cos_phi)**(N - 1)*cos_phi + 1))/(1000*Efit)
-
+    tmp1 = ((-Etr*Etau*Etd*tau*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)\
+                *cos_phi**2/(300*Efit*(-Etau*cos_phi + 1)**2) + Etr*Etau*Etd*tau*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/\
+                (300*Efit*(-Etau*cos_phi + 1)) - Etr*Etd*TR*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(300*Efit*(-Etau*cos_phi + 1)) \
+                + Etr*Etd*TR/(300*Efit) + Etr*Etd*tau*(Etau*cos_phi)**(N - 1)*(-Etau + 1)*(N - 1)*cos_phi/(300*Efit*(-Etau*cos_phi + 1)) \
+                - Etr*Etd*td*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(300*Efit*(-Etau*cos_phi + 1)) + Etr*Etd*td/(300*Efit) \
+                - Etd*td/(150*Efit))/(Etr*Etd*(Etau*cos_phi)**(N - 1)*cos_phi + 1) + (-Etr*Etd*TR*(Etau*cos_phi)**(N - 1)*cos_phi/(300*Efit) -\
+                         Etr*Etd*tau*(Etau*cos_phi)**(N - 1)*(N - 1)*cos_phi/(300*Efit) - Etr*Etd*td*(Etau*cos_phi)**(N - 1)*\
+                         cos_phi/(300*Efit))*Q**2 - Etau*tau*(-Etau + 1)*cos_phi/(300*Efit*(-Etau*cos_phi + 1)**2) + \
+              Etau*tau/(300*Efit*(-Etau*cos_phi + 1)))
+    tmp2 = Etau*tau*(-Etau + 1)*cos_phi/(300*Efit*(-Etau*cos_phi + 1)**2) -\
+              Etau*tau/(300*Efit*(-Etau*cos_phi + 1))
     for i in range(self.NLL):  
       for j in range(self.Nproj):
             n = i*self.Nproj+j+1
             
-            grad[0,i,j,...] =M0_sc*sin_phi*((cosEtau)**(n - 1)*Q_F + F)
+            grad[0,i,j,...] = M0_sc*((Etau*cos_phi)**(n - 1)*Q_F + F)*sin_phi
             
-            grad[1,i,j,...] =x[0,...]*M0_sc*((Etau*cos_phi)**(n - 1)*tmp1 + tmp2 + tau*(Etau*cos_phi)**(n - 1)*(n - 1)\
-                    *tmp3)*sin_phi
+            grad[1,i,j,...] = M0*M0_sc*((Etau*cos_phi)**(n - 1)*tmp1 + tmp2 + tau*(Etau*cos_phi)**(n - 1)*(n - 1)*Q_F/(300*Efit))*sin_phi
             
     return np.mean(grad,axis=2)
              

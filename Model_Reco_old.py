@@ -97,12 +97,16 @@ class Model_Reco:
       self.init_plan()
       self.FT = self.nFT_2D
       self.FTH = self.nFTH_2D
+      gamma = self.irgn_par.gamma
+      delta = self.irgn_par.delta
 
 
       
       self.result = np.zeros((self.irgn_par.max_GN_it,self.unknowns_TGV+self.unknowns_H1,self.par.NSlice,self.par.dimY,self.par.dimX),dtype=DTYPE)
       result = np.copy(self.model.guess)
       for islice in range(self.par.NSlice):
+        self.irgn_par.gamma = gamma
+        self.irgn_par.delta = delta
         self.Coils = np.squeeze(self.par.C[:,islice,:,:])    
         self.conjCoils = np.conj(self.Coils)   
         self.v = np.zeros(([self.unknowns_TGV,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
@@ -828,14 +832,16 @@ class Model_Reco:
     x_old = np.concatenate((np.real(xk),np.imag(xk)),axis=0) 
     con_min = np.zeros_like(x_old)
     con_max = np.zeros_like(x_old)
-    con_min[0,...] = -300*np.ones_like(con_min[0,...])
-    con_max[0,...] = 300*np.ones_like(con_max[0,...])
-    con_min[1,...] = self.model.min_T1*np.ones_like(con_min[0,...])
-    con_max[1,...] = self.model.max_T1*np.ones_like(con_max[0,...])
-    con_min[2,...] = -300*np.ones_like(con_min[0,...])
-    con_max[2,...] = 300*np.ones_like(con_max[0,...])
-    con_min[3,...] = np.zeros_like(con_min[3,...])
-    con_max[3,...] = np.zeros_like(con_max[3,...])    
+    
+    for j in range(len(self.model.constraints)):   
+      con_min[j,...] = self.model.constraints[j].min*np.ones_like(con_min[j,...])
+      con_max[j,...] = self.model.constraints[j].max*np.ones_like(con_max[j,...])
+      con_min[j+self.par.unknowns,...] = self.model.constraints[j].min*np.ones_like(con_min[j+self.par.unknowns,...])
+      con_max[j+self.par.unknowns,...] = self.model.constraints[j].max*np.ones_like(con_max[j+self.par.unknowns,...])  
+      if self.model.constraints[j].real:
+        con_min[j+self.par.unknowns,...] = np.zeros_like(con_min[j,...])
+        con_max[j+self.par.unknowns,...] = np.zeros_like(con_max[j,...])    
+    
 
     con = np.concatenate((con_min.flatten()[None,:],con_max.flatten()[None,:]),axis=0).T.tolist()
 

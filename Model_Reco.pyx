@@ -533,7 +533,7 @@ cdef class Model_Reco:
     
     Axold = self.operator_forward_3D(x)
     if self.unknowns_H1 > 0:
-      Kyk1 = self.operator_adjoint_3D(r) - np.concatenate((gd.bdiv_3(z1),np.zeros_like(gd.bdiv_3(z3))),0)
+      Kyk1 = self.operator_adjoint_3D(r) - np.concatenate((gd.bdiv_3(z1,1,1,dz),np.zeros_like(gd.bdiv_3(z3,1,1,dz))),0)
     else:
       Kyk1 = self.operator_adjoint_3D(r) - gd.bdiv_3(z1)
     Kyk2 = -z1 - gd.fdiv_3(z2,1,1,dz)     
@@ -586,7 +586,7 @@ cdef class Model_Reco:
         if self.unknowns_H1 > 0:
 #          z3_new = z3 + beta_line*tau_new*( gradx[-self.unknowns_H1:,...] + theta_line*gradx_xold[-self.unknowns_H1:,...])  
 #          Z3_new = z3_new/(1+beta_line*tau_new/self.irgn_par.omega)
-          Kyk1_new = self.operator_adjoint_3D(r_new) - np.concatenate((gd.bdiv_3(z1_new),np.zeros_like(gd.bdiv_3(z3_new))),0)
+          Kyk1_new = self.operator_adjoint_3D(r_new) - np.concatenate((gd.bdiv_3(z1_new,1,1,dz),np.zeros_like(gd.bdiv_3(z3_new,1,1,dz))),0)
           ynorm = np.linalg.norm(np.concatenate([(r_new-r).flatten(),(z1_new-z1).flatten(),(z2_new-z2).flatten(),(z3_new-z3).flatten()]))
         else:
           Kyk1_new = self.operator_adjoint_3D(r_new) - gd.bdiv_3(z1_new)
