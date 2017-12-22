@@ -78,6 +78,7 @@ root.update()
 file = filedialog.askopenfilename()
 root.destroy()
 
+name = file.split('/')[-1]
 file = h5py.File(file)
 data = file['real_dat'][()].astype(DTYPE) + 1j*file['imag_dat'][()].astype(DTYPE)
 
@@ -120,7 +121,7 @@ dcf = file['dcf'][()].astype(DTYPE)
 
 #data = np.fft.fft(data,axis=2).astype(DTYPE)
 #data = data[:,20:-20,:,:]
-data = data[None,:,:,:,:]
+data = data[None,:,10:-10,:,:]
 dimX = 224
 dimY = 224
 
@@ -138,7 +139,7 @@ par = struct()
 
 ##### No FA correction
 par.fa_corr = file['fa_corr'][()].astype(DTYPE)#np.ones([NSlice,dimX,dimY],dtype=DTYPE)
-par.fa_corr = np.flip(par.fa_corr[:,:,:],axis=0)
+par.fa_corr = np.flip(par.fa_corr[10:-10,:,:],axis=0)
 #
 
 par.NScan         = NScan 
@@ -274,7 +275,7 @@ FA = 5.0
 fa = np.divide(FA , np.complex128(180)) * np.pi;   #  % flip angle in rad FA siehe FLASH phantom generierung
 #alpha = [1,3,5,7,9,11,13,15,17,19]*pi/180;
 
-par.TR          = 5000-(5.5*Nproj*NScan+14.3)#10000-(6*Nproj*NScan+14.7)#2070.3#1685.4#5000-(5.5*Nproj*NScan+14.3)#
+par.TR          = 8000-(5.5*Nproj*NScan+14.3)#10000-(6*Nproj*NScan+14.7)#2070.3#1685.4#5000-(5.5*Nproj*NScan+14.3)#
 par.tau         = 5.5#6
 par.td          = 14.3
 par.NC          = NC
@@ -450,26 +451,41 @@ opt.execute_3D()
 
 
 
-
-########################################################################
-#starte reco
-
-#result,guess,par = DESPOT1_Model_Reco(par)
-
-outdir = time.strftime("%Y-%m-%d  %H-%M-%S")
+################################################################################
+### New .hdf5 save files #######################################################
+################################################################################
+outdir = time.strftime("%Y-%m-%d  %H-%M-%S_"+name[:-3])
 if not os.path.exists('./output'):
     os.makedirs('./output')
 os.makedirs("output/"+ outdir)
 
 os.chdir("output/"+ outdir)
 
-sio.savemat("result.mat",{"result":opt.result})
+f = h5py.File("output_"+name,"w")
+dset_result=f.create_dataset("full_result",opt.result.shape,\
+                             dtype=np.complex64,data=opt.result)
+#dset_result_ref=f.create_dataset("ref_full_result",opt_t.result.shape,\
+#                                 dtype=np.complex64,data=opt_t.result)
+dset_T1=f.create_dataset("T1_final",np.squeeze(opt.result[-1,1,...]).shape,\
+                         dtype=np.complex64,\
+                         data=np.squeeze(opt.result[-1,1,...]))
+dset_M0=f.create_dataset("M0_final",np.squeeze(opt.result[-1,0,...]).shape,\
+                         dtype=np.complex64,\
+                         data=np.squeeze(opt.result[-1,0,...]))
+#dset_T1_ref=f.create_dataset("T1_ref",np.squeeze(opt_t.result[-1,1,...]).shape\
+#                             ,dtype=np.complex64,\
+#                             data=np.squeeze(opt_t.result[-1,1,...]))
+#dset_M0_ref=f.create_dataset("M0_ref",np.squeeze(opt_t.result[-1,0,...]).shape\
+#                             ,dtype=np.complex64,\
+#                             data=np.squeeze(opt_t.result[-1,0,...]))
+#f.create_dataset("T1_guess",np.squeeze(model.T1_guess).shape,\
+#                 dtype=np.float64,data=np.squeeze(model.T1_guess))
+#f.create_dataset("M0_guess",np.squeeze(model.M0_guess).shape,\
+#                 dtype=np.float64,data=np.squeeze(model.M0_guess))
+dset_result.attrs['data_norm'] = dscale
+dset_result.attrs['dcf_scaling'] = (N*(np.pi/(4*Nproj)))
+f.flush()
+f.close()
 
-import pickle
-with open("par" + ".p", "wb") as pickle_file:
-    pickle.dump(par, pickle_file)
-#with open("par.txt", "rb") as myFile:
-    #par = pickle.load(myFile)
-#par.dump("par.dat")
 os.chdir('..')
 os.chdir('..')
