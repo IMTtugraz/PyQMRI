@@ -352,7 +352,7 @@ cdef class Model_Reco:
         
       x_new = ((x - tau*(Kyk1))+(tau/delta)*xk)/(1+tau/delta)
 
-      x_new[0,:,:] = np.maximum(0,np.minimum(300/self.model.M0_sc,x_new[0,...]))
+      x_new[0,:,:] = np.maximum(-300,np.minimum(300/self.model.M0_sc,x_new[0,...]))
       x_new[1,:,:] = np.real(np.maximum(self.model.min_T1,np.minimum(self.model.max_T1,x_new[1,...])))
       
       if self.unknowns_H1 > 0:      
@@ -532,7 +532,7 @@ cdef class Model_Reco:
       x_new = ((x - tau*(Kyk1))+(tau/delta)*xk)/(1+tau/delta)
       
       
-      x_new[0,...] = np.maximum(0,np.minimum(300/self.model.M0_sc,x_new[0,...]))
+      x_new[0,...] = np.maximum(-300,np.minimum(300/self.model.M0_sc,x_new[0,...]))
       x_new[1,...] = np.real(np.maximum(self.model.min_T1,np.minimum(self.model.max_T1,
                                                        x_new[1,...])))
 
