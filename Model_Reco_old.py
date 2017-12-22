@@ -97,7 +97,7 @@ class Model_Reco:
       self.init_plan()
       self.FT = self.nFT_2D
       self.FTH = self.nFTH_2D
-      iters = self.irgn_par.start_iters
+
 
       
       self.result = np.zeros((self.irgn_par.max_GN_it,self.unknowns_TGV+self.unknowns_H1,self.par.NSlice,self.par.dimY,self.par.dimX),dtype=DTYPE)
@@ -110,7 +110,8 @@ class Model_Reco:
         self.z1 = np.zeros(([self.unknowns_TGV,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
         self.z2 = np.zeros(([self.unknowns_TGV,3,self.par.dimX,self.par.dimY]),dtype=DTYPE)
         self.z3 = np.zeros(([self.unknowns_H1,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)  
-        
+        iters = self.irgn_par.start_iters        
+        self.NSlice = 1
         for i in range(self.irgn_par.max_GN_it):
           start = time.time()       
           self.step_val = self.model.execute_forward_2D(result[:,islice,:,:],islice)

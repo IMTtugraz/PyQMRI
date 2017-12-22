@@ -124,7 +124,6 @@ cdef class Model_Reco:
       self.init_plan()
       self.FT = self.nFT_2D
       self.FTH = self.nFTH_2D
-      iters = self.irgn_par.start_iters
 
       
       self.result = np.zeros((self.irgn_par.max_GN_it,self.unknowns_TGV+self.unknowns_H1,self.par.NSlice,self.par.dimY,self.par.dimX),dtype=DTYPE)
@@ -137,7 +136,7 @@ cdef class Model_Reco:
         self.z1 = np.zeros(([self.unknowns_TGV,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
         self.z2 = np.zeros(([self.unknowns_TGV,3,self.par.dimX,self.par.dimY]),dtype=DTYPE)
         self.z3 = np.zeros(([self.unknowns_H1,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)  
-        
+        iters = self.irgn_par.start_iters          
         for i in range(self.irgn_par.max_GN_it):
           start = time.time()       
           self.step_val = self.model.execute_forward_2D(result[:,islice,:,:],islice)
@@ -159,7 +158,7 @@ cdef class Model_Reco:
    
     self.FT = self.FT_2D
     self.FTH = self.FTH_2D
-    iters = self.irgn_par.start_iters
+
     self.v = np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
   
     self.dimX = self.par.dimX
@@ -173,7 +172,8 @@ cdef class Model_Reco:
     result = np.copy(self.model.guess)
     for islice in range(self.par.NSlice):
       self.Coils = np.squeeze(self.par.C[:,islice,:,:])
-      self.conjCoils = np.conj(self.Coils)        
+      self.conjCoils = np.conj(self.Coils)     
+      iters = self.irgn_par.start_iters      
       for i in range(self.irgn_par.max_GN_it):
         start = time.time()       
         self.step_val = np.nan_to_num(self.model.execute_forward_2D(result[:,islice,:,:],islice))

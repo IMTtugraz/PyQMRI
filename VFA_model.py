@@ -135,7 +135,7 @@ class VFA_Model:
     grad_M0 = self.M0_sc*(-E1 + 1)*self.sin_phi[:,slice,:,:]/(-E1*self.cos_phi[:,slice,:,:] + 1)
     grad_T1 = x[0,...]*self.M0_sc*(-E1 + 1)*self.sin_phi[:,slice,:,:]*self.cos_phi[:,slice,:,:]/(-E1*self.cos_phi[:,slice,:,:] + 1)**2\
     - x[0,...]*self.M0_sc*self.sin_phi[:,slice,:,:]/(-E1*self.cos_phi[:,slice,:,:] + 1)
-    grad = np.array([grad_M0,grad_T1])
+    grad = np.array([grad_M0,grad_T1],dtype=DTYPE)
     grad[~np.isfinite(grad)] = 1e-20
     return grad
   
