@@ -358,7 +358,6 @@ dset_result=f.create_dataset("full_result",opt.result.shape,\
                              dtype=np.complex64,data=opt.result)
 dset_result_ref=f.create_dataset("ref_full_result",opt_t.result.shape,\
                                  dtype=np.complex64,data=opt_t.result)
->>>>>>> 9ced4710927909c5ed1916eef983e441374e22ed
 dset_T1=f.create_dataset("T1_final",np.squeeze(opt.result[-1,1,...]).shape,\
                          dtype=np.complex64,\
                          data=np.squeeze(opt.result[-1,1,...]))
