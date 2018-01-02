@@ -66,7 +66,7 @@ dcf = file['dcf'][()].astype(DTYPE)
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
 
 ############### Set number of Slices ###########################################
-reco_Slices = 1
+reco_Slices = 5
 os_slices = 20
 class struct:
     pass
@@ -89,9 +89,9 @@ data = data[None,:,int(NSlice/2)-\
             int(np.floor(reco_Slices/2)),:,:]
 
   
-par.fa_corr = np.flip(par.fa_corr,axis=0)[int((NSlice-os_slices)/2)-\
+par.fa_corr = np.ones_like(np.flip(par.fa_corr,axis=0)[int((NSlice-os_slices)/2)-\
             int(np.ceil(reco_Slices/2)):int((NSlice-os_slices)/2)+\
-            int(np.floor(reco_Slices/2)),:,:]
+            int(np.floor(reco_Slices/2)),:,:])
 
 [NScan,NC,NSlice,Nproj, N] = data.shape
 
@@ -119,7 +119,7 @@ par.unknowns = 2
 ### Estimate coil sensitivities ################################################
 ################################################################################
 
-nlinvNewtonSteps = 10
+nlinvNewtonSteps = 6
 nlinvRealConstr  = False
 
 traj_coil = np.reshape(traj,(NScan*Nproj,N))
@@ -164,9 +164,13 @@ else:
 ################################################################################
 ### Reorder acquired Spokes   ##################################################
 ################################################################################
+  
+#scale_test = np.max(np.abs(nlinvout[0,-1,:,:]))
 
 data = data*np.sqrt(dcf)
+#dcf = dcf/scale_test**2
 
+dcf = dcf * (N*np.pi/(4*Nproj))
 
 Nproj_new = 8
 
@@ -180,8 +184,7 @@ par.NScan = NScan
 data = np.transpose(np.reshape(data[:,:,:,:Nproj*NScan,:],\
                                (NC,NSlice,NScan,Nproj,N)),(2,0,1,3,4))
 traj =np.reshape(traj[:Nproj*NScan,:],(NScan,Nproj,N))
-dcf = dcf[:Nproj,:]
-
+dcf = dcf[:Nproj,:]*NScan**2
 ################################################################################
 ### Calcualte wait time   ######################################################
 ################################################################################
@@ -193,10 +196,13 @@ par.TR = file.attrs['time_per_slice']-(par.tau*Nproj_measured+par.td)
 
 #### Close File after everything was read
 file.close()
+################################################################################
+### Scale Data #################################################################
+################################################################################
 
 dscale = np.sqrt(NSlice)*DTYPE(1)/(np.linalg.norm(data.flatten()))
 par.dscale = dscale
-
+data = data*dscale
 
 ################################################################################
 ### generate nFFT for radial cases #############################################
@@ -243,9 +249,9 @@ def nFTH(x,plan,dcf,NScan,NC,NSlice,dimY,dimX):
 
 plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
 
-data = data* dscale
 
-images= (np.sum(nFTH(data,plan,dcf*N*(np.pi/(4*Nproj)),NScan,NC,NSlice,\
+
+images= (np.sum(nFTH(data,plan,dcf,NScan,NC,NSlice,\
                      dimY,dimX)*(np.conj(par.C)),axis = 1))
 
 
@@ -282,9 +288,9 @@ irgn_par = struct()
 irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
-irgn_par.lambd = 1e2
-irgn_par.gamma = 1e-3   #### 5e-2   5e-3 phantom ##### brain 1e-3
-irgn_par.delta = 1e4  #### 8spk in-vivo 5e2
+irgn_par.lambd = 1e3
+irgn_par.gamma = 2e-1  #### 5e-2   5e-3 phantom ##### brain 1e-3
+irgn_par.delta = 1e-3  #### 8spk in-vivo 5e2
 irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
 
@@ -304,8 +310,8 @@ opt_t.images = images
 #opt_t.fft_forward = fft_forward
 #opt_t.fft_back = fft_back
 opt_t.nfftplan = plan
-opt_t.dcf = np.sqrt(dcf*(N*(np.pi/(4*Nproj))))
-opt_t.dcf_flat = np.sqrt(dcf*(N*(np.pi/(4*Nproj)))).flatten()
+opt_t.dcf = np.sqrt(dcf)
+opt_t.dcf_flat = np.sqrt(dcf).flatten()
 opt_t.model = model
 opt_t.traj = traj
 
@@ -343,15 +349,15 @@ dset_result=f.create_dataset("full_result",opt.result.shape,\
 dset_T1=f.create_dataset("T1_final",np.squeeze(opt.result[-1,1,...]).shape,\
                          dtype=np.complex64,\
                          data=np.squeeze(opt.result[-1,1,...]))
-#dset_M0=f.create_dataset("M0_final",np.squeeze(opt.result[-1,0,...]).shape,\
-#                         dtype=np.complex64,\
-#                         data=np.squeeze(opt.result[-1,0,...]))
+dset_M0=f.create_dataset("M0_final",np.squeeze(opt.result[-1,0,...]).shape,\
+                         dtype=np.complex64,\
+                         data=np.squeeze(opt.result[-1,0,...]))
 #dset_T1_ref=f.create_dataset("T1_ref",np.squeeze(opt_t.result[-1,1,...]).shape\
 #                             ,dtype=np.complex64,\
 #                             data=np.squeeze(opt_t.result[-1,1,...]))
-dset_M0_ref=f.create_dataset("M0_ref",np.squeeze(opt_t.result[-1,0,...]).shape\
-                             ,dtype=np.complex64,\
-                             data=np.squeeze(opt_t.result[-1,0,...]))
+#dset_M0_ref=f.create_dataset("M0_ref",np.squeeze(opt_t.result[-1,0,...]).shape\
+#                             ,dtype=np.complex64,\
+#                             data=np.squeeze(opt_t.result[-1,0,...]))
 #f.create_dataset("T1_guess",np.squeeze(model.T1_guess).shape,\
 #                 dtype=np.float64,data=np.squeeze(model.T1_guess))
 #f.create_dataset("M0_guess",np.squeeze(model.M0_guess).shape,\

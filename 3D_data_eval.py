@@ -131,7 +131,7 @@ for j in range(NResults):
   T1 = T1_tgv[j]*mask
   T1_plot=[]
   
-  T1_plot.append(np.squeeze(T1[int(z/2),:,:,]).T)
+  T1_plot.append(np.squeeze(T1[int(z/2)+5,:,:,]).T)
   T1_plot.append(np.flip((T1[:,int(x/2+3),:]).T,1))
   T1_plot.append([])
   T1_plot.append((T1[:,:,int(y/2-15)]))

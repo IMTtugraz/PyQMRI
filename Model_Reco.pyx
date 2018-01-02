@@ -125,11 +125,15 @@ cdef class Model_Reco:
       self.init_plan()
       self.FT = self.nFT_2D
       self.FTH = self.nFTH_2D
-
+      gamma = self.irgn_par.gamma
+      delta = self.irgn_par.delta
+      
       
       self.result = np.zeros((self.irgn_par.max_GN_it,self.unknowns_TGV+self.unknowns_H1,self.par.NSlice,self.par.dimY,self.par.dimX),dtype=DTYPE)
       result = np.copy(self.model.guess)
       for islice in range(self.par.NSlice):
+        self.irgn_par.gamma = gamma
+        self.irgn_par.delta = delta
         self.Coils = np.array(np.squeeze(self.par.C[:,islice,:,:]),order='C')
         self.conjCoils = np.conj(self.Coils)   
         self.v = np.zeros(([self.unknowns_TGV,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)

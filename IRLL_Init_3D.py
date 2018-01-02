@@ -76,7 +76,7 @@ dcf = file['dcf'][()].astype(DTYPE)
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
 
 ############### Set number of Slices ###########################################
-reco_Slices = 3
+reco_Slices = 5
 os_slices = 20
 
 class struct:
@@ -183,7 +183,7 @@ else:
 ### Reorder acquired Spokes   ##################################################
 ################################################################################
 
-
+dcf = dcf * (N*np.pi/(4*Nproj))
 Nproj_new = 8
 
 NScan = np.floor_divide(Nproj,Nproj_new)
@@ -195,7 +195,7 @@ par.NScan = NScan
 data = np.transpose(np.reshape(data[:,:,:,:Nproj*NScan,:],\
                                (NC,NSlice,NScan,Nproj,N)),(2,0,1,3,4))
 traj =np.reshape(traj[:Nproj*NScan,:],(NScan,Nproj,N))
-dcf = dcf[:Nproj,:]
+dcf = dcf[:Nproj,:]*NScan**2
 
 ################################################################################
 ### Calcualte wait time   ######################################################
@@ -275,7 +275,7 @@ images= (np.sum(nFTH(data,plan,dcf*N*(np.pi/(4*Nproj)),NScan,NC,NSlice,\
 ### Init forward model and initial guess #######################################
 ################################################################################
 model = IRLL_Model.IRLL_Model(par.fa,par.fa_corr,par.TR,par.tau,par.td,\
-                              NScan,NSlice,dimY,dimX,Nproj)
+                              NScan,NSlice,dimY,dimX,Nproj,Nproj_measured)
 
 
 
@@ -302,11 +302,11 @@ opt.traj = traj
 irgn_par = struct()
 irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 8
-irgn_par.lambd = 1e2
-irgn_par.gamma = 1e-3   #### 5e-2   5e-3 phantom ##### brain 1e-3
-irgn_par.delta = 1e1  #### 8spk in-vivo 5e2
-irgn_par.omega = 1e-5
+irgn_par.max_GN_it = 10
+irgn_par.lambd = 1e3
+irgn_par.gamma = 2e-1  #### 5e-2   5e-3 phantom ##### brain 1e-3
+irgn_par.delta = 1e-3  #### 8spk in-vivo 5e2
+irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par
@@ -359,20 +359,20 @@ os.chdir("output/"+ outdir)
 f = h5py.File("output_"+name,"w")
 dset_result=f.create_dataset("full_result",opt.result.shape,\
                              dtype=np.complex64,data=opt.result)
-#dset_result_ref=f.create_dataset("ref_full_result",opt_t.result.shape,\
-#                                 dtype=np.complex64,data=opt_t.result)
+dset_result_ref=f.create_dataset("ref_full_result",opt_t.result.shape,\
+                                 dtype=np.complex64,data=opt_t.result)
 dset_T1=f.create_dataset("T1_final",np.squeeze(opt.result[-1,1,...]).shape,\
                          dtype=np.complex64,\
                          data=np.squeeze(opt.result[-1,1,...]))
 dset_M0=f.create_dataset("M0_final",np.squeeze(opt.result[-1,0,...]).shape,\
                          dtype=np.complex64,\
                          data=np.squeeze(opt.result[-1,0,...]))
-#dset_T1_ref=f.create_dataset("T1_ref",np.squeeze(opt_t.result[-1,1,...]).shape\
-#                             ,dtype=np.complex64,\
-#                             data=np.squeeze(opt_t.result[-1,1,...]))
-#dset_M0_ref=f.create_dataset("M0_ref",np.squeeze(opt_t.result[-1,0,...]).shape\
-#                             ,dtype=np.complex64,\
-#                             data=np.squeeze(opt_t.result[-1,0,...]))
+dset_T1_ref=f.create_dataset("T1_ref",np.squeeze(opt_t.result[-1,1,...]).shape\
+                             ,dtype=np.complex64,\
+                             data=np.squeeze(opt_t.result[-1,1,...]))
+dset_M0_ref=f.create_dataset("M0_ref",np.squeeze(opt_t.result[-1,0,...]).shape\
+                             ,dtype=np.complex64,\
+                             data=np.squeeze(opt_t.result[-1,0,...]))
 #f.create_dataset("T1_guess",np.squeeze(model.T1_guess).shape,\
 #                 dtype=np.float64,data=np.squeeze(model.T1_guess))
 #f.create_dataset("M0_guess",np.squeeze(model.M0_guess).shape,\

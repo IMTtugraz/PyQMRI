@@ -46,7 +46,7 @@ T1_tikh = []
 plot_names = []
 NRef = 0
 if "IRLL" in filenames[0]:
-  tr = 1000
+  tr = 5.5
   save_name = "IRLL"
 else:
   tr = 5
@@ -90,21 +90,22 @@ z = z*dz
 
 T1_plot=[]
 M0_plot=[]
-T1_min = 600
+T1_min = 0
 T1_max = 3000
 M0_min = 0
 M0_max = np.abs(np.max(M0_tgv[0]))
 
-half_im_size = 128
+half_im_size = 106
 plot_err = False
+T1_ref = T1_ref[None,...]
 
 if "Reference" in plot_names:
   dimz, dimy, dimx =   T1_ref.shape
   T1_plot.append(T1_ref[int(dimz/2),int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size].T)
   T1_plot.append(np.zeros((dimy,dimx)))
   
-  M0_plot.append(M0_ref[int(dimz/2),int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size].T)
-  M0_plot.append(np.zeros((dimy,dimx)))
+#  M0_plot.append(M0_ref[int(dimz/2),int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size].T)
+#  M0_plot.append(np.zeros((dimy,dimx)))
 
 T1_err=[]
 
@@ -113,22 +114,24 @@ T1_err_max = 30
 mask = mask[0,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]
 
 for i in range(NResults-NRef):
-  slices, dimy, dimx = T1_tgv[i].shape
+  slices, x, y = T1_tgv[i].shape
   
-  T1_tgv[i] = T1_tgv[i][int(dimz/2),int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size]*mask
-  M0_tgv[i] = M0_tgv[i][int(dimz/2),int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size]*mask
-  T1_tikh[i] = T1_tikh[i][int(dimz/2),int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size]*mask
-  M0_tikh[i] = M0_tikh[i][int(dimz/2),int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size]*mask
+  T1_tgv[i] = T1_tgv[i][int(z/2),int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
+  M0_tgv[i] = M0_tgv[i][int(z/2),int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
+  T1_tikh[i] = T1_tikh[i][int(z/2),int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
+  M0_tikh[i] = M0_tikh[i][int(z/2),int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
 
   T1_plot.append(np.squeeze(T1_tgv[i][...]).T)
   T1_plot.append(np.squeeze(T1_tikh[i][...]).T)
 
-  M0_plot.append(np.squeeze(M0_tgv[i][...]).T)
-  M0_plot.append(np.squeeze(M0_tikh[i][...]).T)
+#  M0_plot.append(np.squeeze(M0_tgv[i][...]).T)
+#  M0_plot.append(np.squeeze(M0_tikh[i][...]).T)
   
   if "Reference" in plot_names:
-    T1_err.append(np.squeeze(np.abs(T1_tgv[i]-T1_ref[-1,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size])/np.abs(T1_ref[0,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size])).T*100)
-    T1_err.append(np.squeeze(np.abs(T1_tikh[i]-T1_ref[-1,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size])/np.abs(T1_ref[0,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size])).T*100)  
+    T1_err.append(np.squeeze(np.abs(T1_tgv[i]-T1_ref[-1,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size])\
+                             /np.abs(T1_ref[-1,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size])).T*100)
+    T1_err.append(np.squeeze(np.abs(T1_tikh[i]-T1_ref[-1,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size])\
+                             /np.abs(T1_ref[-1,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size])).T*100)  
     
 if "Reference" in plot_names and plot_err:  
   fig = plt.figure(figsize = (8,8))
