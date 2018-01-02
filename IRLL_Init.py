@@ -66,7 +66,11 @@ dcf = file['dcf'][()].astype(DTYPE)
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
 
 ############### Set number of Slices ###########################################
+<<<<<<< HEAD
 reco_Slices = 5
+=======
+reco_Slices = 3
+>>>>>>> 6318f1d8cb569614defe57e9e5dcfbc212312251
 os_slices = 20
 class struct:
     pass
@@ -322,14 +326,14 @@ irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e2
-irgn_par.gamma = 1e-2  #### 5e-2   5e-3 phantom ##### brain 1e-2
-irgn_par.delta = 1e-3  #### 8spk in-vivo 1e-2
+irgn_par.gamma = 5e-4  #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.delta = 1e3  #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e0
 irgn_par.display_iterations = True
 
 opt_t.irgn_par = irgn_par
 
-#opt_t.execute_2D()
+opt_t.execute_2D()
 
 ################################################################################
 ### New .hdf5 save files #######################################################
@@ -344,20 +348,29 @@ os.chdir("output/"+ outdir)
 f = h5py.File("output_"+name,"w")
 dset_result=f.create_dataset("full_result",opt.result.shape,\
                              dtype=np.complex64,data=opt.result)
-#dset_result_ref=f.create_dataset("ref_full_result",opt_t.result.shape,\
-#                                 dtype=np.complex64,data=opt_t.result)
+dset_result_ref=f.create_dataset("ref_full_result",opt_t.result.shape,\
+                                 dtype=np.complex64,data=opt_t.result)
 dset_T1=f.create_dataset("T1_final",np.squeeze(opt.result[-1,1,...]).shape,\
                          dtype=np.complex64,\
                          data=np.squeeze(opt.result[-1,1,...]))
 dset_M0=f.create_dataset("M0_final",np.squeeze(opt.result[-1,0,...]).shape,\
                          dtype=np.complex64,\
                          data=np.squeeze(opt.result[-1,0,...]))
+<<<<<<< HEAD
 #dset_T1_ref=f.create_dataset("T1_ref",np.squeeze(opt_t.result[-1,1,...]).shape\
 #                             ,dtype=np.complex64,\
 #                             data=np.squeeze(opt_t.result[-1,1,...]))
 #dset_M0_ref=f.create_dataset("M0_ref",np.squeeze(opt_t.result[-1,0,...]).shape\
 #                             ,dtype=np.complex64,\
 #                             data=np.squeeze(opt_t.result[-1,0,...]))
+=======
+dset_T1_ref=f.create_dataset("T1_ref",np.squeeze(opt_t.result[-1,1,...]).shape\
+                             ,dtype=np.complex64,\
+                             data=np.squeeze(opt_t.result[-1,1,...]))
+dset_M0_ref=f.create_dataset("M0_ref",np.squeeze(opt_t.result[-1,0,...]).shape\
+                             ,dtype=np.complex64,\
+                             data=np.squeeze(opt_t.result[-1,0,...]))
+>>>>>>> 6318f1d8cb569614defe57e9e5dcfbc212312251
 #f.create_dataset("T1_guess",np.squeeze(model.T1_guess).shape,\
 #                 dtype=np.float64,data=np.squeeze(model.T1_guess))
 #f.create_dataset("M0_guess",np.squeeze(model.M0_guess).shape,\

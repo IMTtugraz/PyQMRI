@@ -135,7 +135,7 @@ par.unknowns = 2
 #% Estimates sensitivities and complex image.
 #%(see Martin Uecker: Image reconstruction by regularized nonlinear
 #%inversion joint estimation of coil sensitivities and image content)
-nlinvNewtonSteps = 6
+nlinvNewtonSteps = 10
 nlinvRealConstr  = False
 
 traj_coil = np.reshape(traj,(NScan*Nproj,N))
@@ -185,7 +185,7 @@ else:
 
 dcf = dcf * (N*np.pi/(4*Nproj))
 Nproj_new = 8
-
+Nproj_measured = Nproj
 NScan = np.floor_divide(Nproj,Nproj_new)
 Nproj = Nproj_new
 
@@ -325,8 +325,8 @@ opt_t.images = images
 #opt_t.fft_forward = fft_forward
 #opt_t.fft_back = fft_back
 opt_t.nfftplan = plan
-opt_t.dcf = np.sqrt(dcf*(N*(np.pi/(4*Nproj))))
-opt_t.dcf_flat = np.sqrt(dcf*(N*(np.pi/(4*Nproj)))).flatten()
+opt_t.dcf = np.sqrt(dcf)
+opt_t.dcf_flat = np.sqrt(dcf).flatten()
 opt_t.model = model
 opt_t.traj = traj
 
@@ -338,13 +338,13 @@ irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e2
 irgn_par.gamma = 5e-4  #### 5e-2   5e-3 phantom ##### brain 1e-2
-irgn_par.delta = 1e1  #### 8spk in-vivo 1e-2
+irgn_par.delta = 1e3  #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e0
 irgn_par.display_iterations = True
 
 opt_t.irgn_par = irgn_par
 
-#opt_t.execute_3D()
+opt_t.execute_3D()
 
 ################################################################################
 ### New .hdf5 save files #######################################################

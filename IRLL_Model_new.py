@@ -335,18 +335,19 @@ class IRLL_Model:
            
   def execute_forward_3D(self, x):
     S = np.zeros((self.NLL,self.Nproj,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
-    M0_sc = self.M0_sc
+
 #    T1_sc = self.T1_sc
     TR = self.TR
     tau = self.tau
     td = self.td
     sin_phi = self.sin_phi#np.sin(self.fa*x[2,...])
     cos_phi = self.cos_phi#np.cos(self.fa*x[2,...])+
-    N = self.NLL*self.Nproj
+    N = self.Nproj_measured
     Etau =x[1,...]**(tau/500) #np.exp(-tau/(x[1,...]*T1_sc))    
     Etr = x[1,...]**(TR/500)#np.exp(-TR/(x[1,...]*T1_sc))
     Etd = x[1,...]**(td/500)#np.exp(-td/(x[1,...]*T1_sc)) 
     M0 = x[0,...]
+    M0_sc = self.M0_sc
         
 
     F = (1 - Etau)/(1-Etau*cos_phi)
@@ -368,11 +369,13 @@ class IRLL_Model:
     td = self.td
     sin_phi = self.sin_phi#np.sin(self.fa*x[2,...])
     cos_phi = self.cos_phi#np.cos(self.fa*x[2,...])+
-    N = self.NLL*self.Nproj
+
+    N = self.Nproj_measured
     Etau = x[1,...]
     Etau =x[1,...]**(tau/500) #np.exp(-tau/(x[1,...]*T1_sc))    
     Etr = x[1,...]**(TR/500)#np.exp(-TR/(x[1,...]*T1_sc))
     Etd = x[1,...]**(td/500)#np.exp(-td/(x[1,...]*T1_sc))   
+
     M0 = x[0,...]
     M0_sc = self.M0_sc
     
