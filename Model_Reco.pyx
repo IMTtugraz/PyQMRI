@@ -511,11 +511,11 @@ cdef class Model_Reco:
     cdef double theta_line = 1.0
 
     
-    cdef double beta_line = 1e0
+    cdef double beta_line = 400
     cdef double beta_new = 0
     
     cdef double mu_line = 0.5
-    cdef double delta_line = 0.8
+    cdef double delta_line = 1
     
     cdef np.ndarray[DTYPE_t,ndim=3] scal = np.zeros((self.par.NSlice,self.par.dimX,self.par.dimY),dtype=DTYPE)
     
@@ -554,12 +554,12 @@ cdef class Model_Reco:
 
             
       v_new = v-tau*Kyk2   
-#      beta_new = beta_line*(1+mu*tau)
+      beta_new = beta_line*(1+mu*tau)
       
-#      tau_new = tau*np.sqrt(beta_line/beta_new*(1+theta_line))
-      tau_new = tau*np.sqrt((1+theta_line))
+      tau_new = tau*np.sqrt(beta_line/beta_new*(1+theta_line))
+#      tau_new = tau*np.sqrt((1+theta_line))
 #      tau_new = tau*np.sqrt(beta_line/beta_new)      
-#      beta_line = beta_new
+      beta_line = beta_new
       
       gradx = gd.fgrad_3(x_new,1,1,dz)
       gradx_xold = gradx - gd.fgrad_3(x,1,1,dz)  
