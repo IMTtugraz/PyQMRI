@@ -244,8 +244,8 @@ if roi_num > 0:
     ax_ref.text(posy,posx,str(j+1),color='red')
     ax_ref.add_patch(rects) 
      
-  mean_TGV = np.round(pd.DataFrame(np.reshape(np.asarray(mean_TGV),(roi_num,NResults+1)).T,index=['Reference','5s','8s'],columns=col_names),decimals=0)
-  std_TGV =  np.round(pd.DataFrame(np.reshape(np.asarray(std_TGV),(roi_num,NResults+1)).T,index=['Reference','5s','8s'],columns=col_names),decimals=0)
+  mean_TGV = np.round(pd.DataFrame(np.reshape(np.asarray(mean_TGV),(roi_num,NResults+1)).T,index=['Reference','5s_new','5s','8s','8s_new'],columns=col_names),decimals=0)
+  std_TGV =  np.round(pd.DataFrame(np.reshape(np.asarray(std_TGV),(roi_num,NResults+1)).T,index=['Reference','5s_new','5s','8s','8s_new'],columns=col_names),decimals=0)
   
   f = open("test.tex","w")
   f.write(mean_TGV.to_latex())

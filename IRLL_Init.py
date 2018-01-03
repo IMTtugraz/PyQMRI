@@ -66,11 +66,8 @@ dcf = file['dcf'][()].astype(DTYPE)
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
 
 ############### Set number of Slices ###########################################
-<<<<<<< HEAD
-reco_Slices = 5
-=======
-reco_Slices = 3
->>>>>>> 6318f1d8cb569614defe57e9e5dcfbc212312251
+reco_Slices = 1
+
 os_slices = 20
 class struct:
     pass
@@ -169,14 +166,15 @@ else:
 ### Reorder acquired Spokes   ##################################################
 ################################################################################
   
-#scale_test = np.max(np.abs(nlinvout[0,-1,:,:]))
+if file.attrs['data_normalized_with_dcf']:
+    pass
+else:
+    data = data*np.sqrt(dcf)
 
-data = data*np.sqrt(dcf)
-#dcf = dcf/scale_test**2
 
 dcf = dcf * (N*np.pi/(4*Nproj))
 
-Nproj_new = 8
+Nproj_new = 21
 
 NScan = np.floor_divide(Nproj,Nproj_new)
 Nproj_measured = Nproj
@@ -188,7 +186,7 @@ par.NScan = NScan
 data = np.transpose(np.reshape(data[:,:,:,:Nproj*NScan,:],\
                                (NC,NSlice,NScan,Nproj,N)),(2,0,1,3,4))
 traj =np.reshape(traj[:Nproj*NScan,:],(NScan,Nproj,N))
-dcf = dcf[:Nproj,:]*NScan**2
+dcf = dcf[:Nproj,:]*np.sqrt(NScan)
 ################################################################################
 ### Calcualte wait time   ######################################################
 ################################################################################
@@ -264,7 +262,7 @@ images= (np.sum(nFTH(data,plan,dcf,NScan,NC,NSlice,\
 ### Init forward model and initial guess #######################################
 ################################################################################
 model = IRLL_Model.IRLL_Model(par.fa,par.fa_corr,par.TR,par.tau,par.td,\
-                              NScan,NSlice,dimY,dimX,Nproj,Nproj_measured)
+                              NScan,NSlice,dimY,dimX,Nproj,Nproj_measured,1)
 
 
 
@@ -289,12 +287,12 @@ opt.traj = traj
 ################################################################################
 #IRGN Params
 irgn_par = struct()
-irgn_par.start_iters = 10
-irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 10
+irgn_par.start_iters = 100
+irgn_par.max_iters = 300
+irgn_par.max_GN_it = 20
 irgn_par.lambd = 1e3
-irgn_par.gamma = 2e-1  #### 5e-2   5e-3 phantom ##### brain 1e-3
-irgn_par.delta = 1e-3  #### 8spk in-vivo 5e2
+irgn_par.gamma = 5e-2  #### 5e-2   5e-3 phantom ##### brain 1e-3
+irgn_par.delta = 1e0  #### 8spk in-vivo 5e2
 irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
 
@@ -356,21 +354,12 @@ dset_T1=f.create_dataset("T1_final",np.squeeze(opt.result[-1,1,...]).shape,\
 dset_M0=f.create_dataset("M0_final",np.squeeze(opt.result[-1,0,...]).shape,\
                          dtype=np.complex64,\
                          data=np.squeeze(opt.result[-1,0,...]))
-<<<<<<< HEAD
-#dset_T1_ref=f.create_dataset("T1_ref",np.squeeze(opt_t.result[-1,1,...]).shape\
-#                             ,dtype=np.complex64,\
-#                             data=np.squeeze(opt_t.result[-1,1,...]))
-#dset_M0_ref=f.create_dataset("M0_ref",np.squeeze(opt_t.result[-1,0,...]).shape\
-#                             ,dtype=np.complex64,\
-#                             data=np.squeeze(opt_t.result[-1,0,...]))
-=======
 dset_T1_ref=f.create_dataset("T1_ref",np.squeeze(opt_t.result[-1,1,...]).shape\
                              ,dtype=np.complex64,\
                              data=np.squeeze(opt_t.result[-1,1,...]))
 dset_M0_ref=f.create_dataset("M0_ref",np.squeeze(opt_t.result[-1,0,...]).shape\
                              ,dtype=np.complex64,\
                              data=np.squeeze(opt_t.result[-1,0,...]))
->>>>>>> 6318f1d8cb569614defe57e9e5dcfbc212312251
 #f.create_dataset("T1_guess",np.squeeze(model.T1_guess).shape,\
 #                 dtype=np.float64,data=np.squeeze(model.T1_guess))
 #f.create_dataset("M0_guess",np.squeeze(model.M0_guess).shape,\

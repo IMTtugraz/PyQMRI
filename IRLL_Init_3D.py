@@ -182,6 +182,10 @@ else:
 ################################################################################
 ### Reorder acquired Spokes   ##################################################
 ################################################################################
+if file.attrs['data_normalized_with_dcf']:
+    pass
+else:
+    data = data*np.sqrt(dcf)
 
 dcf = dcf * (N*np.pi/(4*Nproj))
 Nproj_new = 8
@@ -207,10 +211,7 @@ par.TR = file.attrs['time_per_slice']-(par.tau*Nproj*NScan+par.td)
 ################################################################################
 
 #### Close File after everything was read
-if file.attrs['data_normalized_with_dcf']:
-    pass
-else:
-    data = data*np.sqrt(dcf)
+
     
 file.close()
 

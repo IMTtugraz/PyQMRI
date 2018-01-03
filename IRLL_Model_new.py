@@ -25,7 +25,7 @@ class IRLL_Model:
   
   
   def __init__(self, fa, fa_corr, TR,tau,td,
-               NScan,NSlice,dimY,dimX, Nproj, Nproj_measured):
+               NScan,NSlice,dimY,dimX, Nproj, Nproj_measured, scale):
 
     self.constraints = []
     self.NSlice = NSlice
@@ -34,7 +34,7 @@ class IRLL_Model:
     self.fa_corr = np.ones_like(fa_corr,DTYPE)
     
     self.T1_sc = 1#5000
-    self.M0_sc = 1#50
+    self.M0_sc = 1/scale#50
     
     self.tau = tau
     self.td = td
@@ -52,10 +52,10 @@ class IRLL_Model:
     self.cos_phi = np.cos(phi_corr)    
 
     self.guess = np.array([0/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),\
-                           np.exp(-tau/(1000/self.T1_sc))*np.ones((NSlice,dimY,dimX),dtype=DTYPE)],dtype=DTYPE)
+                           np.exp(-500/(1000/self.T1_sc))*np.ones((NSlice,dimY,dimX),dtype=DTYPE)],dtype=DTYPE)
 #                           np.ones((NSlice,dimY,dimX),dtype=DTYPE)])               
     self.constraints.append(constraint(-300,300,False)  )
-    self.constraints.append(constraint(np.exp(-tau/(15)), np.exp(-tau/(8000)),True))
+    self.constraints.append(constraint(np.exp(-500/(10)), np.exp(-500/(5500)),True))
 
 #  def execute_forward_2D(self, x, islice):
 #    S = np.zeros((self.NLL,self.Nproj,self.dimY,self.dimX),dtype=DTYPE)
@@ -238,7 +238,7 @@ class IRLL_Model:
           plt.imshow(np.transpose(np.abs(x[0,...]*self.M0_sc)))
           plt.pause(0.05)
           plt.figure(2)
-          plt.imshow(np.transpose(-self.tau/np.log(np.abs(x[1,...]*self.T1_sc))))
+          plt.imshow(np.transpose(-55/np.log(np.abs(x[1,...]*self.T1_sc))))
           plt.pause(0.05)          
         #      plt.imshow(np.transpose(np.abs(x[1,0,:,:]*self.model.T1_sc)),vmin=0,vmax=5000)
 #          plt.pause(0.05)
@@ -251,7 +251,7 @@ class IRLL_Model:
           plt.imshow(np.transpose(np.abs(x[0,int(self.NSlice/2),...]*self.M0_sc)))
           plt.pause(0.05)
           plt.figure(2)
-          plt.imshow(np.transpose(-self.tau/np.log(np.abs(x[1,int(self.NSlice/2),...]*self.T1_sc))))
+          plt.imshow(np.transpose(-55/np.log(np.abs(x[1,int(self.NSlice/2),...]*self.T1_sc))))
         #      plt.imshow(np.transpose(np.abs(x[1,0,:,:]*self.model.T1_sc)),vmin=0,vmax=5000)
           plt.pause(0.05)
            
@@ -272,10 +272,27 @@ class IRLL_Model:
     sin_phi = self.sin_phi[islice,...]#np.sin(self.fa*x[2,...])
     cos_phi = self.cos_phi[islice,...]#np.cos(self.fa*x[2,...])+
     N = self.Nproj_measured
-    Etau =x[1,...] #np.exp(-tau/(x[1,...]*T1_sc))    
-    Etr = x[1,...]**(TR/tau)#np.exp(-TR/(x[1,...]*T1_sc))
-    Etd = x[1,...]**(td/tau)#np.exp(-td/(x[1,...]*T1_sc)) 
+#    Etau =x[1,...] #np.exp(-tau/(x[1,...]*T1_sc))    
+#    Etr = x[1,...]**(TR/tau)#np.exp(-TR/(x[1,...]*T1_sc))
+#    Etd = x[1,...]**(td/tau)#np.exp(-td/(x[1,...]*T1_sc)) 
+#    M0 = x[0,...]
+#        
+#
+#    F = (1 - Etau)/(1-Etau*cos_phi)
+#    Q = (-Etr*Etd*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(-Etau*cos_phi + 1) + Etr*Etd - 2*Etd + 1)/(Etr*Etd*(Etau*cos_phi)**(N - 1)*cos_phi + 1)
+#    Q_F = Q-F   
+#  
+#    for i in range(self.NLL):
+#      for j in range(self.Nproj):
+#            n = i*self.Nproj+j+1
+#            S[i,j,...] = M0*M0_sc*((Etau*cos_phi)**(n - 1)*(Q_F) + F)*sin_phi
+#    
+#    return np.mean(S,axis=1)
+    Etau =x[1,...]**(tau/500) #np.exp(-tau/(x[1,...]*T1_sc))    
+    Etr = x[1,...]**(TR/500)#np.exp(-TR/(x[1,...]*T1_sc))
+    Etd = x[1,...]**(td/500)#np.exp(-td/(x[1,...]*T1_sc)) 
     M0 = x[0,...]
+    M0_sc = self.M0_sc
         
 
     F = (1 - Etau)/(1-Etau*cos_phi)
@@ -285,9 +302,9 @@ class IRLL_Model:
     for i in range(self.NLL):
       for j in range(self.Nproj):
             n = i*self.Nproj+j+1
-            S[i,j,...] = M0*M0_sc*((Etau*cos_phi)**(n - 1)*(Q_F) + F)*sin_phi
+            S[i,j,...] = M0*M0_sc*((Etau*cos_phi)**(n - 1)*Q_F + F)*sin_phi
     
-    return np.mean(S,axis=1)
+    return np.mean(S,axis=1)    
   
   def execute_gradient_2D(self, x, islice):
     grad = np.zeros((2,self.NLL,self.Nproj,self.dimY,self.dimX),dtype=DTYPE)
@@ -300,9 +317,41 @@ class IRLL_Model:
     cos_phi = self.cos_phi[islice,...]#np.cos(self.fa*x[2,...])+
     N = self.Nproj_measured
 #    Etau = x[1,...]
-    Etau =x[1,...] #np.exp(-tau/(x[1,...]*T1_sc))    
-    Etr = x[1,...]**(TR/tau)#np.exp(-TR/(x[1,...]*T1_sc))
-    Etd = x[1,...]**(td/tau)#np.exp(-td/(x[1,...]*T1_sc))   
+#    Etau =x[1,...] #np.exp(-tau/(x[1,...]*T1_sc))    
+#    Etr = x[1,...]**(TR/tau)#np.exp(-TR/(x[1,...]*T1_sc))
+#    Etd = x[1,...]**(td/tau)#np.exp(-td/(x[1,...]*T1_sc))   
+#    M0 = x[0,...]
+#    M0_sc = self.M0_sc
+#    
+#  
+#    F = (1 - Etau)/(1-Etau*cos_phi)
+#    Q = (-Etr*Etd*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(-Etau*cos_phi + 1) + Etr*Etd - 2*Etd + 1)/(Etr*Etd*(Etau*cos_phi)**(N - 1)*cos_phi + 1)
+#    Q_F = Q-F  
+#    
+#    tmp1 = (-(-Etau + 1)*cos_phi/(-Etau*cos_phi + 1)**2 + \
+#                (-Etr*Etd*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi**2/(-Etau*cos_phi + 1)**2 + Etr*Etd*(-(Etau*cos_phi)**(N - 1) + 1)\
+#                 *cos_phi/(-Etau*cos_phi + 1) - Etr*Etd*TR*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(Etau*tau*(-Etau*cos_phi + 1)) +\
+#                 Etr*Etd*TR/(Etau*tau) + Etr*Etd*(Etau*cos_phi)**(N - 1)*(-Etau + 1)*(N - 1)*cos_phi/(Etau*(-Etau*cos_phi + 1)) -\
+#                 Etr*Etd*td*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(Etau*tau*(-Etau*cos_phi + 1)) + Etr*Etd*td/(Etau*tau) -\
+#                 2*Etd*td/(Etau*tau))/(Etr*Etd*(Etau*cos_phi)**(N - 1)*cos_phi + 1) + (-Etr*Etd*TR*(Etau*cos_phi)**(N - 1)*cos_phi/(Etau*tau) -\
+#                          Etr*Etd*(Etau*cos_phi)**(N - 1)*(N - 1)*cos_phi/Etau - Etr*Etd*td*(Etau*cos_phi)**(N - 1)*cos_phi/(Etau*tau))*Q**2 + \
+#                 1/(-Etau*cos_phi + 1))
+#    tmp2 = (-Etau + 1)*cos_phi/(-Etau*cos_phi + 1)**2 - 1/(-Etau*cos_phi + 1)
+#    for i in range(self.NLL):  
+#      for j in range(self.Nproj):
+#            n = i*self.Nproj+j+1
+#            
+#            grad[0,i,j,...] = M0_sc*((Etau*cos_phi)**(n - 1)*(Q_F) + F)*sin_phi
+#            
+#            grad[1,i,j,...] = M0*M0_sc*((Etau*cos_phi)**(n - 1)*tmp1 + tmp2 + (Etau*cos_phi)**(n - 1)*(n - 1)*\
+#                 (Q_F)/Etau)*sin_phi
+#            
+#    return np.mean(grad,axis=2)
+#             
+    Etau =x[1,...]**(tau/500) #np.exp(-tau/(x[1,...]*T1_sc))    
+    Etr = x[1,...]**(TR/500)#np.exp(-TR/(x[1,...]*T1_sc))
+    Etd = x[1,...]**(td/500)#np.exp(-td/(x[1,...]*T1_sc))   
+
     M0 = x[0,...]
     M0_sc = self.M0_sc
     
@@ -311,27 +360,26 @@ class IRLL_Model:
     Q = (-Etr*Etd*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(-Etau*cos_phi + 1) + Etr*Etd - 2*Etd + 1)/(Etr*Etd*(Etau*cos_phi)**(N - 1)*cos_phi + 1)
     Q_F = Q-F  
     
-    tmp1 = (-(-Etau + 1)*cos_phi/(-Etau*cos_phi + 1)**2 + \
-                (-Etr*Etd*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi**2/(-Etau*cos_phi + 1)**2 + Etr*Etd*(-(Etau*cos_phi)**(N - 1) + 1)\
-                 *cos_phi/(-Etau*cos_phi + 1) - Etr*Etd*TR*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(Etau*tau*(-Etau*cos_phi + 1)) +\
-                 Etr*Etd*TR/(Etau*tau) + Etr*Etd*(Etau*cos_phi)**(N - 1)*(-Etau + 1)*(N - 1)*cos_phi/(Etau*(-Etau*cos_phi + 1)) -\
-                 Etr*Etd*td*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(Etau*tau*(-Etau*cos_phi + 1)) + Etr*Etd*td/(Etau*tau) -\
-                 2*Etd*td/(Etau*tau))/(Etr*Etd*(Etau*cos_phi)**(N - 1)*cos_phi + 1) + (-Etr*Etd*TR*(Etau*cos_phi)**(N - 1)*cos_phi/(Etau*tau) -\
-                          Etr*Etd*(Etau*cos_phi)**(N - 1)*(N - 1)*cos_phi/Etau - Etr*Etd*td*(Etau*cos_phi)**(N - 1)*cos_phi/(Etau*tau))*Q**2 + \
-                 1/(-Etau*cos_phi + 1))
-    tmp2 = (-Etau + 1)*cos_phi/(-Etau*cos_phi + 1)**2 - 1/(-Etau*cos_phi + 1)
+    tmp1 = ((-Etr*Etau*Etd*tau*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)\
+                *cos_phi**2/(500*Etau*(-Etau*cos_phi + 1)**2) + Etr*Etau*Etd*tau*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/\
+                (500*Etau*(-Etau*cos_phi + 1)) - Etr*Etd*TR*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(500*Etau*(-Etau*cos_phi + 1)) \
+                + Etr*Etd*TR/(500*Etau) + Etr*Etd*tau*(Etau*cos_phi)**(N - 1)*(-Etau + 1)*(N - 1)*cos_phi/(500*Etau*(-Etau*cos_phi + 1)) \
+                - Etr*Etd*td*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(500*Etau*(-Etau*cos_phi + 1)) + Etr*Etd*td/(500*Etau) \
+                - Etd*td/(150*Etau))/(Etr*Etd*(Etau*cos_phi)**(N - 1)*cos_phi + 1) + (-Etr*Etd*TR*(Etau*cos_phi)**(N - 1)*cos_phi/(500*Etau) -\
+                         Etr*Etd*tau*(Etau*cos_phi)**(N - 1)*(N - 1)*cos_phi/(500*Etau) - Etr*Etd*td*(Etau*cos_phi)**(N - 1)*\
+                         cos_phi/(500*Etau))*Q**2 - Etau*tau*(-Etau + 1)*cos_phi/(500*Etau*(-Etau*cos_phi + 1)**2) + \
+              Etau*tau/(500*Etau*(-Etau*cos_phi + 1)))
+    tmp2 = Etau*tau*(-Etau + 1)*cos_phi/(500*Etau*(-Etau*cos_phi + 1)**2) -\
+              Etau*tau/(500*Etau*(-Etau*cos_phi + 1))
     for i in range(self.NLL):  
       for j in range(self.Nproj):
             n = i*self.Nproj+j+1
             
-            grad[0,i,j,...] = M0_sc*((Etau*cos_phi)**(n - 1)*(Q_F) + F)*sin_phi
+            grad[0,i,j,...] = M0_sc*((Etau*cos_phi)**(n - 1)*Q_F + F)*sin_phi
             
-            grad[1,i,j,...] = M0*M0_sc*((Etau*cos_phi)**(n - 1)*tmp1 + tmp2 + (Etau*cos_phi)**(n - 1)*(n - 1)*\
-                 (Q_F)/Etau)*sin_phi
+            grad[1,i,j,...] = M0*M0_sc*((Etau*cos_phi)**(n - 1)*tmp1 + tmp2 + tau*(Etau*cos_phi)**(n - 1)*(n - 1)*Q_F/(500*Etau))*sin_phi
             
-    return np.mean(grad,axis=2)
-             
-           
+    return np.mean(grad,axis=2)          
            
   def execute_forward_3D(self, x):
     S = np.zeros((self.NLL,self.Nproj,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
@@ -371,7 +419,7 @@ class IRLL_Model:
     cos_phi = self.cos_phi#np.cos(self.fa*x[2,...])+
 
     N = self.Nproj_measured
-    Etau = x[1,...]
+#    Etau = x[1,...]
     Etau =x[1,...]**(tau/500) #np.exp(-tau/(x[1,...]*T1_sc))    
     Etr = x[1,...]**(TR/500)#np.exp(-TR/(x[1,...]*T1_sc))
     Etd = x[1,...]**(td/500)#np.exp(-td/(x[1,...]*T1_sc))   
