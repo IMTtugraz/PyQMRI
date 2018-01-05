@@ -19,10 +19,10 @@ def imshow(volume):
     ax.index = volume.shape[0] // 2
     ax.imshow(volume[ax.index])
   elif volume.ndim==4:
-    fig, ax = plt.subplots(int(np.floor(np.sqrt(volume.shape[0]))),int(np.ceil(np.sqrt(volume.shape[0]))))
+    fig, ax = plt.subplots(int(np.ceil(np.sqrt(volume.shape[0]))),int(np.ceil(np.sqrt(volume.shape[0]))))
     ax = ax.flatten()
     ni = int(np.ceil(np.sqrt(volume.shape[0])))
-    nj = int(np.floor(np.sqrt(volume.shape[0])))
+    nj = int(np.ceil(np.sqrt(volume.shape[0])))
     for j in range(nj):
       for i in range(ni):
         if i+ni*j >= volume.shape[0]:

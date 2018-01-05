@@ -76,7 +76,8 @@ dcf = file['dcf'][()].astype(DTYPE)
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
 
 ############### Set number of Slices ###########################################
-reco_Slices = 40
+reco_Slices = 5
+os_slices = 20
 
 class struct:
     pass
@@ -97,12 +98,15 @@ par.fa_corr = file['fa_corr'][()].astype(DTYPE)
 data = data[None,:,int(NSlice/2)-\
             int(np.ceil(reco_Slices/2)):int(NSlice/2)+\
             int(np.floor(reco_Slices/2)),:,:]
+<<<<<<< HEAD
 NSlice = reco_slices
+=======
+>>>>>>> cd6e87713fd6c926c2217f02145b20e348b61064
 if reco_Slices ==1:
   data = data[:,:,None,:,:]
   
-par.fa_corr = np.flip(par.fa_corr,axis=0)[int(NSlice/2)-\
-            int(np.ceil(reco_Slices/2)):int(NSlice/2)+\
+par.fa_corr = np.flip(par.fa_corr,axis=0)[int((NSlice-os_slices)/2)-\
+            int(np.ceil(reco_Slices/2)):int((NSlice-os_slices)/2)+\
             int(np.floor(reco_Slices/2)),:,:]
 
 [NScan,NC,NSlice,Nproj, N] = data.shape

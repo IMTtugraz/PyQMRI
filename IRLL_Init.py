@@ -66,7 +66,7 @@ dcf = file['dcf'][()].astype(DTYPE)
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
 
 ############### Set number of Slices ###########################################
-reco_Slices = 5
+reco_Slices = 1
 
 class struct:
     pass
@@ -88,8 +88,6 @@ data = data[None,:,int(NSlice/2)-\
             int(np.ceil(reco_Slices/2)):int(NSlice/2)+\
             int(np.floor(reco_Slices/2)),:,:]
 
-if reco_Slices ==1:
-  data = data[:,:,None,:,:]
   
 par.fa_corr = np.flip(par.fa_corr,axis=0)[int(NSlice/2)-\
             int(np.ceil(reco_Slices/2)):int(NSlice/2)+\
@@ -282,7 +280,7 @@ opt.traj = traj
 irgn_par = struct()
 irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 8
+irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e2
 irgn_par.gamma = 1e-3   #### 5e-2   5e-3 phantom ##### brain 1e-3
 irgn_par.delta = 1e1  #### 8spk in-vivo 5e2
