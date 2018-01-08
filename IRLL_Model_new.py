@@ -371,14 +371,15 @@ class IRLL_Model:
   def execute_gradient_3D(self, x):
     grad = np.zeros((2,self.NLL,self.Nproj,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
     M0_sc = self.M0_sc
+#    T1_sc = self.T1_sc
     TR = self.TR
     tau = self.tau
     td = self.td
     sin_phi = self.sin_phi#np.sin(self.fa*x[2,...])
     cos_phi = self.cos_phi#np.cos(self.fa*x[2,...])+
-
     N = self.Nproj_measured
-#    Etau = x[1,...]
+
+    Efit = x[1,...]           
     Etau =x[1,...]**(tau/100) #np.exp(-tau/(x[1,...]*T1_sc))    
     Etr = x[1,...]**(TR/100)#np.exp(-TR/(x[1,...]*T1_sc))
     Etd = x[1,...]**(td/100)#np.exp(-td/(x[1,...]*T1_sc))   
@@ -392,25 +393,31 @@ class IRLL_Model:
     Q_F = Q-F  
     
     tmp1 = ((-Etr*Etau*Etd*tau*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)\
-                *cos_phi**2/(100*Etau*(-Etau*cos_phi + 1)**2) + Etr*Etau*Etd*tau*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/\
-                (100*Etau*(-Etau*cos_phi + 1)) - Etr*Etd*TR*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(100*Etau*(-Etau*cos_phi + 1)) \
-                + Etr*Etd*TR/(100*Etau) + Etr*Etd*tau*(Etau*cos_phi)**(N - 1)*(-Etau + 1)*(N - 1)*cos_phi/(100*Etau*(-Etau*cos_phi + 1)) \
-                - Etr*Etd*td*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(100*Etau*(-Etau*cos_phi + 1)) + Etr*Etd*td/(100*Etau) \
-                - Etd*td/(150*Etau))/(Etr*Etd*(Etau*cos_phi)**(N - 1)*cos_phi + 1) + (-Etr*Etd*TR*(Etau*cos_phi)**(N - 1)*cos_phi/(100*Etau) -\
-                         Etr*Etd*tau*(Etau*cos_phi)**(N - 1)*(N - 1)*cos_phi/(100*Etau) - Etr*Etd*td*(Etau*cos_phi)**(N - 1)*\
-                         cos_phi/(100*Etau))*Q**2 - Etau*tau*(-Etau + 1)*cos_phi/(100*Etau*(-Etau*cos_phi + 1)**2) + \
-              Etau*tau/(100*Etau*(-Etau*cos_phi + 1)))
-    tmp2 = Etau*tau*(-Etau + 1)*cos_phi/(100*Etau*(-Etau*cos_phi + 1)**2) -\
-              Etau*tau/(100*Etau*(-Etau*cos_phi + 1))
+                *cos_phi**2/(100*Efit*(-Etau*cos_phi + 1)**2) + Etr*Etau*Etd*tau*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(100\
+                            *Efit*(-Etau*cos_phi + 1)) - Etr*Etd*TR*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(100*Efit*\
+                                  (-Etau*cos_phi + 1)) + Etr*Etd*TR/(100*Efit) + Etr*Etd*tau*(Etau*cos_phi)**(N - 1)*(-Etau + 1)*\
+                            (N - 1)*cos_phi/(100*Efit*(-Etau*cos_phi + 1)) - Etr*Etd*td*(-Etau + 1)*(-(Etau*cos_phi)**(N - 1) + 1)\
+                            *cos_phi/(100*Efit*(-Etau*cos_phi + 1)) + Etr*Etd*td/(100*Efit) - Etd*td/(50*Efit))/(Etr*Etd*\
+                                     (Etau*cos_phi)**(N - 1)*cos_phi + 1) + (-Etr*Etd*TR*(Etau*cos_phi)**(N - 1)*\
+                                     cos_phi/(100*Efit) - Etr*Etd*tau*(Etau*cos_phi)**(N - 1)*(N - 1)*cos_phi/(100*Efit) - \
+                                     Etr*Etd*td*(Etau*cos_phi)**(N - 1)*cos_phi/(100*Efit))*(-Etr*Etd*(-Etau + 1)*\
+                                                (-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(-Etau*cos_phi + 1) + Etr*Etd - 2*Etd + 1)\
+                            /(Etr*Etd*(Etau*cos_phi)**(N - 1)*cos_phi + 1)**2 - Etau*tau*(-Etau + 1)*cos_phi/\
+                            (100*Efit*(-Etau*cos_phi + 1)**2) + Etau*tau/(100*Efit*(-Etau*cos_phi + 1)))
+    tmp2 = Etau*tau*(-Etau + 1)\
+                            *cos_phi/(100*Efit*(-Etau*cos_phi + 1)**2) - Etau*tau/(100*Efit*(-Etau*cos_phi + 1))
+    tmp3 = (-(-Etau + 1)/(-Etau*cos_phi + 1) + (-Etr*Etd*(-Etau + 1)*\
+                                                 (-(Etau*cos_phi)**(N - 1) + 1)*cos_phi/(-Etau*cos_phi + 1) + Etr*Etd - 2*Etd + 1)\
+                            /(Etr*Etd*(Etau*cos_phi)**(N - 1)*cos_phi + 1))/(100*Efit)
     for i in range(self.NLL):  
       for j in range(self.Nproj):
             n = i*self.Nproj+j+1
             
             grad[0,i,j,...] = M0_sc*((Etau*cos_phi)**(n - 1)*Q_F + F)*sin_phi
             
-            grad[1,i,j,...] = M0*M0_sc*((Etau*cos_phi)**(n - 1)*tmp1 + tmp2 + tau*(Etau*cos_phi)**(n - 1)*(n - 1)*Q_F/(100*Etau))*sin_phi
-            
-    return np.mean(grad,axis=2)
+            grad[1,i,j,...] = M0*M0_sc*((Etau*cos_phi)**(n - 1)*tmp1 + tmp2 + \
+                            tau*(Etau*cos_phi)**(n - 1)*(n - 1)*tmp3)*sin_phi
+    return np.array(np.mean(grad,axis=2,dtype=np.complex256),dtype=DTYPE)
              
            
            

@@ -10,24 +10,14 @@ Created on Fri Jun  9 11:33:09 2017
 #cython: boundscheck=False, wraparound=False, nonecheck=False
 
 import numpy as np
-cimport numpy as np
 np.import_array()
 import matplotlib.pyplot as plt
 plt.ion()
-cimport cython
-from cython.parallel import parallel, prange
 
 DTYPE = np.complex64
-ctypedef float complex DTYPE_t
 
-cdef extern from "complex.h":
-    DTYPE_t cexp(DTYPE_t z) nogil
-    DTYPE_t cpow(DTYPE_t z) nogil
-    
-@cython.cdivision(True)      
-@cython.boundscheck(False) # turn off bounds-checking for entire function
-@cython.wraparound(False)  # turn off negative index wrapping for entire function    
-def class IRLL_Model:
+
+class IRLL_Model:
   
   
   def __init__(self, fa, fa_corr, TR,tau,td,
@@ -70,18 +60,20 @@ def class IRLL_Model:
     sin_phi = self.sin_phi
     cos_phi = self.cos_phi    
     N = self.NLL
+    T1 = x[1,...]
+    M0 = x[0,...]
     for i in range(self.NLL):
-      cosEtau = cos_phi[islice,...]*exp(-tau/(T1*T1_sc))        
+      cosEtau = cos_phi[islice,...]*np.exp(-tau/(T1*T1_sc))        
       cosEtauN = cosEtau**(N-1)           
-      Etr = exp(-TR/(T1*T1_sc))
-      Etd = exp(-td/(T1*T1_sc))
-      Etau = exp(-tau/(T1*T1_sc))
+      Etr = np.exp(-TR/(T1*T1_sc))
+      Etd = np.exp(-td/(T1*T1_sc))
+      Etau = np.exp(-tau/(T1*T1_sc))
       F = (1 - Etau)/(-cosEtau + 1)
       Q = (-cos_phi[islice,...]*F*(-cosEtauN + 1)*Etr*Etd + 1 - 2*Etd + Etr)/(cos_phi[islice,...]*cosEtauN*Etr*Etd + 1)
       Q_F = Q-F
       for j in range(self.Nproj):
             n = i*self.Nproj+j+1
-            S[i,j,...] = x[0,...]*M0_sc*sin_phi[islice,...]*((cosEtau)**(n - 1)*(Q_F) + F)
+            S[i,j,...] = M0*M0_sc*sin_phi[islice,...]*((cosEtau)**(n - 1)*(Q_F) + F)
     
     return np.mean(S,axis=1)
   def execute_gradient_2D(self, x, islice):
@@ -94,7 +86,7 @@ def class IRLL_Model:
     sin_phi = self.sin_phi
     cos_phi = self.cos_phi    
     N = self.NLL  
-    
+    T1 = x[1,...]
     ####Precompute
     cosEtau = cos_phi[islice,...]*exp(-tau/(T1*T1_sc))        
     cosEtauN = cosEtau**(N-1)           
