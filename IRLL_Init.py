@@ -174,7 +174,7 @@ else:
 
 dcf = dcf * (N*np.pi/(4*Nproj))
 
-Nproj_new = 21
+Nproj_new = 13
 
 NScan = np.floor_divide(Nproj,Nproj_new)
 Nproj_measured = Nproj
@@ -186,7 +186,7 @@ par.NScan = NScan
 data = np.transpose(np.reshape(data[:,:,:,:Nproj*NScan,:],\
                                (NC,NSlice,NScan,Nproj,N)),(2,0,1,3,4))
 traj =np.reshape(traj[:Nproj*NScan,:],(NScan,Nproj,N))
-dcf = dcf[:Nproj,:]*np.sqrt(NScan)
+dcf = dcf[:Nproj,:]*(NScan)
 ################################################################################
 ### Calcualte wait time   ######################################################
 ################################################################################
@@ -256,8 +256,11 @@ plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
 images= (np.sum(nFTH(data,plan,dcf,NScan,NC,NSlice,\
                      dimY,dimX)*(np.conj(par.C)),axis = 1))
 
-
-
+#
+#par.tau = par.tau*Nproj
+#par.td = par.td+par.tau/2
+#Nproj = 1
+#Nproj_measured = NScan
 ################################################################################
 ### Init forward model and initial guess #######################################
 ################################################################################
@@ -287,12 +290,12 @@ opt.traj = traj
 ################################################################################
 #IRGN Params
 irgn_par = struct()
-irgn_par.start_iters = 100
-irgn_par.max_iters = 300
-irgn_par.max_GN_it = 20
+irgn_par.start_iters = 10
+irgn_par.max_iters = 1000
+irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e3
 irgn_par.gamma = 5e-2  #### 5e-2   5e-3 phantom ##### brain 1e-3
-irgn_par.delta = 1e0  #### 8spk in-vivo 5e2
+irgn_par.delta = 1e-1 ### 8spk in-vivo 5e2
 irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
 

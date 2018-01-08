@@ -16,9 +16,9 @@ init_printing(use_unicode=True)
 #E1 = Efit#**(TR/1000)#exp(-TR/(T1*T1_sc))
 #Etau = exp(-tau/(T1*T1_sc))
 #Etd = exp(-td/(T1*T1_sc))
-Etau = Efit
-Etd = Efit**(td/tau)
-E1 = Efit**(TR/tau)
+Etau = Efit**(tau/100)
+Etd = Efit**(td/100)
+E1 = Efit**(TR/100)
 
 F = (1-Etau)/(1-cos(fa*fa_corr)*Etau)
 
