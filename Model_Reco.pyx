@@ -88,6 +88,7 @@ cdef class Model_Reco:
            +self.irgn_par.gamma*(2)*np.sum(np.abs(gd.sym_bgrad_2(self.v))) 
            +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2
            +self.irgn_par.omega/2*np.linalg.norm(gd.fgrad_1(x[-self.unknowns_H1:,...]))**2)    
+    print("-"*80)
     print ("Function value after GN-Step: %f" %fval)
 
     return x
@@ -115,6 +116,7 @@ cdef class Model_Reco:
            +self.irgn_par.gamma*(2)*np.sum(np.abs(gd.sym_bgrad_3(self.v,1,1,self.dz))) 
            +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2
            +self.irgn_par.omega/2*np.linalg.norm((x[-self.unknowns_H1:,...]))**2)  
+    print("-"*80)
     print ("Function value after GN-Step: %f" %fval)
 
     return x
@@ -151,11 +153,13 @@ cdef class Model_Reco:
           self.result[i,:,islice,:,:] = result[:,islice,:,:]
           
           iters = np.fmin(iters*2,self.irgn_par.max_iters)
-          self.irgn_par.gamma = self.irgn_par.gamma*0.8
-          self.irgn_par.delta = self.irgn_par.delta*2
+          self.irgn_par.gamma = np.maximum(self.irgn_par.gamma*0.8,self.irgn_par.gamma_min)
+          self.irgn_par.delta = np.minimum(self.irgn_par.delta*2, self.irgn_par.delta_max)
           
           end = time.time()-start
-          print("Elapsed time: %f seconds" %end)
+          print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
+          print("-"*80)
+                 
 
         
   cpdef execute_2D_cart(self):
@@ -192,7 +196,8 @@ cdef class Model_Reco:
         self.irgn_par.delta = self.irgn_par.delta*2
         
         end = time.time()-start
-        print("Elapsed time: %f seconds" %end)
+        print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
+        print("-"*80)
                  
       
      
@@ -201,6 +206,8 @@ cdef class Model_Reco:
       self.FT = self.nFT_3D
       self.FTH = self.nFTH_3D
       iters = self.irgn_par.start_iters
+      gamma = self.irgn_par.gamma
+      delta = self.irgn_par.delta
 
       self.v = np.zeros(([self.unknowns_TGV,3,self.NSlice,self.par.dimX,self.par.dimY]),dtype=DTYPE)
       self.r = np.zeros_like(self.data,dtype=DTYPE)
@@ -224,11 +231,12 @@ cdef class Model_Reco:
 
 
         iters = np.fmin(iters*2,self.irgn_par.max_iters)
-        self.irgn_par.gamma = self.irgn_par.gamma*0.8 ##0.7
-        self.irgn_par.delta = self.irgn_par.delta*2
+        self.irgn_par.gamma = np.maximum(self.irgn_par.gamma*0.8,gamma*1e-2)
+        self.irgn_par.delta = np.minimum(self.irgn_par.delta*2,delta*1e2)
           
         end = time.time()-start
-        print("Elapsed time: %f seconds" %end)
+        print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
+        print("-"*80)
             
                
       
@@ -330,9 +338,10 @@ cdef class Model_Reco:
     cdef double lhs = 0.0
 
     cdef double primal = 0.0
+    cdef double primal_new = 0
     cdef double dual = 0.0
+    cdef double gap_min = 0.0
     cdef double gap = 0.0
-    
     
 
     
@@ -433,31 +442,50 @@ cdef class Model_Reco:
       r =  (r_new)
       tau =  (tau_new)
         
-  
-      x = (x_new)
-      v = (v_new)
         
       if not np.mod(i,20):
-        self.model.plot_unknowns(x,True)
+        self.model.plot_unknowns(x_new,True)
         if self.unknowns_H1 > 0:
-          primal= np.real(self.irgn_par.lambd/2*np.linalg.norm((Ax-res).flatten())**2+alpha*np.sum(np.abs((gradx[:self.unknowns_TGV]-v))) +
-                   beta*np.sum(np.abs(symgrad_v)) + 1/(2*delta)*np.linalg.norm((x-xk).flatten())**2
+          primal_new= np.real(self.irgn_par.lambd/2*np.linalg.norm((Ax-res).flatten())**2+alpha*np.sum(np.abs((gradx[:self.unknowns_TGV]-v))) +
+                   beta*np.sum(np.abs(symgrad_v)) + 1/(2*delta)*np.linalg.norm((x_new-xk).flatten())**2
                    +self.irgn_par.omega/2*np.linalg.norm(gradx[-self.unknowns_H1:,...]-self.par.fa)**2)
       
           dual = np.real(-delta/2*np.linalg.norm((-Kyk1_new).flatten())**2 - np.vdot(xk.flatten(),(-Kyk1_new).flatten()) + np.sum(Kyk2_new) 
                   - 1/(2*self.irgn_par.lambd)*np.linalg.norm(r.flatten())**2 - np.vdot(res.flatten(),r.flatten())
                   - 1/(2*self.irgn_par.omega)*np.linalg.norm(z3.flatten())**2)
         else:
-          primal= np.real(self.irgn_par.lambd/2*np.linalg.norm((Ax-res).flatten())**2+alpha*np.sum(np.abs((gradx[:self.unknowns_TGV]-v))) +
-                   beta*np.sum(np.abs(symgrad_v)) + 1/(2*delta)*np.linalg.norm((x-xk).flatten())**2)
+          primal_new= np.real(self.irgn_par.lambd/2*np.linalg.norm((Ax-res).flatten())**2+alpha*np.sum(np.abs((gradx[:self.unknowns_TGV]-v))) +
+                   beta*np.sum(np.abs(symgrad_v)) + 1/(2*delta)*np.linalg.norm((x_new-xk).flatten())**2)
       
           dual = np.real(-delta/2*np.linalg.norm((-Kyk1_new).flatten())**2 - np.vdot(xk.flatten(),(-Kyk1_new).flatten()) + np.sum(Kyk2_new) 
                   - 1/(2*self.irgn_par.lambd)*np.linalg.norm(r.flatten())**2 - np.vdot(res.flatten(),r.flatten()))
             
-        gap = np.abs(primal - dual)
+        gap = np.abs(primal_new - dual)
+        if i==0:
+          gap_min = gap
+        if np.abs(primal-primal_new)<self.irgn_par.lambd*1e-3:
+          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(i,np.abs(primal-primal_new)))
+          self.v = v_new
+          self.r = r
+          self.z1 = z1
+          self.z2 = z2
+          return x_new
+        if (gap > gap_min*1.1 or primal-primal_new<0) and i>1:
+          self.v = v
+          self.r = r
+          self.z1 = z1
+          self.z2 = z2
+          print("Terminated at iteration %d because the method stagnated"%(i))
+          return x
+        primal = primal_new
+        gap_min = np.minimum(gap,gap_min)
         print("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f "%(i,primal,dual,gap))
+        print("Norm of primal gradient: %.3e"%(np.linalg.norm(Kyk1)+np.linalg.norm(Kyk2)))
+        print("Norm of dual gradient: %.3e"%(np.linalg.norm(tmp)+np.linalg.norm(gradx[:self.unknowns_TGV] + theta_line*gradx_xold[:self.unknowns_TGV]
+                                          - v_new - theta_line*v_vold)+np.linalg.norm( symgrad_v + theta_line*symgrad_v_vold)))
         
-        
+      x = (x_new)
+      v = (v_new)
     self.v = v
     self.r = r
     self.z1 = z1
@@ -522,9 +550,11 @@ cdef class Model_Reco:
     cdef double ynorm = 0
     cdef double lhs = 0
 
-    cdef double primal = 0
-    cdef double dual = 0
-    cdef double gap = 0
+    cdef double primal = 0.0
+    cdef double primal_new = 0
+    cdef double dual = 0.0
+    cdef double gap_min = 0.0
+    cdef double gap = 0.0
 
     
     cdef np.ndarray[DTYPE_t,ndim=5] gradx = np.zeros_like(z1,dtype=DTYPE)
@@ -611,32 +641,48 @@ cdef class Model_Reco:
       z2 = (z2_new)
       r =  (r_new)
       tau =  (tau_new)
-        
-  
-      x = x_new
-      v = v_new
+
         
       if not np.mod(i,20):
         self.model.plot_unknowns(x)
         if self.unknowns_H1 > 0:
-          primal= np.real(self.irgn_par.lambd/2*np.linalg.norm((Ax-res).flatten())**2+alpha*np.sum(np.abs((gradx[:self.unknowns_TGV]-v))) +
-                   beta*np.sum(np.abs(symgrad_v)) + 1/(2*delta)*np.linalg.norm((x-xk).flatten())**2
+          primal_new= np.real(self.irgn_par.lambd/2*np.linalg.norm((Ax-res).flatten())**2+alpha*np.sum(np.abs((gradx[:self.unknowns_TGV]-v))) +
+                   beta*np.sum(np.abs(symgrad_v)) + 1/(2*delta)*np.linalg.norm((x_new-xk).flatten())**2
                    +self.irgn_par.omega/2*np.linalg.norm(x[-self.unknowns_H1:,...])**2)
       
           dual = np.real(-delta/2*np.linalg.norm((-Kyk1_new).flatten())**2 - np.vdot(xk.flatten(),(-Kyk1_new).flatten()) + np.sum(Kyk2_new) 
                   - 1/(2*self.irgn_par.lambd)*np.linalg.norm(r.flatten())**2 - np.vdot(res.flatten(),r.flatten())
                   - 1/(2*self.irgn_par.omega)*np.linalg.norm(z3.flatten())**2)
         else:
-          primal= np.real(self.irgn_par.lambd/2*np.linalg.norm((Ax-res).flatten())**2+alpha*np.sum(np.abs((gradx[:self.unknowns_TGV]-v))) +
-                   beta*np.sum(np.abs(symgrad_v)) + 1/(2*delta)*np.linalg.norm((x-xk).flatten())**2)
+          primal_new= np.real(self.irgn_par.lambd/2*np.linalg.norm((Ax-res).flatten())**2+alpha*np.sum(np.abs((gradx[:self.unknowns_TGV]-v))) +
+                   beta*np.sum(np.abs(symgrad_v)) + 1/(2*delta)*np.linalg.norm((x_new-xk).flatten())**2)
       
           dual = np.real(-delta/2*np.linalg.norm((-Kyk1_new).flatten())**2 - np.vdot(xk.flatten(),(-Kyk1_new).flatten()) + np.sum(Kyk2_new) 
                   - 1/(2*self.irgn_par.lambd)*np.linalg.norm(r.flatten())**2 - np.vdot(res.flatten(),r.flatten()))
             
-        gap = np.abs(primal - dual)
-        print("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f "%(i,primal,dual,gap))
+        gap = np.abs(primal_new - dual)
+        if i==0:
+          gap_min = gap
+        if np.abs(primal-primal_new)<self.irgn_par.lambd*1e-3*self.par.NSlice:
+          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(i,np.abs(primal-primal_new)))
+          self.v = v_new
+          self.r = r
+          self.z1 = z1
+          self.z2 = z2
+          return x_new
+        if (gap > gap_min*1.1 or primal-primal_new < 0) and i>1:
+          self.v = v
+          self.r = r
+          self.z1 = z1
+          self.z2 = z2
+          print("Terminated at iteration %d because the method stagnated"%(i))
+          return x
+        primal = primal_new
+        gap_min = np.minimum(gap,gap_min)
+        print("Iteration: %d ---- Primal: %.3e, Dual: %.3e, Gap: %.3e "%(i,primal,dual,gap))
         
-        
+      x = x_new
+      v = v_new    
     self.v = v
     self.z1 = z1
     self.z2 = z2
