@@ -90,7 +90,7 @@ data = data[None,:,int(NSlice/2)-\
             int(np.floor(reco_Slices/2)),:,:]
 
   
-par.fa_corr =np.ones_like(np.flip(par.fa_corr,axis=0)[int((NSlice-os_slices)/2)-\
+par.fa_corr =(np.flip(par.fa_corr,axis=0)[int((NSlice-os_slices)/2)-\
             int(np.ceil(reco_Slices/2)):int((NSlice-os_slices)/2)+\
             int(np.floor(reco_Slices/2)),:,:])
 
@@ -186,7 +186,7 @@ par.NScan = NScan
 data = np.transpose(np.reshape(data[:,:,:,:Nproj*NScan,:],\
                                (NC,NSlice,NScan,Nproj,N)),(2,0,1,3,4))
 traj =np.reshape(traj[:Nproj*NScan,:],(NScan,Nproj,N))
-dcf = dcf[:Nproj,:]*(NScan)
+dcf = dcf[:Nproj,:]*np.sqrt(NScan)
 ################################################################################
 ### Calcualte wait time   ######################################################
 ################################################################################
@@ -295,11 +295,12 @@ irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 30
 irgn_par.lambd = 1e3
 irgn_par.gamma = 5e-2  #### 5e-2   5e-3 phantom ##### brain 1e-3
-irgn_par.delta = 5e-3 ### 8spk in-vivo 5e2
+irgn_par.delta = 5e-2 ### 8spk in-vivo 5e2
 irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 1e-3
-irgn_par.delta_max = 5e-1
+irgn_par.gamma_min = 5e-3
+irgn_par.delta_max = 1e1
+irgn_par.tol = 5e-4
 
 opt.irgn_par = irgn_par
 

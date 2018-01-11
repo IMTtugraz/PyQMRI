@@ -111,7 +111,7 @@ z = z*dz
 
 T1_plot=[]
 M0_plot=[]
-T1_min = 300
+T1_min = 600
 T1_max = 3000
 M0_min = 0
 M0_max = np.abs(np.max(M0_tgv[0]))
@@ -131,8 +131,8 @@ for j in range(NResults):
   T1 = T1_tgv[j]*mask
   T1_plot=[]
   
-  T1_plot.append(np.squeeze(T1[int(z/2),:,:,]).T)
-  T1_plot.append(np.flip((T1[:,int(x/2+3),:]).T,1))
+  T1_plot.append(np.squeeze(T1[int(z/2)+3,:,:,]).T)
+  T1_plot.append(np.flip((T1[:,int(x/2+10),:]).T,1))
   T1_plot.append([])
   T1_plot.append((T1[:,:,int(y/2-15)]))
   T1_plot.append(np.zeros((20,20)))

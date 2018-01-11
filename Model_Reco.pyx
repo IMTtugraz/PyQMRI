@@ -42,6 +42,8 @@ cdef class Model_Reco:
   cdef int Nproj
   cdef double scale
   cdef public float dz
+  cdef double fval
+  cdef double fval_min
   cdef DTYPE_t[:,:,:,::1] grad_x_2D
   cdef DTYPE_t[:,:,:,::1] conj_grad_x_2D
   cdef DTYPE_t[:,:,::1] Coils, conjCoils
@@ -61,6 +63,8 @@ cdef class Model_Reco:
     self.N = par.N
     self.Nproj = par.Nproj
     self.dz = 3
+    self.fval_min = 0
+    self.fval = 0
 
 
     print("Please Set Parameters, Data and Initial images")
@@ -83,13 +87,13 @@ cdef class Model_Reco:
     res = data - self.FT(self.step_val[:,None,:,:]*self.Coils) + self.operator_forward_2D(x)
   
     x = self.tgv_solve_2D(x,res,iters)      
-    fval= (self.irgn_par.lambd/2*np.linalg.norm(data - self.FT(self.model.execute_forward_2D(x,0)[:,None,:,:]*self.Coils))**2
+    self.fval= (self.irgn_par.lambd/2*np.linalg.norm(data - self.FT(self.model.execute_forward_2D(x,0)[:,None,:,:]*self.Coils))**2
            +self.irgn_par.gamma*np.sum(np.abs(gd.fgrad_1(x[:self.unknowns_TGV,...])-self.v))
            +self.irgn_par.gamma*(2)*np.sum(np.abs(gd.sym_bgrad_2(self.v))) 
            +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2
            +self.irgn_par.omega/2*np.linalg.norm(gd.fgrad_1(x[-self.unknowns_H1:,...]))**2)    
     print("-"*80)
-    print ("Function value after GN-Step: %f" %fval)
+    print ("Function value after GN-Step: %f" %self.fval)
 
     return x
   
@@ -111,13 +115,13 @@ cdef class Model_Reco:
    
     x = self.tgv_solve_3D(x,res,iters)
       
-    fval= (self.irgn_par.lambd/2*np.linalg.norm(data - self.FT(self.model.execute_forward_3D(x)[:,None,:,:]*self.Coils3D))**2
+    self.fval= (self.irgn_par.lambd/2*np.linalg.norm(data - self.FT(self.model.execute_forward_3D(x)[:,None,:,:]*self.Coils3D))**2
            +self.irgn_par.gamma*np.sum(np.abs(gd.fgrad_3(x[:self.unknowns_TGV,...],1,1,self.dz)-self.v))
            +self.irgn_par.gamma*(2)*np.sum(np.abs(gd.sym_bgrad_3(self.v,1,1,self.dz))) 
            +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2
            +self.irgn_par.omega/2*np.linalg.norm((x[-self.unknowns_H1:,...]))**2)  
     print("-"*80)
-    print ("Function value after GN-Step: %f" %fval)
+    print ("Function value after GN-Step: %f" %self.fval)
 
     return x
         
@@ -159,6 +163,9 @@ cdef class Model_Reco:
           end = time.time()-start
           print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
           print("-"*80)
+          if np.abs(self.fval_min-self.fval) < self.irgn_par.lambd*self.irgn_par.tol:
+            break
+          self.fval_min = np.minimum(self.fval,self.fval_min)
                  
 
         
@@ -198,6 +205,9 @@ cdef class Model_Reco:
         end = time.time()-start
         print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
         print("-"*80)
+        if np.abs(self.fval_min-self.fval) < self.irgn_par.lambd*self.irgn_par.tol:
+          break
+        self.fval_min = np.minimum(self.fval,self.fval_min)
                  
       
      
@@ -237,7 +247,9 @@ cdef class Model_Reco:
         end = time.time()-start
         print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
         print("-"*80)
-            
+        if np.abs(self.fval_min-self.fval) < self.irgn_par.lambd*self.irgn_par.tol*self.NSlice:
+          break
+        self.fval_min = np.minimum(self.fval,self.fval_min)            
                
       
   cdef np.ndarray[DTYPE_t,ndim=4] operator_forward_2D(self,np.ndarray[DTYPE_t,ndim=3] x):
@@ -463,7 +475,7 @@ cdef class Model_Reco:
         gap = np.abs(primal_new - dual)
         if i==0:
           gap_min = gap
-        if np.abs(primal-primal_new)<self.irgn_par.lambd*1e-3:
+        if np.abs(primal-primal_new)<self.irgn_par.lambd*self.irgn_par.tol:
           print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(i,np.abs(primal-primal_new)))
           self.v = v_new
           self.r = r
@@ -663,7 +675,7 @@ cdef class Model_Reco:
         gap = np.abs(primal_new - dual)
         if i==0:
           gap_min = gap
-        if np.abs(primal-primal_new)<self.irgn_par.lambd*1e-3*self.par.NSlice:
+        if np.abs(primal-primal_new)<self.irgn_par.lambd*self.irgn_par.tol*self.par.NSlice:
           print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(i,np.abs(primal-primal_new)))
           self.v = v_new
           self.r = r
