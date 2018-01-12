@@ -30,14 +30,15 @@ root.withdraw()
 root.update()
 root_dir = filedialog.askdirectory()
 root.destroy()
-filenames.reverse()
+
 
 filenames = []
 
 for root, dirs, files in os.walk(root_dir, topdown=False):
     for name in files:
         filenames.append(os.path.join(root, name))
-filenames.sort()        
+filenames.sort()    
+filenames.reverse()    
 NResults = len(filenames) 
 M0_tgv = []
 M0_tikh = []
@@ -237,9 +238,9 @@ if roi_num > 0:
     r = (cv2.selectROI(selector,False))
     col_names.append("ROI "+str(j+1))
     for i in range((NResults)):
-      mean_TGV.append(np.abs(np.mean(T1_plot[i][int(r[1]):int(r[1]+r[3]), int(r[0]):int(r[0]+r[2])])))
+      mean_TGV.append(np.abs(np.mean(T1_plot[i][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
 #      mean_Tikh.append(np.abs(np.mean(T1_plot[2*i+1][int(r[1]):int(r[1]+r[3]), int(r[0]):int(r[0]+r[2])])))
-      std_TGV.append(np.abs(np.std(T1_plot[i][int(r[1]):int(r[1]+r[3]), int(r[0]):int(r[0]+r[2])])))
+      std_TGV.append(np.abs(np.std(T1_plot[i][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
 #      std_Tikh.append(np.abs(np.std(T1_plot[2*i+1][int(r[1]):int(r[1]+r[3]), int(r[0]):int(r[0]+r[2])])))
     rects = patches.Rectangle((int(r[0]),int(r[1])),
                                    int(r[2]),int(r[3]),linewidth=1,edgecolor='r',facecolor='none')

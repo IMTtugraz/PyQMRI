@@ -88,8 +88,8 @@ for files in filenames:
     names.append(name)
     data.append(file[name][()])  
   if "ref" in files:
-    T1_ref = data[names.index('t1_corr')]
-    M0_ref = data[names.index('m0_corr')]
+    T1_ref = data[names.index('T1_ref')]
+    M0_ref = data[names.index('M0_ref')]
     plot_names.append("Reference")
     plot_names.append(" ")
     NResults -=1
@@ -117,14 +117,61 @@ M0_min = 0
 M0_max = np.abs(np.max(M0_tgv[0]))
 
 
-
+ax_ref = []
 for files in filenames: 
   if "ref" in files:
+    T1_ref = np.transpose(np.flip(T1_ref,0),(0,2,1))
+    T1 = T1_ref*mask
+    T1_plot=[]
+    
+    T1_plot.append(np.squeeze(T1[int(z/2)+3,:,:,].T))
+    T1_plot.append(np.flip((T1[:,int(x/2+10),:].T),1))
+    T1_plot.append([])
+    T1_plot.append((T1[:,:,int(y/2-15)]))
+    T1_plot.append(np.zeros((20,20)))
+    T1_plot.append([])
+    #  T1_min = 300
+    #  T1_max = 3000
+    
     fig = plt.figure(figsize = (8,8))
-    ax_ref = (fig.add_axes([0,0,1,1]))
-#    T1_min = 300
-#    T1_max = 3000 
-    ax_ref.imshow(np.abs(T1_ref.T),vmin=T1_min,vmax=T1_max,aspect=1,cmap=cm.viridis)
+    fig.subplots_adjust(hspace=0, wspace=0)
+    fig.patch.set_facecolor(cm.viridis.colors[0])
+    upper_bg = patches.Rectangle((0, 0), width=1, height=1, 
+                                 transform=fig.transFigure,      # use figure coordinates
+                                 facecolor=cm.viridis.colors[0],               # define color
+                                 edgecolor='none',               # remove edges
+                                 zorder=0)     
+    fig.patches.extend([upper_bg])
+    gs = gridspec.GridSpec(2,3, width_ratios=[x/z,1,1/10],height_ratios=[x/z,1])
+    #ax = [fig.add_subplot(2,2,i+1) for i in range(4)]
+    
+    #  plot_extend_x = [1,z/x,1/10,1,z/x,1/10]
+    #  plot_extend_y = [1,1,1,z/x,z/x,z/x]
+    #  extent=[0,plot_extend_x[i],0,plot_extend_y[i]]
+    
+    for i in range(6):
+      ax_ref.append(plt.subplot(gs[i]))  
+      if i==2 or i==5:
+        ax_ref[i].axis('off')    
+      else:
+        im = ax_ref[i].imshow(np.abs(T1_plot[i]),vmin=T1_min,vmax=T1_max, aspect=1,cmap=cm.viridis)
+        ax_ref[i].axis('off')
+    
+    #  ax[i].axis('scaled')
+    ax_ref[0].set_anchor("SE")  
+    ax_ref[1].set_anchor("SW")  
+    ax_ref[2].set_anchor("C")  
+    ax_ref[3].set_anchor("NE")  
+    ax_ref[4].set_anchor("NW")  
+    ax_ref[5].set_anchor("C")  
+    cax = plt.subplot(gs[:,2])
+    cbar = fig.colorbar(im, cax=cax)
+    cbar.ax.tick_params(labelsize=12,colors='white')
+    for spine in cbar.ax.spines:
+      cbar.ax.spines[spine].set_color('white')
+    #fig.colorbar(im, pad=0)
+    plt.show()  
+
   
 ax = []
 for j in range(NResults): 
@@ -222,30 +269,29 @@ plt.savefig('/media/omaier/a3c6e764-0f9b-44b3-b888-26da7d3fe6e7/Papers/Parameter
   
 offset = 0
 
-  
 roi_num = int(input("Enter the number of desired ROIs: "))
 if roi_num > 0:
   mean_TGV = []
   std_TGV = []
   col_names = []
-  selector = cv2.cvtColor(np.abs(T1_ref.T/np.max(T1_ref)).astype(np.float32),cv2.COLOR_GRAY2BGR)
+  selector = cv2.cvtColor(np.abs(T1_ref[int(z/2)+3,:,:,].T/np.max(T1_ref)).astype(np.float32),cv2.COLOR_GRAY2BGR)
   for j in range(roi_num):
     r = (cv2.selectROI(selector))
     col_names.append("ROI "+str(j+1))
-    mean_TGV.append(np.abs(np.mean(T1_ref[int(r[1]):int(r[1]+r[3]), int(r[0]):int(r[0]+r[2])])))
-    std_TGV.append(np.abs(np.std(T1_ref[int(r[1]):int(r[1]+r[3]), int(r[0]):int(r[0]+r[2])])))   
+    mean_TGV.append(np.abs(np.mean(T1_ref[int(z/2)+3,int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
+    std_TGV.append(np.abs(np.std(T1_ref[int(z/2)+3,int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))   
     for i in range(NResults):
-      mean_TGV.append(np.abs(np.mean(T1_tgv[i][int(z/2),int(r[1]+offset):int(r[1]+r[3]+offset), int(r[0]):int(r[0]+r[2]+offset)])))
-      std_TGV.append(np.abs(np.std(T1_tgv[i][int(z/2),int(r[1]+offset):int(r[1]+r[3]+offset), int(r[0]+offset):int(r[0]+r[2]+offset)])))
+      mean_TGV.append(np.abs(np.mean(T1_tgv[i][int(z/2)+3,int(r[0]+offset):int(r[0]+r[2]+offset), int(r[1]):int(r[1]+r[3]+offset)])))
+      std_TGV.append(np.abs(np.std(T1_tgv[i][int(z/2)+3,int(r[0]+offset):int(r[0]+r[2]+offset), int(r[1]+offset):int(r[1]+r[3]+offset)])))
     rects = patches.Rectangle((int(r[0]),int(r[1])),
                                    int(r[2]),int(r[3]),linewidth=3,edgecolor='r',facecolor='none')
     posx = int(r[1]-5)
     posy = int(r[0])
-    ax_ref.text(posy,posx,str(j+1),color='red')
-    ax_ref.add_patch(rects) 
-     
-  mean_TGV = np.round(pd.DataFrame(np.reshape(np.asarray(mean_TGV),(roi_num,NResults+1)).T,index=['Reference','5s_new','5s','8s','8s_new'],columns=col_names),decimals=0)
-  std_TGV =  np.round(pd.DataFrame(np.reshape(np.asarray(std_TGV),(roi_num,NResults+1)).T,index=['Reference','5s_new','5s','8s','8s_new'],columns=col_names),decimals=0)
+    ax_ref[0].text(posy,posx,str(j+1),color='red')
+    ax_ref[0].add_patch(rects) 
+
+  mean_TGV = np.round(pd.DataFrame(np.reshape(np.asarray(mean_TGV),(roi_num,NResults+1)).T,index=['Reference','21_Spk','13_Spk'],columns=col_names),decimals=0)
+  std_TGV =  np.round(pd.DataFrame(np.reshape(np.asarray(std_TGV),(roi_num,NResults+1)).T,index=['Reference','21_Spk','13_Spk'],columns=col_names),decimals=0)
   
   f = open("test.tex","w")
   f.write(mean_TGV.to_latex())

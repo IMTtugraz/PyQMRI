@@ -164,7 +164,8 @@ cdef class Model_Reco:
           print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
           print("-"*80)
           if np.abs(self.fval_min-self.fval) < self.irgn_par.lambd*self.irgn_par.tol:
-            break
+            print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)))            
+            return
           self.fval_min = np.minimum(self.fval,self.fval_min)
                  
 
@@ -206,7 +207,8 @@ cdef class Model_Reco:
         print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
         print("-"*80)
         if np.abs(self.fval_min-self.fval) < self.irgn_par.lambd*self.irgn_par.tol:
-          break
+          print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)))          
+          return
         self.fval_min = np.minimum(self.fval,self.fval_min)
                  
       
@@ -248,7 +250,8 @@ cdef class Model_Reco:
         print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
         print("-"*80)
         if np.abs(self.fval_min-self.fval) < self.irgn_par.lambd*self.irgn_par.tol*self.NSlice:
-          break
+          print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)))
+          return
         self.fval_min = np.minimum(self.fval,self.fval_min)            
                
       
@@ -482,7 +485,7 @@ cdef class Model_Reco:
           self.z1 = z1
           self.z2 = z2
           return x_new
-        if (gap > gap_min*1.1 or primal-primal_new<0) and i>1:
+        if (gap > gap_min*self.irgn_par.stag) and i>1:
           self.v = v
           self.r = r
           self.z1 = z1
@@ -682,7 +685,7 @@ cdef class Model_Reco:
           self.z1 = z1
           self.z2 = z2
           return x_new
-        if (gap > gap_min*1.1 or primal-primal_new < 0) and i>1:
+        if (gap > gap_min*self.irgn_par.stag) and i>1:
           self.v = v
           self.r = r
           self.z1 = z1

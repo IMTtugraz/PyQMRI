@@ -97,7 +97,7 @@ M0_max = np.abs(np.max(M0_tgv[0]))
 
 half_im_size = 106
 plot_err = False
-T1_ref = T1_ref[None,...]
+
 
 if "Reference" in plot_names:
   dimz, dimy, dimx =   T1_ref.shape
@@ -252,10 +252,10 @@ if roi_num > 0:
     r = (cv2.selectROI(selector,False))
     col_names.append("ROI "+str(j+1))
     for i in range((NResults)):
-      mean_TGV.append(np.abs(np.mean(T1_plot[2*i][int(r[1]):int(r[1]+r[3]), int(r[0]):int(r[0]+r[2])])))
-      mean_Tikh.append(np.abs(np.mean(T1_plot[2*i+1][int(r[1]):int(r[1]+r[3]), int(r[0]):int(r[0]+r[2])])))
-      std_TGV.append(np.abs(np.std(T1_plot[2*i][int(r[1]):int(r[1]+r[3]), int(r[0]):int(r[0]+r[2])])))
-      std_Tikh.append(np.abs(np.std(T1_plot[2*i+1][int(r[1]):int(r[1]+r[3]), int(r[0]):int(r[0]+r[2])])))
+      mean_TGV.append(np.abs(np.mean(T1_plot[2*i][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
+      mean_Tikh.append(np.abs(np.mean(T1_plot[2*i+1][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
+      std_TGV.append(np.abs(np.std(T1_plot[2*i][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
+      std_Tikh.append(np.abs(np.std(T1_plot[2*i+1][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
     rects = patches.Rectangle((int(r[0]),int(r[1])),
                                    int(r[2]),int(r[3]),linewidth=1,edgecolor='r',facecolor='none')
     posx = int(r[1]-5)
