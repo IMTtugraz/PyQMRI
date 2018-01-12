@@ -69,7 +69,7 @@ dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
 
 
 ############### Set number of Slices ###########################################
-reco_Slices = 5
+reco_Slices = 1
 
 
 #Create par struct to store everyting
@@ -91,8 +91,8 @@ data = data[:,:,int(NSlice/2)-\
             int(np.ceil(reco_Slices/2)):int(NSlice/2)+\
             int(np.floor(reco_Slices/2)),:,:]
 
-if reco_Slices ==1:
-  data = data[:,:,None,:,:]
+#if reco_Slices ==1:
+#  data = data[:,:,None,:,:]
   
 par.fa_corr = np.flip(par.fa_corr,axis=0)[int(NSlice/2)-\
             int(np.ceil(reco_Slices/2)):int(NSlice/2)+\
@@ -261,15 +261,18 @@ opt.traj = traj
 #IRGN Params
 ################################################################################
 irgn_par = struct()
-irgn_par.start_iters = 10
+irgn_par.start_iters = 100
 irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 8
+irgn_par.max_GN_it = 30
 irgn_par.lambd = 1e3
-irgn_par.gamma = 2e-1   #### 5e-2   5e-3 phantom ##### brain 1e-2
-irgn_par.delta = 5e-3  #### 8spk in-vivo 1e-2
+irgn_par.gamma = 5e-2   #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.delta = 1e-2  #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e-8
 irgn_par.display_iterations = True
-
+irgn_par.gamma_min = 5e-4
+irgn_par.delta_max = 1e3
+irgn_par.tol = 1e-4
+irgn_par.stag = 1.4
 opt.irgn_par = irgn_par
 
 
