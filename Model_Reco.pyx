@@ -268,9 +268,9 @@ cdef class Model_Reco:
 ##                                   *np.conj(self.grad_x[1,:,None,:,:])*np.conj(self.Coils)))
 ##
 ##    L = np.max((L1,L2))*self.unknowns*self.par.NScan*self.par.NC*sigma0*tau0+1
-#    L = (L+8**2+16**2)
+    L = (8**2+16**2)
 #    print("Operatornorm estimate L: %f "%(L))   
-    L = 320 #### worked always ;)
+#    L = 320 #### worked always ;)
     
     
     cdef double tau = 1/np.sqrt(L)
