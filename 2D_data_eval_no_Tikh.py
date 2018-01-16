@@ -45,6 +45,7 @@ M0_tikh = []
 T1_tgv = []
 T1_tikh = []
 plot_names = []
+full = []
 NRef = 0
 if "IRLL" in filenames[0]:
   tr = 5.5
@@ -76,6 +77,7 @@ for files in filenames:
 #    M0_tikh.append(data[names.index('M0_ref')])
     if "IRLL" in files:
       T1_tgv.append(data[names.index("T1_final")]*5500)
+      full.append(data[names.index("full_result")]*5500)
     else:
       T1_tgv.append(-tr/np.log(data[names.index('T1_final')]))
 #    T1_tikh.append(-tr/np.log(data[names.index('T1_ref')])) 
@@ -232,7 +234,7 @@ if roi_num > 0:
   std_TGV = []
   std_Tikh =  []
   col_names = []
-  selector = cv2.cvtColor(np.abs(T1_ref[...].T/3000).astype(np.float32),cv2.COLOR_GRAY2BGR)
+  selector = cv2.cvtColor(np.abs(T1_ref[...]/3000).astype(np.float32),cv2.COLOR_GRAY2BGR)
   
   for j in range(roi_num):
     r = (cv2.selectROI(selector,False))
