@@ -71,10 +71,15 @@ for files in filenames:
     plot_names.append(" ")
     NRef = 1
   else:
+    if "IRLL" in files:
+      T1_tgv.append(data[names.index("T1_final")]*5500)
+      T1_tikh.append(data[names.index("T1_ref")]*5500)      
+    else:
+      T1_tgv.append(-tr/np.log(data[names.index('T1_final')]))
+      T1_tikh.append(-tr/np.log(data[names.index('T1_ref')])) 
     M0_tgv.append(data[names.index('M0_final')])
     M0_tikh.append(data[names.index('M0_ref')])
-    T1_tgv.append(-tr/np.log(data[names.index('T1_final')]))
-    T1_tikh.append(-tr/np.log(data[names.index('T1_ref')])) 
+
     plot_names.append(fname[-5:].split('_')[0] +" spk "+ fname[-5:].split('_')[1] + " TGV")  
     plot_names.append(fname[-5:].split('_')[0] +" spk "+ fname[-5:].split('_')[1] + " Tikh")  
 

@@ -201,7 +201,7 @@ cdef class Model_Reco:
         
         iters = np.fmin(iters*2,self.irgn_par.max_iters)
         self.irgn_par.gamma = self.irgn_par.gamma*0.8
-        self.irgn_par.delta = self.irgn_par.delta*2
+        self.irgn_par.delta = self.irgn_par.delta*self.irgn_par.delta_inc
         
         end = time.time()-start
         print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
@@ -492,6 +492,13 @@ cdef class Model_Reco:
           self.z2 = z2
           print("Terminated at iteration %d because the method stagnated"%(i))
           return x
+        if np.abs(gap - gap_min)<self.irgn_par.lambd*self.irgn_par.tol and i>1:
+          self.v = v
+          self.r = r
+          self.z1 = z1
+          self.z2 = z2
+          print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(i,np.abs(gap - gap_min)))
+          return x        
         primal = primal_new
         gap_min = np.minimum(gap,gap_min)
         print("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f "%(i,primal,dual,gap))
