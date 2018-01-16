@@ -699,13 +699,14 @@ cdef class Model_Reco:
           self.z2 = z2
           print("Terminated at iteration %d because the method stagnated"%(i))
           return x
-      if np.abs(gap - gap_min)<self.irgn_par.lambd*self.irgn_par.tol*self.par.NSlice and i>1:
+        if np.abs(gap - gap_min)<self.irgn_par.lambd*self.irgn_par.tol*self.par.NSlice and i>1:
           self.v = v_new
           self.r = r
           self.z1 = z1
           self.z2 = z2
           print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(i,np.abs(gap - gap_min)))
           return x_new 
+      
         primal = primal_new
         gap_min = np.minimum(gap,gap_min)
         print("Iteration: %d ---- Primal: %.3e, Dual: %.3e, Gap: %.3e "%(i,primal,dual,gap))
