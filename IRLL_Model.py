@@ -32,7 +32,7 @@ class IRLL_Model:
     self.fa = fa
     self.fa_corr = fa_corr
     
-    self.T1_sc = 1000#5000
+    self.T1_sc = 10000#5000
     self.M0_sc = 1#50
     self.Nproj_measured = Nproj_measured
     
