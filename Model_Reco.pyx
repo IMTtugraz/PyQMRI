@@ -93,7 +93,7 @@ cdef class Model_Reco:
            +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2
            +self.irgn_par.omega/2*np.linalg.norm(gd.fgrad_1(x[-self.unknowns_H1:,...]))**2)    
     print("-"*80)
-    print ("Function value after GN-Step: %f" %self.fval/self.irgn_par.lambd)
+    print ("Function value after GN-Step: %f" %(self.fval/self.irgn_par.lambd))
 
     return x
   
@@ -121,7 +121,7 @@ cdef class Model_Reco:
            +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2
            +self.irgn_par.omega/2*np.linalg.norm((x[-self.unknowns_H1:,...]))**2)  
     print("-"*80)
-    print ("Function value after GN-Step: %f" %self.fval/self.irgn_par.lambd)
+    print ("Function value after GN-Step: %f" %(self.fval/self.irgn_par.lambd))
 
     return x
         
