@@ -93,7 +93,7 @@ cdef class Model_Reco:
            +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2
            +self.irgn_par.omega/2*np.linalg.norm(gd.fgrad_1(x[-self.unknowns_H1:,...]))**2)    
     print("-"*80)
-    print ("Function value after GN-Step: %f" %self.fval)
+    print ("Function value after GN-Step: %f" %self.fval/self.irgn_par.lambd)
 
     return x
   
@@ -121,7 +121,7 @@ cdef class Model_Reco:
            +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2
            +self.irgn_par.omega/2*np.linalg.norm((x[-self.unknowns_H1:,...]))**2)  
     print("-"*80)
-    print ("Function value after GN-Step: %f" %self.fval)
+    print ("Function value after GN-Step: %f" %self.fval/self.irgn_par.lambd)
 
     return x
         
@@ -164,7 +164,7 @@ cdef class Model_Reco:
           print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
           print("-"*80)
           if np.abs(self.fval_min-self.fval) < self.irgn_par.lambd*self.irgn_par.tol:
-            print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)))            
+            print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/self.irgn_par.lambd))            
             return
           self.fval_min = np.minimum(self.fval,self.fval_min)
                  
@@ -207,7 +207,7 @@ cdef class Model_Reco:
         print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
         print("-"*80)
         if np.abs(self.fval_min-self.fval) < self.irgn_par.lambd*self.irgn_par.tol:
-          print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)))          
+          print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/self.irgn_par.lambd))          
           return
         self.fval_min = np.minimum(self.fval,self.fval_min)
                  
@@ -479,7 +479,7 @@ cdef class Model_Reco:
         if i==0:
           gap_min = gap
         if np.abs(primal-primal_new)<self.irgn_par.lambd*self.irgn_par.tol:
-          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(i,np.abs(primal-primal_new)))
+          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(i,np.abs(primal-primal_new)/self.irgn_par.lambd))
           self.v = v_new
           self.r = r
           self.z1 = z1
@@ -497,14 +497,14 @@ cdef class Model_Reco:
           self.r = r
           self.z1 = z1
           self.z2 = z2
-          print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(i,np.abs(gap - gap_min)))
+          print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(i,np.abs(gap - gap_min)/self.irgn_par.lambd))
           return x_new        
         primal = primal_new
         gap_min = np.minimum(gap,gap_min)
-        print("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f "%(i,primal,dual,gap))
-        print("Norm of primal gradient: %.3e"%(np.linalg.norm(Kyk1)+np.linalg.norm(Kyk2)))
-        print("Norm of dual gradient: %.3e"%(np.linalg.norm(tmp)+np.linalg.norm(gradx[:self.unknowns_TGV] + theta_line*gradx_xold[:self.unknowns_TGV]
-                                          - v_new - theta_line*v_vold)+np.linalg.norm( symgrad_v + theta_line*symgrad_v_vold)))
+        print("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f "%(i,primal/self.irgn_par.lambd,dual/self.irgn_par.lambd,gap/self.irgn_par.lambd))
+#        print("Norm of primal gradient: %.3e"%(np.linalg.norm(Kyk1)+np.linalg.norm(Kyk2)))
+#        print("Norm of dual gradient: %.3e"%(np.linalg.norm(tmp)+np.linalg.norm(gradx[:self.unknowns_TGV] + theta_line*gradx_xold[:self.unknowns_TGV]
+#                                          - v_new - theta_line*v_vold)+np.linalg.norm( symgrad_v + theta_line*symgrad_v_vold)))
         
       x = (x_new)
       v = (v_new)
@@ -686,7 +686,7 @@ cdef class Model_Reco:
         if i==0:
           gap_min = gap
         if np.abs(primal-primal_new)<self.irgn_par.lambd*self.irgn_par.tol*self.par.NSlice:
-          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(i,np.abs(primal-primal_new)))
+          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(i,np.abs(primal-primal_new)/self.irgn_par.lambd))
           self.v = v_new
           self.r = r
           self.z1 = z1
@@ -704,7 +704,7 @@ cdef class Model_Reco:
           self.r = r
           self.z1 = z1
           self.z2 = z2
-          print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(i,np.abs(gap - gap_min)))
+          print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(i,np.abs(gap - gap_min)/self.irgn_par.lambd))
           return x_new 
       
         primal = primal_new
