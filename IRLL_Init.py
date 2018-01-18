@@ -267,7 +267,8 @@ images= (np.sum(nFTH(data,plan,dcf,NScan,NC,NSlice,\
 model = IRLL_Model.IRLL_Model(par.fa,par.fa_corr,par.TR,par.tau,par.td,\
                               NScan,NSlice,dimY,dimX,Nproj,Nproj_measured,1)
 
-
+G_x = model.execute_forward_3D(np.array([1/model.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1000/model.T1_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE)],dtype=DTYPE))
+model.M0_sc = model.M0_sc*np.max(np.abs(images))/np.max(np.abs(G_x))
 
 par.U = np.ones((data).shape, dtype=bool)
 par.U[abs(data) == 0] = False
@@ -294,14 +295,14 @@ irgn_par.start_iters = 100
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 30
 irgn_par.lambd = 1e3
-irgn_par.gamma = 1e-8  #### 5e-2   5e-3 phantom ##### brain 1e-3
-irgn_par.delta = 1e-3 ### 8spk in-vivo 5e2
+irgn_par.gamma = 1e0 #### 5e-2   5e-3 phantom ##### brain 1e-3
+irgn_par.delta = 1e-1 ### 8spk in-vivo 5e2
 irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 1e-6
-irgn_par.delta_max = 1e6
-irgn_par.tol = 1e-6
-irgn_par.stag = 1.4
+irgn_par.gamma_min = 1e-4
+irgn_par.delta_max = 1e4
+irgn_par.tol = 1e-4
+irgn_par.stag = 1.2
 irgn_par.delta_inc = 3
 opt.irgn_par = irgn_par
 

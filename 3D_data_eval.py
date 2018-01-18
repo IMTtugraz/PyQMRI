@@ -88,8 +88,8 @@ for files in filenames:
     names.append(name)
     data.append(file[name][()])  
   if "ref" in files:
-    T1_ref = data[names.index('T1_ref')]
-    M0_ref = data[names.index('M0_ref')]
+    T1_ref = data[names.index('t1_corr')]
+    M0_ref = data[names.index('m0_corr')]
     plot_names.append("Reference")
     plot_names.append(" ")
     NResults -=1
@@ -120,11 +120,11 @@ M0_max = np.abs(np.max(M0_tgv[0]))
 ax_ref = []
 for files in filenames: 
   if "ref" in files:
-    T1_ref = np.transpose(np.flip(T1_ref,0),(0,2,1))
+    T1_ref = ((T1_ref))
     T1 = T1_ref*mask
     T1_plot=[]
     
-    T1_plot.append(np.squeeze(T1[int(z/2)+3,:,:,].T))
+    T1_plot.append(np.squeeze(T1[int(z/2),:,:,].T))
     T1_plot.append(np.flip((T1[:,int(x/2+10),:].T),1))
     T1_plot.append([])
     T1_plot.append((T1[:,:,int(y/2-15)]))
@@ -178,7 +178,7 @@ for j in range(NResults):
   T1 = T1_tgv[j]*mask
   T1_plot=[]
   
-  T1_plot.append(np.squeeze(T1[int(z/2)+3,:,:,]).T)
+  T1_plot.append(np.squeeze(T1[int(z/2),:,:,]).T)
   T1_plot.append(np.flip((T1[:,int(x/2+10),:]).T,1))
   T1_plot.append([])
   T1_plot.append((T1[:,:,int(y/2-15)]))
@@ -274,20 +274,20 @@ if roi_num > 0:
   mean_TGV = []
   std_TGV = []
   col_names = []
-  selector = cv2.cvtColor(np.abs(T1_ref[int(z/2)+3,:,:,].T/np.max(T1_ref)).astype(np.float32),cv2.COLOR_GRAY2BGR)
+  selector = cv2.cvtColor(np.abs(T1_ref[int(z/2),:,:,]/np.max(T1_ref)).astype(np.float32),cv2.COLOR_GRAY2BGR)
   for j in range(roi_num):
     r = (cv2.selectROI(selector))
     col_names.append("ROI "+str(j+1))
-    mean_TGV.append(np.abs(np.mean(T1_ref[int(z/2)+3,int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
-    std_TGV.append(np.abs(np.std(T1_ref[int(z/2)+3,int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))   
+    mean_TGV.append(np.abs(np.mean(T1_ref[int(z/2),int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
+    std_TGV.append(np.abs(np.std(T1_ref[int(z/2),int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))   
     for i in range(NResults):
-      mean_TGV.append(np.abs(np.mean(T1_tgv[i][int(z/2)+3,int(r[0]+offset):int(r[0]+r[2]+offset), int(r[1]):int(r[1]+r[3]+offset)])))
-      std_TGV.append(np.abs(np.std(T1_tgv[i][int(z/2)+3,int(r[0]+offset):int(r[0]+r[2]+offset), int(r[1]+offset):int(r[1]+r[3]+offset)])))
-    rects = patches.Rectangle((int(r[0]),int(r[1])),
-                                   int(r[2]),int(r[3]),linewidth=3,edgecolor='r',facecolor='none')
-    posx = int(r[1]-5)
-    posy = int(r[0])
-    ax_ref[0].text(posy,posx,str(j+1),color='red')
+      mean_TGV.append(np.abs(np.mean(T1_tgv[i][int(z/2),int(r[0]+offset):int(r[0]+r[2]+offset), int(r[1]):int(r[1]+r[3]+offset)])))
+      std_TGV.append(np.abs(np.std(T1_tgv[i][int(z/2),int(r[0]+offset):int(r[0]+r[2]+offset), int(r[1]+offset):int(r[1]+r[3]+offset)])))
+    rects = patches.Rectangle((int(r[1]),int(r[0])),
+                                   int(r[3]),int(r[2]),linewidth=3,edgecolor='r',facecolor='none')
+    posx = int(r[1])
+    posy = int(r[0]-5)
+    ax_ref[0].text(posx,posy,str(j+1),color='red')
     ax_ref[0].add_patch(rects) 
 
   mean_TGV = np.round(pd.DataFrame(np.reshape(np.asarray(mean_TGV),(roi_num,NResults+1)).T,index=['Reference','21_Spk','13_Spk'],columns=col_names),decimals=0)
