@@ -52,7 +52,7 @@ class IRLL_Model:
     self.cos_phi = np.cos(phi_corr)    
 
     self.guess = np.array([0/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),\
-                           np.exp(-300/(1000/self.T1_sc))*np.ones((NSlice,dimY,dimX),dtype=DTYPE)])
+                           np.exp(-300/(3000/self.T1_sc))*np.ones((NSlice,dimY,dimX),dtype=DTYPE)])
 #                           np.ones((NSlice,dimY,dimX),dtype=DTYPE)])               
     self.constraints.append(constraint(-300,300,False)  )
     self.constraints.append(constraint(np.exp(-300/(15)), np.exp(-300/(8000)),True))

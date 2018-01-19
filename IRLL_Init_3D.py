@@ -135,7 +135,7 @@ par.unknowns = 2
 #% Estimates sensitivities and complex image.
 #%(see Martin Uecker: Image reconstruction by regularized nonlinear
 #%inversion joint estimation of coil sensitivities and image content)
-nlinvNewtonSteps = 6
+nlinvNewtonSteps = 10
 nlinvRealConstr  = False
 
 traj_coil = np.reshape(traj,(NScan*Nproj,N))
@@ -185,7 +185,7 @@ else:
 
 
 Nproj_new = 8
-
+Nproj_measured = Nproj
 NScan = np.floor_divide(Nproj,Nproj_new)
 Nproj = Nproj_new
 
@@ -275,7 +275,7 @@ images= (np.sum(nFTH(data,plan,dcf*N*(np.pi/(4*Nproj)),NScan,NC,NSlice,\
 ### Init forward model and initial guess #######################################
 ################################################################################
 model = IRLL_Model.IRLL_Model(par.fa,par.fa_corr,par.TR,par.tau,par.td,\
-                              NScan,NSlice,dimY,dimX,Nproj)
+                              NScan,NSlice,dimY,dimX,Nproj,Nproj_measured)
 
 
 
@@ -305,7 +305,7 @@ irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 8
 irgn_par.lambd = 1e2
 irgn_par.gamma = 1e-3   #### 5e-2   5e-3 phantom ##### brain 1e-3
-irgn_par.delta = 1e1  #### 8spk in-vivo 5e2
+irgn_par.delta = 1e2  #### 8spk in-vivo 5e2
 irgn_par.omega = 1e-5
 irgn_par.display_iterations = True
 
@@ -338,13 +338,13 @@ irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e2
 irgn_par.gamma = 5e-4  #### 5e-2   5e-3 phantom ##### brain 1e-2
-irgn_par.delta = 1e1  #### 8spk in-vivo 1e-2
+irgn_par.delta = 1e3  #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e0
 irgn_par.display_iterations = True
 
 opt_t.irgn_par = irgn_par
 
-#opt_t.execute_3D()
+opt_t.execute_3D()
 
 ################################################################################
 ### New .hdf5 save files #######################################################
@@ -359,20 +359,20 @@ os.chdir("output/"+ outdir)
 f = h5py.File("output_"+name,"w")
 dset_result=f.create_dataset("full_result",opt.result.shape,\
                              dtype=np.complex64,data=opt.result)
-#dset_result_ref=f.create_dataset("ref_full_result",opt_t.result.shape,\
-#                                 dtype=np.complex64,data=opt_t.result)
+dset_result_ref=f.create_dataset("ref_full_result",opt_t.result.shape,\
+                                 dtype=np.complex64,data=opt_t.result)
 dset_T1=f.create_dataset("T1_final",np.squeeze(opt.result[-1,1,...]).shape,\
                          dtype=np.complex64,\
                          data=np.squeeze(opt.result[-1,1,...]))
 dset_M0=f.create_dataset("M0_final",np.squeeze(opt.result[-1,0,...]).shape,\
                          dtype=np.complex64,\
                          data=np.squeeze(opt.result[-1,0,...]))
-#dset_T1_ref=f.create_dataset("T1_ref",np.squeeze(opt_t.result[-1,1,...]).shape\
-#                             ,dtype=np.complex64,\
-#                             data=np.squeeze(opt_t.result[-1,1,...]))
-#dset_M0_ref=f.create_dataset("M0_ref",np.squeeze(opt_t.result[-1,0,...]).shape\
-#                             ,dtype=np.complex64,\
-#                             data=np.squeeze(opt_t.result[-1,0,...]))
+dset_T1_ref=f.create_dataset("T1_ref",np.squeeze(opt_t.result[-1,1,...]).shape\
+                             ,dtype=np.complex64,\
+                             data=np.squeeze(opt_t.result[-1,1,...]))
+dset_M0_ref=f.create_dataset("M0_ref",np.squeeze(opt_t.result[-1,0,...]).shape\
+                             ,dtype=np.complex64,\
+                             data=np.squeeze(opt_t.result[-1,0,...]))
 #f.create_dataset("T1_guess",np.squeeze(model.T1_guess).shape,\
 #                 dtype=np.float64,data=np.squeeze(model.T1_guess))
 #f.create_dataset("M0_guess",np.squeeze(model.M0_guess).shape,\
