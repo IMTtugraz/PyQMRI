@@ -44,7 +44,7 @@ M0_tikh = []
 T1_tgv = []
 T1_tikh = []
 plot_names = []
-
+NRef = 0
 if "IRLL" in filenames[0]:
   tr = 1000
 else:
@@ -63,11 +63,11 @@ for files in filenames:
     names.append(name)
     data.append(file[name][()])  
   if "ref" in files:
-    T1_ref = data[names.index('t1_ref_l2')]
-    M0_ref = data[names.index('m0_ref_l2')]
+    T1_ref = np.flip(data[names.index('t1_reference')],axis=0)
+    M0_ref = data[names.index('m0_reference')]
     plot_names.append("Reference")
     plot_names.append(" ")
-    NResults -= 1 
+    NRef = 1
   else:
     M0_tgv.append(data[names.index('M0_final')])
     M0_tikh.append(data[names.index('M0_ref')])
@@ -88,32 +88,35 @@ z = z*dz
 
 T1_plot=[]
 M0_plot=[]
-T1_min = 300
+T1_min = 600
 T1_max = 3000
 M0_min = 0
 M0_max = np.abs(np.max(M0_tgv[0]))
 
+half_im_size = 128
+plot_err = False
+
 if "Reference" in plot_names:
-  dimy, dimx =   T1_ref.shape
-  T1_plot.append(T1_ref[int(dimy/2)-106:int(dimy/2)+106,int(dimx/2)-106:int(dimx/2)+106].T)
+  dimz, dimy, dimx =   T1_ref.shape
+  T1_plot.append(T1_ref[0,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size].T)
   T1_plot.append(np.zeros((dimy,dimx)))
   
-  M0_plot.append(M0_ref[int(dimy/2)-106:int(dimy/2)+106,int(dimx/2)-106:int(dimx/2)+106].T)
+  M0_plot.append(M0_ref[0,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size].T)
   M0_plot.append(np.zeros((dimy,dimx)))
 
 T1_err=[]
 
 T1_err_min = 0
 T1_err_max = 30
-mask = mask[int(z/2),int(y/2)-106:int(y/2)+106,int(x/2)-106:int(x/2)+106]
+mask = mask[0,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]
 
-for i in range(NResults):
+for i in range(NResults-NRef):
   slices, dimy, dimx = T1_tgv[i].shape
   
-  T1_tgv[i] = T1_tgv[i][int(slices/2),int(dimy/2)-106:int(dimy/2)+106,int(dimx/2)-106:int(dimx/2)+106]*mask
-  M0_tgv[i] = M0_tgv[i][int(slices/2),int(dimy/2)-106:int(dimy/2)+106,int(dimx/2)-106:int(dimx/2)+106]*mask
-  T1_tikh[i] = T1_tikh[i][int(slices/2),int(dimy/2)-106:int(dimy/2)+106,int(dimx/2)-106:int(dimx/2)+106]*mask
-  M0_tikh[i] = M0_tikh[i][int(slices/2),int(dimy/2)-106:int(dimy/2)+106,int(dimx/2)-106:int(dimx/2)+106]*mask
+  T1_tgv[i] = T1_tgv[i][0,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size]*mask
+  M0_tgv[i] = M0_tgv[i][0,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size]*mask
+  T1_tikh[i] = T1_tikh[i][0,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size]*mask
+  M0_tikh[i] = M0_tikh[i][0,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size]*mask
 
   T1_plot.append(np.squeeze(T1_tgv[i][...]).T)
   T1_plot.append(np.squeeze(T1_tikh[i][...]).T)
@@ -122,10 +125,10 @@ for i in range(NResults):
   M0_plot.append(np.squeeze(M0_tikh[i][...]).T)
   
   if "Reference" in plot_names:
-    T1_err.append(np.squeeze(np.abs(T1_tgv[i]-T1_ref)/np.abs(T1_ref)).T*100)
-    T1_err.append(np.squeeze(np.abs(T1_tikh[i][...]-T1_ref[...])/np.abs(T1_ref[...])).T*100)  
+    T1_err.append(np.squeeze(np.abs(T1_tgv[i]-T1_ref[0,...])/np.abs(T1_ref[0,...])).T*100)
+    T1_err.append(np.squeeze(np.abs(T1_tikh[i][...]-T1_ref[0,...])/np.abs(T1_ref[0,...])).T*100)  
     
-if "Reference" in plot_names:  
+if "Reference" in plot_names and plot_err:  
   fig = plt.figure(figsize = (8,8))
   fig.subplots_adjust(hspace=0.15, wspace=0)
   upper_bg = patches.Rectangle((0, 0.5), width=1, height=0.5, 
@@ -141,25 +144,25 @@ if "Reference" in plot_names:
   fig.patches.extend([upper_bg, lower_bg])
     
   ax = []
-  width_ratio = np.ones((1,(NResults+1)),dtype=int).tolist()[0]
+  width_ratio = np.ones((1,(NResults)),dtype=int).tolist()[0]
   width_ratio.append(1/10)
   height_ratio = np.ones((1,4),dtype=int).tolist()[0]
   height_ratio.insert(2,1/10)
-  gs = gridspec.GridSpec(5,NResults+2, width_ratios=width_ratio,height_ratios=height_ratio)  
+  gs = gridspec.GridSpec(5,NResults+1, width_ratios=width_ratio,height_ratios=height_ratio)  
   
-  for i in range((NResults+1)):
+  for i in range((NResults)):
     ax.append(plt.subplot(gs[i]))
     im = ax[i].imshow(np.abs(T1_plot[2*i]),vmin=T1_min,vmax=T1_max,aspect=1,cmap=cm.viridis)
     ax[i].axis('off')
   #  ax[i].set_anchor("N")   
     ax[i].set_title(plot_names[2*i],color='white')
   
-  for i in range((NResults+1)):
-    ax.append(plt.subplot(gs[i+NResults+2]))
-    im = ax[i+NResults+1].imshow(np.abs(T1_plot[2*i+1]),vmin=T1_min,vmax=T1_max,aspect=1,cmap=cm.viridis)
-    ax[i+NResults+1].axis('off')
+  for i in range((NResults)):
+    ax.append(plt.subplot(gs[i+NResults+1]))
+    im = ax[i+NResults].imshow(np.abs(T1_plot[2*i+1]),vmin=T1_min,vmax=T1_max,aspect=1,cmap=cm.viridis)
+    ax[i+NResults].axis('off')
   #  ax[i+NResults].set_anchor("S")    
-    ax[i+NResults+1].set_title(plot_names[2*i+1],color='white')
+    ax[i+NResults].set_title(plot_names[2*i+1],color='white')
     
   cax = plt.subplot(gs[:2,-1])
   cbar = fig.colorbar(im, cax=cax)
@@ -167,19 +170,19 @@ if "Reference" in plot_names:
   for spine in cbar.ax.spines:
     cbar.ax.spines[spine].set_color('white')
   
-  for i in range((NResults)):
-    ax.append(plt.subplot(gs[i+3*(NResults+2)+1]))
-    im = ax[i+2*(NResults+1)].imshow(np.abs(T1_err[2*i]),vmin=T1_err_min,vmax=T1_err_max,aspect=1,cmap=cm.inferno)
-    ax[i+2*(NResults+1)].axis('off')
-    ax[i+2*(NResults+1)].set_anchor("N")   
-    ax[i+2*(NResults+1)].set_title(plot_names[2*(i+1)],color='white')
+  for i in range((NResults-NRef)):
+    ax.append(plt.subplot(gs[i+3*(NResults+1)+1]))
+    im = ax[i+2*(NResults)].imshow(np.abs(T1_err[2*i]),vmin=T1_err_min,vmax=T1_err_max,aspect=1,cmap=cm.inferno)
+    ax[i+2*(NResults)].axis('off')
+    ax[i+2*(NResults)].set_anchor("N")   
+    ax[i+2*(NResults)].set_title(plot_names[2*(i+1)],color='white')
   
-  for i in range((NResults)):
-    ax.append(plt.subplot(gs[i+4*(NResults+2)+1]))
-    im = ax[i+3*(NResults+1)-1].imshow(np.abs(T1_err[2*i+1]),vmin=T1_err_min,vmax=T1_err_max,aspect=1,cmap=cm.inferno)
-    ax[i+3*(NResults+1)-1].axis('off')
-    ax[i+3*(NResults+1)-1].set_anchor("S")   
-    ax[i+3*(NResults+1)-1].set_title(plot_names[2*(i+1)+1],color='white')
+  for i in range((NResults-NRef)):
+    ax.append(plt.subplot(gs[i+4*(NResults+1)+1]))
+    im = ax[i+3*(NResults)-1].imshow(np.abs(T1_err[2*i+1]),vmin=T1_err_min,vmax=T1_err_max,aspect=1,cmap=cm.inferno)
+    ax[i+3*(NResults)-1].axis('off')
+    ax[i+3*(NResults)-1].set_anchor("S")   
+    ax[i+3*(NResults)-1].set_title(plot_names[2*(i+1)+1],color='white')
   
   cax = plt.subplot(gs[3:,-1])
   cbar = fig.colorbar(im, cax=cax)
@@ -237,12 +240,12 @@ if roi_num > 0:
   std_TGV = []
   std_Tikh =  []
   col_names = []
-  selector = cv2.cvtColor(np.abs(T1_ref[...].T/2000).astype(np.float32),cv2.COLOR_GRAY2BGR)
+  selector = cv2.cvtColor(np.abs(T1_ref[0,...].T/3000).astype(np.float32),cv2.COLOR_GRAY2BGR)
   
   for j in range(roi_num):
-    r = (cv2.selectROI(selector))
+    r = (cv2.selectROI(selector,False))
     col_names.append("ROI "+str(j+1))
-    for i in range((NResults+1)):
+    for i in range((NResults)):
       mean_TGV.append(np.abs(np.mean(T1_plot[2*i][int(r[1]):int(r[1]+r[3]), int(r[0]):int(r[0]+r[2])])))
       mean_Tikh.append(np.abs(np.mean(T1_plot[2*i+1][int(r[1]):int(r[1]+r[3]), int(r[0]):int(r[0]+r[2])])))
       std_TGV.append(np.abs(np.std(T1_plot[2*i][int(r[1]):int(r[1]+r[3]), int(r[0]):int(r[0]+r[2])])))
@@ -254,10 +257,10 @@ if roi_num > 0:
     ax[0].text(posy,posx,str(j+1),color='red')
     ax[0].add_patch(rects) 
      
-  mean_TGV = np.round(pd.DataFrame(np.reshape(np.asarray(mean_TGV),(roi_num,NResults+1)).T,index=plot_names[0::2],columns=col_names),decimals=0)
-#  mean_Tikh =  np.round(pd.DataFrame(np.reshape(np.asarray(mean_Tikh),(roi_num,NResults+1)).T,index=plot_names[1::2],columns=col_names),decimals=0)
-  std_TGV =  np.round(pd.DataFrame(np.reshape(np.asarray(std_TGV),(roi_num,NResults+1)).T,index=plot_names[0::2],columns=col_names),decimals=0)
-#  std_Tikh =  np.round(pd.DataFrame(np.reshape(np.asarray(std_Tikh),(roi_num,NResults+1)).T,index=plot_names[1::2],columns=col_names),decimals=0)
+  mean_TGV = np.round(pd.DataFrame(np.reshape(np.asarray(mean_TGV),(roi_num,NResults)).T,index=plot_names[0::2],columns=col_names),decimals=0)
+  mean_Tikh =  np.round(pd.DataFrame(np.reshape(np.asarray(mean_Tikh),(roi_num,NResults)).T,index=plot_names[1::2],columns=col_names),decimals=0)
+  std_TGV =  np.round(pd.DataFrame(np.reshape(np.asarray(std_TGV),(roi_num,NResults)).T,index=plot_names[0::2],columns=col_names),decimals=0)
+  std_Tikh =  np.round(pd.DataFrame(np.reshape(np.asarray(std_Tikh),(roi_num,NResults)).T,index=plot_names[1::2],columns=col_names),decimals=0)
   
   f = open("test.tex","w")
   f.write(mean_TGV.to_latex())
@@ -279,9 +282,9 @@ if roi_num > 0:
   ax_table = []
   my_tabs = []
   my_tabs.append(mean_TGV)
-#  my_tabs.append(mean_Tikh)
+  my_tabs.append(mean_Tikh)
   my_tabs.append(std_TGV)
-#  my_tabs.append(std_Tikh)
+  my_tabs.append(std_Tikh)
   for i in range(len(my_tabs)):
     ax_table.append(plt.subplot(gs[i]))
     table(ax_table[i],np.round(my_tabs[i],1),loc='center')

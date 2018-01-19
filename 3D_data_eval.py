@@ -88,7 +88,7 @@ for files in filenames:
   else:
     M0_tgv.append(data[names.index('M0_final')])
 #    M0_tikh.append(data[names.index('M0_ref')])
-    T1_tgv.append(-1000/np.log(data[names.index('T1_final')]))
+    T1_tgv.append(-5/np.log(data[names.index('T1_final')]))
 #    T1_tikh.append(-1000/np.log(data[names.index('T1_ref')]))
     plot_names.append(fname[-2:] + " Spokes TGV")  
     plot_names.append(fname[-2:] + " Spokes Tikh")    
@@ -103,8 +103,8 @@ z = z*dz
 
 T1_plot=[]
 M0_plot=[]
-T1_min = 0
-T1_max = 2000
+T1_min = 600
+T1_max = 3000
 M0_min = 0
 M0_max = np.abs(np.max(M0_tgv[0]))
 
@@ -114,8 +114,8 @@ for files in filenames:
   if "ref" in files:
     fig = plt.figure(figsize = (8,8))
     ax_ref = (fig.add_axes([0,0,1,1]))
-    T1_min = 300
-    T1_max = 3000 
+#    T1_min = 300
+#    T1_max = 3000 
     ax_ref.imshow(np.abs(T1_ref.T),vmin=T1_min,vmax=T1_max,aspect=1,cmap=cm.viridis)
   
 ax = []
@@ -124,13 +124,13 @@ for j in range(NResults):
   T1_plot=[]
   
   T1_plot.append(np.squeeze(T1[int(z/2),:,:,]).T)
-  T1_plot.append(np.flip((T1[:,110,:]).T,1))
+  T1_plot.append(np.flip((T1[:,int(x/2+3),:]).T,1))
   T1_plot.append([])
-  T1_plot.append((T1[:,:,110]))
+  T1_plot.append((T1[:,:,int(y/2-15)]))
   T1_plot.append(np.zeros((20,20)))
   T1_plot.append([])
-  T1_min = 300
-  T1_max = 3000
+#  T1_min = 300
+#  T1_max = 3000
   
   fig = plt.figure(figsize = (8,8))
   fig.subplots_adjust(hspace=0, wspace=0)

@@ -66,7 +66,7 @@ dcf = file['dcf'][()].astype(DTYPE)
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
 
 ############### Set number of Slices ###########################################
-reco_Slices = 5
+reco_Slices = 1
 os_slices = 20
 class struct:
     pass
@@ -119,7 +119,7 @@ par.unknowns = 2
 ### Estimate coil sensitivities ################################################
 ################################################################################
 
-nlinvNewtonSteps = 6
+nlinvNewtonSteps = 10
 nlinvRealConstr  = False
 
 traj_coil = np.reshape(traj,(NScan*Nproj,N))
@@ -168,9 +168,10 @@ else:
 data = data*np.sqrt(dcf)
 
 
-Nproj_new = 21
+Nproj_new = 13
 
 NScan = np.floor_divide(Nproj,Nproj_new)
+Nproj_measured = Nproj
 Nproj = Nproj_new
 
 par.Nproj = Nproj
@@ -184,7 +185,7 @@ dcf = dcf[:Nproj,:]
 ################################################################################
 ### Calcualte wait time   ######################################################
 ################################################################################
-par.TR = file.attrs['time_per_slice']-(par.tau*Nproj*NScan+par.td)
+par.TR = file.attrs['time_per_slice']-(par.tau*Nproj_measured+par.td)
 
 ################################################################################
 ### Standardize data norm ######################################################
@@ -253,7 +254,7 @@ images= (np.sum(nFTH(data,plan,dcf*N*(np.pi/(4*Nproj)),NScan,NC,NSlice,\
 ### Init forward model and initial guess #######################################
 ################################################################################
 model = IRLL_Model.IRLL_Model(par.fa,par.fa_corr,par.TR,par.tau,par.td,\
-                              NScan,NSlice,dimY,dimX,Nproj)
+                              NScan,NSlice,dimY,dimX,Nproj,Nproj_measured)
 
 
 
@@ -282,9 +283,9 @@ irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e2
-irgn_par.gamma = 1e-3   #### 5e-2   5e-3 phantom ##### brain 1e-3
-irgn_par.delta = 1e1  #### 8spk in-vivo 5e2
-irgn_par.omega = 1e-14
+irgn_par.gamma = 1e-2   #### 5e-2   5e-3 phantom ##### brain 1e-3
+irgn_par.delta = 1e0  #### 8spk in-vivo 5e2
+irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par
@@ -322,7 +323,7 @@ irgn_par.display_iterations = True
 
 opt_t.irgn_par = irgn_par
 
-opt_t.execute_2D()
+#opt_t.execute_2D()
 
 ################################################################################
 ### New .hdf5 save files #######################################################
@@ -337,17 +338,17 @@ os.chdir("output/"+ outdir)
 f = h5py.File("output_"+name,"w")
 dset_result=f.create_dataset("full_result",opt.result.shape,\
                              dtype=np.complex64,data=opt.result)
-dset_result_ref=f.create_dataset("ref_full_result",opt_t.result.shape,\
-                                 dtype=np.complex64,data=opt_t.result)
+#dset_result_ref=f.create_dataset("ref_full_result",opt_t.result.shape,\
+#                                 dtype=np.complex64,data=opt_t.result)
 dset_T1=f.create_dataset("T1_final",np.squeeze(opt.result[-1,1,...]).shape,\
                          dtype=np.complex64,\
                          data=np.squeeze(opt.result[-1,1,...]))
-dset_M0=f.create_dataset("M0_final",np.squeeze(opt.result[-1,0,...]).shape,\
-                         dtype=np.complex64,\
-                         data=np.squeeze(opt.result[-1,0,...]))
-dset_T1_ref=f.create_dataset("T1_ref",np.squeeze(opt_t.result[-1,1,...]).shape\
-                             ,dtype=np.complex64,\
-                             data=np.squeeze(opt_t.result[-1,1,...]))
+#dset_M0=f.create_dataset("M0_final",np.squeeze(opt.result[-1,0,...]).shape,\
+#                         dtype=np.complex64,\
+#                         data=np.squeeze(opt.result[-1,0,...]))
+#dset_T1_ref=f.create_dataset("T1_ref",np.squeeze(opt_t.result[-1,1,...]).shape\
+#                             ,dtype=np.complex64,\
+#                             data=np.squeeze(opt_t.result[-1,1,...]))
 dset_M0_ref=f.create_dataset("M0_ref",np.squeeze(opt_t.result[-1,0,...]).shape\
                              ,dtype=np.complex64,\
                              data=np.squeeze(opt_t.result[-1,0,...]))
