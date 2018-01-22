@@ -46,7 +46,7 @@ T1_tikh = []
 plot_names = []
 NRef = 0
 if "IRLL" in filenames[0]:
-  tr = 5.5
+  tr = 1000
   save_name = "IRLL"
 else:
   tr = 5
@@ -72,8 +72,10 @@ for files in filenames:
     NRef = 1
   else:
     if "IRLL" in files:
-      T1_tgv.append(data[names.index("T1_final")]*5500)
-      T1_tikh.append(data[names.index("T1_ref")]*5500)      
+#      T1_tgv.append(data[names.index("T1_final")]*5500)
+#      T1_tikh.append(data[names.index("T1_ref")]*5500)      
+      T1_tgv.append(-tr/np.log(data[names.index('T1_final')]))
+      T1_tikh.append(-tr/np.log(data[names.index('T1_ref')]))       
     else:
       T1_tgv.append(-tr/np.log(data[names.index('T1_final')]))
       T1_tikh.append(-tr/np.log(data[names.index('T1_ref')])) 
@@ -95,7 +97,7 @@ z = z*dz
 
 T1_plot=[]
 M0_plot=[]
-T1_min = 0
+T1_min = 300
 T1_max = 3000
 M0_min = 0
 M0_max = np.abs(np.max(M0_tgv[0]))
@@ -257,10 +259,10 @@ if roi_num > 0:
     r = (cv2.selectROI(selector,False))
     col_names.append("ROI "+str(j+1))
     for i in range((NResults)):
-      mean_TGV.append(np.abs(np.mean(T1_plot[2*i][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
-      mean_Tikh.append(np.abs(np.mean(T1_plot[2*i+1][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
-      std_TGV.append(np.abs(np.std(T1_plot[2*i][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
-      std_Tikh.append(np.abs(np.std(T1_plot[2*i+1][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
+      mean_TGV.append(np.abs(np.mean(T1_tgv[i][int(z/2),int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
+      mean_Tikh.append(np.abs(np.mean(T1_tikh[i][int(z/2),int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
+      std_TGV.append(np.abs(np.std(T1_tgv[i][int(z/2),int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
+      std_Tikh.append(np.abs(np.std(T1_tikh[i][i][int(z/2),int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
     rects = patches.Rectangle((int(r[0]),int(r[1])),
                                    int(r[2]),int(r[3]),linewidth=1,edgecolor='r',facecolor='none')
     posx = int(r[1]-5)

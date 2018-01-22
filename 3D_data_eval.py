@@ -88,8 +88,8 @@ for files in filenames:
     names.append(name)
     data.append(file[name][()])  
   if "ref" in files:
-    T1_ref = data[names.index('t1_corr')]
-    M0_ref = data[names.index('m0_corr')]
+    T1_ref = data[names.index('T1_ref')]
+    M0_ref = data[names.index('M0_ref')]
     plot_names.append("Reference")
     plot_names.append(" ")
     NResults -=1
@@ -111,7 +111,7 @@ z = z*dz
 
 T1_plot=[]
 M0_plot=[]
-T1_min = 600
+T1_min = 300
 T1_max = 3000
 M0_min = 0
 M0_max = np.abs(np.max(M0_tgv[0]))
@@ -143,11 +143,7 @@ for files in filenames:
                                  zorder=0)     
     fig.patches.extend([upper_bg])
     gs = gridspec.GridSpec(2,3, width_ratios=[x/z,1,1/10],height_ratios=[x/z,1])
-    #ax = [fig.add_subplot(2,2,i+1) for i in range(4)]
-    
-    #  plot_extend_x = [1,z/x,1/10,1,z/x,1/10]
-    #  plot_extend_y = [1,1,1,z/x,z/x,z/x]
-    #  extent=[0,plot_extend_x[i],0,plot_extend_y[i]]
+
     
     for i in range(6):
       ax_ref.append(plt.subplot(gs[i]))  
@@ -274,19 +270,19 @@ if roi_num > 0:
   mean_TGV = []
   std_TGV = []
   col_names = []
-  selector = cv2.cvtColor(np.abs(T1_ref[int(z/2),:,:,]/np.max(T1_ref)).astype(np.float32),cv2.COLOR_GRAY2BGR)
+  selector = cv2.cvtColor(np.abs(T1_ref[int(z/2),:,:,].T/np.max(T1_ref)).astype(np.float32),cv2.COLOR_GRAY2BGR)
   for j in range(roi_num):
     r = (cv2.selectROI(selector))
     col_names.append("ROI "+str(j+1))
     mean_TGV.append(np.abs(np.mean(T1_ref[int(z/2),int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
     std_TGV.append(np.abs(np.std(T1_ref[int(z/2),int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))   
     for i in range(NResults):
-      mean_TGV.append(np.abs(np.mean(T1_tgv[i][int(z/2),int(r[0]+offset):int(r[0]+r[2]+offset), int(r[1]):int(r[1]+r[3]+offset)])))
+      mean_TGV.append(np.abs(np.mean(T1_tgv[i][int(z/2),int(r[0]+offset):int(r[0]+r[2]+offset), int(r[1])+offset:int(r[1]+r[3]+offset)])))
       std_TGV.append(np.abs(np.std(T1_tgv[i][int(z/2),int(r[0]+offset):int(r[0]+r[2]+offset), int(r[1]+offset):int(r[1]+r[3]+offset)])))
-    rects = patches.Rectangle((int(r[1]),int(r[0])),
-                                   int(r[3]),int(r[2]),linewidth=3,edgecolor='r',facecolor='none')
-    posx = int(r[1])
-    posy = int(r[0]-5)
+    rects = patches.Rectangle((int(r[0]),int(r[1])),
+                                   int(r[2]),int(r[3]),linewidth=3,edgecolor='r',facecolor='none')
+    posx = int(r[0])
+    posy = int(r[1]-5)
     ax_ref[0].text(posx,posy,str(j+1),color='red')
     ax_ref[0].add_patch(rects) 
 
