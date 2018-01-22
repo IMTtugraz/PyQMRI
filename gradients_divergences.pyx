@@ -14,7 +14,7 @@ cimport cython
 DTYPE = np.complex64
 @cython.cdivision(True) 
 @cython.initializedcheck(False)
-cpdef np.ndarray[DTYPE_t, ndim=3] bdiv_1(np.ndarray[DTYPE_t, ndim=4] v, float dx=1, float dy=1, np.ndarray[DTYPE_t, ndim=3] scale=np.ones((v.shape[0],1,1),dtype=DTYPE)):
+cpdef np.ndarray[DTYPE_t, ndim=3] bdiv_1(np.ndarray[DTYPE_t, ndim=4] v, float dx=1, float dy=1, np.ndarray[DTYPE_t, ndim=3] scale=np.ones((1,1,1),dtype=DTYPE)):
 
 
     cdef int n = v.shape[3]
@@ -35,7 +35,7 @@ cpdef np.ndarray[DTYPE_t, ndim=3] bdiv_1(np.ndarray[DTYPE_t, ndim=4] v, float dx
     return div_v/scale
 @cython.cdivision(True) 
 @cython.initializedcheck(False)
-cpdef np.ndarray[DTYPE_t, ndim=4] fgrad_1(np.ndarray[DTYPE_t, ndim=3] u,float dx=1, float dy=1, np.ndarray[DTYPE_t, ndim=3] scale=np.ones((u.shape[0],1,1),dtype=DTYPE)):
+cpdef np.ndarray[DTYPE_t, ndim=4] fgrad_1(np.ndarray[DTYPE_t, ndim=3] u,float dx=1, float dy=1, np.ndarray[DTYPE_t, ndim=3] scale=np.ones((1,1,1),dtype=DTYPE)):
 
     
     cdef int n = u.shape[2]
@@ -103,7 +103,7 @@ cpdef np.ndarray[DTYPE_t, ndim=4] sym_bgrad_2(np.ndarray[DTYPE_t, ndim=4] x, flo
 ################################## 3D Functions  
 @cython.cdivision(True) 
 @cython.initializedcheck(False)
-cpdef bdiv_3(np.ndarray[DTYPE_t, ndim=5] v, float dx=1, float dy=1, float dz = 1, np.ndarray[DTYPE_t, ndim=5] scale=np.ones((v.shape[0],1,1,1),dtype=DTYPE)):
+cpdef bdiv_3(np.ndarray[DTYPE_t, ndim=5] v, float dx=1, float dy=1, float dz = 1, np.ndarray[DTYPE_t, ndim=5] scale=np.ones((1,1,1,1),dtype=DTYPE)):
 
 
     cdef int n = v.shape[4]
@@ -128,7 +128,7 @@ cpdef bdiv_3(np.ndarray[DTYPE_t, ndim=5] v, float dx=1, float dy=1, float dz = 1
     return div_v/scale
 @cython.cdivision(True) 
 @cython.initializedcheck(False)
-cpdef fgrad_3(np.ndarray[DTYPE_t, ndim=4] u,float dx=1, float dy=1, float dz = 1, np.ndarray[DTYPE_t, ndim=4] scale=np.ones((u.shape[0],1,1,1),dtype=DTYPE)):
+cpdef fgrad_3(np.ndarray[DTYPE_t, ndim=4] u,float dx=1, float dy=1, float dz = 1, np.ndarray[DTYPE_t, ndim=4] scale=np.ones((1,1,1,1),dtype=DTYPE)):
 
     
     cdef int n = u.shape[3]
