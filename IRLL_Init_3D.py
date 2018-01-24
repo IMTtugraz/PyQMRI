@@ -13,6 +13,7 @@ import Model_Reco_old as Model_Reco_Tikh
 from pynfft.nfft import NFFT
 
 import IRLL_Model as IRLL_Model
+import goldcomp
 
 DTYPE = np.complex64
 np.seterr(divide='ignore', invalid='ignore')
@@ -70,7 +71,7 @@ data = file['real_dat'][()].astype(DTYPE) +\
 traj = file['real_traj'][()].astype(DTYPE) + \
        1j*file['imag_traj'][()].astype(DTYPE)
 
-dcf = file['dcf'][()].astype(DTYPE)
+dcf = np.array(goldcomp.cmp(traj),dtype=DTYPE)#file['dcf'][()].astype(DTYPE)
 
 
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
@@ -101,7 +102,7 @@ data = data[None,:,int(NSlice/2)-\
 if reco_Slices ==1:
   data = data[:,:,None,:,:]
   
-par.fa_corr = (np.flip(par.fa_corr,axis=0)[int((NSlice-os_slices)/2)-\
+par.fa_corr = np.ones_like(np.flip(par.fa_corr,axis=0)[int((NSlice-os_slices)/2)-\
             int(np.ceil(reco_Slices/2)):int((NSlice-os_slices)/2)+\
             int(np.floor(reco_Slices/2)),:,:])
 
@@ -199,7 +200,7 @@ par.NScan = NScan
 data = np.transpose(np.reshape(data[:,:,:,:Nproj*NScan,:],\
                                (NC,NSlice,NScan,Nproj,N)),(2,0,1,3,4))
 traj =np.reshape(traj[:Nproj*NScan,:],(NScan,Nproj,N))
-dcf = dcf[:Nproj,:]*np.sqrt(NScan)
+dcf = np.array(goldcomp.cmp(traj),dtype=DTYPE)
 
 ################################################################################
 ### Calcualte wait time   ######################################################
@@ -216,7 +217,7 @@ par.TR = file.attrs['time_per_slice']-(par.tau*Nproj*NScan+par.td)
 file.close()
 
 
-dscale = np.sqrt(NSlice)*DTYPE(1)/(np.linalg.norm(data.flatten()))
+dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(200))/(np.linalg.norm(data.flatten()))
 par.dscale = dscale
 
 
@@ -278,7 +279,8 @@ images= (np.sum(nFTH(data,plan,dcf*N*(np.pi/(4*Nproj)),NScan,NC,NSlice,\
 model = IRLL_Model.IRLL_Model(par.fa,par.fa_corr,par.TR,par.tau,par.td,\
                               NScan,NSlice,dimY,dimX,Nproj,Nproj_measured,1)
 
-
+G_x = model.execute_forward_3D(np.array([1/model.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1500/model.T1_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE)],dtype=DTYPE))
+model.M0_sc = model.M0_sc*np.max(np.abs(images))/np.max(np.abs(G_x))
 
 par.U = np.ones((data).shape, dtype=bool)
 par.U[abs(data) == 0] = False
@@ -304,17 +306,32 @@ irgn_par = struct()
 irgn_par.start_iters = 100
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 30
-irgn_par.lambd = 1e3
-irgn_par.gamma = 1e-2  #### 5e-2   5e-3 phantom ##### brain 1e-3
-irgn_par.delta = 1e0 ### 8spk in-vivo 5e2
+irgn_par.lambd = 1e2
+irgn_par.gamma = 5e-1 #### 5e-2   5e-3 phantom ##### brain 1e-3
+irgn_par.delta = 5e-1 ### 8spk in-vivo 5e2
 irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 5e-4
+irgn_par.gamma_min = 1e-3
 irgn_par.delta_max = 1e4
 irgn_par.tol = 1e-4
-irgn_par.stag = 1.4
+irgn_par.stag = 1.2
+irgn_par.delta_inc = 3
 opt.irgn_par = irgn_par
 
+#irgn_par = struct()
+#irgn_par.start_iters = 100
+#irgn_par.max_iters = 1000
+#irgn_par.max_GN_it = 30
+#irgn_par.lambd = 1e3
+#irgn_par.gamma = 1e-2  #### 5e-2   5e-3 phantom ##### brain 1e-3
+#irgn_par.delta = 1e0 ### 8spk in-vivo 5e2
+#irgn_par.omega = 1e-10
+#irgn_par.display_iterations = True
+#irgn_par.gamma_min = 5e-4
+#irgn_par.delta_max = 1e4
+#irgn_par.tol = 1e-4
+#irgn_par.stag = 1.4
+#opt.irgn_par = irgn_par
 opt.execute_3D()
 
 ################################################################################
