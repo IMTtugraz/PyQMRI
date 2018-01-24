@@ -270,9 +270,9 @@ irgn_par.delta = 1e-2  #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
 irgn_par.gamma_min = 1e-2
-irgn_par.delta_max = 1e0
+irgn_par.delta_max = 1e1
 irgn_par.tol = 1e-4
-irgn_par.stag = 1.1
+irgn_par.stag = 1.3
 irgn_par.delta_inc = 2
 opt.irgn_par = irgn_par
 

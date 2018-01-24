@@ -116,9 +116,10 @@ class VFA_Model:
 
     print( 'done in', time.clock() - th)
 
+    E1 = np.exp(-self.TR/(self.T1_guess[None,None,:,:]))
+    E1[~np.isfinite(E1)] = 1e-20
 
-
-    result = np.array(np.concatenate((self.M0_guess[None,:,:,:],np.log(-self.TR/(self.T1_guess[None,None,:,:]))),axis=0),dtype=DTYPE)
+    result = np.array(np.concatenate((self.M0_guess[None,:,:,:],E1),axis=0),dtype=DTYPE)
 #   result = np.array([1e-4/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),np.exp(-self.TR/(1500*np.ones((NSlice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE)
 #    result = np.concatenate((((M0_guess)*np.exp(1j*np.angle(phase_map)))[None,:,:,:],(T1_guess)[None,None,:,:]),axis=0)
 #    result = np.array([(0.01+0*M0_guess*np.exp(1j*np.angle(phase_map))),0.3+0*(T1_guess)])

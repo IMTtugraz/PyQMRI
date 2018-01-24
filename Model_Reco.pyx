@@ -524,26 +524,26 @@ cdef class Model_Reco:
     
     cdef float dz = self.dz
     
-    cdef np.ndarray[DTYPE_t,ndim=4] xx = np.zeros_like(x,dtype=DTYPE)
-    cdef np.ndarray[DTYPE_t,ndim=4] yy = np.zeros_like(x,dtype=DTYPE)
-    xx = np.random.random_sample(np.shape(x)).astype(DTYPE)
-    yy = self.operator_adjoint_3D(self.operator_forward_3D(xx));
-    cdef int j = 0
-    for j in range(10):
-       if not np.isclose(np.linalg.norm(yy.flatten()),0):
-           xx = yy/np.linalg.norm(yy.flatten())
-       else:
-           xx = yy
-       yy = self.operator_adjoint_3D(self.operator_forward_2D(xx))
-       l1 = np.vdot(yy.flatten(),xx.flatten());
-    L = np.max(np.abs(l1)) ## Lipschitz constant estimate   
+#    cdef np.ndarray[DTYPE_t,ndim=4] xx = np.zeros_like(x,dtype=DTYPE)
+#    cdef np.ndarray[DTYPE_t,ndim=4] yy = np.zeros_like(x,dtype=DTYPE)
+#    xx = np.random.random_sample(np.shape(x)).astype(DTYPE)
+#    yy = self.operator_adjoint_3D(self.operator_forward_3D(xx));
+#    cdef int j = 0
+#    for j in range(10):
+#       if not np.isclose(np.linalg.norm(yy.flatten()),0):
+#           xx = yy/np.linalg.norm(yy.flatten())
+#       else:
+#           xx = yy
+#       yy = self.operator_adjoint_3D(self.operator_forward_3D(xx))
+#       l1 = np.vdot(yy.flatten(),xx.flatten());
+#    L = np.max(np.abs(l1)) ## Lipschitz constant estimate   
 #    L1 = np.max(np.abs(self.grad_x[0,:,None,:,:]*self.Coils
 #                                   *np.conj(self.grad_x[0,:,None,:,:])*np.conj(self.Coils)))
 #    L2 = np.max(np.abs(self.grad_x[1,:,None,:,:]*self.Coils
 #                                   *np.conj(self.grad_x[1,:,None,:,:])*np.conj(self.Coils)))
 #
 #    L = np.max((L1,L2))*self.unknowns*self.par.NScan*self.par.NC*sigma0*tau0+1
-    L = (L**2+8**2+16**2)
+    L = (8**2+16**2)
     print('L: %f'%(L))    
     
     cdef double tau = 1/np.sqrt(L)
@@ -707,7 +707,7 @@ cdef class Model_Reco:
         gap = np.abs(primal_new - dual)
         if i==0:
           gap_min = gap
-        if np.abs(primal-primal_new)<self.irgn_par.lambd*self.irgn_par.tol*self.par.NSlice:
+        if np.abs(primal-primal_new)<self.irgn_par.lambd*self.irgn_par.tol:
           print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(i,np.abs(primal-primal_new)/self.irgn_par.lambd))
           self.v = v_new
           self.r = r
@@ -721,17 +721,17 @@ cdef class Model_Reco:
           self.z2 = z2
           print("Terminated at iteration %d because the method stagnated"%(i))
           return x
-        if np.abs(gap - gap_min)<self.irgn_par.lambd*self.irgn_par.tol*self.par.NSlice and i>1:
+        if np.abs(gap - gap_min)<self.irgn_par.lambd*self.irgn_par.tol and i>1:
           self.v = v_new
           self.r = r
           self.z1 = z1
           self.z2 = z2
           print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(i,np.abs(gap - gap_min)/self.irgn_par.lambd))
-          return x_new 
-      
+          return x_new        
         primal = primal_new
         gap_min = np.minimum(gap,gap_min)
-        print("Iteration: %d ---- Primal: %.3e, Dual: %.3e, Gap: %.3e "%(i,primal,dual,gap))
+        print("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f "%(i,primal/self.irgn_par.lambd,dual/self.irgn_par.lambd,gap/self.irgn_par.lambd))
+
         
       x = x_new
       v = v_new    
