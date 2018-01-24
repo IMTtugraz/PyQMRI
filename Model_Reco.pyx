@@ -528,32 +528,8 @@ cdef class Model_Reco:
     
     cdef float dz = self.dz
     
-<<<<<<< HEAD
     L = (8**2+16**2)
 
-=======
-#    cdef np.ndarray[DTYPE_t,ndim=4] xx = np.zeros_like(x,dtype=DTYPE)
-#    cdef np.ndarray[DTYPE_t,ndim=4] yy = np.zeros_like(x,dtype=DTYPE)
-#    xx = np.random.random_sample(np.shape(x)).astype(DTYPE)
-#    yy = self.operator_adjoint_3D(self.operator_forward_3D(xx));
-#    cdef int j = 0
-#    for j in range(10):
-#       if not np.isclose(np.linalg.norm(yy.flatten()),0):
-#           xx = yy/np.linalg.norm(yy.flatten())
-#       else:
-#           xx = yy
-#       yy = self.operator_adjoint_3D(self.operator_forward_3D(xx))
-#       l1 = np.vdot(yy.flatten(),xx.flatten());
-#    L = np.max(np.abs(l1)) ## Lipschitz constant estimate   
-#    L1 = np.max(np.abs(self.grad_x[0,:,None,:,:]*self.Coils
-#                                   *np.conj(self.grad_x[0,:,None,:,:])*np.conj(self.Coils)))
-#    L2 = np.max(np.abs(self.grad_x[1,:,None,:,:]*self.Coils
-#                                   *np.conj(self.grad_x[1,:,None,:,:])*np.conj(self.Coils)))
-#
-#    L = np.max((L1,L2))*self.unknowns*self.par.NScan*self.par.NC*sigma0*tau0+1
-    L = (8**2+16**2)
-    print('L: %f'%(L))    
->>>>>>> 8727acdfc2e836474881da87cb723051b6567d7a
     
     cdef double tau = 1/np.sqrt(L)
     cdef double tau_new = 0   
@@ -739,11 +715,8 @@ cdef class Model_Reco:
           return x_new        
         primal = primal_new
         gap_min = np.minimum(gap,gap_min)
-<<<<<<< HEAD
         print("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f "%(i,primal/(self.irgn_par.lambd*self.par.NSlice),dual/(self.irgn_par.lambd*self.par.NSlice),gap/(self.irgn_par.lambd*self.par.NSlice)))
-=======
-        print("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f "%(i,primal/self.irgn_par.lambd,dual/self.irgn_par.lambd,gap/self.irgn_par.lambd))
->>>>>>> 8727acdfc2e836474881da87cb723051b6567d7a
+
 
         
       x = x_new
