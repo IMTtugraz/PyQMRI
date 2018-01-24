@@ -13,6 +13,7 @@ import Model_Reco_old as Model_Reco_Tikh
 from pynfft.nfft import NFFT
 
 import VFA_model as VFA_model
+import goldcomp
 
 DTYPE = np.complex64
 np.seterr(divide='ignore', invalid='ignore')
@@ -71,11 +72,11 @@ traj = file['real_traj'][()].astype(DTYPE) + \
        1j*file['imag_traj'][()].astype(DTYPE)
 
 
-dcf = file['dcf'][()].astype(DTYPE)
+dcf = np.array(goldcomp.cmp(traj),dtype=DTYPE)#file['dcf'][()].astype(DTYPE)
 
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
 
-reco_Slices = 52
+reco_Slices = 3
 #Create par struct to store everyting
 class struct:
     pass
@@ -185,7 +186,7 @@ else:
 #### Close File after everything was read
 file.close()
 
-dscale = np.sqrt(NSlice)*np.complex128(1)/(np.linalg.norm(data.flatten()))
+dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2))/(np.linalg.norm(data.flatten()))
 par.dscale = dscale
 ################################################################################
 ### generate nFFT for radial cases #############################################
@@ -234,7 +235,7 @@ plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
 
 data = data* dscale
 
-images= (np.sum(nFTH(data,plan,dcf*N*(np.pi/(4*Nproj)),NScan,NC,\
+images= (np.sum(nFTH(data,plan,dcf,NScan,NC,\
                      NSlice,dimY,dimX)*(np.conj(par.C)),axis = 1))
 
 
@@ -258,8 +259,8 @@ opt.par = par
 opt.data =  data
 opt.images = images
 opt.nfftplan = plan
-opt.dcf = np.sqrt(dcf*(N*(np.pi/(4*Nproj))))
-opt.dcf_flat = np.sqrt(dcf*(N*(np.pi/(4*Nproj)))).flatten()
+opt.dcf = np.sqrt(dcf)
+opt.dcf_flat = np.sqrt(dcf).flatten()
 opt.model = model
 opt.traj = traj 
 
@@ -285,19 +286,18 @@ opt.dz = 1
 irgn_par = struct()
 irgn_par.start_iters = 100
 irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 30
-irgn_par.lambd = 1e3
-irgn_par.gamma = 1e0   #### 5e-2   5e-3 phantom ##### brain 1e-2
-irgn_par.delta = 1e-2  #### 8spk in-vivo 1e-2
+irgn_par.max_GN_it = 12
+irgn_par.lambd = 1e2
+irgn_par.gamma = 5e-2    #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.delta = 1e-1 #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
 irgn_par.gamma_min = 1e-2
-irgn_par.delta_max = 1e1
+irgn_par.delta_max = 1e3
 irgn_par.tol = 1e-4
-irgn_par.stag = 1.4
-irgn_par.delta_inc = 2
+irgn_par.stag = 1.2
+irgn_par.delta_inc = 3
 opt.irgn_par = irgn_par
-
 
 opt.execute_3D()
 

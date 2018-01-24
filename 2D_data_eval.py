@@ -44,6 +44,7 @@ M0_tikh = []
 T1_tgv = []
 T1_tikh = []
 plot_names = []
+full_res = []
 NRef = 0
 if "IRLL" in filenames[0]:
   tr = 1000
@@ -76,6 +77,7 @@ for files in filenames:
 #      T1_tikh.append(data[names.index("T1_ref")]*5500)      
       T1_tgv.append(-tr/np.log(data[names.index('T1_final')]))
       T1_tikh.append(-tr/np.log(data[names.index('T1_ref')]))       
+      full_res.append(data[names.index('full_result')])
     else:
       T1_tgv.append(-tr/np.log(data[names.index('T1_final')]))
       T1_tikh.append(-tr/np.log(data[names.index('T1_ref')])) 
@@ -105,10 +107,12 @@ M0_max = np.abs(np.max(M0_tgv[0]))
 half_im_size = 106
 plot_err = False
 
+pos = 2
+
 
 if "Reference" in plot_names:
   dimz, dimy, dimx =   T1_ref.shape
-  T1_plot.append(T1_ref[int(dimz/2),int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size].T)
+  T1_plot.append(T1_ref[pos,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size].T)
   T1_plot.append(np.zeros((dimy,dimx)))
   
 #  M0_plot.append(M0_ref[int(dimz/2),int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size].T)
@@ -123,10 +127,10 @@ mask = mask[0,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:
 for i in range(NResults-NRef):
   slices, x, y = T1_tgv[i].shape
   
-  T1_tgv[i] = T1_tgv[i][int(z/2),int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
-  M0_tgv[i] = M0_tgv[i][int(z/2),int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
-  T1_tikh[i] = T1_tikh[i][int(z/2),int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
-  M0_tikh[i] = M0_tikh[i][int(z/2),int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
+  T1_tgv[i] = T1_tgv[i][pos,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
+  M0_tgv[i] = M0_tgv[i][pos,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
+  T1_tikh[i] = T1_tikh[i][pos,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
+  M0_tikh[i] = M0_tikh[i][pos,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
 
   T1_plot.append(np.squeeze(T1_tgv[i][...]).T)
   T1_plot.append(np.squeeze(T1_tikh[i][...]).T)
@@ -259,10 +263,10 @@ if roi_num > 0:
     r = (cv2.selectROI(selector,False))
     col_names.append("ROI "+str(j+1))
     for i in range((NResults)):
-      mean_TGV.append(np.abs(np.mean(T1_tgv[i][int(z/2),int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
-      mean_Tikh.append(np.abs(np.mean(T1_tikh[i][int(z/2),int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
-      std_TGV.append(np.abs(np.std(T1_tgv[i][int(z/2),int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
-      std_Tikh.append(np.abs(np.std(T1_tikh[i][i][int(z/2),int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
+      mean_TGV.append(np.abs(np.mean(T1_tgv[i][pos,int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
+      mean_Tikh.append(np.abs(np.mean(T1_tikh[i][pos,int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
+      std_TGV.append(np.abs(np.std(T1_tgv[i][pos,int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
+      std_Tikh.append(np.abs(np.std(T1_tikh[i][i][pos,int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
     rects = patches.Rectangle((int(r[0]),int(r[1])),
                                    int(r[2]),int(r[3]),linewidth=1,edgecolor='r',facecolor='none')
     posx = int(r[1]-5)

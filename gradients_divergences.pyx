@@ -14,7 +14,7 @@ cimport cython
 DTYPE = np.complex64
 @cython.cdivision(True) 
 @cython.initializedcheck(False)
-cpdef np.ndarray[DTYPE_t, ndim=3] bdiv_1(np.ndarray[DTYPE_t, ndim=4] v, float dx=1, float dy=1, np.ndarray[DTYPE_t, ndim=3] scale=np.ones((1,1,1),dtype=DTYPE)):
+cpdef np.ndarray[DTYPE_t, ndim=3] bdiv_1(np.ndarray[DTYPE_t, ndim=4] v, float dx=1, float dy=1):
 
 
     cdef int n = v.shape[3]
@@ -32,10 +32,10 @@ cpdef np.ndarray[DTYPE_t, ndim=3] bdiv_1(np.ndarray[DTYPE_t, ndim=4] v, float dx
     div_v[:,-1,:] = div_v[:,-1,:] - v[:,1,-2,:]/dy
     div_v[:,1:-1,:] = div_v[:,1:-1,:] + (v[:,1,1:-1,:] - v[:,1,:-2,:])/dy
 
-    return div_v/scale
+    return div_v
 @cython.cdivision(True) 
 @cython.initializedcheck(False)
-cpdef np.ndarray[DTYPE_t, ndim=4] fgrad_1(np.ndarray[DTYPE_t, ndim=3] u,float dx=1, float dy=1, np.ndarray[DTYPE_t, ndim=3] scale=np.ones((1,1,1),dtype=DTYPE)):
+cpdef np.ndarray[DTYPE_t, ndim=4] fgrad_1(np.ndarray[DTYPE_t, ndim=3] u,float dx=1, float dy=1):
 
     
     cdef int n = u.shape[2]
@@ -43,7 +43,6 @@ cpdef np.ndarray[DTYPE_t, ndim=4] fgrad_1(np.ndarray[DTYPE_t, ndim=3] u,float dx
     cdef int k = u.shape[0]
     
     cdef np.ndarray[DTYPE_t, ndim=4] grad = np.zeros([k,2,m,n],dtype=DTYPE)
-    u = u/scale 
     grad[:,0,:,:-1] = (u[:,:,1:] - u[:,:,:-1])/dx
     
     grad[:,1,:-1,:] = (u[:,1:,:] - u[:,:-1,:])/dy
@@ -103,7 +102,7 @@ cpdef np.ndarray[DTYPE_t, ndim=4] sym_bgrad_2(np.ndarray[DTYPE_t, ndim=4] x, flo
 ################################## 3D Functions  
 @cython.cdivision(True) 
 @cython.initializedcheck(False)
-cpdef bdiv_3(np.ndarray[DTYPE_t, ndim=5] v, float dx=1, float dy=1, float dz = 1, np.ndarray[DTYPE_t, ndim=5] scale=np.ones((1,1,1,1),dtype=DTYPE)):
+cpdef bdiv_3(np.ndarray[DTYPE_t, ndim=5] v, float dx=1, float dy=1, float dz = 1):
 
 
     cdef int n = v.shape[4]
@@ -125,10 +124,10 @@ cpdef bdiv_3(np.ndarray[DTYPE_t, ndim=5] v, float dx=1, float dy=1, float dz = 1
     div_v[:,0,:,:] = div_v[:,0,:,:] + v[:,2,0,:,:]/dz
     div_v[:,-1,:,:] = div_v[:,-1,:,:] - v[:,2,-2,:,:]/dz
     div_v[:,1:-1,:,:] = div_v[:,1:-1,:,:] + (v[:,2,1:-1,:,:] - v[:,2,:-2,:,:])/dz   
-    return div_v/scale
+    return div_v
 @cython.cdivision(True) 
 @cython.initializedcheck(False)
-cpdef fgrad_3(np.ndarray[DTYPE_t, ndim=4] u,float dx=1, float dy=1, float dz = 1, np.ndarray[DTYPE_t, ndim=4] scale=np.ones((1,1,1,1),dtype=DTYPE)):
+cpdef fgrad_3(np.ndarray[DTYPE_t, ndim=4] u,float dx=1, float dy=1, float dz = 1):
 
     
     cdef int n = u.shape[3]
@@ -137,7 +136,6 @@ cpdef fgrad_3(np.ndarray[DTYPE_t, ndim=4] u,float dx=1, float dy=1, float dz = 1
     cdef int k = u.shape[0]
     
     cdef np.ndarray[DTYPE_t, ndim=5] grad = np.zeros([k,3,l,m,n],dtype=DTYPE)
-    u = u/scale
     ##dx
     grad[:,0,:,:,:-1] = (u[:,:,:,1:] - u[:,:,:,:-1])/dx
     ##dy

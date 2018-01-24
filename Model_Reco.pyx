@@ -48,6 +48,7 @@ cdef class Model_Reco:
   cdef DTYPE_t[:,:,:,::1] conj_grad_x_2D
   cdef DTYPE_t[:,:,::1] Coils, conjCoils
   cdef DTYPE_t[:,:,:,::1] Coils3D, conjCoils3D
+
   
   def __init__(self,par):
     self.par = par
@@ -152,7 +153,7 @@ cdef class Model_Reco:
           self.step_val = self.model.execute_forward_2D(result[:,islice,:,:],islice)
           self.grad_x_2D = self.model.execute_gradient_2D(result[:,islice,:,:],islice)
           self.conj_grad_x_2D = np.conj(self.grad_x_2D)
-
+                        
           result[:,islice,:,:] = self.irgn_solve_2D(result[:,islice,:,:], iters, self.data[:,:,islice,:])
           self.result[i,:,islice,:,:] = result[:,islice,:,:]
           
@@ -374,7 +375,7 @@ cdef class Model_Reco:
     if self.unknowns_H1 > 0:
       Kyk1 = self.operator_adjoint_2D(r) - np.concatenate((gd.bdiv_1(z1),(gd.bdiv_1(z3))),0)
     else:
-      Kyk1 = self.operator_adjoint_2D(r) - gd.bdiv_1(z1)
+      Kyk1 = self.operator_adjoint_2D(r) - (gd.bdiv_1(z1))
       
     Kyk2 = -z1 - gd.fdiv_2(z2)
     cdef int i=0
@@ -437,7 +438,7 @@ cdef class Model_Reco:
           Kyk1_new = self.operator_adjoint_2D(r_new) - np.concatenate((gd.bdiv_1(z1_new),(gd.bdiv_1(z3_new))),0)
           ynorm = np.linalg.norm(np.concatenate([(r_new-r).flatten(),(z1_new-z1).flatten(),(z2_new-z2).flatten(),(z3_new-z3).flatten()]))
         else:
-          Kyk1_new = self.operator_adjoint_2D(r_new) - gd.bdiv_1(z1_new)
+          Kyk1_new = self.operator_adjoint_2D(r_new) - (gd.bdiv_1(z1_new))
           ynorm = np.linalg.norm(np.concatenate([(r_new-r).flatten(),(z1_new-z1).flatten(),(z2_new-z2).flatten()]))
         Kyk2_new = -z1_new -gd.fdiv_2(z2_new)
 
@@ -460,6 +461,7 @@ cdef class Model_Reco:
         
         
       if not np.mod(i,20):
+          
         self.model.plot_unknowns(x_new,True)
         if self.unknowns_H1 > 0:
           primal_new= np.real(self.irgn_par.lambd/2*np.linalg.norm((Ax-res).flatten())**2+alpha*np.sum(np.abs((gradx[:self.unknowns_TGV]-v))) +
@@ -509,6 +511,8 @@ cdef class Model_Reco:
         
       x = (x_new)
       v = (v_new)
+#      for j in range(self.par.unknowns_TGV):
+#        self.scale_2D[j,...] = np.linalg.norm(x[j,...])
     self.v = v
     self.r = r
     self.z1 = z1
@@ -524,27 +528,8 @@ cdef class Model_Reco:
     
     cdef float dz = self.dz
     
-    cdef np.ndarray[DTYPE_t,ndim=4] xx = np.zeros_like(x,dtype=DTYPE)
-    cdef np.ndarray[DTYPE_t,ndim=4] yy = np.zeros_like(x,dtype=DTYPE)
-    xx = np.random.random_sample(np.shape(x)).astype(DTYPE)
-    yy = self.operator_adjoint_3D(self.operator_forward_3D(xx));
-    cdef int j = 0
-    for j in range(10):
-       if not np.isclose(np.linalg.norm(yy.flatten()),0):
-           xx = yy/np.linalg.norm(yy.flatten())
-       else:
-           xx = yy
-       yy = self.operator_adjoint_3D(self.operator_forward_2D(xx))
-       l1 = np.vdot(yy.flatten(),xx.flatten());
-    L = np.max(np.abs(l1)) ## Lipschitz constant estimate   
-#    L1 = np.max(np.abs(self.grad_x[0,:,None,:,:]*self.Coils
-#                                   *np.conj(self.grad_x[0,:,None,:,:])*np.conj(self.Coils)))
-#    L2 = np.max(np.abs(self.grad_x[1,:,None,:,:]*self.Coils
-#                                   *np.conj(self.grad_x[1,:,None,:,:])*np.conj(self.Coils)))
-#
-#    L = np.max((L1,L2))*self.unknowns*self.par.NScan*self.par.NC*sigma0*tau0+1
-    L = (L**2+8**2+16**2)
-    print('L: %f'%(L))    
+    L = (8**2+16**2)
+
     
     cdef double tau = 1/np.sqrt(L)
     cdef double tau_new = 0   
@@ -727,11 +712,11 @@ cdef class Model_Reco:
           self.z1 = z1
           self.z2 = z2
           print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(i,np.abs(gap - gap_min)/self.irgn_par.lambd))
-          return x_new 
-      
+          return x_new        
         primal = primal_new
         gap_min = np.minimum(gap,gap_min)
-        print("Iteration: %d ---- Primal: %.3e, Dual: %.3e, Gap: %.3e "%(i,primal,dual,gap))
+        print("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f "%(i,primal/(self.irgn_par.lambd*self.par.NSlice),dual/(self.irgn_par.lambd*self.par.NSlice),gap/(self.irgn_par.lambd*self.par.NSlice)))
+
         
       x = x_new
       v = v_new    

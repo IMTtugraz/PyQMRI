@@ -181,7 +181,7 @@ else:
 #### Close File after everything was read
 file.close()
 
-dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(200))/(np.linalg.norm(data.flatten()))
+dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2))/(np.linalg.norm(data.flatten()))
 par.dscale = dscale
 
 ################################################################################
@@ -263,16 +263,16 @@ opt.traj = traj
 irgn_par = struct()
 irgn_par.start_iters = 100
 irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 30
-irgn_par.lambd = 1e0 
-irgn_par.gamma = 1e0   #### 5e-2   5e-3 phantom ##### brain 1e-2
-irgn_par.delta = 1e0  #### 8spk in-vivo 1e-2
+irgn_par.max_GN_it = 12
+irgn_par.lambd = 1e2
+irgn_par.gamma = 5e-2    #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.delta = 1e-1 #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
 irgn_par.gamma_min = 1e-2
-irgn_par.delta_max = 1e1
-irgn_par.tol = 5e-4
-irgn_par.stag = 5
+irgn_par.delta_max = 1e3
+irgn_par.tol = 1e-4
+irgn_par.stag = 1.2
 irgn_par.delta_inc = 3
 opt.irgn_par = irgn_par
 
