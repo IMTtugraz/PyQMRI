@@ -67,7 +67,7 @@ dcf = np.array(goldcomp.cmp(traj),dtype=DTYPE)
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
 
 ############### Set number of Slices ###########################################
-reco_Slices = 5
+reco_Slices = 1
 
 os_slices = 20
 class struct:
@@ -294,15 +294,15 @@ irgn_par.start_iters = 100
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 30
 irgn_par.lambd = 1e2
-irgn_par.gamma = 5e-1 #### 5e-2   5e-3 phantom ##### brain 1e-3
-irgn_par.delta = 5e-1 ### 8spk in-vivo 5e2
+irgn_par.gamma = 5e-2 #### 5e-2   5e-3 phantom ##### brain 1e-3
+irgn_par.delta = 1e-1 ### 8spk in-vivo 5e2
 irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 1e-3
+irgn_par.gamma_min = 1e-2
 irgn_par.delta_max = 1e4
 irgn_par.tol = 1e-4
 irgn_par.stag = 1.2
-irgn_par.delta_inc = 3
+irgn_par.delta_inc = 5
 opt.irgn_par = irgn_par
 
 opt.execute_2D()
