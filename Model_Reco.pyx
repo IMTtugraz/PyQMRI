@@ -175,40 +175,40 @@ cdef class Model_Reco:
    
     self.FT = self.FT_2D
     self.FTH = self.FTH_2D
-
-    self.v = np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-  
-    self.dimX = self.par.dimX
-    self.dimY = self.par.dimY
-    self.NSlice = self.par.NSlice
-    self.NScan = self.par.NScan
-    self.NC = self.par.NC
-    self.unknowns = 2
+    gamma = self.irgn_par.gamma
+    delta = self.irgn_par.delta
     
-    self.result = np.zeros((self.irgn_par.max_GN_it,self.unknowns,self.par.NSlice,self.par.dimY,self.par.dimX),dtype=DTYPE)
+    self.result = np.zeros((self.irgn_par.max_GN_it,self.unknowns_TGV+self.unknowns_H1,self.par.NSlice,self.par.dimY,self.par.dimX),dtype=DTYPE)
     result = np.copy(self.model.guess)
     for islice in range(self.par.NSlice):
-      self.Coils = np.squeeze(self.par.C[:,islice,:,:])
-      self.conjCoils = np.conj(self.Coils)     
-      iters = self.irgn_par.start_iters      
+      self.irgn_par.gamma = gamma
+      self.irgn_par.delta = delta
+      self.Coils = np.array(np.squeeze(self.par.C[:,islice,:,:]),order='C')
+      self.conjCoils = np.conj(self.Coils)   
+      self.v = np.zeros(([self.unknowns_TGV,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+      self.r = np.zeros(([self.NScan,self.NC,self.dimY,self.dimX]),dtype=DTYPE)
+      self.z1 = np.zeros(([self.unknowns_TGV,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+      self.z2 = np.zeros(([self.unknowns_TGV,3,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+      self.z3 = np.zeros(([self.unknowns_H1,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)  
+      iters = self.irgn_par.start_iters          
       for i in range(self.irgn_par.max_GN_it):
         start = time.time()       
-        self.step_val = np.nan_to_num(self.model.execute_forward_2D(result[:,islice,:,:],islice))
-        self.grad_x_2D = np.nan_to_num(self.model.execute_gradient_2D(result[:,islice,:,:],islice))
-        self.conj_grad_x_2D = np.nan_to_num(np.conj(self.grad_x_2D))
-        
-        result[:,islice,:,:] = self.irgn_solve_2D(result[:,islice,:,:], iters, self.data[:,:,islice,:,:])
+        self.step_val = self.model.execute_forward_2D(result[:,islice,:,:],islice)
+        self.grad_x_2D = self.model.execute_gradient_2D(result[:,islice,:,:],islice)
+        self.conj_grad_x_2D = np.conj(self.grad_x_2D)
+                      
+        result[:,islice,:,:] = self.irgn_solve_2D(result[:,islice,:,:], iters, self.data[:,:,islice,:])
         self.result[i,:,islice,:,:] = result[:,islice,:,:]
         
         iters = np.fmin(iters*2,self.irgn_par.max_iters)
-        self.irgn_par.gamma = self.irgn_par.gamma*0.8
-        self.irgn_par.delta = self.irgn_par.delta*self.irgn_par.delta_inc
+        self.irgn_par.gamma = np.maximum(self.irgn_par.gamma*0.8,self.irgn_par.gamma_min)
+        self.irgn_par.delta = np.minimum(self.irgn_par.delta*2, self.irgn_par.delta_max)
         
         end = time.time()-start
         print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
         print("-"*80)
         if np.abs(self.fval_min-self.fval) < self.irgn_par.lambd*self.irgn_par.tol:
-          print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/self.irgn_par.lambd))          
+          print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/self.irgn_par.lambd))            
           return
         self.fval_min = np.minimum(self.fval,self.fval_min)
                  
