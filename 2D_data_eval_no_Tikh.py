@@ -70,7 +70,7 @@ for files in filenames:
     T1_ref = np.flip(data[names.index('t1_ref_l2')],axis=0)
     M0_ref = data[names.index('m0_ref_l2')]
     plot_names.append("Reference")
-    plot_names.append(" ")
+    plot_names.append("")
     NRef = 1
   else:
     M0_tgv.append(data[names.index('M0_final')])
@@ -80,13 +80,12 @@ for files in filenames:
       full.append(data[names.index("full_result")]*5500)
     else:
       T1_tgv.append(-tr/np.log(data[names.index('T1_final')]))
-#    T1_tikh.append(-tr/np.log(data[names.index('T1_ref')])) 
+#    T1_tikh.append(-tr/np.log(data[names.index('T1_ref')]))
     plot_names.append(fname[-5:].split('_')[0] +" spk "+ fname[-5:].split('_')[1] + " TGV")  
-#    plot_names.append(fname[-5:].split('_')[0] +" spk "+ fname[-5:].split('_')[1] + " Tikh")  
+    plot_names.append(fname[-5:].split('_')[0] +" spk "+ fname[-5:].split('_')[1] + " Tikh")  
 
 
 dz = 1
-
 
 
 mask = (masking.compute(M0_tgv[0]))
@@ -97,17 +96,23 @@ z = z*dz
 T1_plot=[]
 M0_plot=[]
 T1_min = 0
-T1_max = 3000
+T1_max = 2500
 M0_min = 0
 M0_max = np.abs(np.max(M0_tgv[0]))
 
 half_im_size = 106
 plot_err = False
 
+mask = mask[-1,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]
 
 if "Reference" in plot_names:
-  dimz, dimy, dimx =   T1_ref.shape
-  T1_plot.append(T1_ref[int(dimz/2),int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size].T)
+  if len(T1_ref.shape) == 2:
+    dimz = 1
+    dimy, dimx =   T1_ref.shape
+    T1_ref = T1_ref[None,...]
+  else:      
+    dimz, dimy, dimx =   T1_ref.shape
+  T1_plot.append((T1_ref[int(dimz/2),int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size]*mask).T)
   T1_plot.append(np.zeros((dimy,dimx)))
   
 #  M0_plot.append(M0_ref[int(dimz/2),int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size].T)
@@ -117,17 +122,17 @@ T1_err=[]
 
 T1_err_min = 0
 T1_err_max = 30
-mask = mask[0,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]
+
 
 for i in range(NResults-NRef):
   slices, x, y = T1_tgv[i].shape
-  T1_tgv[i] = T1_tgv[i][int(z/2)+2,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
-  M0_tgv[i] = M0_tgv[i][int(z/2)+2,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
+  T1_tgv[i] = T1_tgv[i][-1,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
+  M0_tgv[i] = M0_tgv[i][-1,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
 #  T1_tikh[i] = T1_tikh[i][int(z/2),int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
 #  M0_tikh[i] = M0_tikh[i][int(z/2),int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
 
   T1_plot.append(np.squeeze(T1_tgv[i][...]).T)
-#  T1_plot.append(np.squeeze(T1_tikh[i][...]).T)
+  T1_plot.append(np.squeeze(np.zeros_like(T1_tgv[0])))
 
 #  M0_plot.append(np.squeeze(M0_tgv[i][...]).T)
 #  M0_plot.append(np.squeeze(M0_tikh[i][...]).T)
@@ -208,10 +213,15 @@ else:
   
   for i in range((NResults)):
     ax.append(plt.subplot(gs[i]))
-    im = ax[i].imshow(np.abs(T1_plot[i]),vmin=T1_min,vmax=T1_max,aspect=1,cmap=cm.viridis)
+    im = ax[i].imshow(np.abs(T1_plot[2*i]),vmin=T1_min,vmax=T1_max,aspect=1,cmap=cm.viridis)
     ax[i].axis('off')  
-    ax[i].set_title(plot_names[i],color='white')
+    ax[i].set_title(plot_names[2*i],color='white')
   
+  for i in range((NResults)):
+    ax.append(plt.subplot(gs[i+NResults+1]))
+    im = ax[i+NResults].imshow(np.abs(T1_plot[2*i+1]),vmin=T1_min,vmax=T1_max,aspect=1,cmap=cm.viridis)
+    ax[i+NResults].axis('off')    
+    ax[i+NResults].set_title(plot_names[2*i+1],color='white')
     
   cax = plt.subplot(gs[:2,-1])
   cbar = fig.colorbar(im, cax=cax)
@@ -219,6 +229,9 @@ else:
   for spine in cbar.ax.spines:
     cbar.ax.spines[spine].set_color('white')
   plt.show()  
+
+
+
 
 
 
@@ -234,16 +247,16 @@ if roi_num > 0:
   std_TGV = []
   std_Tikh =  []
   col_names = []
-  selector = cv2.cvtColor(np.abs(T1_ref[...]/3000).astype(np.float32),cv2.COLOR_GRAY2BGR)
+  selector = cv2.cvtColor(np.abs(T1_ref[0,...].T/3000).astype(np.float32),cv2.COLOR_GRAY2BGR)
   
   for j in range(roi_num):
     r = (cv2.selectROI(selector,False))
     col_names.append("ROI "+str(j+1))
     for i in range((NResults)):
-      mean_TGV.append(np.abs(np.mean(T1_plot[i][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
-#      mean_Tikh.append(np.abs(np.mean(T1_plot[2*i+1][int(r[1]):int(r[1]+r[3]), int(r[0]):int(r[0]+r[2])])))
-      std_TGV.append(np.abs(np.std(T1_plot[i][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
-#      std_Tikh.append(np.abs(np.std(T1_plot[2*i+1][int(r[1]):int(r[1]+r[3]), int(r[0]):int(r[0]+r[2])])))
+      mean_TGV.append(np.abs(np.mean(T1_plot[2*i][int(r[1]):int(r[1]+r[3]), int(r[0]):int(r[0]+r[2])])))
+#      mean_Tikh.append(np.abs(np.mean(T1_tikh[i][pos,int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
+      std_TGV.append(np.abs(np.std(T1_plot[2*i][int(r[1]):int(r[1]+r[3]), int(r[0]):int(r[0]+r[2])])))
+#      std_Tikh.append(np.abs(np.std(T1_tikh[i][i][pos,int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
     rects = patches.Rectangle((int(r[0]),int(r[1])),
                                    int(r[2]),int(r[3]),linewidth=1,edgecolor='r',facecolor='none')
     posx = int(r[1]-5)
@@ -289,4 +302,4 @@ if roi_num > 0:
       ax_table[i].set_title("Standardeviation")
       
 
-plt.savefig('/media/omaier/a3c6e764-0f9b-44b3-b888-26da7d3fe6e7/Papers/Parameter_Mapping/2Dvs3D_'+save_name+'.eps', format='eps', dpi=300)
+plt.savefig('/media/data/Papers/Parameter_Mapping/IRLL_Phantom_'+save_name+'.eps', format='eps', dpi=1000)

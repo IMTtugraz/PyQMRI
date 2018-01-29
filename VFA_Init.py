@@ -7,13 +7,15 @@ from tkinter import filedialog
 from tkinter import Tk
 import nlinvns_maier as nlinvns
 
-import Model_Reco as Model_Reco
+import Model_Reco_OpenCL as Model_Reco
 import Model_Reco_old as Model_Reco_Tikh
 
 from pynfft.nfft import NFFT
 
 import VFA_model as VFA_model
 import goldcomp
+
+import pyopencl as cl
 
 DTYPE = np.complex64
 np.seterr(divide='ignore', invalid='ignore')
@@ -245,8 +247,9 @@ par.U[abs(data) == 0] = False
 ################################################################################
 ### IRGN - TGV Reco ############################################################
 ################################################################################
-
-opt = Model_Reco.Model_Reco(par)
+ctx = cl.create_some_context()
+queue = cl.CommandQueue(ctx)
+opt = Model_Reco.Model_Reco(par,ctx,queue)
 
 opt.par = par
 opt.data =  data
@@ -263,17 +266,17 @@ opt.traj = traj
 irgn_par = struct()
 irgn_par.start_iters = 100
 irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 12
+irgn_par.max_GN_it = 15
 irgn_par.lambd = 1e2
-irgn_par.gamma = 5e-2    #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.gamma = 7e-2    #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-1 #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 1e-2
-irgn_par.delta_max = 1e3
+irgn_par.gamma_min = 5e-2
+irgn_par.delta_max = 1e6
 irgn_par.tol = 1e-4
-irgn_par.stag = 1.2
-irgn_par.delta_inc = 3
+irgn_par.stag = 1.05
+irgn_par.delta_inc = 10
 opt.irgn_par = irgn_par
 
 opt.execute_2D()

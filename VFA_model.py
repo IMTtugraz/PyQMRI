@@ -94,8 +94,8 @@ class VFA_Model:
     self.T1_guess = np.copy(T1_guess)
     self.M0_guess = np.copy(M0_guess)
 
-#
-    G_x = self.execute_forward_3D(np.array([0.01*np.ones((NSlice,dimY,dimX),dtype=DTYPE),np.exp(-self.TR/(T1_guess*np.ones((NSlice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE))
+    test_T1 = np.reshape(np.linspace(10,5000,dimX*dimY*NSlice),(NSlice,dimX,dimY))
+    G_x = self.execute_forward_3D(np.array([0.01*np.ones((NSlice,dimY,dimX),dtype=DTYPE),np.exp(-self.TR/(test_T1*np.ones((NSlice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE))
     self.M0_sc = self.M0_sc*np.max(np.abs(images))/np.max(np.abs(G_x))
 
     
