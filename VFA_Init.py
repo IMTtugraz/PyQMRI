@@ -247,7 +247,12 @@ par.U[abs(data) == 0] = False
 ################################################################################
 ### IRGN - TGV Reco ############################################################
 ################################################################################
-ctx = cl.create_some_context()
+platforms = cl.get_platforms()
+
+ctx = cl.Context(
+        dev_type=cl.device_type.ALL,
+        properties=[(cl.context_properties.PLATFORM, platforms[0])])
+
 queue = cl.CommandQueue(ctx)
 opt = Model_Reco.Model_Reco(par,ctx,queue)
 

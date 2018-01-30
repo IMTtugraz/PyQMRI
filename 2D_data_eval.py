@@ -47,7 +47,7 @@ plot_names = []
 full_res = []
 NRef = 0
 if "IRLL" in filenames[0]:
-  tr = 1000
+  tr = 3000
   save_name = "IRLL"
 else:
   tr = 5
@@ -75,8 +75,8 @@ for files in filenames:
     if "IRLL" in files:
 #      T1_tgv.append(data[names.index("T1_final")]*5500)
 #      T1_tikh.append(data[names.index("T1_ref")]*5500)      
-      T1_tgv.append(-tr/np.log(data[names.index('T1_final')]))
-      T1_tikh.append(-tr/np.log(data[names.index('T1_ref')]))       
+      T1_tgv.append((data[names.index('T1_final')])*tr)
+      T1_tikh.append((data[names.index('T1_ref')])*tr)       
       full_res.append(data[names.index('full_result')])
     else:
       T1_tgv.append(-tr/np.log(data[names.index('T1_final')]))
@@ -89,7 +89,7 @@ for files in filenames:
 
 
 dz = 1
-
+T1_tikh[1] = T1_tikh[0]
 
 
 mask = (masking.compute(M0_tgv[0]))
@@ -107,12 +107,18 @@ M0_max = np.abs(np.max(M0_tgv[0]))
 half_im_size = 106
 plot_err = False
 
-pos = 2
+pos = 0
 
+mask = mask[0,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]
 
 if "Reference" in plot_names:
-  dimz, dimy, dimx =   T1_ref.shape
-  T1_plot.append(T1_ref[pos,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size].T)
+  if len(T1_ref.shape) == 2:
+    dimz = 1
+    dimy, dimx =   T1_ref.shape
+    T1_ref = T1_ref[None,...]
+  else:      
+    dimz, dimy, dimx =   T1_ref.shape
+  T1_plot.append((T1_ref[pos,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size]*mask).T)
   T1_plot.append(np.zeros((dimy,dimx)))
   
 #  M0_plot.append(M0_ref[int(dimz/2),int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size].T)
@@ -122,7 +128,7 @@ T1_err=[]
 
 T1_err_min = 0
 T1_err_max = 30
-mask = mask[0,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]
+
 
 for i in range(NResults-NRef):
   slices, x, y = T1_tgv[i].shape
@@ -257,27 +263,29 @@ if roi_num > 0:
   std_TGV = []
   std_Tikh =  []
   col_names = []
-  selector = cv2.cvtColor(np.abs(T1_ref[...].T/3000).astype(np.float32),cv2.COLOR_GRAY2BGR)
+  selector = cv2.cvtColor(np.abs(T1_ref[0,...].T/3000).astype(np.float32),cv2.COLOR_GRAY2BGR)
   
   for j in range(roi_num):
     r = (cv2.selectROI(selector,False))
     col_names.append("ROI "+str(j+1))
-    for i in range((NResults)):
-      mean_TGV.append(np.abs(np.mean(T1_tgv[i][pos,int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
-      mean_Tikh.append(np.abs(np.mean(T1_tikh[i][pos,int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
-      std_TGV.append(np.abs(np.std(T1_tgv[i][pos,int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
-      std_Tikh.append(np.abs(np.std(T1_tikh[i][i][pos,int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
+    mean_TGV.append(np.abs(np.mean(T1_ref[0,int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))   
+    std_TGV.append(np.abs(np.std(T1_ref[0,int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))       
+    for i in range((NResults-1)):    
+      mean_TGV.append(np.abs(np.mean(T1_tgv[i][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
+      mean_Tikh.append(np.abs(np.mean(T1_tikh[i][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
+      std_TGV.append(np.abs(np.std(T1_tgv[i][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
+      std_Tikh.append(np.abs(np.std(T1_tikh[i][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
     rects = patches.Rectangle((int(r[0]),int(r[1])),
                                    int(r[2]),int(r[3]),linewidth=1,edgecolor='r',facecolor='none')
     posx = int(r[1]-5)
     posy = int(r[0])
     ax[0].text(posy,posx,str(j+1),color='red')
     ax[0].add_patch(rects) 
-     
+  
   mean_TGV = np.round(pd.DataFrame(np.reshape(np.asarray(mean_TGV),(roi_num,NResults)).T,index=plot_names[0::2],columns=col_names),decimals=0)
-  mean_Tikh =  np.round(pd.DataFrame(np.reshape(np.asarray(mean_Tikh),(roi_num,NResults)).T,index=plot_names[1::2],columns=col_names),decimals=0)
+  mean_Tikh =  np.round(pd.DataFrame(np.reshape(np.asarray(mean_Tikh),(roi_num,NResults-1)).T,index=plot_names[3::2],columns=col_names),decimals=0)
   std_TGV =  np.round(pd.DataFrame(np.reshape(np.asarray(std_TGV),(roi_num,NResults)).T,index=plot_names[0::2],columns=col_names),decimals=0)
-  std_Tikh =  np.round(pd.DataFrame(np.reshape(np.asarray(std_Tikh),(roi_num,NResults)).T,index=plot_names[1::2],columns=col_names),decimals=0)
+  std_Tikh =  np.round(pd.DataFrame(np.reshape(np.asarray(std_Tikh),(roi_num,NResults-1)).T,index=plot_names[3::2],columns=col_names),decimals=0)
   
   f = open("test.tex","w")
   f.write(mean_TGV.to_latex())

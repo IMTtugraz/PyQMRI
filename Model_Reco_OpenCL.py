@@ -175,19 +175,13 @@ __kernel void functional_tgv(__global float *accum, __global float *u,
 
 __kernel void radon(__global float *sino, __global float *img,
                     __constant float4 *ofs, const int X,
-                    const int Y, const int CoilSlice)
+                    const int Y)
 {
-  size_t I = get_global_size(2);
-  size_t J = get_global_size(1);
-  size_t K = get_global_size(0);
-  
-  size_t i = get_global_id(2);
+  size_t I = get_global_size(0);
+  size_t i = get_global_id(0);
   size_t j = get_global_id(1);
-  size_t k = get_global_id(0);
-  
-  int scan_index = (int)(k/CoilSlice);
 
-  float4 o = ofs[j+scan_index*J];
+  float4 o = ofs[j];
   float acc = 0.0f;
   
   for(int y = 0; y < Y; y++) {
@@ -218,28 +212,21 @@ __kernel void radon(__global float *sino, __global float *img,
     }
     img += X;
   }
-  sino[k*(I*J)+ j*I + i] = acc;
+  sino[j*I + i] = acc;
 }
 
 __kernel void radon_ad(__global float *img, __global float *sino,
                        __constant float4 *ofs, const int I,
-                       const int J, const int CoilSlice)
+                       const int J)
 {
-  size_t X = get_global_size(2);
-  size_t Y = get_global_size(1);
-  size_t K = get_global_size(0);
-  
-  size_t x = get_global_id(2);
+  size_t X = get_global_size(0);
+  size_t x = get_global_id(0);
   size_t y = get_global_id(1);
-  size_t k = get_global_id(0);
 
   float4 c = (float4)(x,y,1,0);
   float acc = 0.0f;
-  
-  int scan_index = (int)(k/CoilSlice);
-  
   for (int j=0; j < J; j++) {
-    float i = dot(c, ofs[j+scan_index*J]);
+    float i = dot(c, ofs[j]);
     if ((i > -1) && (i < I)) {
       float i_floor;
       float w = fract(i, &i_floor);
@@ -248,9 +235,10 @@ __kernel void radon_ad(__global float *img, __global float *sino,
     }
     sino += I;
   }
-  img[k*(X*Y)+y*X + x] = acc;
+  img[y*X + x] = acc;
 }
 """)
+
 
     print("Please Set Parameters, Data and Initial images")
       
@@ -278,23 +266,22 @@ __kernel void radon_ad(__global float *img, __global float *sino,
       offset = midpoint_detectors - X*midpoint_domain[0] \
                - Y*midpoint_domain[1] + detector_shift/detector_width
   
-      ofs = np.zeros((self.NScan*self.Nproj,4), dtype=np.float32, order='C')
-      ofs[:,0] = X; ofs[:,1] = Y; ofs[:,2] = offset; ofs[:,3] = Xinv
-      ofs.reshape((self.Nproj,self.NScan,4))
+      ofs = np.zeros((4,self.NScan*self.Nproj), dtype=np.float32, order='F')
+      ofs[0,:] = X; ofs[1,:] = Y; ofs[2,:] = offset; ofs[3,:] = Xinv
+      ofs = np.require(ofs.reshape((4,self.Nproj,self.NScan)), np.float32, 'F')
   
       ofs_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=ofs.data)
-  #    cl.enqueue_copy(queue, ofs_buf, ofs.data).wait()
       
-      sinogram_shape = (self.NSlice*self.NC*self.NScan, self.Nproj ,nd)
+      sinogram_shape = (nd, self.Nproj)
       
-      return (ofs_buf, (self.NSlice*self.NC*self.NScan,self.dimX,self.dimY), sinogram_shape)
+      return (ofs_buf, (self.dimX,self.dimY), sinogram_shape)
   
   def radon(self,sino, img, wait_for=None):
       (ofs_buf, shape, sinogram_shape) = self.r_struct
       
       return self.prg.radon(sino.queue, sinogram_shape, None,
                        sino.data, img.data, ofs_buf,
-                       np.int32(shape[-2]), np.int32(shape[-1]), np.int32(self.NC*self.NSlice),
+                       np.int32(shape[0]), np.int32(shape[1]),
                        wait_for=wait_for)
   
   def radon_ad(self,img, sino, wait_for=None):
@@ -302,28 +289,28 @@ __kernel void radon_ad(__global float *img, __global float *sino,
   
       return self.prg.radon_ad(img.queue, shape, None,
                           img.data, sino.data, ofs_buf,
-                          np.int32(sinogram_shape[2]),
-                          np.int32(sinogram_shape[1]), np.int32(self.NC*self.NSlice),
+                          np.int32(sinogram_shape[0]),
+                          np.int32(sinogram_shape[1]),
                           wait_for=wait_for)
   
   def radon_normest(self):
-      img2 = np.require(np.random.randn(*(self.r_struct[1])), np.float32, 'C')
-      sino2 = np.require(np.random.randn(*(self.r_struct[2])), np.float32, 'C')
-      img = clarray.zeros(self.queue, self.r_struct[1], dtype=np.float32, order='C')
-      
+      img2 = np.require(np.random.randn(*(self.r_struct[1])), np.float32, 'F')
+      sino2 = np.require(np.random.randn(*(self.r_struct[2])), np.float32, 'F')
+      img = clarray.zeros(self.queue, self.r_struct[1], dtype=np.float32, order='F')
       
       sino = clarray.to_device(self.queue, sino2)  
       img.add_event(self.radon_ad(img, sino))
       a = np.vdot(img2.flatten(),img.get().flatten())
       
       img = clarray.to_device(self.queue, img2)
-      sino = clarray.zeros(self.queue, self.r_struct[2], dtype=np.float32, order='C')
+      sino = clarray.zeros(self.queue, self.r_struct[2], dtype=np.float32, order='F')
       self.radon(sino, img, wait_for=img.events)
       b = np.vdot(sino.get().flatten(),sino2.flatten())
-      print("Ajointness test: %f" %(np.abs(a-b)))
-  
+      print("Ajointness test: %e" %(np.abs(a-b)/(self.dimX*self.dimY)))
+      img = clarray.to_device(self.queue, np.require(np.random.randn(*self.r_struct[1]), np.float32, 'F'))
+      sino = clarray.zeros(self.queue, self.r_struct[2], dtype=np.float32, order='F') 
       for i in range(10):
-          normsqr = np.float(clarray.sum(img).get())
+          normsqr = np.abs(clarray.sum(img).get())
           img /= normsqr
           sino.add_event(self.radon(sino, img, wait_for=img.events))
           img.add_event(self.radon_ad(img, sino, wait_for=sino.events))
@@ -391,7 +378,12 @@ __kernel void radon_ad(__global float *img, __global float *sino,
   def execute_2D(self):
       self.r_struct = self.radon_struct()
       print("Radon norm: %f" %(self.radon_normest()))
-      
+      test = clarray.to_device(self.queue,np.require(self.data[:,:,0],np.float32,"F"))
+#      test = test.reshape(self.NScan*self.NC*self.NSlice,self.Nproj,self.N)
+      img = clarray.zeros(self.queue,self.r_struct[1],dtype=np.float32)
+      (self.radon_ad(img,test)).wait()
+      self.img = img.get()
+#      
       
 #      self.FT = self.nFT_2D
 #      self.FTH = self.nFTH_2D
