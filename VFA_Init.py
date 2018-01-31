@@ -236,11 +236,19 @@ data = data* dscale
 images= (np.sum(nFTH(data,plan,dcf,NScan,NC,\
                      NSlice,dimY,dimX)*(np.conj(par.C)),axis = 1))
 
+images = np.flip(np.transpose(images,(0,1,3,2)),axis=-1)
+
+
+
+###############################test#####################################
+data = np.fft.fftshift(np.fft.fft(np.fft.fftshift(data*np.sqrt(dcf),-1),axis=-1)/np.sqrt(512),-1)
+par.C = np.flip(np.transpose((par.C),(0,1,3,2)),axis=-1)
+images2= (np.sum(opt.FTH(data[:,:,0,...])[:,:,None,...]*(np.conj(opt.par.C)),axis = 1))
 
 ################################################################################
 ### Init forward model and initial guess #######################################
 ################################################################################
-model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images,par.phase_map,1)
+model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images2,par.phase_map,1)
 
 par.U = np.ones((data).shape, dtype=bool)
 par.U[abs(data) == 0] = False
@@ -255,6 +263,8 @@ ctx = cl.Context(
 
 queue = cl.CommandQueue(ctx)
 opt = Model_Reco.Model_Reco(par,ctx,queue)
+
+
 
 opt.par = par
 opt.data =  data
