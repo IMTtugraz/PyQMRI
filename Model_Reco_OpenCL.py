@@ -7,7 +7,7 @@ from __future__ import division
 import numpy as np
 import time
 
-import gradients_divergences as gd
+import gradients_divergences_old as gd
 
 import matplotlib.pyplot as plt
 plt.ion()

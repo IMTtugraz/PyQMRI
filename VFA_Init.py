@@ -7,7 +7,7 @@ from tkinter import filedialog
 from tkinter import Tk
 import nlinvns_maier as nlinvns
 
-import Model_Reco_OpenCL as Model_Reco
+import Model_Reco as Model_Reco
 import Model_Reco_old as Model_Reco_Tikh
 
 from pynfft.nfft import NFFT
@@ -243,12 +243,12 @@ images = np.flip(np.transpose(images,(0,1,3,2)),axis=-1)
 ###############################test#####################################
 data = np.fft.fftshift(np.fft.fft(np.fft.fftshift(data*np.sqrt(dcf),-1),axis=-1)/np.sqrt(512),-1)
 par.C = np.flip(np.transpose((par.C),(0,1,3,2)),axis=-1)
-images2= (np.sum(opt.FTH(data[:,:,0,...])[:,:,None,...]*(np.conj(opt.par.C)),axis = 1))
+#images2= (np.sum(opt.FTH(data[:,:,0,...])[:,:,None,...]*(np.conj(opt.par.C)),axis = 1))
 
 ################################################################################
 ### Init forward model and initial guess #######################################
 ################################################################################
-model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images2,par.phase_map,1)
+model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images,par.phase_map,1)
 
 par.U = np.ones((data).shape, dtype=bool)
 par.U[abs(data) == 0] = False
@@ -283,11 +283,11 @@ irgn_par.start_iters = 100
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 15
 irgn_par.lambd = 1e2
-irgn_par.gamma = 7e-2    #### 5e-2   5e-3 phantom ##### brain 1e-2
-irgn_par.delta = 1e-1 #### 8spk in-vivo 1e-2
+irgn_par.gamma = 7e-4    #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.delta = 1e-2 #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 5e-2
+irgn_par.gamma_min = 5e-10
 irgn_par.delta_max = 1e6
 irgn_par.tol = 1e-4
 irgn_par.stag = 1.05

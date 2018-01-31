@@ -3,47 +3,66 @@
 # cython: profile=False
 
 from __future__ import division
+cimport cython
 
+from cython.parallel import parallel, prange
+cimport numpy as np
 import numpy as np
 import time
 
 import decimal
-
-import gradients_divergences as gd
-
+cimport gradients_divergences as gd
 import matplotlib.pyplot as plt
 plt.ion()
 np.import_array()
 DTYPE = np.complex64
-
+ctypedef np.complex64_t DTYPE_t
+from numpy cimport ndarray
 
 import pynfft.nfft as nfft
 #cimport nfft
+import pyopencl as cl
+import pyopencl.array as clarray
 
 
 
-def class Model_Reco:
-#  cdef list _plan
-#  cdef dict __dict__
-#  cdef int unknowns, unknowns_TGV, unkonws_H1
-#  cdef int NSlice
-#  cdef int NScan
-#  cdef int dimY
-#  cdef int dimX
-#  cdef int NC
-#  cdef int N
-#  cdef int Nproj
-#  cdef double scale
-#  cdef public float dz
-#  cdef double fval
-#  cdef double fval_min
-#  cdef DTYPE_t[:,:,:,::1] grad_x_2D
-#  cdef DTYPE_t[:,:,:,::1] conj_grad_x_2D
-#  cdef DTYPE_t[:,:,::1] Coils, conjCoils
-#  cdef DTYPE_t[:,:,:,::1] Coils3D, conjCoils3D
+
+
+
+class Program(object):
+    def __init__(self, ctx, code):
+        self._cl_prg = cl.Program(ctx, code)
+        self._cl_prg.build()
+        self._cl_kernels = self._cl_prg.all_kernels()
+        for kernel in self._cl_kernels:
+                self.__dict__[kernel.function_name] = kernel
+@cython.cdivision(True)      
+@cython.boundscheck(False) # turn off bounds-checking for entire function
+@cython.wraparound(False)  # turn off negative index wrapping for entire function    
+@cython.initializedcheck(False)
+
+cdef class Model_Reco:
+  cdef list _plan
+  cdef dict __dict__
+  cdef int unknowns, unknowns_TGV, unkonws_H1
+  cdef int NSlice
+  cdef int NScan
+  cdef int dimY
+  cdef int dimX
+  cdef int NC
+  cdef int N
+  cdef int Nproj
+  cdef double scale
+  cdef public float dz
+  cdef double fval
+  cdef double fval_min
+  cdef DTYPE_t[:,:,:,::1] grad_x_2D
+  cdef DTYPE_t[:,:,:,::1] conj_grad_x_2D
+  cdef DTYPE_t[:,:,::1] Coils, conjCoils
+  cdef DTYPE_t[:,:,:,::1] Coils3D, conjCoils3D
 
   
-  def __init__(self,par):
+  def __init__(self,par,ctx,queue):
     self.par = par
     self.unknowns_TGV = par.unknowns_TGV
     self.unknowns_H1 = par.unknowns_H1
@@ -59,11 +78,276 @@ def class Model_Reco:
     self.dz = 3
     self.fval_min = 0
     self.fval = 0
+    self.ctx = ctx
+    self.queue = queue    
+    self.prg = Program(self.ctx, r"""
+__kernel void update_p(__global float2 *p, __global float *u,
+                       __global float2 *w,
+                       const float sigma, const float alphainv) {
+  size_t Nx = get_global_size(0), Ny = get_global_size(1);
+  size_t x = get_global_id(0), y = get_global_id(1);
+  size_t i = Nx*y + x;
+
+  // gradient 
+  float2 val = -u[i];
+  if (x < Nx-1) val.s0 += u[i+1];  else val.s0 = 0.0f;
+  if (y < Ny-1) val.s1 += u[i+Nx]; else val.s1 = 0.0f;
+
+  // step
+  val = p[i] + sigma*(val - w[i]);
+
+  // reproject
+  float fac = hypot(val.s0, val.s1)*alphainv;
+  if (fac > 1.0f) p[i] = val/fac; else p[i] = val;
+}
+
+__kernel void update_q(__global float3 *q, __global float2 *w,
+                       const float sigma, const float alphainv) {
+  size_t Nx = get_global_size(0), Ny = get_global_size(1);
+  size_t x = get_global_id(0), y = get_global_id(1);
+  size_t i = Nx*y + x;
+
+  // symmetrized gradient 
+  float4 val = (float4)(w[i], w[i]);
+  if (x > 0) val.s01 -= w[i-1];  else val.s01 = (float2)(0.0f, 0.0f);
+  if (y > 0) val.s23 -= w[i-Nx]; else val.s23 = (float2)(0.0f, 0.0f);
+  float3 val2 = (float3)(val.s0, val.s3, 0.5f*(val.s1 + val.s2));
+
+  // step
+  val2 = q[i] + sigma*val2;
+
+  // reproject
+  float fac = hypot(hypot(val2.s0, val2.s1), 2.0f*val2.s2)*alphainv;
+  if (fac > 1.0f) q[i] = val2/fac; else q[i] = val2;
+}
+
+__kernel void update_lambda(__global float *lambda, __global float *Ku,
+                            __global float *f, const float sigma,
+                            const float sigmap1inv) {
+  size_t Nx = get_global_size(0), Ny = get_global_size(1);
+  size_t x = get_global_id(0), y = get_global_id(1);
+  size_t i = y*Nx + x;
+
+  lambda[i] = (lambda[i] + sigma*(Ku[i] - f[i]))*sigmap1inv;
+}
+
+__kernel void update_u(__global float *u, __global float *u_,
+                       __global float2 *p, __global float *Kstarlambda,
+                       const float tau, const float norming) {
+  size_t Nx = get_global_size(0), Ny = get_global_size(1);
+  size_t x = get_global_id(0), y = get_global_id(1);
+  size_t i = y*Nx + x;
+
+  // divergence
+  float2 val = p[i];
+  if (x == Nx-1) val.s0 = 0.0f;
+  if (x > 0) val.s0 -= p[i-1].s0;
+  if (y == Ny-1) val.s1 = 0.0f;
+  if (y > 0) val.s1 -= p[i-Nx].s1;
+
+  // linear step
+  u[i] = u_[i] + tau*(val.s0 + val.s1 - norming*Kstarlambda[i]);
+}
+
+__kernel void update_w(__global float2 *w, __global float2 *w_,
+                       __global float2 *p, __global float3 *q,
+                       const float tau) {
+  size_t Nx = get_global_size(0), Ny = get_global_size(1);
+  size_t x = get_global_id(0), y = get_global_id(1);
+  size_t i = y*Nx + x;
+
+  // divergence
+  float3 val0 = -q[i];
+  float4 val = (float4)(val0.s0, val0.s2, val0.s2, val0.s1);
+  if (x == 0)   val.s01 = 0.0f;
+  if (x < Nx-1) val.s01 += (float2)(q[i+1].s0, q[i+1].s2);
+  if (y == 0)   val.s23 = 0.0f;
+  if (y < Ny-1) val.s23 += (float2)(q[i+Nx].s2, q[i+Nx].s1);
+
+  // linear step
+  w[i] = w_[i] + tau*(p[i] + val.s01 + val.s23);
+}
+
+__kernel void functional_discrepancy(__global float *accum,
+                                __global float *Ku, __global float *f) {
+  size_t Nx = get_global_size(0), Ny = get_global_size(1);
+  size_t x = get_global_id(0), y = get_global_id(1);
+  size_t i = Nx*y + x;
+
+  float val = Ku[i] - f[i];
+  accum[i] = val*val;
+}
+
+__kernel void functional_tgv(__global float *accum, __global float *u,
+                        __global float2 *w,
+                        const float alpha0, const float alpha1) {
+  size_t Nx = get_global_size(0), Ny = get_global_size(1);
+  size_t x = get_global_id(0), y = get_global_id(1);
+  size_t i = Nx*y + x;
+
+  // gradient 
+  float2 val = -u[i];
+  if (x < Nx-1) val.s0 += u[i+1];  else val.s0 = 0.0f;
+  if (y < Ny-1) val.s1 += u[i+Nx]; else val.s1 = 0.0f;
+
+  // symmetrized gradient
+  float2 wi = w[i];
+  float4 val2 = (float4)(wi, wi);
+  if (x > 0) val2.s01 -= w[i-1];  else val2.s01 = (float2)(0.0f, 0.0f);
+  if (y > 0) val2.s23 -= w[i-Nx]; else val2.s23 = (float2)(0.0f, 0.0f);
+  float3 val3 = (float3)(val2.s0, val2.s3, 0.5f*(val2.s1 + val2.s2));
+
+  val -= wi;
+  accum[i] = alpha1*hypot(val.s0, val.s1)
+           + alpha0*hypot(hypot(val2.s0, val2.s1), 2.0f*val2.s2);
+}
 
 
+__kernel void radon(__global float2 *sino, __global float2 *img,
+                    __constant float4 *ofs, const int X,
+                    const int Y, const int scan)
+{
+  size_t I = get_global_size(1);
+  size_t J = get_global_size(0);
+  size_t i = get_global_id(1);
+  size_t j = get_global_id(0);
+
+  float4 o = ofs[j+scan*J];
+  float2 acc =  0.0f;
+  
+  for(int y = 0; y < Y; y++) {
+    int x_low, x_high;
+    float d = y*o.y + o.z;
+
+    // compute bounds
+    if (o.x == 0) {
+      if ((d > i-1) && (d < i+1)) {
+        x_low = 0; x_high = X-1;
+      } else {
+        img += X; continue;
+      }
+    } else if (o.x > 0) {
+      x_low = (int)((i-1 - d)*o.w);
+      x_high = (int)((i+1 - d)*o.w);
+    } else {
+      x_low = (int)((i+1 - d)*o.w);
+      x_high = (int)((i-1 - d)*o.w);
+    }
+    x_low = max(x_low, 0);
+    x_high = min(x_high, X-1);
+
+    // integrate
+    for(int x = x_low; x <= x_high; x++) {
+      float2 weight = 1.0 - fabs(x*o.x + d - i);
+      if (weight.x > 0.0f) acc += weight*img[x];
+    }
+    img += X;
+  }
+  sino[j*I + i] = acc;
+}
+
+__kernel void radon_ad(__global float2 *img, __global float2 *sino,
+                       __constant float4 *ofs, const int I,
+                       const int J, const int scan)
+{
+  size_t X = get_global_size(1);
+  size_t x = get_global_id(1);
+  size_t y = get_global_id(0);
+
+  float4 c = (float4)(x,y,1,0);
+  float2 acc = 0.0f;
+  for (int j=0; j < J; j++) {
+    float i = dot(c, ofs[j+scan*J]);
+    if ((i > -1) && (i < I)) {
+      float i_floor;
+      float2 w = fract(i, &i_floor);
+      if (i_floor >= 0)   acc += (1.0f - w)*sino[(int)i_floor];
+      if (i_floor <= I-2) acc += w*sino[(int)(i_floor+1)];
+    }
+    sino += I;
+  }
+  img[y*X + x] = acc;
+}
+""")
     print("Please Set Parameters, Data and Initial images")
-
-    
+      
+  def radon_struct(self, n_detectors=None,
+                   detector_width=1.0, detector_shift=0.0):
+      if np.isscalar(self.Nproj):
+          angles = np.mod(111.246117975*np.arange(self.Nproj*self.NScan),360)/180*np.pi#linspace(0,pi,angles+1)[:-1]
+      if n_detectors is None:
+          nd = 2*np.max((self.dimX,self.dimY))#int(ceil(hypot(shape[0],shape[1])))
+      else:
+          nd = n_detectors
+      midpoint_domain = np.array([self.dimX-1, self.dimY-1])/2.0
+      midpoint_detectors = (nd-1.0)/2.0
+  
+      X = np.cos(angles)/detector_width
+      Y = np.sin(angles)/detector_width
+      Xinv = 1.0/X
+  
+      # set near vertical lines to vertical
+#      mask = abs(Xinv) > 10*nd
+#      X[mask] = 0
+#      Y[mask] = np.sin(angles[mask]).round()/detector_width
+#      Xinv[mask] = 0
+  
+      offset = midpoint_detectors - X*midpoint_domain[0] \
+               - Y*midpoint_domain[1] + detector_shift/detector_width
+  
+      ofs = np.zeros((self.NScan*self.Nproj,4), dtype=np.float32, order='C')
+      ofs[:,0] = X; ofs[:,1] = Y; ofs[:,2] = offset; ofs[:,3] = Xinv
+      ofs = np.require(ofs.reshape((self.NScan,self.Nproj,4)), np.float32, 'C')
+  
+      ofs_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=ofs.data)
+      
+      sinogram_shape = (self.Nproj,nd)
+      
+      return (ofs_buf, (self.dimX,self.dimY), sinogram_shape)
+  
+  def radon(self,sino, img, wait_for=None, scan=0):
+      (ofs_buf, shape, sinogram_shape) = self.r_struct
+      
+      return self.prg.radon(sino.queue, sinogram_shape, None,
+                       sino.data, img.data, ofs_buf,
+                       np.int32(shape[0]), np.int32(shape[1]),
+                       np.int32(scan),
+                       wait_for=wait_for)
+  
+  def radon_ad(self,img, sino, wait_for=None, scan=0):
+      (ofs_buf, shape, sinogram_shape) = self.r_struct
+  
+      return self.prg.radon_ad(img.queue, shape, None,
+                          img.data, sino.data, ofs_buf,
+                          np.int32(sinogram_shape[1]),
+                          np.int32(sinogram_shape[0]),
+                          np.int32(scan),
+                          wait_for=wait_for)
+  
+  def radon_normest(self):
+      img2 = np.require(np.random.randn(*(self.r_struct[1])), np.complex64, 'C')
+      sino2 = np.require(np.random.randn(*(self.r_struct[2])), np.complex64, 'C')
+      img = clarray.zeros(self.queue, self.r_struct[1], dtype=np.complex64, order='C')
+      
+      sino = clarray.to_device(self.queue, sino2)  
+      img.add_event(self.radon_ad(img, sino))
+      a = np.vdot(img2.flatten(),img.get().flatten())
+      
+      img = clarray.to_device(self.queue, img2)
+      sino = clarray.zeros(self.queue, self.r_struct[2], dtype=np.complex64, order='C')
+      self.radon(sino, img, wait_for=img.events)
+      b = np.vdot(sino.get().flatten(),sino2.flatten())
+      print("Ajointness test: %e" %(np.abs(a-b)/(self.dimX*self.dimY)))
+      img = clarray.to_device(self.queue, np.require(np.random.randn(*self.r_struct[1]), np.complex64, 'C'))
+      sino = clarray.zeros(self.queue, self.r_struct[2], dtype=np.complex64, order='C') 
+      for i in range(10):
+          normsqr = np.abs(clarray.sum(img).get())
+          img /= normsqr
+          sino.add_event(self.radon(sino, img, wait_for=img.events))
+          img.add_event(self.radon_ad(img, sino, wait_for=sino.events))
+  
+      return np.sqrt(normsqr)    
+   
   cdef np.ndarray[DTYPE_t,ndim=3] irgn_solve_2D(self,np.ndarray[DTYPE_t,ndim=3] x, int iters,np.ndarray[DTYPE_t,ndim=4] data):
     
 
@@ -122,15 +406,18 @@ def class Model_Reco:
 
     
   cpdef execute_2D(self):
-      self.init_plan()
+      self.r_struct = self.radon_struct()
+      print("Radon norm: %f" %(self.radon_normest()))
+#      
       self.FT = self.nFT_2D
-      self.FTH = self.nFTH_2D
+      self.FTH = self.nFTH_2D      
+      
       gamma = self.irgn_par.gamma
       delta = self.irgn_par.delta
       
       self.result = np.zeros((self.irgn_par.max_GN_it,self.unknowns_TGV+self.unknowns_H1,self.par.NSlice,self.par.dimY,self.par.dimX),dtype=DTYPE)
       result = np.copy(self.model.guess)
-      for islice in range(self.par.NSlice):
+      for islice in range(self.par.NSlice): 
         self.irgn_par.gamma = gamma
         self.irgn_par.delta = delta
         self.Coils = np.array(np.squeeze(self.par.C[:,islice,:,:]),order='C')
@@ -732,38 +1019,32 @@ def class Model_Reco:
     return self.fft_back(x)*np.sqrt(np.shape(x)[2]*np.shape(x)[3])
 
 
-  cpdef np.ndarray[DTYPE_t,ndim=4] nFT_2D(self, np.ndarray[DTYPE_t,ndim=4] x):
-
-    cdef int nscan = np.shape(x)[0]
-    cdef int NC = np.shape(x)[1]   
-    cdef np.ndarray[DTYPE_t,ndim=3] result = np.zeros((nscan,NC,self.par.Nproj*self.par.N),dtype=DTYPE)
-    cdef double scal = self.scale
-    cdef int scan=0
-    cdef int coil=0
-    cdef list plan = self._plan
-    for scan in range(nscan):
-      for coil in range(NC):
-          plan[scan][coil].f_hat = x[scan,coil,:,:]/scal
-          result[scan,coil,:] = plan[scan][coil].trafo()
-      
-    return np.reshape(result*self.dcf_flat,[nscan,NC,self.par.Nproj,self.par.N])
+  def nFT_2D(self, x):
+    result = np.zeros((self.NScan,self.NC,self.Nproj,self.N),dtype=DTYPE)  
+    for i in range(self.NScan):
+      for j in range(self.NC):
+  #      for k in range(self.NSlice):
+          tmp_img = clarray.to_device(self.queue,np.require(x[i,j,...]/self.scale,np.complex64,"C"))
+          tmp_sino = clarray.zeros(self.queue,self.r_struct[2],np.complex64,"C")
+          (self.radon(tmp_sino,tmp_img,scan=i)).wait()
+          result[i,j,...] = tmp_sino.get()
+  
+    return result
 
 
 
-  cpdef np.ndarray[DTYPE_t,ndim=4] nFTH_2D(self, np.ndarray[DTYPE_t,ndim=4] x):
-    cdef int nscan = np.shape(x)[0]
-    cdef int NC = np.shape(x)[1]     
-    cdef np.ndarray[DTYPE_t,ndim=4] result = np.zeros((nscan,NC,self.par.dimX,self.par.dimY),dtype=DTYPE)
-    cdef np.ndarray[DTYPE_t,ndim=2] dcf = self.dcf
-    cdef int scan=0
-    cdef int coil=0
-    cdef list plan = self._plan
-    for scan in range(nscan):
-        for coil in range(NC):  
-            plan[scan][coil].f = x[scan,coil,:,:]*dcf
-            result[scan,coil,:,:] = plan[scan][coil].adjoint()
-      
+  def nFTH_2D(self, x):
+    result = np.zeros((self.NScan,self.NC,self.dimY,self.dimX),dtype=DTYPE)  
+    for i in range(self.NScan):
+      for j in range(self.NC):
+  #      for k in range(self.NSlice):
+          tmp_sino = clarray.to_device(self.queue,np.require(x[i,j,...],np.complex64,"C"))
+          tmp_img = clarray.zeros(self.queue,self.r_struct[1],np.complex64,"C")
+          (self.radon_ad(tmp_img,tmp_sino,scan=i)).wait()
+          result[i,j,...] = tmp_img.get()
+  
     return result/self.scale
+
       
   
   
