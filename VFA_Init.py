@@ -7,7 +7,7 @@ from tkinter import filedialog
 from tkinter import Tk
 import nlinvns_maier as nlinvns
 
-import Model_Reco as Model_Reco
+import Model_Reco_OpenCL as Model_Reco
 import Model_Reco_old as Model_Reco_Tikh
 
 from pynfft.nfft import NFFT
@@ -58,8 +58,11 @@ for attributes in test_attributes:
 ################################################################################
 ### Read Data ##################################################################
 ################################################################################
-data = file['real_dat'][()].astype(DTYPE) +\
-       1j*file['imag_dat'][()].astype(DTYPE)
+reco_Slices = 1
+dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)    
+    
+data = file['real_dat'][:,:,int(NSlice/2)-1:int(NSlice/2),...].astype(DTYPE) +\
+       1j*file['imag_dat'][:,:,int(NSlice/2)-1:int(NSlice/2),...].astype(DTYPE)
 
 
 traj = file['real_traj'][()].astype(DTYPE) + \
@@ -68,11 +71,11 @@ traj = file['real_traj'][()].astype(DTYPE) + \
 
 dcf = np.array(goldcomp.cmp(traj),dtype=DTYPE)
 
-dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
+
 
 
 ############### Set number of Slices ###########################################
-reco_Slices = 1
+
 
 
 #Create par struct to store everyting
@@ -84,23 +87,9 @@ par = struct()
 ### FA correction ##############################################################
 ################################################################################
 
-par.fa_corr = file['fa_corr'][()].astype(DTYPE)
-
-################################################################################
-### Pick slices for reconstruction #############################################
-################################################################################
-
-data = data[:,:,int(NSlice/2)-\
-            int(np.ceil(reco_Slices/2)):int(NSlice/2)+\
-            int(np.floor(reco_Slices/2)),:,:]
-
-#if reco_Slices ==1:
-#  data = data[:,:,None,:,:]
-  
-par.fa_corr = np.flip(par.fa_corr,axis=0)[int(NSlice/2)-\
-            int(np.ceil(reco_Slices/2)):int(NSlice/2)+\
-            int(np.floor(reco_Slices/2)),:,:]
+par.fa_corr = file['fa_corr'][int(NSlice/2)-1:int(NSlice/2),...].astype(DTYPE)
 par.fa_corr[par.fa_corr==0] = 1
+
 
 [NScan,NC,NSlice,Nproj, N] = data.shape
 ################################################################################
@@ -236,14 +225,9 @@ data = data* dscale
 images= (np.sum(nFTH(data,plan,dcf,NScan,NC,\
                      NSlice,dimY,dimX)*(np.conj(par.C)),axis = 1))
 
-images = np.flip(np.transpose(images,(0,1,3,2)),axis=-1)
 
 
 
-###############################test#####################################
-data = np.fft.fftshift(np.fft.fft(np.fft.fftshift(data*np.sqrt(dcf),-1),axis=-1)/np.sqrt(512),-1)
-par.C = np.flip(np.transpose((par.C),(0,1,3,2)),axis=-1)
-#images2= (np.sum(opt.FTH(data[:,:,0,...])[:,:,None,...]*(np.conj(opt.par.C)),axis = 1))
 
 ################################################################################
 ### Init forward model and initial guess #######################################
@@ -264,6 +248,12 @@ ctx = cl.Context(
 queue = cl.CommandQueue(ctx)
 opt = Model_Reco.Model_Reco(par,ctx,queue)
 
+###############################test#####################################
+data = np.fft.fftshift(np.fft.fft(np.fft.fftshift(data*np.sqrt(dcf),-1),axis=-1)/np.sqrt(512),-1)
+dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2))/(np.linalg.norm(data.flatten()))
+par.dscale = dscale
+data = data*dscale
+#images2= (np.sum(opt.FTH(data[:,:,0,...])[:,:,None,...]*(np.conj(opt.par.C)),axis = 1))
 
 
 opt.par = par
@@ -281,18 +271,25 @@ opt.traj = traj
 irgn_par = struct()
 irgn_par.start_iters = 100
 irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 15
+irgn_par.max_GN_it = 200
 irgn_par.lambd = 1e2
-irgn_par.gamma = 7e-4    #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.gamma = 1e-20    #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-2 #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 5e-10
+irgn_par.gamma_min = 2e-20
 irgn_par.delta_max = 1e6
 irgn_par.tol = 1e-4
 irgn_par.stag = 1.05
 irgn_par.delta_inc = 10
 opt.irgn_par = irgn_par
+
+
+images2= (np.sum(opt.FTH(data[:,:,0,...])[:,:,None,...]*(np.conj(opt.par.C)),axis = 1))
+
+model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images2,par.phase_map,1)
+opt.model = model
+
 
 opt.execute_2D()
 
