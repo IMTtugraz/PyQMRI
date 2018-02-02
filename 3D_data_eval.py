@@ -63,6 +63,14 @@ plot_names = []
 #M0_ref = data[0]
 #T1_ref = data[1]
 
+if "IRLL" in filenames[0]:
+  tr = 1000
+  save_name = "IRLL"
+else:
+  tr = 5
+  save_name = "VFA"
+
+
 
 for files in filenames:
   full_name = files.split('/')[-1]
@@ -88,7 +96,7 @@ for files in filenames:
   else:
     M0_tgv.append(data[names.index('M0_final')])
 #    M0_tikh.append(data[names.index('M0_ref')])
-    T1_tgv.append(-5/np.log(data[names.index('T1_final')]))
+    T1_tgv.append(-tr/np.log(data[names.index('T1_final')]))
 #    T1_tikh.append(-1000/np.log(data[names.index('T1_ref')]))
     plot_names.append(fname[-2:] + " Spokes TGV")  
     plot_names.append(fname[-2:] + " Spokes Tikh")    
@@ -103,7 +111,7 @@ z = z*dz
 
 T1_plot=[]
 M0_plot=[]
-T1_min = 600
+T1_min = 300
 T1_max = 3000
 M0_min = 0
 M0_max = np.abs(np.max(M0_tgv[0]))
@@ -172,6 +180,8 @@ for j in range(NResults):
   plt.show()  
 
 
+
+plt.savefig('/media/omaier/a3c6e764-0f9b-44b3-b888-26da7d3fe6e7/Papers/Parameter_Mapping/3D_'+save_name+'.eps', format='eps', dpi=1000)
 #
 #if int(input("Enter 0 for no ref or 1 for ref: ")):
 #  T1_ref = np.flip(T1_ref,axis=0)
@@ -210,7 +220,7 @@ for j in range(NResults):
 #    #fig.colorbar(im, pad=0)
 #    plt.show()  
   
-offset = 6
+offset = 0
 
   
 roi_num = int(input("Enter the number of desired ROIs: "))

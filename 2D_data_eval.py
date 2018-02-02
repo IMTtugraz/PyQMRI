@@ -47,8 +47,10 @@ plot_names = []
 NRef = 0
 if "IRLL" in filenames[0]:
   tr = 1000
+  save_name = "IRLL"
 else:
   tr = 5
+  save_name = "VFA"
 
 for files in filenames:
   full_name = files.split('/')[-1]
@@ -63,8 +65,8 @@ for files in filenames:
     names.append(name)
     data.append(file[name][()])  
   if "ref" in files:
-    T1_ref = np.flip(data[names.index('t1_reference')],axis=0)
-    M0_ref = data[names.index('m0_reference')]
+    T1_ref = np.flip(data[names.index('t1_ref_l2')],axis=0)
+    M0_ref = data[names.index('m0_ref_l2')]
     plot_names.append("Reference")
     plot_names.append(" ")
     NRef = 1
@@ -98,10 +100,10 @@ plot_err = False
 
 if "Reference" in plot_names:
   dimz, dimy, dimx =   T1_ref.shape
-  T1_plot.append(T1_ref[0,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size].T)
+  T1_plot.append(T1_ref[int(dimz/2),int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size].T)
   T1_plot.append(np.zeros((dimy,dimx)))
   
-  M0_plot.append(M0_ref[0,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size].T)
+  M0_plot.append(M0_ref[int(dimz/2),int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size].T)
   M0_plot.append(np.zeros((dimy,dimx)))
 
 T1_err=[]
@@ -113,10 +115,10 @@ mask = mask[0,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:
 for i in range(NResults-NRef):
   slices, dimy, dimx = T1_tgv[i].shape
   
-  T1_tgv[i] = T1_tgv[i][0,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size]*mask
-  M0_tgv[i] = M0_tgv[i][0,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size]*mask
-  T1_tikh[i] = T1_tikh[i][0,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size]*mask
-  M0_tikh[i] = M0_tikh[i][0,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size]*mask
+  T1_tgv[i] = T1_tgv[i][int(dimz/2),int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size]*mask
+  M0_tgv[i] = M0_tgv[i][int(dimz/2),int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size]*mask
+  T1_tikh[i] = T1_tikh[i][int(dimz/2),int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size]*mask
+  M0_tikh[i] = M0_tikh[i][int(dimz/2),int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size]*mask
 
   T1_plot.append(np.squeeze(T1_tgv[i][...]).T)
   T1_plot.append(np.squeeze(T1_tikh[i][...]).T)
@@ -125,8 +127,8 @@ for i in range(NResults-NRef):
   M0_plot.append(np.squeeze(M0_tikh[i][...]).T)
   
   if "Reference" in plot_names:
-    T1_err.append(np.squeeze(np.abs(T1_tgv[i]-T1_ref[0,...])/np.abs(T1_ref[0,...])).T*100)
-    T1_err.append(np.squeeze(np.abs(T1_tikh[i][...]-T1_ref[0,...])/np.abs(T1_ref[0,...])).T*100)  
+    T1_err.append(np.squeeze(np.abs(T1_tgv[i]-T1_ref[-1,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size])/np.abs(T1_ref[0,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size])).T*100)
+    T1_err.append(np.squeeze(np.abs(T1_tikh[i]-T1_ref[-1,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size])/np.abs(T1_ref[0,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size])).T*100)  
     
 if "Reference" in plot_names and plot_err:  
   fig = plt.figure(figsize = (8,8))
@@ -230,6 +232,7 @@ else:
 
 
 
+
   
 roi_num = int(input("Enter the number of desired ROIs: "))
 if roi_num > 0:
@@ -240,7 +243,7 @@ if roi_num > 0:
   std_TGV = []
   std_Tikh =  []
   col_names = []
-  selector = cv2.cvtColor(np.abs(T1_ref[0,...].T/3000).astype(np.float32),cv2.COLOR_GRAY2BGR)
+  selector = cv2.cvtColor(np.abs(T1_ref[...].T/3000).astype(np.float32),cv2.COLOR_GRAY2BGR)
   
   for j in range(roi_num):
     r = (cv2.selectROI(selector,False))
@@ -295,3 +298,4 @@ if roi_num > 0:
       ax_table[i].set_title("Standardeviation")
       
 
+plt.savefig('/media/omaier/a3c6e764-0f9b-44b3-b888-26da7d3fe6e7/Papers/Parameter_Mapping/2Dvs3D_'+save_name+'.eps', format='eps', dpi=1000)

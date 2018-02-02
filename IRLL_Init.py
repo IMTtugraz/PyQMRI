@@ -284,7 +284,7 @@ irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e2
 irgn_par.gamma = 1e-3   #### 5e-2   5e-3 phantom ##### brain 1e-3
-irgn_par.delta = 1e2  #### 8spk in-vivo 5e2
+irgn_par.delta = 1e4  #### 8spk in-vivo 5e2
 irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
 

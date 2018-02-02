@@ -76,7 +76,7 @@ dcf = file['dcf'][()].astype(DTYPE)
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
 
 ############### Set number of Slices ###########################################
-reco_Slices = 3
+reco_Slices = 5
 os_slices = 20
 
 class struct:
@@ -183,7 +183,7 @@ else:
 ### Reorder acquired Spokes   ##################################################
 ################################################################################
 
-
+dcf = dcf * (N*np.pi/(4*Nproj))
 Nproj_new = 8
 Nproj_measured = Nproj
 NScan = np.floor_divide(Nproj,Nproj_new)
@@ -195,7 +195,7 @@ par.NScan = NScan
 data = np.transpose(np.reshape(data[:,:,:,:Nproj*NScan,:],\
                                (NC,NSlice,NScan,Nproj,N)),(2,0,1,3,4))
 traj =np.reshape(traj[:Nproj*NScan,:],(NScan,Nproj,N))
-dcf = dcf[:Nproj,:]
+dcf = dcf[:Nproj,:]*NScan**2
 
 ################################################################################
 ### Calcualte wait time   ######################################################
@@ -302,11 +302,11 @@ opt.traj = traj
 irgn_par = struct()
 irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 8
-irgn_par.lambd = 1e2
-irgn_par.gamma = 1e-3   #### 5e-2   5e-3 phantom ##### brain 1e-3
-irgn_par.delta = 1e2  #### 8spk in-vivo 5e2
-irgn_par.omega = 1e-5
+irgn_par.max_GN_it = 10
+irgn_par.lambd = 1e3
+irgn_par.gamma = 2e-1  #### 5e-2   5e-3 phantom ##### brain 1e-3
+irgn_par.delta = 1e-3  #### 8spk in-vivo 5e2
+irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
 
 opt.irgn_par = irgn_par
@@ -325,8 +325,8 @@ opt_t.images = images
 #opt_t.fft_forward = fft_forward
 #opt_t.fft_back = fft_back
 opt_t.nfftplan = plan
-opt_t.dcf = np.sqrt(dcf*(N*(np.pi/(4*Nproj))))
-opt_t.dcf_flat = np.sqrt(dcf*(N*(np.pi/(4*Nproj)))).flatten()
+opt_t.dcf = np.sqrt(dcf)
+opt_t.dcf_flat = np.sqrt(dcf).flatten()
 opt_t.model = model
 opt_t.traj = traj
 

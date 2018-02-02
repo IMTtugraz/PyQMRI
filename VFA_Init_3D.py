@@ -75,7 +75,7 @@ dcf = file['dcf'][()].astype(DTYPE)
 
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
 
-reco_Slices = 52
+reco_Slices = 5
 #Create par struct to store everyting
 class struct:
     pass
@@ -271,9 +271,9 @@ irgn_par = struct()
 irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 8
-irgn_par.lambd = 1e2
-irgn_par.gamma = 1e-2   #### 5e-2   5e-3 phantom ##### brain 1e-2
-irgn_par.delta = 1e-1  #### 8spk in-vivo 1e-2
+irgn_par.lambd = 1e3
+irgn_par.gamma = 2e-1   #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.delta = 5e-3  #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e-8
 irgn_par.display_iterations = True
 
