@@ -66,8 +66,8 @@ for files in filenames:
     names.append(name)
     data.append(file[name][()])  
   if "ref" in files:
-    T1_ref = np.flip(data[names.index('t1_ref_l2')],axis=0)
-    M0_ref = data[names.index('m0_ref_l2')]
+    T1_ref = np.flip(data[names.index('t1_reference')],axis=0)
+    M0_ref = data[names.index('m0_reference')]
     plot_names.append("Reference")
     plot_names.append(" ")
     NRef = 1
@@ -84,12 +84,11 @@ for files in filenames:
     M0_tgv.append(data[names.index('M0_final')])
     M0_tikh.append(data[names.index('M0_ref')])
 
-    plot_names.append(fname[-5:].split('_')[0] +" spk "+ fname[-5:].split('_')[1] + " TGV")  
-    plot_names.append(fname[-5:].split('_')[0] +" spk "+ fname[-5:].split('_')[1] + " Tikh")  
+    plot_names.append(fname[-5:].split('_')[0] +" s "+ fname[-5:].split('_')[1] + " TGV")  
+    plot_names.append(fname[-5:].split('_')[0] +" s "+ fname[-5:].split('_')[1] + " Tikh")  
 
 
 dz = 1
-T1_tikh[1] = T1_tikh[0]
 
 
 mask = (masking.compute(M0_tgv[0]))
@@ -104,7 +103,7 @@ T1_max = 3000
 M0_min = 0
 M0_max = np.abs(np.max(M0_tgv[0]))
 
-half_im_size = 106
+half_im_size = 128
 plot_err = False
 
 pos = 0
@@ -263,7 +262,7 @@ if roi_num > 0:
   std_TGV = []
   std_Tikh =  []
   col_names = []
-  selector = cv2.cvtColor(np.abs(T1_ref[0,...].T/3000).astype(np.float32),cv2.COLOR_GRAY2BGR)
+  selector = cv2.cvtColor(np.abs(np.squeeze(T1_ref[0,...]).T/3000).astype(np.float32),cv2.COLOR_GRAY2BGR)
   
   for j in range(roi_num):
     r = (cv2.selectROI(selector,False))
@@ -320,4 +319,4 @@ if roi_num > 0:
       ax_table[i].set_title("Standardeviation")
       
 
-plt.savefig('/media/omaier/a3c6e764-0f9b-44b3-b888-26da7d3fe6e7/Papers/Parameter_Mapping/2Dvs3D_'+save_name+'.eps', format='eps', dpi=1000)
+plt.savefig('/media/data/Papers/Parameter_Mapping/2Dvs3D_'+save_name+'.eps', format='eps', dpi=1000)

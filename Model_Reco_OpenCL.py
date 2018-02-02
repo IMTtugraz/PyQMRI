@@ -171,8 +171,6 @@ __kernel void functional_tgv(__global float *accum, __global float *u,
   accum[i] = alpha1*hypot(val.s0, val.s1)
            + alpha0*hypot(hypot(val2.s0, val2.s1), 2.0f*val2.s2);
 }
-
-
 __kernel void radon(__global float2 *sino, __global float2 *img,
                     __constant float4 *ofs, const int X,
                     const int Y, const int CoilsScans)
@@ -254,17 +252,26 @@ __kernel void radon_ad(__global float2 *img, __global float2 *sino,
 """)
 
 
+
+
     print("Please Set Parameters, Data and Initial images")
       
   def radon_struct(self, n_detectors=None,
                    detector_width=1.0, detector_shift=0.0):
       if np.isscalar(self.Nproj):
-          angles = np.mod(111.246117975*np.arange(self.Nproj*self.NScan),360)/180*np.pi#linspace(0,pi,angles+1)[:-1]
+          angles = np.mod(-90+111.246117975*np.arange(self.Nproj*self.NScan),360)/180*np.pi#linspace(0,pi,angles+1)[:-1]
       if n_detectors is None:
           nd = 2*np.max((self.dimX,self.dimY))#int(ceil(hypot(shape[0],shape[1])))
       else:
           nd = n_detectors
-      midpoint_domain = np.array([self.dimX-1, self.dimY-1])/2.0
+          
+      shift_read = np.array((-0.0322,-0.0314 ,  -0.0319  , -0.0315  , -0.0312   ,-0.0302   ,-0.0306   ,-0.0302  , -0.0302,   -0.0300))
+      shift_phase = np.array((0.1280  ,  0.1283 ,   0.1282  ,  0.1307 ,   0.1333  ,  0.1327  ,  0.1379,    0.1395 ,   0.1293,    0.1290))
+           
+      midpoint_domain = np.zeros((self.NScan,2))
+      for i in range(self.NScan):
+        midpoint_domain[i,:] = np.array([self.dimX-shift_read[i], self.dimY-shift_phase[i]])/2.0
+      midpoint_domain = np.repeat(midpoint_domain,self.Nproj)  
       midpoint_detectors = (nd-1.0)/2.0
       
       angles = np.reshape(np.angle(self.traj[:,:,0]),(self.Nproj*self.NScan))
@@ -278,7 +285,7 @@ __kernel void radon_ad(__global float2 *img, __global float2 *sino,
       X[mask] = 0
       Y[mask] = np.sin(angles[mask]).round()/detector_width
       Xinv[mask] = 0
-  
+      
       offset = midpoint_detectors - X*midpoint_domain[0] \
                - Y*midpoint_domain[1] + detector_shift/detector_width
   
@@ -324,7 +331,7 @@ __kernel void radon_ad(__global float2 *img, __global float2 *sino,
       sino = clarray.zeros(self.queue, self.r_struct[2], dtype=np.complex64, order='C')
       self.radon(sino, img, wait_for=img.events)
       b = np.vdot(sino.get().flatten(),sino2.flatten())
-      print("Ajointness test: %e" %(np.abs(a-b)/(self.dimX*self.dimY*self.NC*self.NSlice*self.NScan)))
+      print("Ajointness test: %e" %(np.abs(a-b)))
       img = clarray.to_device(self.queue, np.require(np.random.randn(*self.r_struct[1]), np.complex64, 'C'))
       sino = clarray.zeros(self.queue, self.r_struct[2], dtype=np.complex64, order='C') 
       for i in range(10):
@@ -333,7 +340,7 @@ __kernel void radon_ad(__global float2 *img, __global float2 *sino,
           sino.add_event(self.radon(sino, img, wait_for=img.events))
           img.add_event(self.radon_ad(img, sino, wait_for=sino.events))
   
-      return np.sqrt(normsqr)/8
+      return np.sqrt(normsqr)
 
     
   def irgn_solve_2D(self, x, iters, data):
@@ -1024,3 +1031,82 @@ __kernel void radon_ad(__global float2 *img, __global float2 *sino,
             plan[i][j].precompute()
     self._plan = plan
 
+#__kernel void radon(__global float2 *sino, __global float2 *img,
+#                    __constant float4 *ofs, const int X,
+#                    const int Y, const int CoilsScans)
+#{
+#  size_t I = get_global_size(2);
+#  size_t J = get_global_size(1);
+#  size_t K = get_global_size(0);  
+#  size_t i = get_global_id(2);
+#  size_t j = get_global_id(1);
+#  size_t k = get_global_id(0);
+#
+#  int scan = (int) k/CoilsScans;  
+#  
+#  float4 o = ofs[j+scan*J];
+#  float2 acc =  0.0f;
+#  
+#
+#  img += (int) k*X*Y;
+#  
+#  for(int y = 0; y < Y; y++) {
+#    int x_low, x_high;
+#    float d = y*o.y + o.z;
+#
+#    // compute bounds
+#    if (o.x == 0) {
+#      if ((d > i-1) && (d < i+1)) {
+#        x_low = 0; x_high = X-1;
+#      } else {
+#        img += X; continue;
+#      }
+#    } else if (o.x > 0) {
+#      x_low = (int)((i-1 - d)*o.w);
+#      x_high = (int)((i+1 - d)*o.w);
+#    } else {
+#      x_low = (int)((i+1 - d)*o.w);
+#      x_high = (int)((i-1 - d)*o.w);
+#    }
+#    x_low = max(x_low, 0);
+#    x_high = min(x_high, X-1);
+#
+#    // integrate
+#    for(int x = x_low; x <= x_high; x++) {
+#      float2 weight = 1.0 - fabs(x*o.x + d - i);
+#      if (weight.x > 0.0f) acc += weight*img[x];
+#    }
+#    img += X;
+#  }
+#  sino[k*I*J+j*I + i] = acc;
+#}
+#
+#__kernel void radon_ad(__global float2 *img, __global float2 *sino,
+#                       __constant float4 *ofs, const int I,
+#                       const int J, const int CoilsScans)
+#{
+#  size_t X = get_global_size(2);
+#  size_t Y = get_global_size(1);
+#  size_t K = get_global_size(0);
+#  size_t x = get_global_id(2);
+#  size_t y = get_global_id(1);
+#  size_t k = get_global_id(0);
+#
+#  int scan = (int) k/CoilsScans;  
+#  sino += k*I*J;
+#  
+#  float4 c = (float4)(x,y,1,0);
+#  float2 acc = 0.0f;
+#  for (int j=0; j < J; j++) {
+#    float i = dot(c, ofs[j+scan*J]);
+#    if ((i > -1) && (i < I)) {
+#      float i_floor;
+#      float2 w = fract(i, &i_floor);
+#      if (i_floor >= 0)   acc += (1.0f - w)*sino[(int)i_floor];
+#      if (i_floor <= I-2) acc += w*sino[(int)(i_floor+1)];
+#    }
+#    sino += I;
+#  }
+#  img[k*X*Y+y*X + x] = acc;
+#}
+#""")
