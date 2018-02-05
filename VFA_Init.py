@@ -168,11 +168,11 @@ else:
 if file.attrs['data_normalized_with_dcf']:
   pass  
 else:
-  data = data*(dcf) 
+  data = data*np.sqrt(dcf) 
 #### Close File after everything was read
 file.close()
 
-dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(20000))/(np.linalg.norm(data.flatten()))
+dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2))/(np.linalg.norm(data.flatten()))
 par.dscale = dscale
 
 ################################################################################
@@ -217,39 +217,45 @@ def nFTH(x,plan,dcf,NScan,NC,NSlice,dimY,dimX):
       
   return result/dimX
 
-
-
-import pyopencl.array as clarray
-r_struct = radon_struct(queue, img_shape, 21,
-                            n_detectors=512)
-scale = radon_normest(queue, r_struct)
-test_adj(queue,r_struct)
-
-def nFT_2D(x):
-  result = np.zeros((NScan,NC,NSlice,Nproj,N),dtype=DTYPE)  
-  for i in range(NScan):
-    for j in range(NC):
-      for k in range(NSlice):
-        tmp_img = clarray.to_device(queue,np.require(x[i,j,k,...],np.float32,"F"))
-        tmp_sino = clarray.zeros(queue,r_struct[2],np.float32,"F")
-        (radon(tmp_sino,tmp_img,r_struct)).wait()
-        result[i,j,k,...] = np.reshape(tmp_sino.get(),(Nproj,N))
-
-  return result/scale
-
-
-
-def nFTH_2D(x):
-  result = np.zeros((NScan,NC,NSlice,dimY,dimX),dtype=np.float32)  
-  for i in range(NScan):
-    for j in range(NC):
-      for k in range(NSlice):
-        tmp_sino = clarray.to_device(queue,np.require(np.real(x[i,j,k,...].T),np.float32,"F"))
-        tmp_img = clarray.zeros(queue,r_struct[1],np.float32,"F")
-        (radon_ad(tmp_img,tmp_sino,r_struct)).wait()
-        result[i,j,k,...] = np.reshape((tmp_img.get()),(dimY,dimX))
-
-  return result/(scale)
+#
+#
+#import pyopencl.array as clarray
+#r_struct = radon_struct(queue, img_shape, 21,
+#                            n_detectors=512)
+#scale = radon_normest(queue, r_struct)
+#test_adj(queue,r_struct)
+#
+#def nFT_2D(x):
+#  result = np.zeros((NScan,NC,NSlice,Nproj,N),dtype=DTYPE)  
+#  for i in range(NScan):
+#    for j in range(NC):
+#      for k in range(NSlice):
+#        tmp_img_real = clarray.to_device(queue,np.require(np.real(x[i,j,k,...]),np.float32,"F"))
+#        tmp_img_imag = clarray.to_device(queue,np.require(np.iamg(x[i,j,k,...]),np.float32,"F"))
+#        tmp_sino_real = clarray.zeros(queue,r_struct[2],np.float32,"F")
+#        tmp_sino_imag = clarray.zeros(queue,r_struct[2],np.float32,"F")
+#        (radon(tmp_sino_real,tmp_img_real,r_struct))
+#        (radon(tmp_sino_imag,tmp_img_imag,r_struct)).wait()
+#        result[i,j,k,...] = np.reshape(tmp_sino_real.get()+1j*tmp_sino_imag,(Nproj,N))
+#
+#  return result/scale
+#
+#
+#
+#def nFTH_2D(x):
+#  result = np.zeros((NScan,NC,NSlice,dimY,dimX),dtype=np.float32)  
+#  for i in range(NScan):
+#    for j in range(NC):
+#      for k in range(NSlice):
+#        tmp_sino_real = clarray.to_device(queue,np.require(np.real(x[i,j,k,...].T),np.float32,"F"))
+#        tmp_sino_imag = clarray.to_device(queue,np.require(np.imag(x[i,j,k,...].T),np.float32,"F"))
+#        tmp_img_real = clarray.zeros(queue,r_struct[1],np.float32,"F")
+#        tmp_img_imag = clarray.zeros(queue,r_struct[1],np.float32,"F")
+#        (radon_ad(tmp_img_real,tmp_sino_real,r_struct))
+#        (radon_ad(tmp_img_imag,tmp_sino_imag,r_struct)).wait()
+#        result[i,j,k,...] = np.reshape((tmp_img_real.get()+1j*tmp_img_imag),(dimY,dimX))
+#
+#  return result/(scale)
 
 
 plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
@@ -258,11 +264,11 @@ data = data* dscale
 
 data_save = data
 
-images= (np.sum(nFTH(data_save/np.sqrt(dcf),plan,dcf,NScan,NC,\
+images= (np.sum(nFTH(data_save,plan,dcf,NScan,NC,\
                      NSlice,dimY,dimX)*(np.conj(par.C)),axis = 1))
 
 
-test = nFTH(data_save/np.sqrt(dcf),plan,dcf,NScan,NC,\
+test = nFTH(data_save,plan,dcf,NScan,NC,\
                      NSlice,dimY,dimX)
 
 
@@ -274,7 +280,7 @@ model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images2,par.phase_map,1)
 par.U = np.ones((data).shape, dtype=bool)
 par.U[abs(data) == 0] = False
 
-data = np.fft.fftshift(np.fft.fft(np.fft.fftshift(data,-1),axis=-1)/np.sqrt(512),-1)
+data = np.fft.fftshift(np.fft.fft(np.fft.fftshift(data_save/np.sqrt(dcf),-1),axis=-1)/np.sqrt(512),-1)
 ################################################################################
 ### IRGN - TGV Reco ############################################################
 ################################################################################
@@ -292,7 +298,11 @@ opt = Model_Reco.Model_Reco(par,ctx,queue)
 #dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2))/(np.linalg.norm(data.flatten()))
 #par.dscale = dscale
 #data = data*dscale
-#images2= (np.sum(opt.FTH(data[:,:,0,...])[:,:,None,...]*(np.conj(opt.par.C)),axis = 1))
+images2= (np.sum(opt.FTH(data[:,:,0,...])[:,:,None,...]*(np.conj(opt.par.C)),axis = 1))
+
+#tmp_traj = np.zeros((10,21,512),dtype=DTYPE)
+#for i in range(10):
+#  tmp_traj[i,...] = traj[i,i*21:(i+1)*21]
 
 
 opt.par = par
@@ -313,7 +323,7 @@ irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 20
 irgn_par.lambd = 1e2
 irgn_par.gamma = 1e-5    #### 5e-2   5e-3 phantom ##### brain 1e-2
-irgn_par.delta = 1e-2 #### 8spk in-vivo 1e-2
+irgn_par.delta = 1e2 #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
 irgn_par.gamma_min = 1e-5
