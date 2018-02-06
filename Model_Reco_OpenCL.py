@@ -507,8 +507,8 @@ __kernel void radon_ad(__global float2 *img, __global float2 *sino,
   
     
   def tgv_solve_2D(self, x,res, iters):
-    alpha = self.irgn_par.gamma/self.scale**2
-    beta = self.irgn_par.gamma*2/self.scale**2
+    alpha = self.irgn_par.gamma
+    beta = self.irgn_par.gamma*2
 #    
 #    xx = np.zeros_like(x,dtype=DTYPE)
 #    yy = np.zeros_like(x,dtype=DTYPE)
