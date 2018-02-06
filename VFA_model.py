@@ -196,8 +196,8 @@ class VFA_Model:
           plt.imshow(np.transpose(np.abs(x[0,...]*self.M0_sc)))
           plt.pause(0.05)
           plt.figure(2)
-          plt.imshow(np.transpose(np.abs(-self.TR/np.log(x[1,...]))))
- #         plt.imshow(np.transpose(np.abs(x[1,...]*self.T1_sc)))
+#          plt.imshow(np.transpose(np.abs(-self.TR/np.log(x[1,...]))))
+          plt.imshow(np.transpose(np.abs(x[1,...]*self.T1_sc)))
           plt.pause(0.05)          
       else:         
           plt.figure(1)
