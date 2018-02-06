@@ -953,9 +953,6 @@ __kernel void radon_ad(__global float2 *img, __global float2 *sino,
 
   def nFT_2D(self, x):
     result = np.zeros((self.NScan,self.NC,self.Nproj,self.N),dtype=DTYPE)  
-#    for i in range(self.NScan):
-#      for j in range(self.NC):
-  #      for k in range(self.NSlice):
     tmp_img = clarray.to_device(self.queue,np.require(np.reshape(x,(self.NScan*self.NC*self.NSlice,self.dimY,self.dimX)),np.complex64,"C"))
     tmp_sino = clarray.zeros(self.queue,self.r_struct[2],np.complex64,"C")
     (self.radon(tmp_sino,tmp_img)).wait()
@@ -967,9 +964,6 @@ __kernel void radon_ad(__global float2 *img, __global float2 *sino,
 
   def nFTH_2D(self, x):
     result = np.zeros((self.NScan,self.NC,self.dimY,self.dimX),dtype=DTYPE)  
-#    for i in range(self.NScan):
-#      for j in range(self.NC):
-  #      for k in range(self.NSlice):
     tmp_sino = clarray.to_device(self.queue,np.require(np.reshape(x,(self.NScan*self.NC*self.NSlice,self.Nproj,self.N)),np.complex64,"C"))
     tmp_img = clarray.zeros(self.queue,self.r_struct[1],np.complex64,"C")
     (self.radon_ad(tmp_img,tmp_sino)).wait()
@@ -981,132 +975,21 @@ __kernel void radon_ad(__global float2 *img, __global float2 *sino,
   
   
   def    nFT_3D(self,   x):
-
-    nscan = np.shape(x)[0]
-    NC = np.shape(x)[1]   
-    NSlice = self.par.NSlice
-    result = np.zeros((nscan,NC,NSlice,self.par.Nproj*self.par.N),dtype=DTYPE)
-    plan = self._plan    
-    scal = self.scale
-    for scan in range(nscan):
-      for coil in range(NC):
-        for islice in range(NSlice):
-          plan[scan][coil].f_hat = x[scan,coil,islice,:,:]/scal
-          result[scan,coil,islice,:] = plan[scan][coil].trafo()
-      
-    return np.reshape(result*self.dcf_flat,[nscan,NC,NSlice,self.par.Nproj,self.par.N])
+    result = np.zeros((self.NScan,self.NC,self.NSlice,self.Nproj,self.N),dtype=DTYPE)  
+    tmp_img = clarray.to_device(self.queue,np.require(np.reshape(x,(self.NScan*self.NC*self.NSlice,self.dimY,self.dimX)),np.complex64,"C"))
+    tmp_sino = clarray.zeros(self.queue,self.r_struct[2],np.complex64,"C")
+    (self.radon(tmp_sino,tmp_img)).wait()
+    result = np.reshape(tmp_sino.get(),(self.NScan,self.NC,self.NSlice,self.Nproj,self.N))
+  
+    return result/self.scale
 
 
 
   def    nFTH_3D(self,   x):
-    nscan = np.shape(x)[0]
-    NC = np.shape(x)[1]  
-    NSlice = self.par.NSlice
-    result = np.zeros((nscan,NC,NSlice,self.par.dimX,self.par.dimY),dtype=DTYPE)
-    dcf = self.dcf    
-    plan = self._plan      
-    for scan in range(nscan):
-        for coil in range(NC): 
-          for islice in range(NSlice):
-            plan[scan][coil].f = x[scan,coil,islice,:,:]*dcf
-            result[scan,coil,islice,:,:] = plan[scan][coil].adjoint()
-      
-    return result/self.scale
-
-
-  def init_plan(self):
-    plan = []
-
-    traj_x = np.imag(np.asarray(self.traj))
-    traj_y = np.real(np.asarray(self.traj))
-
-    for i in range(self.NScan):
-
-        plan.append([])
-        points = np.transpose(np.array([traj_x[i,:,:].flatten(),traj_y[i,:,:].flatten()]))      
-        for j in range(self.NC):
-
-            plan[i].append(nfft.NFFT([self.dimX,self.dimY],self.N*self.Nproj))
-            plan[i][j].x = points
-            plan[i][j].precompute()
-    self._plan = plan
-
-#__kernel void radon(__global float2 *sino, __global float2 *img,
-#                    __constant float4 *ofs, const int X,
-#                    const int Y, const int CoilsScans)
-#{
-#  size_t I = get_global_size(2);
-#  size_t J = get_global_size(1);
-#  size_t K = get_global_size(0);  
-#  size_t i = get_global_id(2);
-#  size_t j = get_global_id(1);
-#  size_t k = get_global_id(0);
-#
-#  int scan = (int) k/CoilsScans;  
-#  
-#  float4 o = ofs[j+scan*J];
-#  float2 acc =  0.0f;
-#  
-#
-#  img += (int) k*X*Y;
-#  
-#  for(int y = 0; y < Y; y++) {
-#    int x_low, x_high;
-#    float d = y*o.y + o.z;
-#
-#    // compute bounds
-#    if (o.x == 0) {
-#      if ((d > i-1) && (d < i+1)) {
-#        x_low = 0; x_high = X-1;
-#      } else {
-#        img += X; continue;
-#      }
-#    } else if (o.x > 0) {
-#      x_low = (int)((i-1 - d)*o.w);
-#      x_high = (int)((i+1 - d)*o.w);
-#    } else {
-#      x_low = (int)((i+1 - d)*o.w);
-#      x_high = (int)((i-1 - d)*o.w);
-#    }
-#    x_low = max(x_low, 0);
-#    x_high = min(x_high, X-1);
-#
-#    // integrate
-#    for(int x = x_low; x <= x_high; x++) {
-#      float2 weight = 1.0 - fabs(x*o.x + d - i);
-#      if (weight.x > 0.0f) acc += weight*img[x];
-#    }
-#    img += X;
-#  }
-#  sino[k*I*J+j*I + i] = acc;
-#}
-#
-#__kernel void radon_ad(__global float2 *img, __global float2 *sino,
-#                       __constant float4 *ofs, const int I,
-#                       const int J, const int CoilsScans)
-#{
-#  size_t X = get_global_size(2);
-#  size_t Y = get_global_size(1);
-#  size_t K = get_global_size(0);
-#  size_t x = get_global_id(2);
-#  size_t y = get_global_id(1);
-#  size_t k = get_global_id(0);
-#
-#  int scan = (int) k/CoilsScans;  
-#  sino += k*I*J;
-#  
-#  float4 c = (float4)(x,y,1,0);
-#  float2 acc = 0.0f;
-#  for (int j=0; j < J; j++) {
-#    float i = dot(c, ofs[j+scan*J]);
-#    if ((i > -1) && (i < I)) {
-#      float i_floor;
-#      float2 w = fract(i, &i_floor);
-#      if (i_floor >= 0)   acc += (1.0f - w)*sino[(int)i_floor];
-#      if (i_floor <= I-2) acc += w*sino[(int)(i_floor+1)];
-#    }
-#    sino += I;
-#  }
-#  img[k*X*Y+y*X + x] = acc;
-#}
-#""")
+    result = np.zeros((self.NScan,self.NC,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)  
+    tmp_sino = clarray.to_device(self.queue,np.require(np.reshape(x,(self.NScan*self.NC*self.NSlice,self.Nproj,self.N)),np.complex64,"C"))
+    tmp_img = clarray.zeros(self.queue,self.r_struct[1],np.complex64,"C")
+    (self.radon_ad(tmp_img,tmp_sino)).wait()
+    result = np.reshape(tmp_img.get(),(self.NScan,self.NC,self.NSlice,self.dimY,self.dimX))
+  
+    return result/(self.scale)

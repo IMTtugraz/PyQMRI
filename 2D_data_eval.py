@@ -91,7 +91,7 @@ for files in filenames:
 dz = 1
 
 
-mask = (masking.compute(M0_tgv[0]))
+mask = (masking.compute(M0_tgv[1]))
 
 [z,y,x] = M0_tgv[0].shape
 z = z*dz
@@ -103,7 +103,7 @@ T1_max = 3000
 M0_min = 0
 M0_max = np.abs(np.max(M0_tgv[0]))
 
-half_im_size = 128
+half_im_size = int(x/2)
 plot_err = False
 
 pos = 0
@@ -251,8 +251,8 @@ else:
 
 
 
-
   
+
 roi_num = int(input("Enter the number of desired ROIs: "))
 if roi_num > 0:
   if not "Reference" in plot_names:

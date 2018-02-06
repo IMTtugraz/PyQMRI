@@ -295,9 +295,9 @@ opt = Model_Reco.Model_Reco(par,ctx,queue)
 
 ###############################test#####################################
 
-#dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2))/(np.linalg.norm(data.flatten()))
-#par.dscale = dscale
-#data = data*dscale
+dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(200))/(np.linalg.norm(data.flatten()))
+par.dscale = dscale
+data = data*dscale
 #images2= (np.sum(opt.FTH(data[:,:,0,...])[:,:,None,...]*(np.conj(opt.par.C)),axis = 1))
 
 #tmp_traj = np.zeros((10,21,512),dtype=DTYPE)
@@ -327,7 +327,7 @@ irgn_par.delta = 1e-2 #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
 irgn_par.gamma_min = 1e-10
-irgn_par.delta_max = 1e6
+irgn_par.delta_max = 1e10
 irgn_par.tol = 1e-5
 irgn_par.stag = 1.05
 irgn_par.delta_inc = 10
