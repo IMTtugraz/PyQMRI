@@ -14,7 +14,7 @@ from pynfft.nfft import NFFT
 
 import IRLL_Model as IRLL_Model
 import goldcomp
-
+import primaldualtoolbox
 DTYPE = np.complex64
 np.seterr(divide='ignore', invalid='ignore')
 
@@ -136,7 +136,7 @@ par.unknowns = 2
 #% Estimates sensitivities and complex image.
 #%(see Martin Uecker: Image reconstruction by regularized nonlinear
 #%inversion joint estimation of coil sensitivities and image content)
-nlinvNewtonSteps = 10
+nlinvNewtonSteps = 6
 nlinvRealConstr  = False
 
 traj_coil = np.reshape(traj,(NScan*Nproj,N))
@@ -144,22 +144,36 @@ coil_plan = NFFT((dimY,dimX),NScan*Nproj*N)
 coil_plan.x = np.transpose(np.array([np.imag(traj_coil.flatten()),\
                                      np.real(traj_coil.flatten())]))
 coil_plan.precompute()
-       
+
+traj_x = np.real(np.asarray(traj))
+traj_y = np.imag(np.asarray(traj))
+  
+config = {'osf' : 2,
+            'sector_width' : 8,
+            'kernel_width' : 3,
+            'img_dim' : dimX}
+
+points = (np.array([traj_x.flatten(),traj_y.flatten()]))      
+op = primaldualtoolbox.mri.MriRadialOperator(config)
+op.setTrajectory(points)
+op.setDcf(np.repeat(np.sqrt(dcf),NScan,axis=0).flatten().astype(np.float32)[None,...])
+op.setCoilSens(np.ones((1,dimX,dimY),dtype=DTYPE))            
+
+        
 par.C = np.zeros((NC,NSlice,dimY,dimX), dtype=DTYPE)       
 par.phase_map = np.zeros((NSlice,dimY,dimX), dtype=DTYPE)   
 
 result = []
 for i in range(NSlice):
   print('deriving M(TI(1)) and coil profiles')
-
+  
   
   ##### RADIAL PART
   combinedData = np.transpose(data[:,:,i,:,:],(1,0,2,3))
-  combinedData = np.reshape(combinedData,(NC,NScan*Nproj,N))
+  combinedData = np.reshape(combinedData,(NC,NScan*Nproj*N))
   coilData = np.zeros((NC,dimY,dimX),dtype=DTYPE)
   for j in range(NC):
-      coil_plan.f = combinedData[j,:,:]*np.repeat(np.sqrt(dcf),NScan,axis=0)
-      coilData[j,:,:] = coil_plan.adjoint()
+      coilData[j,:,:] = op.adjoint(combinedData[j,:]*(np.repeat(np.sqrt(dcf),NScan,axis=0).flatten())[None,...])
       
   combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)     
   dview = c[int(np.floor(i*len(c)/NSlice))]
@@ -264,14 +278,63 @@ def nFTH(x,plan,dcf,NScan,NC,NSlice,dimY,dimX):
   return result/dimX
 
 
-plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
+def gpuNUFFT(NScan,NSlice,dimX,traj,dcf,Coils):
+  plan = []
+
+  traj_x = np.real(np.asarray(traj))
+  traj_y = np.imag(np.asarray(traj))
+  
+  config = {'osf' : 2,
+            'sector_width' : 8,
+            'kernel_width' : 3,
+            'img_dim' : dimX}
+
+  for i in range(NScan):
+    plan.append([])
+    points = (np.array([traj_x[i,:,:].flatten(),traj_y[i,:,:].flatten()]))      
+    for j in range(NSlice):
+      op = primaldualtoolbox.mri.MriRadialOperator(config)
+      op.setTrajectory(points)
+      op.setDcf(dcf.flatten().astype(np.float32)[None,...])
+      op.setCoilSens(np.require(Coils[:,j,...],DTYPE,'C'))            
+      plan[i].append(op)
+ 
+
+  return plan
+
+def nFT_gpu(plan,x):
+    result = np.zeros((NScan,NC,NSlice,Nproj*N),dtype=DTYPE)
+    for scan in range(NScan):    
+      for islice in range(NSlice):
+        result[scan,:,islice,...] = plan[scan][islice].forward(np.require(x[scan,:,islice,...],DTYPE,'C'))
+      
+    return np.reshape(result,[NScan,NC,NSlice,Nproj,N])
+
+
+
+def nFTH_gpu(plan,x):
+    result = np.zeros((NScan,NSlice,dimX,dimY),dtype=DTYPE)
+    x = np.require(np.reshape(x,(NScan,NC,NSlice,Nproj*N)))
+    for scan in range(NScan):
+      for islice in range(NSlice):
+            result[scan,islice,...] = plan[scan][islice].adjoint(np.require(x[scan,:,islice,...],DTYPE,'C'))
+      
+    return result
+
+
+plan = gpuNUFFT(NScan,NSlice,dimX,traj,dcf,par.C)
 
 data = data* dscale
 
-images= (np.sum(nFTH(data,plan,dcf*N*(np.pi/(4*Nproj)),NScan,NC,NSlice,\
-                     dimY,dimX)*(np.conj(par.C)),axis = 1))
+data_save = data
 
+#images= (np.sum(nFTH(data_save,plan,dcf,NScan,NC,\
+#                     NSlice,dimY,dimX)*(np.conj(par.C)),axis = 1))
 
+images= nFTH_gpu(plan,data)
+
+del plan
+del op
 
 ################################################################################
 ### Init forward model and initial guess #######################################
@@ -294,9 +357,8 @@ opt = Model_Reco.Model_Reco(par)
 opt.par = par
 opt.data =  data
 opt.images = images
-opt.nfftplan = plan
-opt.dcf = np.sqrt(dcf)
-opt.dcf_flat = np.sqrt(dcf).flatten()
+opt.dcf = (dcf)
+opt.dcf_flat = (dcf).flatten()
 opt.model = model
 opt.traj = traj
 
@@ -305,33 +367,18 @@ opt.traj = traj
 irgn_par = struct()
 irgn_par.start_iters = 100
 irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 30
+irgn_par.max_GN_it = 20
 irgn_par.lambd = 1e2
-irgn_par.gamma = 5e-1 #### 5e-2   5e-3 phantom ##### brain 1e-3
-irgn_par.delta = 5e-1 ### 8spk in-vivo 5e2
+irgn_par.gamma = 1e-1   #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 1e-3
-irgn_par.delta_max = 1e4
-irgn_par.tol = 1e-4
-irgn_par.stag = 1.2
-irgn_par.delta_inc = 3
+irgn_par.gamma_min = 2e-2
+irgn_par.delta_max = 1e6
+irgn_par.tol = 1e-5
+irgn_par.stag = 1.00
+irgn_par.delta_inc = 10
 opt.irgn_par = irgn_par
-
-#irgn_par = struct()
-#irgn_par.start_iters = 100
-#irgn_par.max_iters = 1000
-#irgn_par.max_GN_it = 30
-#irgn_par.lambd = 1e3
-#irgn_par.gamma = 1e-2  #### 5e-2   5e-3 phantom ##### brain 1e-3
-#irgn_par.delta = 1e0 ### 8spk in-vivo 5e2
-#irgn_par.omega = 1e-10
-#irgn_par.display_iterations = True
-#irgn_par.gamma_min = 5e-4
-#irgn_par.delta_max = 1e4
-#irgn_par.tol = 1e-4
-#irgn_par.stag = 1.4
-#opt.irgn_par = irgn_par
 opt.execute_3D()
 
 ################################################################################
@@ -345,7 +392,6 @@ opt_t.data =  data
 opt_t.images = images
 #opt_t.fft_forward = fft_forward
 #opt_t.fft_back = fft_back
-opt_t.nfftplan = plan
 opt_t.dcf = np.sqrt(dcf)
 opt_t.dcf_flat = np.sqrt(dcf).flatten()
 opt_t.model = model
@@ -356,14 +402,17 @@ opt_t.traj = traj
 irgn_par = struct()
 irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 10
+irgn_par.max_GN_it = 20
 irgn_par.lambd = 1e2
-irgn_par.gamma = 5e-4  #### 5e-2   5e-3 phantom ##### brain 1e-2
-irgn_par.delta = 1e3  #### 8spk in-vivo 1e-2
+irgn_par.gamma = 1e-2  #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.delta = 1e-4  #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e0
 irgn_par.display_iterations = True
-
-
+irgn_par.gamma_min = 1e-4
+irgn_par.delta_max = 1e-1
+irgn_par.tol = 1e-5
+irgn_par.stag = 1.05
+irgn_par.delta_inc = 10
 opt_t.irgn_par = irgn_par
 
 opt_t.execute_3D()

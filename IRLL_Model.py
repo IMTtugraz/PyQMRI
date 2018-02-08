@@ -11,6 +11,7 @@ Created on Fri Jun  9 11:33:09 2017
 
 import numpy as np
 import matplotlib.pyplot as plt
+import numexpr as ne
 plt.ion()
 
 DTYPE = np.complex64
@@ -151,10 +152,12 @@ class IRLL_Model:
     F = (1 - Etau)/(-cosEtau + 1)
     Q = (-cos_phi*F*(-cosEtauN + 1)*Etr*Etd + 1 - 2*Etd + Etr*Etd)/(cos_phi*cosEtauN*Etr*Etd + 1)
     Q_F = Q-F
+    def numexpeval_S(M0,M0_sc,sin_phi,cosEtau,n,Q_F,F):
+      return ne.evaluate("M0*M0_sc*sin_phi*((cosEtau)**(n - 1)*(Q_F) + F)")    
     for i in range(self.NLL):
       for j in range(self.Nproj):
             n = i*self.Nproj+j+1
-            S[i,j,...] = M0*M0_sc*sin_phi*((cosEtau)**(n - 1)*(Q_F) + F)
+            S[i,j,...] = numexpeval_S(M0,M0_sc,sin_phi,cosEtau,n,Q_F,F)
     
     return np.mean(S,axis=1)
   
@@ -195,16 +198,19 @@ class IRLL_Model:
     tmp3 = - tau*Etau/(T1**2*T1_sc*(1 - Etau*cos_phi))\
          + tau*(1 - Etau)*Etau*cos_phi/(T1**2*T1_sc*(1 - Etau*cos_phi)**2)
                 
-    
+    def numexpeval_M0(M0_sc,sin_phi,cosEtau,n,Q_F,F):
+      return ne.evaluate("M0_sc*sin_phi*((cosEtau)**(n - 1)*(Q_F) + F)")
+    def numexpeval_T1(M0,M0_sc,Etau,cos_phi,sin_phi,cosEtau,n,Q_F,F,tmp1,tmp2,tmp3,tau):
+      return ne.evaluate("M0*M0_sc*((Etau*cos_phi)**(n - 1)*tmp1 + tau*(Etau*cos_phi)**(n - 1)*(n - 1)*\
+                          tmp2 +tmp3)*sin_phi")
     
     for i in range(self.NLL):  
       for j in range(self.Nproj):
             n = i*self.Nproj+j+1
             
-            grad[0,i,j,...] = M0_sc*sin_phi*((cosEtau)**(n - 1)*(Q_F) + F)
+            grad[0,i,j,...] = numexpeval_M0(M0_sc,sin_phi,cosEtau,n,Q_F,F)
             
-            grad[1,i,j,...] =M0*M0_sc*((Etau*cos_phi)**(n - 1)*tmp1 + tau*(Etau*cos_phi)**(n - 1)*(n - 1)*\
-       tmp2 +tmp3)*sin_phi
+            grad[1,i,j,...] = numexpeval_T1(M0,M0_sc,Etau,cos_phi,sin_phi,cosEtau,n,Q_F,F,tmp1,tmp2,tmp3,tau)
             
     return np.mean(grad,axis=2)
                                          

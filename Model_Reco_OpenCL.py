@@ -16,6 +16,7 @@ DTYPE = np.complex64
 
 
 import pynfft.nfft as nfft
+import primaldualtoolbox
 
 import pyopencl as cl
 import pyopencl.array as clarray
@@ -39,7 +40,7 @@ class Model_Reco:
     self.NScan = par.NScan
     self.dimX = par.dimX
     self.dimY = par.dimY
-    self.scale = 10#np.sqrt(par.dimX*par.dimY)
+    self.scale = np.sqrt(par.dimX*par.dimY)
     self.NC = par.NC
     self.N = par.N
     self.Nproj = par.Nproj
@@ -355,10 +356,10 @@ __kernel void radon_ad(__global float2 *img, __global float2 *sino,
     test = np.abs(a-b)
     print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,(test)))
     x_old = np.copy(x)
-    res = data - self.FT(self.step_val[:,None,:,:]*self.Coils) + self.operator_forward_2D(x)
+    res = data - self.FT(self.step_val) + self.operator_forward_2D(x)
   
     x = self.tgv_solve_2D(x,res,iters)      
-    self.fval= (self.irgn_par.lambd/2*np.linalg.norm(data - self.FT(self.model.execute_forward_2D(x,0)[:,None,:,:]*self.Coils))**2
+    self.fval= (self.irgn_par.lambd/2*np.linalg.norm(data - self.FT(self.model.execute_forward_2D(x,0)))**2
            +self.irgn_par.gamma*np.sum(np.abs(gd.fgrad_1(x[:self.unknowns_TGV,...])-self.v))
            +self.irgn_par.gamma*(2)*np.sum(np.abs(gd.sym_bgrad_2(self.v))) 
            +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2
@@ -399,12 +400,11 @@ __kernel void radon_ad(__global float2 *img, __global float2 *sino,
 
     
   def execute_2D(self):
-      self.r_struct = self.radon_struct()
-      self.scale = (self.radon_normest())
-      print("Radon Norm: %f" %(self.scale))
+#      self.r_struct = self.radon_struct()
+#      self.scale = (self.radon_normest())
+#      print("Radon Norm: %f" %(self.scale))
       
-      self.FT = self.nFT_2D
-      self.FTH = self.nFTH_2D      
+ 
 
       gamma = self.irgn_par.gamma
       delta = self.irgn_par.delta
@@ -414,6 +414,9 @@ __kernel void radon_ad(__global float2 *img, __global float2 *sino,
       for islice in range(self.par.NSlice):
         self.irgn_par.gamma = gamma
         self.irgn_par.delta = delta
+        self.init_plan(islice)
+        self.FT = self.nFT_2D
+        self.FTH = self.nFTH_2D             
         self.Coils = np.array(np.squeeze(self.par.C[:,islice,:,:]),order='C')
         self.conjCoils = np.conj(self.Coils)   
         self.v = np.zeros(([self.unknowns_TGV,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
@@ -488,17 +491,19 @@ __kernel void radon_ad(__global float2 *img, __global float2 *sino,
         self.fval_min = np.minimum(self.fval,self.fval_min)            
                
       
-  def   operator_forward_2D(self,  x):
-
-    return self.FT(np.sum(x[:,None,:,:]*self.grad_x_2D,axis=0)[:,None,:,:]*self.Coils)
+#  def   operator_forward_2D(self,  x):
+#
+#    return self.FT(np.sum(x[:,None,:,:]*self.grad_x_2D,axis=0)[:,None,:,:]*self.Coils)
+#    
+#  def   operator_adjoint_2D(self,  x):
+  def operator_forward_2D(self, x):
     
-  def   operator_adjoint_2D(self,  x):
-      
-    return np.squeeze(np.sum(np.squeeze(np.sum(self.FTH(x)*self.conjCoils,axis=1))*self.conj_grad_x_2D,axis=1))      
-  
-  def   operator_forward_3D(self,  x):
-      
-    return self.FT(np.sum(x[:,None,:,:,:]*self.grad_x,axis=0)[:,None,:,:,:]*self.Coils3D)
+    return self.FT(np.sum(x[:,None,...]*self.grad_x_2D,axis=0))
+
+    
+  def operator_adjoint_2D(self, x):
+    
+    return np.squeeze(np.sum(np.squeeze((self.FTH(x)))*self.conj_grad_x_2D,axis=1)) 
 
     
   def   operator_adjoint_3D(self,  x):
@@ -951,27 +956,45 @@ __kernel void radon_ad(__global float2 *img, __global float2 *sino,
 
 
 
+#  def nFT_2D(self, x):
+#    result = np.zeros((self.NScan,self.NC,self.Nproj,self.N),dtype=DTYPE)  
+#    tmp_img = clarray.to_device(self.queue,np.require(np.reshape(x,(self.NScan*self.NC*self.NSlice,self.dimY,self.dimX)),np.complex64,"C"))
+#    tmp_sino = clarray.zeros(self.queue,self.r_struct[2],np.complex64,"C")
+#    (self.radon(tmp_sino,tmp_img)).wait()
+#    result = np.reshape(tmp_sino.get(),(self.NScan,self.NC,self.Nproj,self.N))
+#  
+#    return result/self.scale
+#
+#
+#
+#  def nFTH_2D(self, x):
+#    result = np.zeros((self.NScan,self.NC,self.dimY,self.dimX),dtype=DTYPE)  
+#    tmp_sino = clarray.to_device(self.queue,np.require(np.reshape(x,(self.NScan*self.NC*self.NSlice,self.Nproj,self.N)),np.complex64,"C"))
+#    tmp_img = clarray.zeros(self.queue,self.r_struct[1],np.complex64,"C")
+#    (self.radon_ad(tmp_img,tmp_sino)).wait()
+#    result = np.reshape(tmp_img.get(),(self.NScan,self.NC,self.dimY,self.dimX))
+#  
+#    return result/(self.scale)
+
   def nFT_2D(self, x):
-    result = np.zeros((self.NScan,self.NC,self.Nproj,self.N),dtype=DTYPE)  
-    tmp_img = clarray.to_device(self.queue,np.require(np.reshape(x,(self.NScan*self.NC*self.NSlice,self.dimY,self.dimX)),np.complex64,"C"))
-    tmp_sino = clarray.zeros(self.queue,self.r_struct[2],np.complex64,"C")
-    (self.radon(tmp_sino,tmp_img)).wait()
-    result = np.reshape(tmp_sino.get(),(self.NScan,self.NC,self.Nproj,self.N))
-  
-    return result/self.scale
 
-
-
-  def nFTH_2D(self, x):
-    result = np.zeros((self.NScan,self.NC,self.dimY,self.dimX),dtype=DTYPE)  
-    tmp_sino = clarray.to_device(self.queue,np.require(np.reshape(x,(self.NScan*self.NC*self.NSlice,self.Nproj,self.N)),np.complex64,"C"))
-    tmp_img = clarray.zeros(self.queue,self.r_struct[1],np.complex64,"C")
-    (self.radon_ad(tmp_img,tmp_sino)).wait()
-    result = np.reshape(tmp_img.get(),(self.NScan,self.NC,self.dimY,self.dimX))
-  
-    return result/(self.scale)
-
+    result = np.zeros((self.NScan,self.NC,self.par.Nproj*self.par.N),dtype=DTYPE)
+    plan = self._plan
+    for scan in range(self.NScan):    
+      result[scan,...] = plan[scan].forward((x[scan,...]))
       
+    return np.reshape(result,[self.NScan,self.NC,self.par.Nproj,self.par.N])
+
+
+
+  def nFTH_2D(self, x):   
+    result = np.zeros((self.NScan,self.par.dimX,self.par.dimY),dtype=DTYPE)
+    plan = self._plan
+    x = np.require(np.reshape(x,(self.NScan,self.NC,self.Nproj*self.N)))
+    for scan in range(self.NScan):
+            result[scan,...] = plan[scan].adjoint(x[scan,...])
+      
+    return result
   
   
   def    nFT_3D(self,   x):
@@ -993,3 +1016,27 @@ __kernel void radon_ad(__global float2 *img, __global float2 *sino,
     result = np.reshape(tmp_img.get(),(self.NScan,self.NC,self.NSlice,self.dimY,self.dimX))
   
     return result/(self.scale)
+  
+  def init_plan(self,islice):
+    
+    
+    plan = []
+
+    traj_x = np.real(np.asarray(self.traj))
+    traj_y = np.imag(np.asarray(self.traj))
+    
+    config = {'osf' : 2,
+              'sector_width' : 8,
+              'kernel_width' : 3,
+              'img_dim' : self.dimX}
+
+    for i in range(self.NScan):
+        points = (np.array([traj_x[i,:,:].flatten(),traj_y[i,:,:].flatten()]))      
+#        for j in range(self.NSlice):
+        op = primaldualtoolbox.mri.MriRadialOperator(config)
+        op.setTrajectory(points)
+        op.setDcf(self.dcf_flat.astype(np.float32)[None,...])
+        op.setCoilSens(self.par.C[:,islice,...])            
+        plan.append(op)
+    self._plan = plan
+

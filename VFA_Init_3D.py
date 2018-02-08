@@ -15,6 +15,8 @@ from pynfft.nfft import NFFT
 import VFA_model as VFA_model
 import goldcomp
 
+import primaldualtoolbox
+
 DTYPE = np.complex64
 np.seterr(divide='ignore', invalid='ignore')
    
@@ -61,22 +63,23 @@ for attributes in test_attributes:
     raise NameError("Error: '" + attributes + \
                     "' was not provided/wrongly as an attribute!")
 
+
 ################################################################################
 ### Read Data ##################################################################
 ################################################################################
-data = file['real_dat'][()].astype(DTYPE) +\
-       1j*file['imag_dat'][()].astype(DTYPE)
+reco_Slices = 1
+dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)    
+    
+data = file['real_dat'][:,:,int(NSlice/2)-1:int(NSlice/2),...].astype(DTYPE) +\
+       1j*file['imag_dat'][:,:,int(NSlice/2)-1:int(NSlice/2),...].astype(DTYPE)
 
 
 traj = file['real_traj'][()].astype(DTYPE) + \
        1j*file['imag_traj'][()].astype(DTYPE)
 
 
-dcf = np.array(goldcomp.cmp(traj),dtype=DTYPE)#file['dcf'][()].astype(DTYPE)
+dcf = np.array(goldcomp.cmp(traj),dtype=DTYPE)
 
-dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
-
-reco_Slices = 3
 #Create par struct to store everyting
 class struct:
     pass
@@ -86,22 +89,15 @@ par = struct()
 ### FA correction ##############################################################
 ################################################################################
 
-par.fa_corr = file['fa_corr'][()].astype(DTYPE)
-
-################################################################################
-### Pick slices for reconstruction #############################################
-################################################################################
-
-data = data[:,:,int(NSlice/2)-\
-            int(np.ceil(reco_Slices/2)):int(NSlice/2)+\
-            int(np.floor(reco_Slices/2)),:,:]
- 
-par.fa_corr = np.flip(par.fa_corr,axis=0)[int(NSlice/2)-\
-            int(np.ceil(reco_Slices/2)):int(NSlice/2)+\
-            int(np.floor(reco_Slices/2)),:,:]
+par.fa_corr = file['fa_corr'][int(NSlice/2)-1:int(NSlice/2),...].astype(DTYPE)
 par.fa_corr[par.fa_corr==0] = 1
 
+
 [NScan,NC,NSlice,Nproj, N] = data.shape
+################################################################################
+### Set sequence related parameters ############################################
+################################################################################
+
 ################################################################################
 ### Set sequence related parameters ############################################
 ################################################################################
@@ -140,22 +136,36 @@ coil_plan = NFFT((dimY,dimX),NScan*Nproj*N)
 coil_plan.x = np.transpose(np.array([np.imag(traj_coil.flatten()),\
                                      np.real(traj_coil.flatten())]))
 coil_plan.precompute()
-       
+
+traj_x = np.real(np.asarray(traj))
+traj_y = np.imag(np.asarray(traj))
+  
+config = {'osf' : 2,
+            'sector_width' : 8,
+            'kernel_width' : 3,
+            'img_dim' : dimX}
+
+points = (np.array([traj_x.flatten(),traj_y.flatten()]))      
+op = primaldualtoolbox.mri.MriRadialOperator(config)
+op.setTrajectory(points)
+op.setDcf(np.repeat(np.sqrt(dcf),NScan,axis=0).flatten().astype(np.float32)[None,...])
+op.setCoilSens(np.ones((1,dimX,dimY),dtype=DTYPE))            
+
+        
 par.C = np.zeros((NC,NSlice,dimY,dimX), dtype=DTYPE)       
 par.phase_map = np.zeros((NSlice,dimY,dimX), dtype=DTYPE)   
 
 result = []
 for i in range(NSlice):
   print('deriving M(TI(1)) and coil profiles')
-
+  
   
   ##### RADIAL PART
   combinedData = np.transpose(data[:,:,i,:,:],(1,0,2,3))
-  combinedData = np.reshape(combinedData,(NC,NScan*Nproj,N))
+  combinedData = np.reshape(combinedData,(NC,NScan*Nproj*N))
   coilData = np.zeros((NC,dimY,dimX),dtype=DTYPE)
   for j in range(NC):
-      coil_plan.f = combinedData[j,:,:]*np.repeat(np.sqrt(dcf),NScan,axis=0)
-      coilData[j,:,:] = coil_plan.adjoint()
+      coilData[j,:,:] = op.adjoint(combinedData[j,:]*(np.repeat(np.sqrt(dcf),NScan,axis=0).flatten())[None,...])
       
   combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)     
   dview = c[int(np.floor(i*len(c)/NSlice))]
@@ -195,27 +205,27 @@ par.dscale = dscale
 def nfft(NScan,NC,dimX,dimY,N,Nproj,traj):
   plan = []
   traj_x = np.imag(traj)
-  traj_y = np.real(traj)  
+  traj_y = np.real(traj)
   for i in range(NScan):
       plan.append([])
       points = np.transpose(np.array([traj_x[i,:,:].flatten(),\
-                                      traj_y[i,:,:].flatten()]))      
+                                      traj_y[i,:,:].flatten()]))
       for j in range(NC):
           plan[i].append(NFFT([dimX,dimY],N*Nproj))
           plan[i][j].x = points
           plan[i][j].precompute()
 
   return plan
-          
+
 def nFT(x,plan,dcf,NScan,NC,NSlice,Nproj,N,dimX):
   siz = np.shape(x)
   result = np.zeros((NScan,NC,NSlice,Nproj*N),dtype=DTYPE)
   for i in range(siz[0]):
-    for j in range(siz[1]): 
+    for j in range(siz[1]):
       for k in range(siz[2]):
         plan[i][j].f_hat = x[i,j,k,:,:]/dimX
         result[i,j,k,:] = plan[i][j].trafo()*np.sqrt(dcf).flatten()
-      
+
   return result
 
 
@@ -223,20 +233,71 @@ def nFTH(x,plan,dcf,NScan,NC,NSlice,dimY,dimX):
   siz = np.shape(x)
   result = np.zeros((NScan,NC,NSlice,dimY,dimX),dtype=DTYPE)
   for i in range(siz[0]):
-    for j in range(siz[1]):  
+    for j in range(siz[1]):
       for k in range(siz[2]):
         plan[i][j].f = x[i,j,k,:,:]*np.sqrt(dcf)
         result[i,j,k,:,:] = plan[i][j].adjoint()
-      
+
   return result/dimX
 
 
-plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
+def gpuNUFFT(NScan,NSlice,dimX,traj,dcf,Coils):
+  plan = []
+
+  traj_x = np.real(np.asarray(traj))
+  traj_y = np.imag(np.asarray(traj))
+  
+  config = {'osf' : 2,
+            'sector_width' : 8,
+            'kernel_width' : 3,
+            'img_dim' : dimX}
+
+  for i in range(NScan):
+    plan.append([])
+    points = (np.array([traj_x[i,:,:].flatten(),traj_y[i,:,:].flatten()]))      
+    for j in range(NSlice):
+      op = primaldualtoolbox.mri.MriRadialOperator(config)
+      op.setTrajectory(points)
+      op.setDcf(dcf.flatten().astype(np.float32)[None,...])
+      op.setCoilSens(np.require(Coils[:,j,...],DTYPE,'C'))            
+      plan[i].append(op)
+ 
+
+  return plan
+
+def nFT_gpu(plan,x):
+    result = np.zeros((NScan,NC,NSlice,Nproj*N),dtype=DTYPE)
+    for scan in range(NScan):    
+      for islice in range(NSlice):
+        result[scan,:,islice,...] = plan[scan][islice].forward(np.require(x[scan,:,islice,...],DTYPE,'C'))
+      
+    return np.reshape(result,[NScan,NC,NSlice,Nproj,N])
+
+
+
+def nFTH_gpu(plan,x):
+    result = np.zeros((NScan,NSlice,dimX,dimY),dtype=DTYPE)
+    x = np.require(np.reshape(x,(NScan,NC,NSlice,Nproj*N)))
+    for scan in range(NScan):
+      for islice in range(NSlice):
+            result[scan,islice,...] = plan[scan][islice].adjoint(np.require(x[scan,:,islice,...],DTYPE,'C'))
+      
+    return result
+
+
+plan = gpuNUFFT(NScan,NSlice,dimX,traj,dcf,par.C)
 
 data = data* dscale
 
-images= (np.sum(nFTH(data,plan,dcf,NScan,NC,\
-                     NSlice,dimY,dimX)*(np.conj(par.C)),axis = 1))
+data_save = data
+
+#images= (np.sum(nFTH(data_save,plan,dcf,NScan,NC,\
+#                     NSlice,dimY,dimX)*(np.conj(par.C)),axis = 1))
+
+images= nFTH_gpu(plan,data)
+
+del plan
+del op
 
 
 ################################################################################
@@ -258,9 +319,8 @@ opt = Model_Reco.Model_Reco(par)
 opt.par = par
 opt.data =  data
 opt.images = images
-opt.nfftplan = plan
-opt.dcf = np.sqrt(dcf)
-opt.dcf_flat = np.sqrt(dcf).flatten()
+opt.dcf = (dcf)
+opt.dcf_flat = (dcf).flatten()
 opt.model = model
 opt.traj = traj 
 
@@ -312,9 +372,8 @@ opt_t = Model_Reco_Tikh.Model_Reco(par)
 opt_t.par = par
 opt_t.data =  data
 opt_t.images = images
-opt_t.nfftplan = plan
-opt_t.dcf = np.sqrt(dcf*(N*(np.pi/(4*Nproj))))
-opt_t.dcf_flat = np.sqrt(dcf*(N*(np.pi/(4*Nproj)))).flatten()
+opt_t.dcf = (dcf)
+opt_t.dcf_flat = (dcf).flatten()
 opt_t.model = model
 opt_t.traj = traj 
 

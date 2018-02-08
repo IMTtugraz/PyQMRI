@@ -67,8 +67,7 @@ dcf = np.array(goldcomp.cmp(traj),dtype=DTYPE)
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
 
 ############### Set number of Slices ###########################################
-reco_Slices = 1
-
+reco_Slices = 5
 os_slices = 20
 class struct:
     pass
@@ -266,10 +265,8 @@ images= (np.sum(nFTH(data,plan,dcf,NScan,NC,NSlice,\
 model = IRLL_Model.IRLL_Model(par.fa,par.fa_corr,par.TR,par.tau,par.td,\
                               NScan,NSlice,dimY,dimX,Nproj,Nproj_measured,1)
 
-test_T1 = np.reshape(np.linspace(10,5000,dimX*dimY*NSlice),(NSlice,dimX,dimY))/model.T1_sc
-
-
-G_x = model.execute_forward_3D(np.array([1*np.ones((NSlice,dimY,dimX),dtype=DTYPE),test_T1*np.ones((NSlice,dimY,dimX),dtype=DTYPE)],dtype=DTYPE))
+test_T1 = np.reshape(np.linspace(10,5000,dimX*dimY*NSlice),(NSlice,dimX,dimY))
+G_x = model.execute_forward_3D(np.array([1*np.ones((NSlice,dimY,dimX),dtype=DTYPE),test_T1/model.T1_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE)],dtype=DTYPE))
 model.M0_sc = model.M0_sc*np.max(np.abs(images))/np.max(np.abs(G_x))
 
 par.U = np.ones((data).shape, dtype=bool)
@@ -297,11 +294,11 @@ irgn_par.start_iters = 100
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 30
 irgn_par.lambd = 1e2
-irgn_par.gamma = 1e-1 #### 5e-2   5e-3 phantom ##### brain 1e-3
-irgn_par.delta = 1e-1 ### 8spk in-vivo 5e2
+irgn_par.gamma = 5e-1 #### 5e-2   5e-3 phantom ##### brain 1e-3
+irgn_par.delta = 1e-2 ### 8spk in-vivo 5e2
 irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 2e-2
+irgn_par.gamma_min = 5e-2
 irgn_par.delta_max = 1e6
 irgn_par.tol = 1e-4
 irgn_par.stag = 1.05
@@ -334,8 +331,8 @@ irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 10
 irgn_par.lambd = 1e2
-irgn_par.gamma = 5e-4  #### 5e-2   5e-3 phantom ##### brain 1e-2
-irgn_par.delta = 1e3  #### 8spk in-vivo 1e-2
+irgn_par.gamma = 1e-2  #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.delta = 1e0  #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e0
 irgn_par.display_iterations = True
 
@@ -346,7 +343,7 @@ opt_t.execute_2D()
 ################################################################################
 ### New .hdf5 save files #######################################################
 ################################################################################
-outdir = time.strftime("%Y-%m-%d  %H-%M-%S_"+name[:-3])
+outdir = time.strftime("%Y-%m-%d  %H-%M-%S_2D"+name[:-3])
 if not os.path.exists('./output'):
     os.makedirs('./output')
 os.makedirs("output/"+ outdir)

@@ -7,7 +7,7 @@ from tkinter import filedialog
 from tkinter import Tk
 import nlinvns_maier as nlinvns
 
-import Model_Reco_OpenCL as Model_Reco
+import Model_Reco as Model_Reco
 import Model_Reco_old as Model_Reco_Tikh
 
 from pynfft.nfft import NFFT
@@ -16,6 +16,7 @@ import VFA_model as VFA_model
 import goldcomp
 
 import pyopencl as cl
+import primaldualtoolbox
 
 DTYPE = np.complex64
 np.seterr(divide='ignore', invalid='ignore')
@@ -71,13 +72,6 @@ traj = file['real_traj'][()].astype(DTYPE) + \
 
 dcf = np.array(goldcomp.cmp(traj),dtype=DTYPE)
 
-
-
-
-############### Set number of Slices ###########################################
-
-
-
 #Create par struct to store everyting
 class struct:
     pass
@@ -118,6 +112,7 @@ par.unknowns = 2
 ### Estimate coil sensitivities ################################################
 ################################################################################
 
+
 nlinvNewtonSteps = 6
 nlinvRealConstr  = False
 
@@ -126,6 +121,21 @@ coil_plan = NFFT((dimY,dimX),NScan*Nproj*N)
 coil_plan.x = np.transpose(np.array([np.imag(traj_coil.flatten()),\
                                      np.real(traj_coil.flatten())]))
 coil_plan.precompute()
+
+traj_x = np.real(np.asarray(traj))
+traj_y = np.imag(np.asarray(traj))
+  
+config = {'osf' : 2,
+            'sector_width' : 8,
+            'kernel_width' : 3,
+            'img_dim' : dimX}
+
+points = (np.array([traj_x.flatten(),traj_y.flatten()]))      
+op = primaldualtoolbox.mri.MriRadialOperator(config)
+op.setTrajectory(points)
+op.setDcf(np.repeat(np.sqrt(dcf),NScan,axis=0).flatten().astype(np.float32)[None,...])
+op.setCoilSens(np.ones((1,dimX,dimY),dtype=DTYPE))            
+
         
 par.C = np.zeros((NC,NSlice,dimY,dimX), dtype=DTYPE)       
 par.phase_map = np.zeros((NSlice,dimY,dimX), dtype=DTYPE)   
@@ -135,11 +145,10 @@ for i in range(0,(NSlice)):
   
   ##### RADIAL PART
   combinedData = np.transpose(data[:,:,i,:,:],(1,0,2,3))
-  combinedData = np.reshape(combinedData,(NC,NScan*Nproj,N))
+  combinedData = np.reshape(combinedData,(NC,NScan*Nproj*N))
   coilData = np.zeros((NC,dimY,dimX),dtype=DTYPE)
   for j in range(NC):
-      coil_plan.f = combinedData[j,:,:]*np.repeat(np.sqrt(dcf),NScan,axis=0)
-      coilData[j,:,:] = coil_plan.adjoint()
+      coilData[j,:,:] = op.adjoint(combinedData[j,:]*(np.repeat(np.sqrt(dcf),NScan,axis=0).flatten())[None,...])
       
   combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)  
             
@@ -217,59 +226,62 @@ def nFTH(x,plan,dcf,NScan,NC,NSlice,dimY,dimX):
       
   return result/dimX
 
-#
-#
-#import pyopencl.array as clarray
-#r_struct = radon_struct(queue, img_shape, 21,
-#                            n_detectors=512)
-#scale = radon_normest(queue, r_struct)
-#test_adj(queue,r_struct)
-#
-#def nFT_2D(x):
-#  result = np.zeros((NScan,NC,NSlice,Nproj,N),dtype=DTYPE)  
-#  for i in range(NScan):
-#    for j in range(NC):
-#      for k in range(NSlice):
-#        tmp_img_real = clarray.to_device(queue,np.require(np.real(x[i,j,k,...]),np.float32,"F"))
-#        tmp_img_imag = clarray.to_device(queue,np.require(np.iamg(x[i,j,k,...]),np.float32,"F"))
-#        tmp_sino_real = clarray.zeros(queue,r_struct[2],np.float32,"F")
-#        tmp_sino_imag = clarray.zeros(queue,r_struct[2],np.float32,"F")
-#        (radon(tmp_sino_real,tmp_img_real,r_struct))
-#        (radon(tmp_sino_imag,tmp_img_imag,r_struct)).wait()
-#        result[i,j,k,...] = np.reshape(tmp_sino_real.get()+1j*tmp_sino_imag,(Nproj,N))
-#
-#  return result/scale
-#
-#
-#
-#def nFTH_2D(x):
-#  result = np.zeros((NScan,NC,NSlice,dimY,dimX),dtype=np.float32)  
-#  for i in range(NScan):
-#    for j in range(NC):
-#      for k in range(NSlice):
-#        tmp_sino_real = clarray.to_device(queue,np.require(np.real(x[i,j,k,...].T),np.float32,"F"))
-#        tmp_sino_imag = clarray.to_device(queue,np.require(np.imag(x[i,j,k,...].T),np.float32,"F"))
-#        tmp_img_real = clarray.zeros(queue,r_struct[1],np.float32,"F")
-#        tmp_img_imag = clarray.zeros(queue,r_struct[1],np.float32,"F")
-#        (radon_ad(tmp_img_real,tmp_sino_real,r_struct))
-#        (radon_ad(tmp_img_imag,tmp_sino_imag,r_struct)).wait()
-#        result[i,j,k,...] = np.reshape((tmp_img_real.get()+1j*tmp_img_imag),(dimY,dimX))
-#
-#  return result/(scale)
+def gpuNUFFT(NScan,NSlice,dimX,traj,dcf,Coils):
+  plan = []
+
+  traj_x = np.real(np.asarray(traj))
+  traj_y = np.imag(np.asarray(traj))
+  
+  config = {'osf' : 2,
+            'sector_width' : 8,
+            'kernel_width' : 3,
+            'img_dim' : dimX}
+
+  for i in range(NScan):
+    plan.append([])
+    points = (np.array([traj_x[i,:,:].flatten(),traj_y[i,:,:].flatten()]))      
+    for j in range(NSlice):
+      op = primaldualtoolbox.mri.MriRadialOperator(config)
+      op.setTrajectory(points)
+      op.setDcf(dcf.flatten().astype(np.float32)[None,...])
+      op.setCoilSens(Coils[:,j,...])            
+      plan[i].append(op)
+ 
+
+  return plan
+
+def nFT_gpu(plan,x):
+    result = np.zeros((NScan,NC,NSlice,Nproj*N),dtype=DTYPE)
+    for scan in range(NScan):    
+      for islice in range(NSlice):
+        result[scan,:,islice,...] = plan[scan][islice].forward(np.require(x[scan,:,islice,...]))
+      
+    return np.reshape(result,[NScan,NC,NSlice,Nproj,N])
 
 
-plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
+
+def nFTH_gpu(plan,x):
+    result = np.zeros((NScan,NSlice,dimX,dimY),dtype=DTYPE)
+    x = np.require(np.reshape(x,(NScan,NC,NSlice,Nproj*N)))
+    for scan in range(NScan):
+      for islice in range(NSlice):
+            result[scan,islice,...] = plan[scan][islice].adjoint(x[scan,:,islice,...])
+      
+    return result
+
+
+plan = gpuNUFFT(NScan,NSlice,dimX,traj,dcf,par.C)
 
 data = data* dscale
 
 data_save = data
 
-images= (np.sum(nFTH(data_save,plan,dcf,NScan,NC,\
-                     NSlice,dimY,dimX)*(np.conj(par.C)),axis = 1))
+#images= (np.sum(nFTH(data_save,plan,dcf,NScan,NC,\
+#                     NSlice,dimY,dimX)*(np.conj(par.C)),axis = 1))
 
-
-test = nFTH(data_save,plan,dcf,NScan,NC,\
-                     NSlice,dimY,dimX)
+images= nFTH_gpu(plan,data)
+del plan 
+del op
 
 
 ################################################################################
@@ -280,37 +292,16 @@ model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images,par.phase_map,1)
 par.U = np.ones((data).shape, dtype=bool)
 par.U[abs(data) == 0] = False
 
-data = np.fft.fftshift(np.fft.fft(np.fft.fftshift(data_save/np.sqrt(dcf),-1),axis=-1)/np.sqrt(512),-1)
 ################################################################################
 ### IRGN - TGV Reco ############################################################
 ################################################################################
-platforms = cl.get_platforms()
-
-ctx = cl.Context(
-        dev_type=cl.device_type.ALL,
-        properties=[(cl.context_properties.PLATFORM, platforms[0])])
-
-queue = cl.CommandQueue(ctx)
-opt = Model_Reco.Model_Reco(par,ctx,queue)
-
-###############################test#####################################
-
-dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(200))/(np.linalg.norm(data.flatten()))
-par.dscale = dscale
-data = data*dscale
-#images2= (np.sum(opt.FTH(data[:,:,0,...])[:,:,None,...]*(np.conj(opt.par.C)),axis = 1))
-
-#tmp_traj = np.zeros((10,21,512),dtype=DTYPE)
-#for i in range(10):
-#  tmp_traj[i,...] = traj[i,i*21:(i+1)*21]
-
+opt = Model_Reco.Model_Reco(par)
 
 opt.par = par
 opt.data =  data
 opt.images = images
-opt.nfftplan = plan
-opt.dcf = np.sqrt(dcf)
-opt.dcf_flat = np.sqrt(dcf).flatten()
+opt.dcf = (dcf)
+opt.dcf_flat = (dcf).flatten()
 opt.model = model
 opt.traj = traj 
 
@@ -320,36 +311,24 @@ opt.traj = traj
 irgn_par = struct()
 irgn_par.start_iters = 100
 irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 20
+irgn_par.max_GN_it = 15
 irgn_par.lambd = 1e2
-irgn_par.gamma = 5e-2   #### 5e-2   5e-3 phantom ##### brain 1e-2
-irgn_par.delta = 1e-3#### 8spk in-vivo 1e-2
+irgn_par.gamma = 1e-1   #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 1e-10
-irgn_par.delta_max = 1e10
+irgn_par.gamma_min = 2e-2
+irgn_par.delta_max = 1e6
 irgn_par.tol = 1e-5
-irgn_par.stag = 1.05
+irgn_par.stag = 1.00
 irgn_par.delta_inc = 10
 opt.irgn_par = irgn_par
 
 
-
-#model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images2,par.phase_map,1)
-#opt.model = model
-
-
 opt.execute_2D()
 
-
-
-images2= (np.sum(opt.FTH(data[:,:,0,...])[:,:,None,...]*(np.conj(opt.par.C)),axis = 1))
-test2 = opt.FT(opt.FTH(data[:,:,0,...]))
-
-
-test = np.squeeze(np.stack((np.abs(images[2,:,...]),np.abs(images2[2,:,...])),axis=1))
-msv.imshow(np.abs(test))
-
+result_tgv = opt.result
+del opt
 
 ################################################################################
 ### IRGN - Tikhonov referenz ###################################################
@@ -360,7 +339,6 @@ opt_t = Model_Reco_Tikh.Model_Reco(par)
 opt_t.par = par
 opt_t.data =  data
 opt_t.images = images
-opt_t.nfftplan = plan
 opt_t.dcf = np.sqrt(dcf)
 opt_t.dcf_flat = np.sqrt(dcf).flatten()
 opt_t.model = model
@@ -371,17 +349,23 @@ opt_t.traj = traj
 irgn_par = struct()
 irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 10
+irgn_par.max_GN_it = 20
 irgn_par.lambd = 1e2
 irgn_par.gamma = 1e-2  #### 5e-2   5e-3 phantom ##### brain 1e-2
-irgn_par.delta = 1e-3  #### 8spk in-vivo 1e-2
+irgn_par.delta = 1e-4  #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e0
 irgn_par.display_iterations = True
-
+irgn_par.gamma_min = 1e-4
+irgn_par.delta_max = 1e-1
+irgn_par.tol = 1e-5
+irgn_par.stag = 1.05
+irgn_par.delta_inc = 10
 opt_t.irgn_par = irgn_par
 
 opt_t.execute_2D()
 
+result_ref = opt_t.result
+del opt_t
 ################################################################################
 ### New .hdf5 save files #######################################################
 ################################################################################
@@ -393,22 +377,22 @@ os.makedirs("output/"+ outdir)
 os.chdir("output/"+ outdir)  
 
 f = h5py.File("output_"+name,"w")
-dset_result=f.create_dataset("full_result",opt.result.shape,\
-                             dtype=np.complex64,data=opt.result)
-dset_result_ref=f.create_dataset("ref_full_result",opt_t.result.shape,\
-                                 dtype=np.complex64,data=opt_t.result)
-dset_T1=f.create_dataset("T1_final",np.squeeze(opt.result[-1,1,...]).shape,\
-                         dtype=np.complex64,\
-                         data=np.squeeze(opt.result[-1,1,...]))
-dset_M0=f.create_dataset("M0_final",np.squeeze(opt.result[-1,0,...]).shape,\
-                         dtype=np.complex64,\
-                         data=np.squeeze(opt.result[-1,0,...]))
-dset_T1_ref=f.create_dataset("T1_ref",np.squeeze(opt_t.result[-1,1,...]).shape\
-                             ,dtype=np.complex64,\
-                             data=np.squeeze(opt_t.result[-1,1,...]))
-dset_M0_ref=f.create_dataset("M0_ref",np.squeeze(opt_t.result[-1,0,...]).shape\
-                             ,dtype=np.complex64,\
-                             data=np.squeeze(opt_t.result[-1,0,...]))
+dset_result=f.create_dataset("full_result",result_tgv.shape,\
+                             dtype=DTYPE,data=result_tgv)
+dset_result_ref=f.create_dataset("ref_full_result",result_ref.shape,\
+                                 dtype=DTYPE,data=result_ref)
+dset_T1=f.create_dataset("T1_final",np.squeeze(result_tgv[-1,1,...]).shape,\
+                         dtype=DTYPE,\
+                         data=np.squeeze(result_tgv[-1,1,...]))
+dset_M0=f.create_dataset("M0_final",np.squeeze(result_tgv[-1,0,...]).shape,\
+                         dtype=DTYPE,\
+                         data=np.squeeze(result_tgv[-1,0,...]))
+dset_T1_ref=f.create_dataset("T1_ref",np.squeeze(result_ref[-1,1,...]).shape\
+                             ,dtype=DTYPE,\
+                             data=np.squeeze(result_ref[-1,1,...]))
+dset_M0_ref=f.create_dataset("M0_ref",np.squeeze(result_ref[-1,0,...]).shape\
+                             ,dtype=DTYPE,\
+                             data=np.squeeze(result_ref[-1,0,...]))
 #f.create_dataset("T1_guess",np.squeeze(model.T1_guess).shape,\
 #                 dtype=np.float64,data=np.squeeze(model.T1_guess))
 #f.create_dataset("M0_guess",np.squeeze(model.M0_guess).shape,\

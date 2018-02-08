@@ -7,7 +7,7 @@ Created on Wed May 31 09:14:08 2017
 """
 
 import numpy as np
-
+DTYPE = np.complex64
 
 
 def bdiv_1(v,dx=None,dy=None):
@@ -21,7 +21,7 @@ def bdiv_1(v,dx=None,dy=None):
     m = v.shape[2]
     k = v.shape[0]
     
-    div_v = np.zeros([k,m,n],dtype=np.complex128)
+    div_v = np.zeros([k,m,n],dtype=DTYPE)
     
     
     div_v[:,:,0] = v[:,0,:,0]/dx
@@ -45,7 +45,7 @@ def fgrad_1(u,dx=None,dy=None):
     m = u.shape[1]
     k = u.shape[0]
     
-    grad = np.zeros([k,2,m,n],dtype=np.complex128)
+    grad = np.zeros([k,2,m,n],dtype=DTYPE)
      
     grad[:,0,:,:-1] = (u[:,:,1:] - u[:,:,:-1])/dx
     
@@ -63,7 +63,7 @@ def fdiv_2(x,dx=None,dy=None):
       
     (k,i,m,n) = np.shape(x)
     
-    div_x = np.zeros((k,2,m,n),dtype=np.complex128)
+    div_x = np.zeros((k,2,m,n),dtype=DTYPE)
     
     div_x[:,0,:,:-1] = (x[:,0,:,1:]-x[:,0,:,:-1])/dx
     div_x[:,0,:-1,:]  = div_x[:,0,:-1,:] + (x[:,2,1:,:]-x[:,2,:-1,:])/dy
@@ -81,7 +81,7 @@ def sym_bgrad_2(x,dx=None,dy=None):
       
     (k,i,m,n) = np.shape(x)
     
-    grad_x = np.zeros((k,3,m,n),dtype=np.complex128)
+    grad_x = np.zeros((k,3,m,n),dtype=DTYPE)
     
     grad_x[:,0,:,0] =x[:,0,:,0]/dx
     grad_x[:,0,:,1:-1] = (x[:,0,:,1:-1] - x[:,0,:,:-2])/dx

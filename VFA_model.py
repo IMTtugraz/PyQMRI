@@ -95,7 +95,7 @@ class VFA_Model:
     self.M0_guess = np.copy(M0_guess)
 
     test_T1 = np.reshape(np.linspace(10,5000,dimX*dimY*Nislice),(Nislice,dimX,dimY))
-    G_x = self.execute_forward_3D(np.array([1*np.ones((Nislice,dimY,dimX),dtype=DTYPE),np.exp(-self.TR/(test_T1*np.ones((Nislice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE))
+    G_x = self.execute_forward_3D(np.array([0.01*np.ones((Nislice,dimY,dimX),dtype=DTYPE),np.exp(-self.TR/(test_T1*np.ones((Nislice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE))
     self.M0_sc = self.M0_sc*np.max(np.abs(images))/np.max(np.abs(G_x))
 
     
@@ -120,33 +120,33 @@ class VFA_Model:
     E1[~np.isfinite(E1)] = 1e-20
 
 #    result = np.array(np.concatenate((self.M0_guess[None,:,:,:],E1),axis=0),dtype=DTYPE)
-#    result = np.array([1e-5*np.ones((Nislice,dimY,dimX),dtype=DTYPE),np.exp(-self.TR/(1500*np.ones((Nislice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE)
+    result = np.array([1e-5*np.ones((Nislice,dimY,dimX),dtype=DTYPE),np.exp(-self.TR/(1500*np.ones((Nislice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE)
 #    result = np.concatenate((((M0_guess)*np.exp(1j*np.angle(phase_map)))[None,:,:,:],(T1_guess)[None,None,:,:]),axis=0)
 #    result = np.array([(0.01+0*M0_guess*np.exp(1j*np.angle(phase_map))),0.3+0*(T1_guess)])
-    result = np.array([1e-3*np.ones((Nislice,dimY,dimX),dtype=DTYPE),1500/self.T1_sc*np.ones((Nislice,dimY,dimX),dtype=DTYPE)])
+#    result = np.array([1e-3*np.ones((Nislice,dimY,dimX),dtype=DTYPE),1500/self.T1_sc*np.ones((Nislice,dimY,dimX),dtype=DTYPE)])
     self.guess = result                   
     self.constraints.append(constraint(-300,300,False)  )
-    self.constraints.append(constraint(10/self.T1_sc,5500/self.T1_sc,True))
-#    self.constraints.append(constraint(np.exp(-self.TR/(50)),np.exp(-self.TR/(5500)),True))
+#    self.constraints.append(constraint(10/self.T1_sc,5500/self.T1_sc,True))
+    self.constraints.append(constraint(np.exp(-self.TR/(50)),np.exp(-self.TR/(5500)),True))
   def execute_forward_2D(self,x,islice):
-    E1 = np.exp(-self.TR/(x[1,:,:]*self.T1_sc))
-#    E1 = x[1,...]
+#    E1 = np.exp(-self.TR/(x[1,:,:]*self.T1_sc))
+    E1 = x[1,...]
 
     S = x[0,:,:]*self.M0_sc*(-E1 + 1)*self.sin_phi[:,islice,:,:]/(-E1*self.cos_phi[:,islice,:,:] + 1)
     S[~np.isfinite(S)] = 1e-20
     S = np.array(S,dtype=DTYPE)
     return S
   def execute_gradient_2D(self,x,islice):
-    E1 = np.exp(self.TR/(x[1,:,:]*self.T1_sc))  ####no minus!!!  
-#    E1 = x[1,:,:]
+#    E1 = np.exp(self.TR/(x[1,:,:]*self.T1_sc))  ####no minus!!!  
+    E1 = x[1,:,:]
 
     E1[~np.isfinite(E1)] = 0
-    grad_M0 = (self.M0_sc*self.sin_phi[:,islice,:,:]*(E1-1))/(E1-self.cos_phi[:,islice,:,:])
-    grad_T1 = (-(x[0,:,:]*self.M0_sc*self.TR*E1*(2*self.sin_phi[:,islice,:,:]-2*self.sin_phi[:,islice,:,:]*self.cos_phi[:,islice,:,:]))/
-               (2*x[1,:,:]**2*self.T1_sc*(E1-self.cos_phi[:,islice,:,:])**2))
-#    grad_M0 = self.M0_sc*(-E1 + 1)*self.sin_phi[:,islice,:,:]/(-E1*self.cos_phi[:,islice,:,:] + 1)
-#    grad_T1 = x[0,...]*self.M0_sc*(-E1 + 1)*self.sin_phi[:,islice,:,:]*self.cos_phi[:,islice,:,:]/(-E1*self.cos_phi[:,islice,:,:] + 1)**2\
-#    - x[0,...]*self.M0_sc*self.sin_phi[:,islice,:,:]/(-E1*self.cos_phi[:,islice,:,:] + 1)
+#    grad_M0 = (self.M0_sc*self.sin_phi[:,islice,:,:]*(E1-1))/(E1-self.cos_phi[:,islice,:,:])
+#    grad_T1 = (-(x[0,:,:]*self.M0_sc*self.TR*E1*(2*self.sin_phi[:,islice,:,:]-2*self.sin_phi[:,islice,:,:]*self.cos_phi[:,islice,:,:]))/
+#               (2*x[1,:,:]**2*self.T1_sc*(E1-self.cos_phi[:,islice,:,:])**2))
+    grad_M0 = self.M0_sc*(-E1 + 1)*self.sin_phi[:,islice,:,:]/(-E1*self.cos_phi[:,islice,:,:] + 1)
+    grad_T1 = x[0,...]*self.M0_sc*(-E1 + 1)*self.sin_phi[:,islice,:,:]*self.cos_phi[:,islice,:,:]/(-E1*self.cos_phi[:,islice,:,:] + 1)**2\
+    - x[0,...]*self.M0_sc*self.sin_phi[:,islice,:,:]/(-E1*self.cos_phi[:,islice,:,:] + 1)
     grad = np.array([grad_M0,grad_T1],dtype=DTYPE)
     grad[~np.isfinite(grad)] = 1e-20
     return grad
@@ -196,8 +196,8 @@ class VFA_Model:
           plt.imshow(np.transpose(np.abs(x[0,...]*self.M0_sc)))
           plt.pause(0.05)
           plt.figure(2)
-#          plt.imshow(np.transpose(np.abs(-self.TR/np.log(x[1,...]))))
-          plt.imshow(np.transpose(np.abs(x[1,...]*self.T1_sc)))
+          plt.imshow(np.transpose(np.abs(-self.TR/np.log(x[1,...]))))
+#          plt.imshow(np.transpose(np.abs(x[1,...]*self.T1_sc)))
           plt.pause(0.05)          
       else:         
           plt.figure(1)
