@@ -273,7 +273,7 @@ irgn_par.display_iterations = True
 opt.irgn_par = irgn_par
 
 
-opt.execute_2D()
+#opt.execute_2D()
 
 
 
