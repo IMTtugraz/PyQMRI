@@ -162,7 +162,7 @@ cdef class Model_Reco:
           end = time.time()-start
           print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
           print("-"*80)
-          if ((self.fval_min-self.fval) < self.irgn_par.lambd*self.irgn_par.tol) and i>0:
+          if (np.abs(self.fval_min-self.fval) < self.irgn_par.lambd*self.irgn_par.tol) and i>0:
             print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/self.irgn_par.lambd))            
             break
           if i==0:
@@ -207,7 +207,7 @@ cdef class Model_Reco:
         end = time.time()-start
         print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
         print("-"*80)
-        if ((self.fval_min-self.fval) < self.irgn_par.lambd*self.irgn_par.tol) and i>0:
+        if (np.abs(self.fval_min-self.fval) < self.irgn_par.lambd*self.irgn_par.tol) and i>0:
           print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/self.irgn_par.lambd))            
           break
         if i==0:
@@ -252,8 +252,8 @@ cdef class Model_Reco:
         end = time.time()-start  
         print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
         print("-"*80)
-        if ((self.fval_min-self.fval) < self.irgn_par.lambd*self.irgn_par.tol*self.NSlice) and i>0:
-          print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)))
+        if (np.abs(self.fval_min-self.fval) < self.irgn_par.lambd*self.irgn_par.tol*self.NSlice) and i>0:
+          print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/(self.irgn_par.lambd*self.NSlice)))
           break
         if i==0:
           self.fval_min = self.fval        

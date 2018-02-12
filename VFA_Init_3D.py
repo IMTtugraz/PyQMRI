@@ -20,7 +20,7 @@ import primaldualtoolbox
 DTYPE = np.complex64
 np.seterr(divide='ignore', invalid='ignore')
    
-os.system("taskset -p 0xff %d" % os.getpid()) 
+os.system("taskset -p 0xfff %d" % os.getpid()) 
 
 ################################################################################
 ### Initiate parallel interface ################################################
@@ -67,11 +67,11 @@ for attributes in test_attributes:
 ################################################################################
 ### Read Data ##################################################################
 ################################################################################
-reco_Slices = 1
+reco_Slices = 40
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)    
     
-data = file['real_dat'][:,:,int(NSlice/2)-1:int(NSlice/2),...].astype(DTYPE) +\
-       1j*file['imag_dat'][:,:,int(NSlice/2)-1:int(NSlice/2),...].astype(DTYPE)
+data = file['real_dat'][:,:,int(NSlice/2)-int(np.ceil((reco_Slices-1)/2)):int(NSlice/2)+int(np.floor(reco_Slices/2)),...].astype(DTYPE) +\
+       1j*file['imag_dat'][:,:,int(NSlice/2)-int(np.ceil((reco_Slices-1)/2)):int(NSlice/2)+int(np.floor(reco_Slices/2)),...].astype(DTYPE)
 
 
 traj = file['real_traj'][()].astype(DTYPE) + \
@@ -89,7 +89,7 @@ par = struct()
 ### FA correction ##############################################################
 ################################################################################
 
-par.fa_corr = file['fa_corr'][int(NSlice/2)-1:int(NSlice/2),...].astype(DTYPE)
+par.fa_corr = file['fa_corr'][int(NSlice/2)-int(np.ceil((reco_Slices-1)/2)):int(NSlice/2)+int(np.floor(reco_Slices/2)),...].astype(DTYPE)
 par.fa_corr[par.fa_corr==0] = 1
 
 
@@ -130,12 +130,6 @@ par.unknowns = 2
 #%inversion joint estimation of coil sensitivities and image content)
 nlinvNewtonSteps = 6
 nlinvRealConstr  = False
-
-traj_coil = np.reshape(traj,(NScan*Nproj,N))
-coil_plan = NFFT((dimY,dimX),NScan*Nproj*N)
-coil_plan.x = np.transpose(np.array([np.imag(traj_coil.flatten()),\
-                                     np.real(traj_coil.flatten())]))
-coil_plan.precompute()
 
 traj_x = np.real(np.asarray(traj))
 traj_y = np.imag(np.asarray(traj))
@@ -328,40 +322,26 @@ opt.dz = 1
 
 ################################################################################
 ##IRGN Params
-#irgn_par = struct()
-#irgn_par.start_iters = 100
-#irgn_par.max_iters = 1000
-#irgn_par.max_GN_it = 30
-#irgn_par.lambd = 1e3
-#irgn_par.gamma = 5e-2   #### 5e-2   5e-3 phantom ##### brain 1e-2
-#irgn_par.delta = 1e-2  #### 8spk in-vivo 1e-2
-#irgn_par.omega = 1e-8
-#irgn_par.display_iterations = True
-#irgn_par.gamma_min = 5e-4
-#irgn_par.delta_max = 1e3
-#irgn_par.tol = 1e-4
-#irgn_par.stag = 1.4
-#opt.irgn_par = irgn_par
-
 irgn_par = struct()
 irgn_par.start_iters = 100
 irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 12
+irgn_par.max_GN_it = 15
 irgn_par.lambd = 1e2
-irgn_par.gamma = 1e-1    #### 5e-2   5e-3 phantom ##### brain 1e-2
-irgn_par.delta = 1e-1 #### 8spk in-vivo 1e-2
+irgn_par.gamma = 1e-1   #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 5e-2
-irgn_par.delta_max = 1e3
-irgn_par.tol = 1e-4
-irgn_par.stag = 1.2
-irgn_par.delta_inc = 3
+irgn_par.gamma_min = 1e-2
+irgn_par.delta_max = 1e6
+irgn_par.tol = 1e-5
+irgn_par.stag = 1.00
+irgn_par.delta_inc = 10
 opt.irgn_par = irgn_par
 
 opt.execute_3D()
 
-
+result_tgv = opt.result
+del opt
 
 ###############################################################################
 ## IRGN - Tikhonov referenz ###################################################
@@ -382,17 +362,24 @@ opt_t.traj = traj
 irgn_par = struct()
 irgn_par.start_iters = 10
 irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 10
+irgn_par.max_GN_it = 20
 irgn_par.lambd = 1e2
 irgn_par.gamma = 1e-2  #### 5e-2   5e-3 phantom ##### brain 1e-2
-irgn_par.delta = 1e-3  #### 8spk in-vivo 1e-2
+irgn_par.delta = 1e-4  #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e0
 irgn_par.display_iterations = True
-
+irgn_par.gamma_min = 1e-4
+irgn_par.delta_max = 1e-1
+irgn_par.tol = 1e-5
+irgn_par.stag = 1.05
+irgn_par.delta_inc = 10
 opt_t.irgn_par = irgn_par
 
-#opt_t.execute_3D()
 
+opt_t.execute_3D()
+
+result_ref = opt_t.result
+del opt_t
 ###############################################################################
 ## New .hdf5 save files #######################################################
 ###############################################################################
@@ -402,24 +389,23 @@ if not os.path.exists('./output'):
 os.makedirs("output/"+ outdir)
 
 os.chdir("output/"+ outdir)  
-
 f = h5py.File("output_"+name,"w")
-dset_result=f.create_dataset("full_result",opt.result.shape,\
-                             dtype=np.complex64,data=opt.result)
-#dset_result_ref=f.create_dataset("ref_full_result",opt_t.result.shape,\
-#                                 dtype=np.complex64,data=opt_t.result)
-dset_T1=f.create_dataset("T1_final",np.squeeze(opt.result[-1,1,...]).shape,\
-                         dtype=np.complex64,\
-                         data=np.squeeze(opt.result[-1,1,...]))
-dset_M0=f.create_dataset("M0_final",np.squeeze(opt.result[-1,0,...]).shape,\
-                         dtype=np.complex64,\
-                         data=np.squeeze(opt.result[-1,0,...]))
-#dset_T1_ref=f.create_dataset("T1_ref",np.squeeze(opt_t.result[-1,1,...]).shape\
-#                             ,dtype=np.complex64,\
-#                             data=np.squeeze(opt_t.result[-1,1,...]))
-#dset_M0_ref=f.create_dataset("M0_ref",np.squeeze(opt_t.result[-1,0,...]).shape\
-#                             ,dtype=np.complex64,\
-#                             data=np.squeeze(opt_t.result[-1,0,...]))
+dset_result=f.create_dataset("full_result",result_tgv.shape,\
+                             dtype=DTYPE,data=result_tgv)
+dset_result_ref=f.create_dataset("ref_full_result",result_ref.shape,\
+                                 dtype=DTYPE,data=result_ref)
+dset_T1=f.create_dataset("T1_final",np.squeeze(result_tgv[-1,1,...]).shape,\
+                         dtype=DTYPE,\
+                         data=np.squeeze(result_tgv[-1,1,...]))
+dset_M0=f.create_dataset("M0_final",np.squeeze(result_tgv[-1,0,...]).shape,\
+                         dtype=DTYPE,\
+                         data=np.squeeze(result_tgv[-1,0,...]))
+dset_T1_ref=f.create_dataset("T1_ref",np.squeeze(result_ref[-1,1,...]).shape\
+                             ,dtype=DTYPE,\
+                             data=np.squeeze(result_ref[-1,1,...]))
+dset_M0_ref=f.create_dataset("M0_ref",np.squeeze(result_ref[-1,0,...]).shape\
+                             ,dtype=DTYPE,\
+                             data=np.squeeze(result_ref[-1,0,...]))
 #f.create_dataset("T1_guess",np.squeeze(model.T1_guess).shape,\
 #                 dtype=np.float64,data=np.squeeze(model.T1_guess))
 #f.create_dataset("M0_guess",np.squeeze(model.M0_guess).shape,\
@@ -431,5 +417,3 @@ f.close()
 
 os.chdir('..')
 os.chdir('..')
-
-

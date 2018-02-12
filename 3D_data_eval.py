@@ -67,7 +67,7 @@ if "IRLL" in filenames[0]:
   tr = 1000
   save_name = "IRLL"
 else:
-  tr = 5
+  tr = 5.5
   save_name = "VFA"
 
 
