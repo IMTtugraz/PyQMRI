@@ -808,7 +808,7 @@ cdef class Model_Reco:
           op = primaldualtoolbox.mri.MriRadialOperator(config)
           op.setTrajectory(points)
           op.setDcf(self.dcf_flat.astype(np.float32)[None,...])
-          op.setCoilSens(self.par.C[:,islice,...])            
+          op.setCoilSens(np.require(self.par.C[:,islice,...],DTYPE,'C'))
           plan.append(op)
       self._plan = plan
     else:

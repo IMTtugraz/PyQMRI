@@ -10,6 +10,8 @@ Created on Fri Jun  9 11:33:09 2017
 #cython: boundscheck=False, wraparound=False, nonecheck=False
 
 import numpy as np
+import matplotlib
+matplotlib.use("Qt5agg")
 import matplotlib.pyplot as plt
 import numexpr as ne
 plt.ion()
@@ -51,7 +53,7 @@ class IRLL_Model:
     self.sin_phi = np.sin(phi_corr)
     self.cos_phi = np.cos(phi_corr)    
 
-    self.guess = np.array([1e-3/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1000/self.T1_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE)])               
+    self.guess = np.array([1e-5/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1500/self.T1_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE)])               
     self.constraints.append(constraint(-300,300,False)  )
     self.constraints.append(constraint(10/self.T1_sc, 5500/self.T1_sc,True))
 
