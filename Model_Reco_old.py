@@ -6,7 +6,7 @@ import time
 import gradients_divergences_old as gd
 import matplotlib.pyplot as plt
 
-import pynfft.nfft as nfft
+#import pynfft.nfft as nfft
 
 import scipy.optimize as op
 import primaldualtoolbox

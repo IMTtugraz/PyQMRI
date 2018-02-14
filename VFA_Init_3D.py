@@ -10,7 +10,7 @@ import nlinvns_maier as nlinvns
 import Model_Reco as Model_Reco
 import Model_Reco_old as Model_Reco_Tikh
 
-from pynfft.nfft import NFFT
+#from pynfft.nfft import NFFT
 
 import VFA_model as VFA_model
 import goldcomp
@@ -70,8 +70,8 @@ for attributes in test_attributes:
 reco_Slices = 40
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)    
     
-data = file['real_dat'][:,:,int(NSlice/2)-int(np.ceil((reco_Slices-1)/2)):int(NSlice/2)+int(np.floor(reco_Slices/2)),...].astype(DTYPE) +\
-       1j*file['imag_dat'][:,:,int(NSlice/2)-int(np.ceil((reco_Slices-1)/2)):int(NSlice/2)+int(np.floor(reco_Slices/2)),...].astype(DTYPE)
+data = file['real_dat'][:,:,int(NSlice/2)-int(np.ceil((reco_Slices)/2)):int(NSlice/2)+int(np.floor(reco_Slices/2)),...].astype(DTYPE) +\
+       1j*file['imag_dat'][:,:,int(NSlice/2)-int(np.ceil((reco_Slices)/2)):int(NSlice/2)+int(np.floor(reco_Slices/2)),...].astype(DTYPE)
 
 
 traj = file['real_traj'][()].astype(DTYPE) + \
@@ -89,7 +89,7 @@ par = struct()
 ### FA correction ##############################################################
 ################################################################################
 
-par.fa_corr = file['fa_corr'][int(NSlice/2)-int(np.ceil((reco_Slices-1)/2)):int(NSlice/2)+int(np.floor(reco_Slices/2)),...].astype(DTYPE)
+par.fa_corr = file['fa_corr'][int(NSlice/2)-int(np.ceil((reco_Slices)/2)):int(NSlice/2)+int(np.floor(reco_Slices/2)),...].astype(DTYPE)
 par.fa_corr[par.fa_corr==0] = 1
 
 
