@@ -19,6 +19,10 @@ from createInitGuess_FLASH import createInitGuess_FLASH
 #from compute_mask import compute_mask
 DTYPE = np.complex64
 
+import ipyparallel as ipp
+
+
+
 class constraint:
   def __init__(self, min_val=-np.inf, max_val=np.inf, real_const=False):
     self.min = min_val
@@ -34,6 +38,7 @@ class VFA_Model:
     self.fa = fa
     self.fa_corr = fa_corr
     self.Nislice = Nislice
+    c = ipp.Client()
     
     (NScan,Nislice,dimX,dimY) = images.shape
     
@@ -47,7 +52,17 @@ class VFA_Model:
     
     th = time.clock()
 
-    [M0_guess, T1_guess, mask_guess] = createInitGuess_FLASH(self.images,phi_corr,self.TR)
+#    [M0_guess, T1_guess, mask_guess] = createInitGuess_FLASH(self.images,phi_corr,self.TR)
+    result = []
+    T1_guess = np.zeros((Nislice,dimY,dimX),DTYPE)
+    M0_guess = np.zeros((Nislice,dimY,dimX),DTYPE)
+    for i in range(Nislice):
+      dview = c[int(np.floor(i*len(c)/Nislice))]
+      result.append(dview.apply_async(createInitGuess_FLASH, images[i,...], 
+                                    phi_corr[:,i,...], TR))
+    for i in range(Nislice):  
+      T1_guess[i,:,:] = result[i].get()[1]
+      M0_guess[i,:,:] = result[i].get()[0]
 
     T1_guess[np.isnan(T1_guess)] = np.spacing(1)
     T1_guess[np.isinf(T1_guess)] = np.spacing(1)
