@@ -69,7 +69,7 @@ dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
 
 ############### Set number of Slices ###########################################
 reco_Slices = 1
-os_slices = 20
+os_slices = 0
 class struct:
     pass
 
@@ -91,7 +91,7 @@ data = data[None,:,int(NSlice/2)-\
             int(np.floor(reco_Slices/2)),:,:]
 
   
-par.fa_corr =np.ones_like(np.flip(par.fa_corr,axis=0)[int((NSlice-os_slices)/2)-\
+par.fa_corr = np.ones_like(np.flip(par.fa_corr,axis=0)[int((NSlice-os_slices)/2)-\
             int(np.ceil(reco_Slices/2)):int((NSlice-os_slices)/2)+\
             int(np.floor(reco_Slices/2)),:,:])
 
@@ -281,7 +281,7 @@ def gpuNUFFT(NScan,NSlice,dimX,traj,dcf,Coils):
       op = primaldualtoolbox.mri.MriRadialOperator(config)
       op.setTrajectory(points)
       op.setDcf(dcf.flatten().astype(np.float32)[None,...])
-      op.setCoilSens(Coils[:,j,...])            
+      op.setCoilSens(np.require(Coils[:,j,...],DTYPE,'C'))
       plan[i].append(op)
  
 
@@ -353,20 +353,23 @@ opt.traj = traj
 irgn_par = struct()
 irgn_par.start_iters = 100
 irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 15
+irgn_par.max_GN_it = 20
 irgn_par.lambd = 1e2
 irgn_par.gamma = 1e-1   #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 2e-2
-irgn_par.delta_max = 1e6
+irgn_par.gamma_min = 1e-2
+irgn_par.delta_max = 1e8
 irgn_par.tol = 1e-5
 irgn_par.stag = 1.00
 irgn_par.delta_inc = 10
 opt.irgn_par = irgn_par
 
 opt.execute_2D()
+
+result_tgv = opt.result
+del opt
 
 ################################################################################
 ### IRGN - Tikhonov referenz ###################################################
@@ -396,13 +399,16 @@ irgn_par.delta = 1e-4  #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e0
 irgn_par.display_iterations = True
 irgn_par.gamma_min = 1e-4
-irgn_par.delta_max = 1e-1
+irgn_par.delta_max = 1e0
 irgn_par.tol = 1e-5
-irgn_par.stag = 1.05
+irgn_par.stag = 1.00
 irgn_par.delta_inc = 10
 opt_t.irgn_par = irgn_par
 
 opt_t.execute_2D()
+
+result_ref = opt_t.result
+del opt_t
 
 ################################################################################
 ### New .hdf5 save files #######################################################
@@ -412,25 +418,25 @@ if not os.path.exists('./output'):
     os.makedirs('./output')
 os.makedirs("output/"+ outdir)
 
-os.chdir("output/"+ outdir)
+os.chdir("output/"+ outdir)  
 
 f = h5py.File("output_"+name,"w")
-dset_result=f.create_dataset("full_result",opt.result.shape,\
-                             dtype=np.complex64,data=opt.result)
-dset_result_ref=f.create_dataset("ref_full_result",opt_t.result.shape,\
-                                 dtype=np.complex64,data=opt_t.result)
-dset_T1=f.create_dataset("T1_final",np.squeeze(opt.result[-1,1,...]).shape,\
-                         dtype=np.complex64,\
-                         data=np.squeeze(opt.result[-1,1,...]))
-dset_M0=f.create_dataset("M0_final",np.squeeze(opt.result[-1,0,...]).shape,\
-                         dtype=np.complex64,\
-                         data=np.squeeze(opt.result[-1,0,...]))
-dset_T1_ref=f.create_dataset("T1_ref",np.squeeze(opt_t.result[-1,1,...]).shape\
-                             ,dtype=np.complex64,\
-                             data=np.squeeze(opt_t.result[-1,1,...]))
-dset_M0_ref=f.create_dataset("M0_ref",np.squeeze(opt_t.result[-1,0,...]).shape\
-                             ,dtype=np.complex64,\
-                             data=np.squeeze(opt_t.result[-1,0,...]))
+dset_result=f.create_dataset("full_result",result_tgv.shape,\
+                             dtype=DTYPE,data=result_tgv)
+dset_result_ref=f.create_dataset("ref_full_result",result_ref.shape,\
+                                 dtype=DTYPE,data=result_ref)
+dset_T1=f.create_dataset("T1_final",np.squeeze(result_tgv[-1,1,...]).shape,\
+                         dtype=DTYPE,\
+                         data=np.squeeze(result_tgv[-1,1,...]))
+dset_M0=f.create_dataset("M0_final",np.squeeze(result_tgv[-1,0,...]).shape,\
+                         dtype=DTYPE,\
+                         data=np.squeeze(result_tgv[-1,0,...]))
+dset_T1_ref=f.create_dataset("T1_ref",np.squeeze(result_ref[-1,1,...]).shape\
+                             ,dtype=DTYPE,\
+                             data=np.squeeze(result_ref[-1,1,...]))
+dset_M0_ref=f.create_dataset("M0_ref",np.squeeze(result_ref[-1,0,...]).shape\
+                             ,dtype=DTYPE,\
+                             data=np.squeeze(result_ref[-1,0,...]))
 #f.create_dataset("T1_guess",np.squeeze(model.T1_guess).shape,\
 #                 dtype=np.float64,data=np.squeeze(model.T1_guess))
 #f.create_dataset("M0_guess",np.squeeze(model.M0_guess).shape,\

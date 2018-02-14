@@ -59,11 +59,11 @@ for attributes in test_attributes:
 ################################################################################
 ### Read Data ##################################################################
 ################################################################################
-reco_Slices = 1
+reco_Slices = 5
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)    
     
-data = file['real_dat'][:,:,int(NSlice/2)-1:int(NSlice/2),...].astype(DTYPE) +\
-       1j*file['imag_dat'][:,:,int(NSlice/2)-1:int(NSlice/2),...].astype(DTYPE)
+data = file['real_dat'][:,:,int(NSlice/2)-int(np.ceil((reco_Slices)/2)):int(NSlice/2)+int(np.floor(reco_Slices/2)),...].astype(DTYPE) +\
+       1j*file['imag_dat'][:,:,int(NSlice/2)-int(np.ceil((reco_Slices)/2)):int(NSlice/2)+int(np.floor(reco_Slices/2)),...].astype(DTYPE)
 
 
 traj = file['real_traj'][()].astype(DTYPE) + \
@@ -81,7 +81,7 @@ par = struct()
 ### FA correction ##############################################################
 ################################################################################
 
-par.fa_corr = file['fa_corr'][int(NSlice/2)-1:int(NSlice/2),...].astype(DTYPE)
+par.fa_corr = file['fa_corr'][int(NSlice/2)-int(np.ceil((reco_Slices)/2)):int(NSlice/2)+int(np.floor(reco_Slices/2)),...].astype(DTYPE)
 par.fa_corr[par.fa_corr==0] = 1
 
 
@@ -244,7 +244,7 @@ def gpuNUFFT(NScan,NSlice,dimX,traj,dcf,Coils):
       op = primaldualtoolbox.mri.MriRadialOperator(config)
       op.setTrajectory(points)
       op.setDcf(dcf.flatten().astype(np.float32)[None,...])
-      op.setCoilSens(Coils[:,j,...])            
+      op.setCoilSens(np.require(Coils[:,j,...],DTYPE,'C'))
       plan[i].append(op)
  
 
@@ -254,7 +254,7 @@ def nFT_gpu(plan,x):
     result = np.zeros((NScan,NC,NSlice,Nproj*N),dtype=DTYPE)
     for scan in range(NScan):    
       for islice in range(NSlice):
-        result[scan,:,islice,...] = plan[scan][islice].forward(np.require(x[scan,:,islice,...]))
+        result[scan,:,islice,...] = plan[scan][islice].forward(np.require(x[scan,:,islice,...],DTYPE,'C'))
       
     return np.reshape(result,[NScan,NC,NSlice,Nproj,N])
 
@@ -265,9 +265,10 @@ def nFTH_gpu(plan,x):
     x = np.require(np.reshape(x,(NScan,NC,NSlice,Nproj*N)))
     for scan in range(NScan):
       for islice in range(NSlice):
-            result[scan,islice,...] = plan[scan][islice].adjoint(x[scan,:,islice,...])
+            result[scan,islice,...] = plan[scan][islice].adjoint(np.require(x[scan,:,islice,...],DTYPE,'C'))
       
     return result
+
 
 
 plan = gpuNUFFT(NScan,NSlice,dimX,traj,dcf,par.C)
@@ -317,7 +318,7 @@ irgn_par.gamma = 1e-1   #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 2e-2
+irgn_par.gamma_min = 1e-2
 irgn_par.delta_max = 1e6
 irgn_par.tol = 1e-5
 irgn_par.stag = 1.00
@@ -339,8 +340,8 @@ opt_t = Model_Reco_Tikh.Model_Reco(par)
 opt_t.par = par
 opt_t.data =  data
 opt_t.images = images
-opt_t.dcf = np.sqrt(dcf)
-opt_t.dcf_flat = np.sqrt(dcf).flatten()
+opt_t.dcf = (dcf)
+opt_t.dcf_flat = (dcf).flatten()
 opt_t.model = model
 opt_t.traj = traj 
 
@@ -358,7 +359,7 @@ irgn_par.display_iterations = True
 irgn_par.gamma_min = 1e-4
 irgn_par.delta_max = 1e-1
 irgn_par.tol = 1e-5
-irgn_par.stag = 1.05
+irgn_par.stag = 1.00
 irgn_par.delta_inc = 10
 opt_t.irgn_par = irgn_par
 

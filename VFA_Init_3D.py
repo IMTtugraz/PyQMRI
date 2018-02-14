@@ -67,11 +67,11 @@ for attributes in test_attributes:
 ################################################################################
 ### Read Data ##################################################################
 ################################################################################
-reco_Slices = 40
+reco_Slices = 20
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)    
     
-data = file['real_dat'][:,:,int(NSlice/2)-int(np.ceil((reco_Slices-1)/2)):int(NSlice/2)+int(np.floor(reco_Slices/2)),...].astype(DTYPE) +\
-       1j*file['imag_dat'][:,:,int(NSlice/2)-int(np.ceil((reco_Slices-1)/2)):int(NSlice/2)+int(np.floor(reco_Slices/2)),...].astype(DTYPE)
+data = file['real_dat'][:,:,int(NSlice/2)-int(np.ceil((reco_Slices)/2)):int(NSlice/2)+int(np.floor(reco_Slices/2)),...].astype(DTYPE) +\
+       1j*file['imag_dat'][:,:,int(NSlice/2)-int(np.ceil((reco_Slices)/2)):int(NSlice/2)+int(np.floor(reco_Slices/2)),...].astype(DTYPE)
 
 
 traj = file['real_traj'][()].astype(DTYPE) + \

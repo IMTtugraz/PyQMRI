@@ -9,7 +9,10 @@ Created on Tue May 30 11:42:42 2017
 import numpy as np
 import time
 from scipy.ndimage.filters import gaussian_filter as gf
+import matplotlib
+matplotlib.use("Qt5agg")
 import matplotlib.pyplot as plt
+
 plt.ion()
 
 from createInitGuess_FLASH import createInitGuess_FLASH

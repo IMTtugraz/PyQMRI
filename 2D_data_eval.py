@@ -91,7 +91,7 @@ for files in filenames:
 dz = 1
 
 
-mask = (masking.compute(M0_tgv[1]))
+mask = (masking.compute(M0_tgv[0]))
 
 [z,y,x] = M0_tgv[0].shape
 z = z*dz
@@ -262,14 +262,14 @@ if roi_num > 0:
   std_TGV = []
   std_Tikh =  []
   col_names = []
-  selector = cv2.cvtColor(np.abs(np.squeeze(T1_ref[0,...]).T/3000).astype(np.float32),cv2.COLOR_GRAY2BGR)
+  selector = cv2.cvtColor(np.abs(np.squeeze(T1_ref[...]).T/3000).astype(np.float32),cv2.COLOR_GRAY2BGR)
   
   for j in range(roi_num):
     r = (cv2.selectROI(selector,False))
     col_names.append("ROI "+str(j+1))
-    mean_TGV.append(np.abs(np.mean(T1_ref[0,int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))   
-    std_TGV.append(np.abs(np.std(T1_ref[0,int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))       
-    for i in range((NResults-1)):    
+    mean_TGV.append(np.abs(np.mean(T1_ref[int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))   
+    std_TGV.append(np.abs(np.std(T1_ref[int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))       
+    for i in range((NResults)):    
       mean_TGV.append(np.abs(np.mean(T1_tgv[i][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
       mean_Tikh.append(np.abs(np.mean(T1_tikh[i][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
       std_TGV.append(np.abs(np.std(T1_tgv[i][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
@@ -282,9 +282,9 @@ if roi_num > 0:
     ax[0].add_patch(rects) 
   
   mean_TGV = np.round(pd.DataFrame(np.reshape(np.asarray(mean_TGV),(roi_num,NResults)).T,index=plot_names[0::2],columns=col_names),decimals=0)
-  mean_Tikh =  np.round(pd.DataFrame(np.reshape(np.asarray(mean_Tikh),(roi_num,NResults-1)).T,index=plot_names[3::2],columns=col_names),decimals=0)
+  mean_Tikh =  np.round(pd.DataFrame(np.reshape(np.asarray(mean_Tikh),(roi_num,NResults)).T,index=plot_names[3::2],columns=col_names),decimals=0)
   std_TGV =  np.round(pd.DataFrame(np.reshape(np.asarray(std_TGV),(roi_num,NResults)).T,index=plot_names[0::2],columns=col_names),decimals=0)
-  std_Tikh =  np.round(pd.DataFrame(np.reshape(np.asarray(std_Tikh),(roi_num,NResults-1)).T,index=plot_names[3::2],columns=col_names),decimals=0)
+  std_Tikh =  np.round(pd.DataFrame(np.reshape(np.asarray(std_Tikh),(roi_num,NResults)).T,index=plot_names[3::2],columns=col_names),decimals=0)
   
   f = open("test.tex","w")
   f.write(mean_TGV.to_latex())

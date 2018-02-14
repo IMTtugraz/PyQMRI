@@ -78,7 +78,7 @@ dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
 
 ############### Set number of Slices ###########################################
 reco_Slices = 5
-os_slices = 20
+os_slices = 0
 
 class struct:
     pass
@@ -342,7 +342,8 @@ del op
 model = IRLL_Model.IRLL_Model(par.fa,par.fa_corr,par.TR,par.tau,par.td,\
                               NScan,NSlice,dimY,dimX,Nproj,Nproj_measured,1)
 
-G_x = model.execute_forward_3D(np.array([1/model.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1500/model.T1_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE)],dtype=DTYPE))
+test_T1 = np.reshape(np.linspace(10,5000,dimX*dimY*NSlice),(NSlice,dimX,dimY))
+G_x = model.execute_forward_3D(np.array([1/model.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),test_T1/model.T1_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE)],dtype=DTYPE))
 model.M0_sc = model.M0_sc*np.max(np.abs(images))/np.max(np.abs(G_x))
 
 par.U = np.ones((data).shape, dtype=bool)
@@ -367,14 +368,14 @@ opt.traj = traj
 irgn_par = struct()
 irgn_par.start_iters = 100
 irgn_par.max_iters = 1000
-irgn_par.max_GN_it = 15
+irgn_par.max_GN_it = 20
 irgn_par.lambd = 1e2
 irgn_par.gamma = 1e-1   #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 2e-2
-irgn_par.delta_max = 1e6
+irgn_par.gamma_min = 1e-2
+irgn_par.delta_max = 1e8
 irgn_par.tol = 1e-5
 irgn_par.stag = 1.00
 irgn_par.delta_inc = 10
@@ -395,8 +396,8 @@ opt_t.data =  data
 opt_t.images = images
 #opt_t.fft_forward = fft_forward
 #opt_t.fft_back = fft_back
-opt_t.dcf = np.sqrt(dcf)
-opt_t.dcf_flat = np.sqrt(dcf).flatten()
+opt_t.dcf = (dcf)
+opt_t.dcf_flat = (dcf).flatten()
 opt_t.model = model
 opt_t.traj = traj
 
@@ -412,9 +413,9 @@ irgn_par.delta = 1e-4  #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e0
 irgn_par.display_iterations = True
 irgn_par.gamma_min = 1e-4
-irgn_par.delta_max = 1e-1
+irgn_par.delta_max = 1e0
 irgn_par.tol = 1e-5
-irgn_par.stag = 1.05
+irgn_par.stag = 1.00
 irgn_par.delta_inc = 10
 opt_t.irgn_par = irgn_par
 
