@@ -67,7 +67,7 @@ for attributes in test_attributes:
 ################################################################################
 ### Read Data ##################################################################
 ################################################################################
-reco_Slices = 20
+reco_Slices = 38
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)    
     
 data = file['real_dat'][:,:,int(NSlice/2)-int(np.ceil((reco_Slices)/2)):int(NSlice/2)+int(np.floor(reco_Slices/2)),...].astype(DTYPE) +\
@@ -89,7 +89,7 @@ par = struct()
 ### FA correction ##############################################################
 ################################################################################
 
-par.fa_corr = file['fa_corr'][int(NSlice/2)-int(np.ceil((reco_Slices-1)/2)):int(NSlice/2)+int(np.floor(reco_Slices/2)),...].astype(DTYPE)
+par.fa_corr = np.flip(file['fa_corr'][int(NSlice/2)-int(np.ceil((reco_Slices)/2)):int(NSlice/2)+int(np.floor(reco_Slices/2)),...].astype(DTYPE),0)
 par.fa_corr[par.fa_corr==0] = 1
 
 

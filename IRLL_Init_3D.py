@@ -75,9 +75,11 @@ dcf = np.array(goldcomp.cmp(traj),dtype=DTYPE)#file['dcf'][()].astype(DTYPE)
 
 
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
+dimX = 212
+dimY = 212
 
 ############### Set number of Slices ###########################################
-reco_Slices = 5
+reco_Slices = 20
 os_slices = 0
 
 class struct:
@@ -104,7 +106,7 @@ if reco_Slices ==1:
   
 par.fa_corr = np.ones_like(np.flip(par.fa_corr,axis=0)[int((NSlice-os_slices)/2)-\
             int(np.ceil(reco_Slices/2)):int((NSlice-os_slices)/2)+\
-            int(np.floor(reco_Slices/2)),:,:])
+            int(np.floor(reco_Slices/2)),6:-6,6:-6])
 
 [NScan,NC,NSlice,Nproj, N] = data.shape
 
@@ -426,7 +428,7 @@ del opt_t
 ################################################################################
 ### New .hdf5 save files #######################################################
 ################################################################################
-outdir = time.strftime("%Y-%m-%d  %H-%M-%S_"+name[:-3])
+outdir = time.strftime("%Y-%m-%d  %H-%M-%S_no_FA_corr_"+name[:-3])
 if not os.path.exists('./output'):
     os.makedirs('./output')
 os.makedirs("output/"+ outdir)
