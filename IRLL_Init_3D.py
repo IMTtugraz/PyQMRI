@@ -79,7 +79,7 @@ dimX = 212
 dimY = 212
 
 ############### Set number of Slices ###########################################
-reco_Slices = 20
+reco_Slices = 10
 os_slices = 0
 
 class struct:

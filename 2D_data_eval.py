@@ -91,7 +91,7 @@ for files in filenames:
 dz = 1
 
 
-mask = (masking.compute(M0_tgv[0]))
+mask = (masking.compute(T1_tgv[0]))
 
 [z,y,x] = M0_tgv[0].shape
 z = z*dz
