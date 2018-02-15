@@ -59,7 +59,7 @@ class VFA_Model:
     for i in range(Nislice):
       print("Processing slice: %i" %(i))
       dview = c[int(np.floor(i*len(c)/Nislice))]
-      result.append(dview.apply_async(createInitGuess_FLASH, images[i,...], 
+      result.append(dview.apply_async(createInitGuess_FLASH, images[:,i,...], 
                                     phi_corr[:,i,...], TR))
     for i in range(Nislice):  
       T1_guess[i,:,:] = result[i].get()[1]
