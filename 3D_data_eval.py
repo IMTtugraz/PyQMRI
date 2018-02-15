@@ -67,7 +67,7 @@ if "IRLL" in filenames[0]:
   tr = 1000
   save_name = "IRLL"
 else:
-  tr = 5.5
+  tr = 5.38
   save_name = "VFA"
 
 
@@ -267,6 +267,8 @@ offset = 0
 
 roi_num = int(input("Enter the number of desired ROIs: "))
 if roi_num > 0:
+  if not "Reference" in plot_names:
+    T1_ref = T1_tgv[0]
   mean_TGV = []
   std_TGV = []
   col_names = []

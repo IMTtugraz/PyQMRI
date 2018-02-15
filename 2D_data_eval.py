@@ -50,7 +50,7 @@ if "IRLL" in filenames[0]:
   tr = 3000
   save_name = "IRLL"
 else:
-  tr = 5
+  tr = 5.38
   save_name = "VFA"
 
 for files in filenames:
@@ -66,8 +66,8 @@ for files in filenames:
     names.append(name)
     data.append(file[name][()])  
   if "ref" in files:
-    T1_ref = np.flip(data[names.index('t1_reference')],axis=0)
-    M0_ref = data[names.index('m0_reference')]
+    T1_ref = np.flip(data[names.index('t1_ref_l2')],axis=0)
+    M0_ref = data[names.index('m0_ref_l2')]
     plot_names.append("Reference")
     plot_names.append(" ")
     NRef = 1
@@ -117,7 +117,7 @@ if "Reference" in plot_names:
     T1_ref = T1_ref[None,...]
   else:      
     dimz, dimy, dimx =   T1_ref.shape
-  T1_plot.append((T1_ref[pos,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size]*mask).T)
+  T1_plot.append((T1_ref[int(dimz/2)+pos,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size]*mask).T)
   T1_plot.append(np.zeros((dimy,dimx)))
   
 #  M0_plot.append(M0_ref[int(dimz/2),int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size].T)
@@ -132,10 +132,10 @@ T1_err_max = 30
 for i in range(NResults-NRef):
   slices, x, y = T1_tgv[i].shape
   
-  T1_tgv[i] = T1_tgv[i][pos,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
-  M0_tgv[i] = M0_tgv[i][pos,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
-  T1_tikh[i] = T1_tikh[i][pos,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
-  M0_tikh[i] = M0_tikh[i][pos,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
+  T1_tgv[i] = T1_tgv[i][int(slices/2)+pos,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
+  M0_tgv[i] = M0_tgv[i][int(slices/2)+pos,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
+  T1_tikh[i] = T1_tikh[i][int(slices/2)+pos,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
+  M0_tikh[i] = M0_tikh[i][int(slices/2)+pos,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
 
   T1_plot.append(np.squeeze(T1_tgv[i][...]).T)
   T1_plot.append(np.squeeze(T1_tikh[i][...]).T)
@@ -144,10 +144,10 @@ for i in range(NResults-NRef):
 #  M0_plot.append(np.squeeze(M0_tikh[i][...]).T)
   
   if "Reference" in plot_names:
-    T1_err.append(np.squeeze(np.abs(T1_tgv[i]-T1_ref[-1,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size])\
-                             /np.abs(T1_ref[-1,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size])).T*100)
-    T1_err.append(np.squeeze(np.abs(T1_tikh[i]-T1_ref[-1,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size])\
-                             /np.abs(T1_ref[-1,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size])).T*100)  
+    T1_err.append(np.squeeze(np.abs(T1_tgv[i]-T1_ref[-int(dimz/2)+pos,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size])\
+                             /np.abs(T1_ref[int(dimz/2)+pos,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size])).T*100)
+    T1_err.append(np.squeeze(np.abs(T1_tikh[i]-T1_ref[int(dimz/2)+pos,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size])\
+                             /np.abs(T1_ref[int(dimz/2)+pos,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size])).T*100)  
     
 if "Reference" in plot_names and plot_err:  
   fig = plt.figure(figsize = (8,8))
@@ -262,14 +262,14 @@ if roi_num > 0:
   std_TGV = []
   std_Tikh =  []
   col_names = []
-  selector = cv2.cvtColor(np.abs(np.squeeze(T1_ref[...]).T/3000).astype(np.float32),cv2.COLOR_GRAY2BGR)
+  selector = cv2.cvtColor(np.abs(np.squeeze(T1_ref[0,...]).T/3000).astype(np.float32),cv2.COLOR_GRAY2BGR)
   
   for j in range(roi_num):
     r = (cv2.selectROI(selector,False))
     col_names.append("ROI "+str(j+1))
-    mean_TGV.append(np.abs(np.mean(T1_ref[int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))   
-    std_TGV.append(np.abs(np.std(T1_ref[int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))       
-    for i in range((NResults)):    
+    mean_TGV.append(np.abs(np.mean(T1_ref[0,int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))   
+    std_TGV.append(np.abs(np.std(T1_ref[0,int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))       
+    for i in range((NResults-1)):    
       mean_TGV.append(np.abs(np.mean(T1_tgv[i][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
       mean_Tikh.append(np.abs(np.mean(T1_tikh[i][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
       std_TGV.append(np.abs(np.std(T1_tgv[i][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
@@ -282,9 +282,9 @@ if roi_num > 0:
     ax[0].add_patch(rects) 
   
   mean_TGV = np.round(pd.DataFrame(np.reshape(np.asarray(mean_TGV),(roi_num,NResults)).T,index=plot_names[0::2],columns=col_names),decimals=0)
-  mean_Tikh =  np.round(pd.DataFrame(np.reshape(np.asarray(mean_Tikh),(roi_num,NResults)).T,index=plot_names[3::2],columns=col_names),decimals=0)
+  mean_Tikh =  np.round(pd.DataFrame(np.reshape(np.asarray(mean_Tikh),(roi_num,NResults-1)).T,index=plot_names[3::2],columns=col_names),decimals=0)
   std_TGV =  np.round(pd.DataFrame(np.reshape(np.asarray(std_TGV),(roi_num,NResults)).T,index=plot_names[0::2],columns=col_names),decimals=0)
-  std_Tikh =  np.round(pd.DataFrame(np.reshape(np.asarray(std_Tikh),(roi_num,NResults)).T,index=plot_names[3::2],columns=col_names),decimals=0)
+  std_Tikh =  np.round(pd.DataFrame(np.reshape(np.asarray(std_Tikh),(roi_num,NResults-1)).T,index=plot_names[3::2],columns=col_names),decimals=0)
   
   f = open("test.tex","w")
   f.write(mean_TGV.to_latex())
