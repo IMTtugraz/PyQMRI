@@ -84,31 +84,32 @@ for files in filenames:
     M0_tgv.append(data[names.index('M0_final')])
     M0_tikh.append(data[names.index('M0_ref')])
 
-    plot_names.append(fname[-5:].split('_')[0] +" s "+ fname[-5:].split('_')[1] + " TGV")  
-    plot_names.append(fname[-5:].split('_')[0] +" s "+ fname[-5:].split('_')[1] + " Tikh")  
+    plot_names.append(fname[-5:].split('_')[1] + " TGV")  
+    plot_names.append(fname[-5:].split('_')[0] + " Tikh")  
 
 
 dz = 1
 
 
-mask = (masking.compute(T1_tgv[0]))
+mask = (masking.compute(M0_tgv[0]))
 
 [z,y,x] = M0_tgv[0].shape
 z = z*dz
 
 T1_plot=[]
 M0_plot=[]
-T1_min = 300
-T1_max = 3000
+T1_min = 0
+T1_max = 2000
 M0_min = 0
 M0_max = np.abs(np.max(M0_tgv[0]))
 
-half_im_size = int(x/2)
+mid_x = 100#int(x/2)
+mid_y = 100#int(y/2)
 plot_err = False
 
-pos = 0
-
-mask = mask[0,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]
+pos_ref = 0
+pos = 1
+mask = mask[int(z/2)+pos,int(y/2)-mid_y:int(y/2)+mid_y,int(x/2)-mid_x:int(x/2)+mid_x]
 
 if "Reference" in plot_names:
   if len(T1_ref.shape) == 2:
@@ -117,7 +118,8 @@ if "Reference" in plot_names:
     T1_ref = T1_ref[None,...]
   else:      
     dimz, dimy, dimx =   T1_ref.shape
-  T1_plot.append((T1_ref[int(dimz/2)+pos,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size]*mask).T)
+  T1_ref = ((T1_ref[int(dimz/2)+pos_ref,int(dimy/2)-mid_y:int(dimy/2)+mid_y,int(dimx/2)-mid_x:int(dimx/2)+mid_x]*mask).T)
+  T1_plot.append(T1_ref)
   T1_plot.append(np.zeros((dimy,dimx)))
   
 #  M0_plot.append(M0_ref[int(dimz/2),int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size].T)
@@ -132,10 +134,10 @@ T1_err_max = 30
 for i in range(NResults-NRef):
   slices, x, y = T1_tgv[i].shape
   
-  T1_tgv[i] = T1_tgv[i][int(slices/2)+pos,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
-  M0_tgv[i] = M0_tgv[i][int(slices/2)+pos,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
-  T1_tikh[i] = T1_tikh[i][int(slices/2)+pos,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
-  M0_tikh[i] = M0_tikh[i][int(slices/2)+pos,int(y/2)-half_im_size:int(y/2)+half_im_size,int(x/2)-half_im_size:int(x/2)+half_im_size]*mask
+  T1_tgv[i] = T1_tgv[i][int(np.ceil(slices/2))+pos,int(y/2)-mid_y:int(y/2)+mid_y,int(x/2)-mid_x:int(x/2)+mid_x]*mask
+  M0_tgv[i] = M0_tgv[i][int(np.ceil(slices/2))+pos,int(y/2)-mid_y:int(y/2)+mid_y,int(x/2)-mid_x:int(x/2)+mid_x]*mask
+  T1_tikh[i] = T1_tikh[i][int(np.ceil(slices/2))+pos,int(y/2)-mid_y:int(y/2)+mid_y,int(x/2)-mid_x:int(x/2)+mid_x]*mask
+  M0_tikh[i] = M0_tikh[i][int(np.ceil(slices/2))+pos,int(y/2)-mid_y:int(y/2)+mid_y,int(x/2)-mid_x:int(x/2)+mid_x]*mask
 
   T1_plot.append(np.squeeze(T1_tgv[i][...]).T)
   T1_plot.append(np.squeeze(T1_tikh[i][...]).T)
@@ -144,14 +146,14 @@ for i in range(NResults-NRef):
 #  M0_plot.append(np.squeeze(M0_tikh[i][...]).T)
   
   if "Reference" in plot_names:
-    T1_err.append(np.squeeze(np.abs(T1_tgv[i]-T1_ref[-int(dimz/2)+pos,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size])\
-                             /np.abs(T1_ref[int(dimz/2)+pos,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size])).T*100)
-    T1_err.append(np.squeeze(np.abs(T1_tikh[i]-T1_ref[int(dimz/2)+pos,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size])\
-                             /np.abs(T1_ref[int(dimz/2)+pos,int(dimy/2)-half_im_size:int(dimy/2)+half_im_size,int(dimx/2)-half_im_size:int(dimx/2)+half_im_size])).T*100)  
+    T1_err.append(np.squeeze(np.abs(T1_tgv[i]-T1_ref)\
+                             /np.abs(T1_ref))*100)
+    T1_err.append(np.squeeze(np.abs(T1_tikh[i]-T1_ref)\
+                             /np.abs(T1_ref))*100)  
     
 if "Reference" in plot_names and plot_err:  
   fig = plt.figure(figsize = (8,8))
-  fig.subplots_adjust(hspace=0.15, wspace=0)
+  fig.subplots_adjust(hspace=0, wspace=0.1)
   upper_bg = patches.Rectangle((0, 0.5), width=1, height=0.5, 
                                transform=fig.transFigure,      # use figure coordinates
                                facecolor=cm.viridis.colors[0],               # define color
@@ -168,26 +170,26 @@ if "Reference" in plot_names and plot_err:
   width_ratio = np.ones((1,(NResults)),dtype=int).tolist()[0]
   width_ratio.append(1/10)
   height_ratio = np.ones((1,4),dtype=int).tolist()[0]
-  height_ratio.insert(2,1/10)
-  gs = gridspec.GridSpec(5,NResults+1, width_ratios=width_ratio,height_ratios=height_ratio)  
+#  height_ratio.insert(2,1/10000)
+  gs = gridspec.GridSpec(4,NResults+1, width_ratios=width_ratio,height_ratios=height_ratio)  
   
   for i in range((NResults)):
     ax.append(plt.subplot(gs[i]))
     im = ax[i].imshow(np.abs(T1_plot[2*i]),vmin=T1_min,vmax=T1_max,aspect=1,cmap=cm.viridis)
     ax[i].axis('off')
   #  ax[i].set_anchor("N")   
-    ax[i].set_title(plot_names[2*i],color='white')
+    ax[i].set_title(plot_names[2*i],color='white',fontsize=16)
   
   for i in range((NResults)):
     ax.append(plt.subplot(gs[i+NResults+1]))
     im = ax[i+NResults].imshow(np.abs(T1_plot[2*i+1]),vmin=T1_min,vmax=T1_max,aspect=1,cmap=cm.viridis)
     ax[i+NResults].axis('off')
-  #  ax[i+NResults].set_anchor("S")    
-    ax[i+NResults].set_title(plot_names[2*i+1],color='white')
+    ax[i+NResults].set_anchor("S")    
+    ax[i+NResults].set_title(plot_names[2*i+1],color='white',fontsize=16)
     
   cax = plt.subplot(gs[:2,-1])
   cbar = fig.colorbar(im, cax=cax)
-  cbar.ax.tick_params(labelsize=12,colors='white')
+  cbar.ax.tick_params(labelsize=16,colors='white')
   for spine in cbar.ax.spines:
     cbar.ax.spines[spine].set_color('white')
   
@@ -196,25 +198,25 @@ if "Reference" in plot_names and plot_err:
     im = ax[i+2*(NResults)].imshow(np.abs(T1_err[2*i]),vmin=T1_err_min,vmax=T1_err_max,aspect=1,cmap=cm.inferno)
     ax[i+2*(NResults)].axis('off')
     ax[i+2*(NResults)].set_anchor("N")   
-    ax[i+2*(NResults)].set_title(plot_names[2*(i+1)],color='white')
+    ax[i+2*(NResults)].set_title(plot_names[2*(i+1)],color='white',fontsize=16)
   
   for i in range((NResults-NRef)):
     ax.append(plt.subplot(gs[i+4*(NResults+1)+1]))
     im = ax[i+3*(NResults)-1].imshow(np.abs(T1_err[2*i+1]),vmin=T1_err_min,vmax=T1_err_max,aspect=1,cmap=cm.inferno)
     ax[i+3*(NResults)-1].axis('off')
     ax[i+3*(NResults)-1].set_anchor("S")   
-    ax[i+3*(NResults)-1].set_title(plot_names[2*(i+1)+1],color='white')
+    ax[i+3*(NResults)-1].set_title(plot_names[2*(i+1)+1],color='white',fontsize=16)
   
   cax = plt.subplot(gs[3:,-1])
   cbar = fig.colorbar(im, cax=cax)
-  cbar.ax.tick_params(labelsize=12,colors='white')
+  cbar.ax.tick_params(labelsize=16,colors='white')
   for spine in cbar.ax.spines:
     cbar.ax.spines[spine].set_color('white')
   plt.show()  
 
 else:
   fig = plt.figure(figsize = (2*int(NResults),5))
-  fig.subplots_adjust(hspace=0.15, wspace=0)
+  fig.subplots_adjust(hspace=0, wspace=0.1)
   upper_bg = patches.Rectangle((0, 0), width=1, height=1, 
                                transform=fig.transFigure,      # use figure coordinates
                                facecolor=cm.viridis.colors[0],               # define color
@@ -226,24 +228,24 @@ else:
   width_ratio = np.ones((1,(NResults)),dtype=int).tolist()[0]
   width_ratio.append(1/20)
   height_ratio = np.ones((1,2),dtype=int).tolist()[0]
-  height_ratio.insert(2,1/10)
-  gs = gridspec.GridSpec(3,NResults+1, width_ratios=width_ratio,height_ratios=height_ratio)  
+#  height_ratio.insert(2,1/10000)
+  gs = gridspec.GridSpec(2,NResults+1, width_ratios=width_ratio,height_ratios=height_ratio)  
   
   for i in range((NResults)):
     ax.append(plt.subplot(gs[i]))
     im = ax[i].imshow(np.abs(T1_plot[2*i]),vmin=T1_min,vmax=T1_max,aspect=1,cmap=cm.viridis)
     ax[i].axis('off')  
-    ax[i].set_title(plot_names[2*i],color='white')
+    ax[i].set_title(plot_names[2*i],color='white',fontsize=16)
   
   for i in range((NResults)):
     ax.append(plt.subplot(gs[i+NResults+1]))
     im = ax[i+NResults].imshow(np.abs(T1_plot[2*i+1]),vmin=T1_min,vmax=T1_max,aspect=1,cmap=cm.viridis)
     ax[i+NResults].axis('off')    
-    ax[i+NResults].set_title(plot_names[2*i+1],color='white')
+    ax[i+NResults].set_title(plot_names[2*i+1],color='white',fontsize=16)
     
   cax = plt.subplot(gs[:2,-1])
   cbar = fig.colorbar(im, cax=cax)
-  cbar.ax.tick_params(labelsize=8,colors='white')
+  cbar.ax.tick_params(labelsize=16,colors='white')
   for spine in cbar.ax.spines:
     cbar.ax.spines[spine].set_color('white')
   plt.show()  
@@ -262,13 +264,13 @@ if roi_num > 0:
   std_TGV = []
   std_Tikh =  []
   col_names = []
-  selector = cv2.cvtColor(np.abs(np.squeeze(T1_ref[0,...]).T/3000).astype(np.float32),cv2.COLOR_GRAY2BGR)
+  selector = cv2.cvtColor(np.abs(np.squeeze(T1_ref[...])/3000).astype(np.float32),cv2.COLOR_GRAY2BGR)
   
   for j in range(roi_num):
     r = (cv2.selectROI(selector,False))
     col_names.append("ROI "+str(j+1))
-    mean_TGV.append(np.abs(np.mean(T1_ref[0,int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))   
-    std_TGV.append(np.abs(np.std(T1_ref[0,int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))       
+    mean_TGV.append(np.abs(np.mean(T1_ref.T[int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))   
+    std_TGV.append(np.abs(np.std(T1_ref.T[int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))       
     for i in range((NResults-1)):    
       mean_TGV.append(np.abs(np.mean(T1_tgv[i][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
       mean_Tikh.append(np.abs(np.mean(T1_tikh[i][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
@@ -319,4 +321,4 @@ if roi_num > 0:
       ax_table[i].set_title("Standardeviation")
       
 
-plt.savefig('/media/data/Papers/Parameter_Mapping/2Dvs3D_'+save_name+'.eps', format='eps', dpi=1000)
+plt.savefig('/media/data/Papers/Parameter_Mapping/2Dvs3D_'+save_name+'.svg', format='svg', dpi=1000)

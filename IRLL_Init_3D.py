@@ -79,7 +79,7 @@ dimX = 212
 dimY = 212
 
 ############### Set number of Slices ###########################################
-reco_Slices = 10
+reco_Slices = 3
 os_slices = 0
 
 class struct:
@@ -104,7 +104,7 @@ data = data[None,:,int(NSlice/2)-\
 if reco_Slices ==1:
   data = data[:,:,None,:,:]
   
-par.fa_corr = np.ones_like(np.flip(par.fa_corr,axis=0)[int((NSlice-os_slices)/2)-\
+par.fa_corr = (np.flip(par.fa_corr,axis=0)[int((NSlice-os_slices)/2)-\
             int(np.ceil(reco_Slices/2)):int((NSlice-os_slices)/2)+\
             int(np.floor(reco_Slices/2)),6:-6,6:-6])
 
@@ -162,7 +162,7 @@ op.setDcf(np.repeat(np.sqrt(dcf),NScan,axis=0).flatten().astype(np.float32)[None
 op.setCoilSens(np.ones((1,dimX,dimY),dtype=DTYPE))            
 
         
-par.C = np.zeros((NC,NSlice,dimY,dimX), dtype=DTYPE)       
+par.C = np.zeros((NC,NSlice,dimY,dimX), dtype=DTYPE)      
 par.phase_map = np.zeros((NSlice,dimY,dimX), dtype=DTYPE)   
 
 result = []
@@ -184,7 +184,6 @@ for i in range(NSlice):
 
 for i in range(NSlice):  
   par.C[:,i,:,:] = result[i].get()[2:,-1,:,:]
-
   if not nlinvRealConstr:
     par.phase_map[i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
     par.C[:,i,:,:] = par.C[:,i,:,:]* np.exp(1j *\
@@ -233,7 +232,7 @@ par.TR = file.attrs['time_per_slice']-(par.tau*Nproj*NScan+par.td)
 file.close()
 
 
-dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(200))/(np.linalg.norm(data.flatten()))
+dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2000))/(np.linalg.norm(data.flatten()))
 par.dscale = dscale
 
 
@@ -371,12 +370,12 @@ irgn_par = struct()
 irgn_par.start_iters = 100
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 20
-irgn_par.lambd = 1e2
+irgn_par.lambd = 1e1
 irgn_par.gamma = 1e-1   #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 1e-2
+irgn_par.gamma_min = 5e-2
 irgn_par.delta_max = 1e8
 irgn_par.tol = 1e-5
 irgn_par.stag = 1.00

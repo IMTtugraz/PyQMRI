@@ -88,8 +88,8 @@ for files in filenames:
     names.append(name)
     data.append(file[name][()])  
   if "ref" in files:
-    T1_ref = data[names.index('T1_ref')]
-    M0_ref = data[names.index('M0_ref')]
+    T1_ref = data[names.index('t1')]
+    M0_ref = data[names.index('m0')]
     plot_names.append("Reference")
     plot_names.append(" ")
     NResults -=1
@@ -224,7 +224,7 @@ for j in range(NResults):
 
 
 
-plt.savefig('/media/omaier/a3c6e764-0f9b-44b3-b888-26da7d3fe6e7/Papers/Parameter_Mapping/3D_'+save_name+'.eps', format='eps', dpi=1000)
+plt.savefig('/media/data/Papers/Parameter_Mapping/3D_'+save_name+'.eps', format='eps', dpi=1000)
 #
 #if int(input("Enter 0 for no ref or 1 for ref: ")):
 #  T1_ref = np.flip(T1_ref,axis=0)
@@ -272,7 +272,7 @@ if roi_num > 0:
   mean_TGV = []
   std_TGV = []
   col_names = []
-  selector = cv2.cvtColor(np.abs(T1_ref[int(z/2),:,:,].T/np.max(T1_ref)).astype(np.float32),cv2.COLOR_GRAY2BGR)
+  selector = cv2.cvtColor(np.abs(T1_ref[int(z/2),:,:,].T/np.max(3000)).astype(np.float32),cv2.COLOR_GRAY2BGR)
   for j in range(roi_num):
     r = (cv2.selectROI(selector))
     col_names.append("ROI "+str(j+1))
@@ -288,10 +288,10 @@ if roi_num > 0:
     ax_ref[0].text(posx,posy,str(j+1),color='red')
     ax_ref[0].add_patch(rects) 
 
-  mean_TGV = np.round(pd.DataFrame(np.reshape(np.asarray(mean_TGV),(roi_num,NResults+1)).T,index=['Reference','21_Spk','13_Spk'],columns=col_names),decimals=0)
-  std_TGV =  np.round(pd.DataFrame(np.reshape(np.asarray(std_TGV),(roi_num,NResults+1)).T,index=['Reference','21_Spk','13_Spk'],columns=col_names),decimals=0)
+  mean_TGV = np.round(pd.DataFrame(np.reshape(np.asarray(mean_TGV),(roi_num,NResults+1)).T,index=['Reference','21_Spk','13_Spk','08_Spk'],columns=col_names),decimals=0)
+  std_TGV =  np.round(pd.DataFrame(np.reshape(np.asarray(std_TGV),(roi_num,NResults+1)).T,index=['Reference','21_Spk','13_Spk','08_Spk'],columns=col_names),decimals=0)
   
-  f = open("test.tex","w")
+  f = open("3Drois.tex","w")
   f.write(mean_TGV.to_latex())
   f.write(std_TGV.to_latex())
   f.flush()
