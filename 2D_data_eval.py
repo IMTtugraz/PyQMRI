@@ -50,7 +50,7 @@ if "IRLL" in filenames[0]:
   tr = 3000
   save_name = "IRLL"
 else:
-  tr = 5.38
+  tr = 5
   save_name = "VFA"
 
 for files in filenames:
@@ -66,8 +66,8 @@ for files in filenames:
     names.append(name)
     data.append(file[name][()])  
   if "ref" in files:
-    T1_ref = np.flip(data[names.index('t1_ref_l2')],axis=0)
-    M0_ref = data[names.index('m0_ref_l2')]
+    T1_ref = np.flip(data[names.index('t1_reference')],axis=0)
+    M0_ref = data[names.index('m0_reference')]
     plot_names.append("Reference")
     plot_names.append(" ")
     NRef = 1
@@ -103,8 +103,8 @@ T1_max = 2000
 M0_min = 0
 M0_max = np.abs(np.max(M0_tgv[0]))
 
-mid_x = 100#int(x/2)
-mid_y = 100#int(y/2)
+mid_x = 110#int(x/2)
+mid_y = 110#int(y/2)
 plot_err = False
 
 pos_ref = 0
