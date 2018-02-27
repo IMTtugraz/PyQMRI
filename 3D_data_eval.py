@@ -67,7 +67,7 @@ if "IRLL" in filenames[0]:
   tr = 1000
   save_name = "IRLL"
 else:
-  tr = 5.38
+  tr = 5
   save_name = "VFA"
 
 
@@ -88,8 +88,8 @@ for files in filenames:
     names.append(name)
     data.append(file[name][()])  
   if "ref" in files:
-    T1_ref = data[names.index('t1')]
-    M0_ref = data[names.index('m0')]
+    T1_ref = data[names.index('T1_ref')]
+    M0_ref = data[names.index('M0_ref')]
     plot_names.append("Reference")
     plot_names.append(" ")
     NResults -=1
