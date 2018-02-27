@@ -310,7 +310,10 @@ par.U[abs(data) == 0] = False
 result_tgv = []
 gamma_min = np.linspace(1e-3,1e-1,10)
 delta_max = np.logspace(1,6,10)
+import pickle
+
 for i in range(10):
+  result_tgv = []
   for j in range(10):
     opt = Model_Reco.Model_Reco(par)
     
@@ -346,6 +349,8 @@ for i in range(10):
     
     result_tgv.append(opt.result)
     del opt
+  with open('outfile_iter_'+str(i), 'wb') as fp:
+    pickle.dump(result_tgv, fp)
 
 ###############################################################################
 ## IRGN - Tikhonov referenz ###################################################
