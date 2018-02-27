@@ -272,12 +272,12 @@ if roi_num > 0:
   mean_TGV = []
   std_TGV = []
   col_names = []
-  selector = cv2.cvtColor(np.abs(T1_ref[:,:,].T/np.max(3000)).astype(np.float32),cv2.COLOR_GRAY2BGR)
+  selector = cv2.cvtColor(np.abs(T1_ref[int(z/2),:,:].T/np.max(3000)).astype(np.float32),cv2.COLOR_GRAY2BGR)
   for j in range(roi_num):
     r = (cv2.selectROI(selector))
     col_names.append("ROI "+str(j+1))
-    mean_TGV.append(np.abs(np.mean(T1_ref[int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
-    std_TGV.append(np.abs(np.std(T1_ref[int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))   
+    mean_TGV.append(np.abs(np.mean(T1_ref[int(z/2),int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
+    std_TGV.append(np.abs(np.std(T1_ref[int(z/2),int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))   
     for i in range(NResults):
       mean_TGV.append(np.abs(np.mean(T1_tgv[i][int(z/2),int(r[0]+offset):int(r[0]+r[2]+offset), int(r[1])+offset:int(r[1]+r[3]+offset)])))
       std_TGV.append(np.abs(np.std(T1_tgv[i][int(z/2),int(r[0]+offset):int(r[0]+r[2]+offset), int(r[1]+offset):int(r[1]+r[3]+offset)])))
@@ -288,8 +288,8 @@ if roi_num > 0:
     ax_ref[0].text(posx,posy,str(j+1),color='red')
     ax_ref[0].add_patch(rects) 
 
-  mean_TGV = np.round(pd.DataFrame(np.reshape(np.asarray(mean_TGV),(roi_num,NResults+1)).T,index=['Reference','TGV'],columns=col_names),decimals=0)
-  std_TGV =  np.round(pd.DataFrame(np.reshape(np.asarray(std_TGV),(roi_num,NResults+1)).T,index=['Reference','TGV'],columns=col_names),decimals=0)
+  mean_TGV = np.round(pd.DataFrame(np.reshape(np.asarray(mean_TGV),(roi_num,NResults+1)).T,index=['Reference','TGV_21','TGV_08','TGV_13'],columns=col_names),decimals=0)
+  std_TGV =  np.round(pd.DataFrame(np.reshape(np.asarray(std_TGV),(roi_num,NResults+1)).T,index=['Reference','TGV_21','TGV_08','TGV_13'],columns=col_names),decimals=0)
   
   f = open("3Drois.tex","w")
   f.write(mean_TGV.to_latex())
