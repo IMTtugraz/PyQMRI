@@ -19,7 +19,7 @@ DTYPE = np.complex64
 ctypedef np.complex64_t DTYPE_t
 from numpy cimport ndarray
 
-import pynfft.nfft as nfft
+#import pynfft.nfft as nfft
 import primaldualtoolbox
 
 

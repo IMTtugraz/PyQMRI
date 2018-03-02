@@ -10,7 +10,7 @@ import nlinvns_maier as nlinvns
 import Model_Reco as Model_Reco
 import Model_Reco_old as Model_Reco_Tikh
 
-from pynfft.nfft import NFFT
+#from pynfft.nfft import NFFT
 
 import VFA_model as VFA_model
 import goldcomp
