@@ -31,6 +31,7 @@ import primaldualtoolbox
 
 cdef class Model_Reco:
   cdef list _plan
+  cdef public list gn_res
   cdef dict __dict__
   cdef int unknowns, unknowns_TGV, unkonws_H1
   cdef int NSlice
@@ -66,6 +67,7 @@ cdef class Model_Reco:
     self.dz = 3
     self.fval_min = 0
     self.fval = 0
+    self.gn_res = []
 
    
   cdef np.ndarray[DTYPE_t,ndim=3] irgn_solve_2D(self,np.ndarray[DTYPE_t,ndim=3] x, int iters,np.ndarray[DTYPE_t,ndim=4] data):
@@ -156,12 +158,13 @@ cdef class Model_Reco:
           self.result[i,:,islice,:,:] = result[:,islice,:,:]
           
           iters = np.fmin(iters*2,self.irgn_par.max_iters)
-          self.irgn_par.gamma = np.maximum(self.irgn_par.gamma*0.8,self.irgn_par.gamma_min)
+          self.irgn_par.gamma = np.maximum(self.irgn_par.gamma*self.irgn_par.gamma_dec,self.irgn_par.gamma_min)
           self.irgn_par.delta = np.minimum(self.irgn_par.delta*self.irgn_par.delta_inc,self.irgn_par.delta_max)
           
           end = time.time()-start
           print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
           print("-"*80)
+          self.gn_res.append(self.fval)
           if (np.abs(self.fval_min-self.fval) < self.irgn_par.lambd*self.irgn_par.tol) and i>0:
             print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/self.irgn_par.lambd))            
             break
@@ -201,10 +204,11 @@ cdef class Model_Reco:
         self.result[i,:,islice,:,:] = result[:,islice,:,:]
         
         iters = np.fmin(iters*2,self.irgn_par.max_iters)
-        self.irgn_par.gamma = np.maximum(self.irgn_par.gamma*0.8,self.irgn_par.gamma_min)
+        self.irgn_par.gamma = np.maximum(self.irgn_par.gamma*self.irgn_par.gamma_dec,self.irgn_par.gamma_min)
         self.irgn_par.delta = np.minimum(self.irgn_par.delta*self.irgn_par.delta_inc,self.irgn_par.delta_max)
         
         end = time.time()-start
+        self.gn_res.append(self.fval)
         print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
         print("-"*80)
         if (np.abs(self.fval_min-self.fval) < self.irgn_par.lambd*self.irgn_par.tol) and i>0:
@@ -246,10 +250,11 @@ cdef class Model_Reco:
 
 
         iters = np.fmin(iters*2,self.irgn_par.max_iters)
-        self.irgn_par.gamma = np.maximum(self.irgn_par.gamma*0.8,self.irgn_par.gamma_min)
+        self.irgn_par.gamma = np.maximum(self.irgn_par.gamma*self.irgn_par.gamma_dec,self.irgn_par.gamma_min)
         self.irgn_par.delta = np.minimum(self.irgn_par.delta*self.irgn_par.delta_inc,self.irgn_par.delta_max)
         
         end = time.time()-start  
+        self.gn_res.append(self.fval)
         print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
         print("-"*80)
         if (np.abs(self.fval_min-self.fval) < self.irgn_par.lambd*self.irgn_par.tol*self.NSlice) and i>0:

@@ -71,6 +71,7 @@ for files in filenames:
     plot_names.append("Reference")
     plot_names.append(" ")
     NRef = 1
+#    mask = data[names.index('mask')]
   else:
     if "IRLL" in files:
 #      T1_tgv.append(data[names.index("T1_final")]*5500)
@@ -92,6 +93,7 @@ dz = 1
 
 
 mask = (masking.compute(M0_tgv[0]))
+
 
 [z,y,x] = M0_tgv[0].shape
 z = z*dz

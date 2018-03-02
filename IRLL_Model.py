@@ -27,7 +27,7 @@ class IRLL_Model:
   
   
   def __init__(self, fa, fa_corr, TR,tau,td,
-               NScan,NSlice,dimY,dimX, Nproj,Nproj_measured,scale):
+               NScan,NSlice,dimY,dimX, Nproj,Nproj_measured,scale,images):
 
     self.constraints = []
     self.NSlice = NSlice
@@ -51,7 +51,19 @@ class IRLL_Model:
 
     
     self.sin_phi = np.sin(phi_corr)
-    self.cos_phi = np.cos(phi_corr)    
+    self.cos_phi = np.cos(phi_corr)
+
+###
+    test_T1 = np.reshape(np.linspace(10,5500,dimX*dimY*NSlice),(NSlice,dimX,dimY))
+    G_x = self.execute_forward_3D(np.array([1*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1/self.T1_sc*(test_T1*np.ones((NSlice,dimY,dimX),dtype=DTYPE))],dtype=DTYPE))
+    self.M0_sc = self.M0_sc*np.max(np.abs(images))/np.max(np.abs(G_x))
+#test_T1*np.ones((Nislice,dimY,dimX),dtype=DTYPE)],dtype=DTYPE))#    
+    DG_x =  self.execute_gradient_3D(np.array([1/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1/self.T1_sc*(test_T1*np.ones((NSlice,dimY,dimX),dtype=DTYPE))],dtype=DTYPE))
+    self.T1_sc = self.T1_sc*np.linalg.norm(DG_x[0,...])/np.linalg.norm(DG_x[1,...])
+    
+    DG_x =  self.execute_gradient_3D(np.array([1/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1/self.T1_sc*(test_T1*np.ones((NSlice,dimY,dimX),dtype=DTYPE))],dtype=DTYPE))
+    print('Grad Scaling', np.linalg.norm(DG_x[0,...])/np.linalg.norm(DG_x[1,...]))    
+        
 
     self.guess = np.array([1e-5/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1500/self.T1_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE)])               
     self.constraints.append(constraint(-300,300,False)  )
@@ -77,11 +89,12 @@ class IRLL_Model:
     F = (1 - Etau)/(-cosEtau + 1)
     Q = (-cos_phi*F*(-cosEtauN + 1)*Etr*Etd + 1 - 2*Etd + Etr*Etd)/(cos_phi*cosEtauN*Etr*Etd + 1)
     Q_F = Q-F
+    def numexpeval_S(M0,M0_sc,sin_phi,cosEtau,n,Q_F,F):
+      return ne.evaluate("M0*M0_sc*sin_phi*((cosEtau)**(n - 1)*(Q_F) + F)")    
     for i in range(self.NLL):
       for j in range(self.Nproj):
             n = i*self.Nproj+j+1
-            S[i,j,...] = M0*M0_sc*sin_phi*((cosEtau)**(n - 1)*(Q_F) + F)
-    
+            S[i,j,...] = numexpeval_S(M0,M0_sc,sin_phi,cosEtau,n,Q_F,F)
     return np.mean(S,axis=1)
   def execute_gradient_2D(self, x, islice):
     grad = np.zeros((2,self.NLL,self.Nproj,self.dimY,self.dimX),dtype=DTYPE)
@@ -122,14 +135,19 @@ class IRLL_Model:
                 
     
     
+    def numexpeval_M0(M0_sc,sin_phi,cosEtau,n,Q_F,F):
+      return ne.evaluate("M0_sc*sin_phi*((cosEtau)**(n - 1)*(Q_F) + F)")
+    def numexpeval_T1(M0,M0_sc,Etau,cos_phi,sin_phi,cosEtau,n,Q_F,F,tmp1,tmp2,tmp3,tau):
+      return ne.evaluate("M0*M0_sc*((Etau*cos_phi)**(n - 1)*tmp1 + tau*(Etau*cos_phi)**(n - 1)*(n - 1)*\
+                          tmp2 +tmp3)*sin_phi")
+    
     for i in range(self.NLL):  
       for j in range(self.Nproj):
             n = i*self.Nproj+j+1
             
-            grad[0,i,j,...] = M0_sc*sin_phi*((cosEtau)**(n - 1)*(Q_F) + F)
+            grad[0,i,j,...] = numexpeval_M0(M0_sc,sin_phi,cosEtau,n,Q_F,F)
             
-            grad[1,i,j,...] =M0*M0_sc*((Etau*cos_phi)**(n - 1)*tmp1 + tau*(Etau*cos_phi)**(n - 1)*(n - 1)*\
-       tmp2 +tmp3)*sin_phi
+            grad[1,i,j,...] = numexpeval_T1(M0,M0_sc,Etau,cos_phi,sin_phi,cosEtau,n,Q_F,F,tmp1,tmp2,tmp3,tau)
             
     return np.mean(grad,axis=2)
   

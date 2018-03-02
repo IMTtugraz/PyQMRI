@@ -190,7 +190,7 @@ else:
 #### Close File after everything was read
 file.close()
 
-dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2))/(np.linalg.norm(data.flatten()))
+dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(200))/(np.linalg.norm(data.flatten()))
 par.dscale = dscale
 ################################################################################
 ### generate nFFT for radial cases #############################################
@@ -300,14 +300,16 @@ del op
 model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images,\
                             par.phase_map,NSlice)
 
-
+#test_T1 = np.reshape(np.linspace(10,5500,dimX*dimY*NSlice),(NSlice,dimX,dimY))/model.T1_sc
+#G_x = model.execute_forward_3D(np.array([1*np.ones((NSlice,dimY,dimX),dtype=DTYPE),np.exp(-model.TR/(test_T1*np.ones((NSlice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE))
+##test_T1*np.ones((NSlice,dimY,dimX),dtype=DTYPE)],dtype=DTYPE))#
+#model.M0_sc = model.M0_sc*np.max(np.abs(images))/np.max(np.abs(G_x))
 
 par.U = np.ones((data).shape, dtype=bool)
 par.U[abs(data) == 0] = False
 ################################################################################
 ### IRGN - TGV Reco ############################################################
 ################################################################################
-result_tgv = []
 gamma_min = np.linspace(1e-3,1e-1,10)
 delta_max = np.logspace(1,6,10)
 import pickle
@@ -333,7 +335,7 @@ for i in range(10):
     irgn_par.start_iters = 100
     irgn_par.max_iters = 1000
     irgn_par.max_GN_it = 20
-    irgn_par.lambd = 1e2
+    irgn_par.lambd = 1e3
     irgn_par.gamma = 1e-1   #### 5e-2   5e-3 phantom ##### brain 1e-2
     irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
     irgn_par.omega = 1e-10
@@ -349,7 +351,7 @@ for i in range(10):
     
     result_tgv.append(opt.result)
     del opt
-  with open('outfile_iter_'+str(i), 'wb') as fp:
+  with open('outfile_phantom_iter_'+str(i), 'wb') as fp:
     pickle.dump(result_tgv, fp)
 
 ###############################################################################
@@ -421,6 +423,8 @@ dset_M0_ref=f.create_dataset("M0_ref",np.squeeze(result_ref[-1,0,...]).shape\
 #                 dtype=np.float64,data=np.squeeze(model.M0_guess))
 dset_result.attrs['data_norm'] = dscale
 dset_result.attrs['dcf_scaling'] = (N*(np.pi/(4*Nproj)))
+dset_result.attrs['E1_scale'] = model.T1_sc
+dset_result.attrs['M0_scale'] = model.M0_sc
 f.flush()
 f.close()
 

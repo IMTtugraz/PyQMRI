@@ -325,11 +325,7 @@ del op
 ### Init forward model and initial guess #######################################
 ################################################################################
 model = IRLL_Model.IRLL_Model(par.fa,par.fa_corr,par.TR,par.tau,par.td,\
-                              NScan,NSlice,dimY,dimX,Nproj,Nproj_measured,1)
-
-test_T1 = np.reshape(np.linspace(10,5000,dimX*dimY*NSlice),(NSlice,dimX,dimY))
-G_x = model.execute_forward_3D(np.array([1*np.ones((NSlice,dimY,dimX),dtype=DTYPE),test_T1/model.T1_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE)],dtype=DTYPE))
-model.M0_sc = model.M0_sc*np.max(np.abs(images))/np.max(np.abs(G_x))
+                              NScan,NSlice,dimY,dimX,Nproj,Nproj_measured,1,images)
 
 par.U = np.ones((data).shape, dtype=bool)
 par.U[abs(data) == 0] = False
@@ -337,7 +333,50 @@ par.U[abs(data) == 0] = False
 ### IRGN - TGV Reco ############################################################
 ################################################################################
 
+gamma_min = np.linspace(1e-3,1e-1,10)
+delta_max = np.logspace(1,6,10)
+import pickle
 
+for i in range(10):
+  result_tgv = []
+  for j in range(10):
+    opt = Model_Reco.Model_Reco(par)
+    
+    opt.par = par
+    opt.data =  data
+    opt.images = images
+    opt.dcf = (dcf)
+    opt.dcf_flat = (dcf).flatten()
+    opt.model = model
+    opt.traj = traj 
+    
+    opt.dz = 1
+    
+    ################################################################################
+    ##IRGN Params
+    irgn_par = struct()
+    irgn_par.start_iters = 100
+    irgn_par.max_iters = 1000
+    irgn_par.max_GN_it = 20
+    irgn_par.lambd = 1e2
+    irgn_par.gamma = 1e-1   #### 5e-2   5e-3 phantom ##### brain 1e-2
+    irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
+    irgn_par.omega = 1e-10
+    irgn_par.display_iterations = True
+    irgn_par.gamma_min = gamma_min[j]
+    irgn_par.delta_max = delta_max[i]
+    irgn_par.tol = 1e-5
+    irgn_par.stag = 1.00
+    irgn_par.delta_inc = 10
+    opt.irgn_par = irgn_par
+    
+    opt.execute_2D()
+    
+    result_tgv.append(opt.result)
+    del opt
+  with open('outfile_IRLL_iter_'+str(i), 'wb') as fp:
+    pickle.dump(result_tgv, fp)
+    
 opt = Model_Reco.Model_Reco(par)
 
 opt.par = par
@@ -350,6 +389,7 @@ opt.traj = traj
 
 ################################################################################
 #IRGN Params
+
 irgn_par = struct()
 irgn_par.start_iters = 100
 irgn_par.max_iters = 1000
@@ -360,7 +400,7 @@ irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
 irgn_par.gamma_min = 1e-2
-irgn_par.delta_max = 1e8
+irgn_par.delta_max = 1e2
 irgn_par.tol = 1e-5
 irgn_par.stag = 1.00
 irgn_par.delta_inc = 10
@@ -443,6 +483,8 @@ dset_M0_ref=f.create_dataset("M0_ref",np.squeeze(result_ref[-1,0,...]).shape\
 #                 dtype=np.float64,data=np.squeeze(model.M0_guess))
 dset_result.attrs['data_norm'] = dscale
 dset_result.attrs['dcf_scaling'] = (N*(np.pi/(4*Nproj)))
+dset_result.attrs['E1_scale'] = model.T1_sc
+dset_result.attrs['M0_scale'] = model.M0_sc
 f.flush()
 f.close()
 
