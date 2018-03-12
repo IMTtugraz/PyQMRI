@@ -62,8 +62,8 @@ for attributes in test_attributes:
 reco_Slices = 1
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)    
     
-data = file['real_dat'][:,:,int(NSlice/2)-int(np.ceil((reco_Slices)/2)):int(NSlice/2)+int(np.floor(reco_Slices/2)),...].astype(DTYPE) +\
-       1j*file['imag_dat'][:,:,int(NSlice/2)-int(np.ceil((reco_Slices)/2)):int(NSlice/2)+int(np.floor(reco_Slices/2)),...].astype(DTYPE)
+data = file['real_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE) +\
+       1j*file['imag_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE)
 
 
 traj = file['real_traj'][()].astype(DTYPE) + \
@@ -81,7 +81,7 @@ par = struct()
 ### FA correction ##############################################################
 ################################################################################
 
-par.fa_corr = np.flip(file['fa_corr'][int(NSlice/2)-int(np.ceil((reco_Slices)/2)):int(NSlice/2)+int(np.floor(reco_Slices/2)),...].astype(DTYPE),0)
+par.fa_corr = np.flip(file['fa_corr'][()].astype(DTYPE),0)[int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...]
 par.fa_corr[par.fa_corr==0] = 1
 
 
@@ -180,8 +180,8 @@ else:
   data = data*np.sqrt(dcf) 
 #### Close File after everything was read
 file.close()
-
-dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(1e2))/(np.linalg.norm(data.flatten()))
+#data = data/(NC*NScan*Nproj*NSlice)
+dscale = np.sqrt(2*1e3)/(np.linalg.norm(data.flatten()))
 par.dscale = dscale
 
 ################################################################################
@@ -298,49 +298,47 @@ par.U[abs(data) == 0] = False
 ################################################################################
 gamma_min = np.linspace(1e-3,1e-1,10)
 delta_max = np.logspace(1,6,10)
-import pickle
 
-for i in range(10):
-  result_tgv = []
-  for j in range(10):
-    opt = Model_Reco.Model_Reco(par)
-    
-    opt.par = par
-    opt.data =  data
-    opt.images = images
-    opt.dcf = (dcf)
-    opt.dcf_flat = (dcf).flatten()
-    opt.model = model
-    opt.traj = traj 
-    
-    opt.dz = 1
-    
-    ################################################################################
-    ##IRGN Params
-    irgn_par = struct()
-    irgn_par.max_iters = 1000
-    irgn_par.start_iters = 100
-    irgn_par.max_GN_it = 20
-    irgn_par.lambd = 1e2
-    irgn_par.gamma = 1e0   #### 5e-2   5e-3 phantom ##### brain 1e-2
-    irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
-    irgn_par.omega = 1e-10
-    irgn_par.display_iterations = True
-    irgn_par.gamma_min = gamma_min[j]
-    irgn_par.delta_max = delta_max[i]
-    irgn_par.tol = 1e-3
-    irgn_par.stag = 1.00
-    irgn_par.delta_inc = 10
-    irgn_par.gamma_dec = 0.7
-    opt.irgn_par = irgn_par
-    
-    opt.execute_2D()
-    
-    result_tgv.append(opt.result)
-    res = opt.gn_res
-    del opt
-  with open('outfile_num_iter_'+str(i), 'wb') as fp:
-    pickle.dump((result_tgv,res), fp)
+
+opt = Model_Reco.Model_Reco(par)
+
+opt.par = par
+opt.data =  data
+opt.images = images
+opt.dcf = (dcf)
+opt.dcf_flat = (dcf).flatten()
+opt.model = model
+opt.traj = traj 
+
+opt.dz = 1
+
+################################################################################
+##IRGN Params
+irgn_par = struct()
+irgn_par.max_iters = 300
+irgn_par.start_iters = 100
+irgn_par.max_GN_it = 20
+irgn_par.lambd = 5e2
+irgn_par.gamma = 1e0   #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.delta = 1e-1 #### 8spk in-vivo 1e-2
+irgn_par.omega = 1e-10
+irgn_par.display_iterations = True
+irgn_par.gamma_min = 2e-1
+irgn_par.delta_max = 1e1
+irgn_par.tol = 5e-3
+irgn_par.stag = 1.00
+irgn_par.delta_inc = 10
+irgn_par.gamma_dec = 0.7
+opt.irgn_par = irgn_par
+
+opt.execute_2D()
+
+result_tgv = opt.result
+res = opt.gn_res
+res = opt.gn_res
+res = np.array(res)/(irgn_par.lambd*NSlice)
+del opt
+
 
     
 ################################################################################
@@ -368,11 +366,12 @@ irgn_par.gamma = 1e-2  #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-4  #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e0
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 1e-4
-irgn_par.delta_max = 1e-1
+irgn_par.gamma_min = 1e-6
+irgn_par.delta_max = 1e0
 irgn_par.tol = 1e-5
-irgn_par.stag = 1.00
+irgn_par.stag = 1.05
 irgn_par.delta_inc = 10
+irgn_par.gamma_dec = 0.5
 opt_t.irgn_par = irgn_par
 
 opt_t.execute_2D()
@@ -410,10 +409,11 @@ dset_M0_ref=f.create_dataset("M0_ref",np.squeeze(result_ref[-1,0,...]).shape\
 #                 dtype=np.float64,data=np.squeeze(model.T1_guess))
 #f.create_dataset("M0_guess",np.squeeze(model.M0_guess).shape,\
 #                 dtype=np.float64,data=np.squeeze(model.M0_guess))
-dset_result.attrs['data_norm'] = dscale
-dset_result.attrs['dcf_scaling'] = (N*(np.pi/(4*Nproj)))
-dset_result.attrs['E1_scale'] = model.T1_sc
-dset_result.attrs['M0_scale'] = model.M0_sc
+f.attrs['data_norm'] = dscale
+f.attrs['dcf_scaling'] = (N*(np.pi/(4*Nproj)))
+f.attrs['E1_scale'] = model.T1_sc
+f.attrs['M0_scale'] = model.M0_sc
+f.attrs['IRGN_TGV_res'] = res
 f.flush()
 f.close()
 

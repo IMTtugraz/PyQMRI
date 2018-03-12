@@ -67,7 +67,7 @@ if "IRLL" in filenames[0]:
   tr = 1000
   save_name = "IRLL"
 else:
-  tr = 5
+  tr = 5.38
   save_name = "VFA"
 
 
@@ -94,9 +94,10 @@ for files in filenames:
     plot_names.append(" ")
     NResults -=1
   else:
+    scale = file['full_result'].attrs['E1_scale']    
     M0_tgv.append(data[names.index('M0_final')])
 #    M0_tikh.append(data[names.index('M0_ref')])
-    T1_tgv.append(-tr/np.log(data[names.index('T1_final')]))
+    T1_tgv.append(-tr/np.log(data[names.index('full_result')]*scale))
 #    T1_tikh.append(-1000/np.log(data[names.index('T1_ref')]))
     plot_names.append(fname[-2:] + " Spokes TGV")  
     plot_names.append(fname[-2:] + " Spokes Tikh")    

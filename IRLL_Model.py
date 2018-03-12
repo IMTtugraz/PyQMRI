@@ -35,7 +35,7 @@ class IRLL_Model:
     self.fa = fa
     self.fa_corr = fa_corr
     
-    self.T1_sc = 3000#5000
+    self.T1_sc = 1#5000
     self.M0_sc = 1#50
     self.Nproj_measured = Nproj_measured
     
@@ -52,20 +52,26 @@ class IRLL_Model:
     
     self.sin_phi = np.sin(phi_corr)
     self.cos_phi = np.cos(phi_corr)
+    
+    self.M0_sc = 1
+    self.T1_sc = 1
 
 ###
     test_T1 = np.reshape(np.linspace(10,5500,dimX*dimY*NSlice),(NSlice,dimX,dimY))
-    G_x = self.execute_forward_3D(np.array([1*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1/self.T1_sc*(test_T1*np.ones((NSlice,dimY,dimX),dtype=DTYPE))],dtype=DTYPE))
-    self.M0_sc = self.M0_sc*np.max(np.abs(images))/np.max(np.abs(G_x))
+    test_M0 = 1#np.reshape(np.linspace(0,1,dimX*dimY*Nislice),(Nislice,dimX,dimY))
+    G_x = self.execute_forward_3D(np.array([test_M0/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1/self.T1_sc*test_T1*np.ones((NSlice,dimY,dimX),dtype=DTYPE)],dtype=DTYPE))
+    self.M0_sc = self.M0_sc*np.mean(np.abs(images))/np.mean(np.abs(G_x))
 #test_T1*np.ones((Nislice,dimY,dimX),dtype=DTYPE)],dtype=DTYPE))#    
-    DG_x =  self.execute_gradient_3D(np.array([1/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1/self.T1_sc*(test_T1*np.ones((NSlice,dimY,dimX),dtype=DTYPE))],dtype=DTYPE))
-    self.T1_sc = self.T1_sc*np.linalg.norm(DG_x[0,...])/np.linalg.norm(DG_x[1,...])
+    DG_x =  self.execute_gradient_3D(np.array([test_M0/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1/self.T1_sc*test_T1*np.ones((NSlice,dimY,dimX),dtype=DTYPE)],dtype=DTYPE))
+    self.T1_sc = self.T1_sc*np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...]))
     
-    DG_x =  self.execute_gradient_3D(np.array([1/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1/self.T1_sc*(test_T1*np.ones((NSlice,dimY,dimX),dtype=DTYPE))],dtype=DTYPE))
-    print('Grad Scaling', np.linalg.norm(DG_x[0,...])/np.linalg.norm(DG_x[1,...]))    
-        
-
-    self.guess = np.array([1e-5/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1500/self.T1_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE)])               
+    self.T1_sc = self.T1_sc / self.M0_sc
+    DG_x =  self.execute_gradient_3D(np.array([test_M0/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1/self.T1_sc*test_T1*np.ones((NSlice,dimY,dimX),dtype=DTYPE)],dtype=DTYPE))
+    print('Grad Scaling', np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...])))    
+    print('T1 scale: ',self.T1_sc,
+                              '/ M0_scale: ',self.M0_sc)
+    
+    self.guess = np.array([0.5/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1500/self.T1_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE)])               
     self.constraints.append(constraint(-300,300,False)  )
     self.constraints.append(constraint(10/self.T1_sc, 5500/self.T1_sc,True))
 
