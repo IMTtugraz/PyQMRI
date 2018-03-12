@@ -114,16 +114,16 @@ class VFA_Model:
 #    self.M0_guess = np.copy(M0_guess)
 ###
     test_T1 = np.reshape(np.linspace(10,5500,dimX*dimY*Nislice),(Nislice,dimX,dimY))
-    test_M0 = np.reshape(np.linspace(0,1,dimX*dimY*Nislice),(Nislice,dimX,dimY))
-    G_x = self.execute_forward_3D(np.array([test_M0*np.ones((Nislice,dimY,dimX),dtype=DTYPE),1/self.T1_sc*np.exp(-self.TR/(test_T1*np.ones((Nislice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE))
-    self.M0_sc = self.M0_sc*np.max(np.abs(images))/np.max(np.abs(G_x))
+    test_M0 = 1#np.reshape(np.linspace(0,1,dimX*dimY*Nislice),(Nislice,dimX,dimY))
+    G_x = self.execute_forward_3D(np.array([test_M0/self.M0_sc*np.ones((Nislice,dimY,dimX),dtype=DTYPE),1/self.T1_sc*np.exp(-self.TR/(test_T1*np.ones((Nislice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE))
+    self.M0_sc = self.M0_sc*np.mean(np.abs(images))/np.mean(np.abs(G_x))
 #test_T1*np.ones((Nislice,dimY,dimX),dtype=DTYPE)],dtype=DTYPE))#    
     DG_x =  self.execute_gradient_3D(np.array([test_M0/self.M0_sc*np.ones((Nislice,dimY,dimX),dtype=DTYPE),1/self.T1_sc*np.exp(-self.TR/(test_T1*np.ones((Nislice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE)) 
-    self.T1_sc = self.T1_sc*np.max(np.abs(DG_x[0,...]))/np.max(np.abs(DG_x[1,...]))
+    self.T1_sc = self.T1_sc*np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...]))
     
+    self.T1_sc = self.T1_sc / self.M0_sc
     DG_x =  self.execute_gradient_3D(np.array([test_M0/self.M0_sc*np.ones((Nislice,dimY,dimX),dtype=DTYPE),1/self.T1_sc*np.exp(-self.TR/(test_T1*np.ones((Nislice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE))
-    print('Grad Scaling', np.max(np.abs(DG_x[0,...]))/np.max(np.abs(DG_x[1,...])))    
-    
+    print('Grad Scaling', np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...])))   
     #print(mask_guess)#
 #    self.T1_sc = 3e3
     print('T1 scale: ',self.T1_sc,
@@ -146,7 +146,7 @@ class VFA_Model:
 #    E1[~np.isfinite(E1)] = 1e-20
 
 #    result = np.array(np.concatenate((self.M0_guess[None,:,:,:]/self.M0_sc,E1),axis=0),dtype=DTYPE)
-    result = np.array([1/self.M0_sc*np.ones((Nislice,dimY,dimX),dtype=DTYPE),1/self.T1_sc*np.exp(-self.TR/(1500*np.ones((Nislice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE)
+    result = np.array([0.5/self.M0_sc*np.ones((Nislice,dimY,dimX),dtype=DTYPE),1/self.T1_sc*np.exp(-self.TR/(1500*np.ones((Nislice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE)
 #    result = np.concatenate((((M0_guess)*np.exp(1j*np.angle(phase_map)))[None,:,:,:],(T1_guess)[None,None,:,:]),axis=0)
 #    result = np.array([(0.01+0*M0_guess*np.exp(1j*np.angle(phase_map))),0.3+0*(T1_guess)])
 #    result = np.array([1/self.M0_sc*np.ones((Nislice,dimY,dimX),dtype=DTYPE),1500/self.T1_sc*np.ones((Nislice,dimY,dimX),dtype=DTYPE)])

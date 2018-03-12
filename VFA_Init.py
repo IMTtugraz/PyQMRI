@@ -10,18 +10,21 @@ import nlinvns_maier as nlinvns
 import Model_Reco as Model_Reco
 import Model_Reco_old as Model_Reco_Tikh
 
-from pynfft.nfft import NFFT
+#from pynfft.nfft import NFFT
 
 import VFA_model as VFA_model
 import goldcomp
 
-import pyopencl as cl
+#import pyopencl as cl
 import primaldualtoolbox
 
 DTYPE = np.complex64
 np.seterr(divide='ignore', invalid='ignore')
    
 os.system("taskset -p 0xff %d" % os.getpid()) 
+import ipyparallel as ipp
+
+c = ipp.Client()
   
 ################################################################################
 ### Select input file ##########################################################
@@ -112,15 +115,11 @@ par.unknowns = 2
 ### Estimate coil sensitivities ################################################
 ################################################################################
 
-
+#% Estimates sensitivities and complex image.
+#%(see Martin Uecker: Image reconstruction by regularized nonlinear
+#%inversion joint estimation of coil sensitivities and image content)
 nlinvNewtonSteps = 6
 nlinvRealConstr  = False
-
-traj_coil = np.reshape(traj,(NScan*Nproj,N))
-coil_plan = NFFT((dimY,dimX),NScan*Nproj*N)
-coil_plan.x = np.transpose(np.array([np.imag(traj_coil.flatten()),\
-                                     np.real(traj_coil.flatten())]))
-coil_plan.precompute()
 
 traj_x = np.real(np.asarray(traj))
 traj_y = np.imag(np.asarray(traj))
@@ -139,7 +138,9 @@ op.setCoilSens(np.ones((1,dimX,dimY),dtype=DTYPE))
         
 par.C = np.zeros((NC,NSlice,dimY,dimX), dtype=DTYPE)       
 par.phase_map = np.zeros((NSlice,dimY,dimX), dtype=DTYPE)   
-for i in range(0,(NSlice)):
+
+result = []
+for i in range(NSlice):
   print('deriving M(TI(1)) and coil profiles')
   
   
@@ -150,17 +151,18 @@ for i in range(0,(NSlice)):
   for j in range(NC):
       coilData[j,:,:] = op.adjoint(combinedData[j,:]*(np.repeat(np.sqrt(dcf),NScan,axis=0).flatten())[None,...])
       
-  combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)  
-            
-  nlinvout = nlinvns.nlinvns(combinedData, nlinvNewtonSteps,
-                     True, nlinvRealConstr)
+  combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)     
+  dview = c[int(np.floor(i*len(c)/NSlice))]
+  result.append(dview.apply_async(nlinvns.nlinvns, combinedData, 
+                                  nlinvNewtonSteps, True, nlinvRealConstr))
 
-  # coil sensitivities are stored in par.C
-  par.C[:,i,:,:] = nlinvout[2:,-1,:,:]
+for i in range(NSlice):  
+  par.C[:,i,:,:] = result[i].get()[2:,-1,:,:]
 
   if not nlinvRealConstr:
-    par.phase_map[i,:,:] = np.exp(1j * np.angle(nlinvout[0,-1,:,:]))
-    par.C[:,i,:,:] = par.C[:,i,:,:]* np.exp(1j * np.angle(nlinvout[1,-1,:,:]))
+    par.phase_map[i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
+    par.C[:,i,:,:] = par.C[:,i,:,:]* np.exp(1j *\
+         np.angle( result[i].get()[1,-1,:,:]))
     
     # standardize coil sensitivity profiles
 sumSqrC = np.sqrt(np.sum((par.C * np.conj(par.C)),0)) #4, 9, 128, 128
@@ -168,9 +170,6 @@ if NC == 1:
   par.C = sumSqrC 
 else:
   par.C = par.C / np.tile(sumSqrC, (NC,1,1,1)) 
-  
-  
-
 ################################################################################
 ### Standardize data norm ######################################################
 ################################################################################
@@ -180,8 +179,8 @@ else:
   data = data*np.sqrt(dcf) 
 #### Close File after everything was read
 file.close()
-
-dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(1e2))/(np.linalg.norm(data.flatten()))
+data = data / np.sqrt(NScan*NC*Nproj)
+dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2*1e2))/(np.linalg.norm(data.flatten()))
 par.dscale = dscale
 
 ################################################################################
@@ -296,51 +295,42 @@ par.U[abs(data) == 0] = False
 ################################################################################
 ### IRGN - TGV Reco ############################################################
 ################################################################################
-gamma_min = np.linspace(1e-3,1e-1,10)
-delta_max = np.logspace(1,6,10)
-import pickle
+opt = Model_Reco.Model_Reco(par)
 
-for i in range(10):
-  result_tgv = []
-  for j in range(10):
-    opt = Model_Reco.Model_Reco(par)
-    
-    opt.par = par
-    opt.data =  data
-    opt.images = images
-    opt.dcf = (dcf)
-    opt.dcf_flat = (dcf).flatten()
-    opt.model = model
-    opt.traj = traj 
-    
-    opt.dz = 1
-    
-    ################################################################################
-    ##IRGN Params
-    irgn_par = struct()
-    irgn_par.max_iters = 1000
-    irgn_par.start_iters = 100
-    irgn_par.max_GN_it = 20
-    irgn_par.lambd = 1e2
-    irgn_par.gamma = 1e0   #### 5e-2   5e-3 phantom ##### brain 1e-2
-    irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
-    irgn_par.omega = 1e-10
-    irgn_par.display_iterations = True
-    irgn_par.gamma_min = gamma_min[j]
-    irgn_par.delta_max = delta_max[i]
-    irgn_par.tol = 1e-3
-    irgn_par.stag = 1.00
-    irgn_par.delta_inc = 10
-    irgn_par.gamma_dec = 0.7
-    opt.irgn_par = irgn_par
-    
-    opt.execute_2D()
-    
-    result_tgv.append(opt.result)
-    res = opt.gn_res
-    del opt
-  with open('outfile_num_iter_'+str(i), 'wb') as fp:
-    pickle.dump((result_tgv,res), fp)
+opt.par = par
+opt.data =  data
+opt.images = images
+opt.dcf = (dcf)
+opt.dcf_flat = (dcf).flatten()
+opt.model = model
+opt.traj = traj 
+
+opt.dz = 1
+################################################################################
+##IRGN Params
+irgn_par = struct()
+irgn_par.start_iters = 100
+irgn_par.max_iters = 300
+irgn_par.max_GN_it = 20
+irgn_par.lambd = 5e2
+irgn_par.gamma = 1e0   #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
+irgn_par.omega = 1e-10
+irgn_par.display_iterations = True
+irgn_par.gamma_min = 1e-1#gamma_min[j]
+irgn_par.delta_max = 1e1#delta_max[i]
+irgn_par.tol = 1e-2
+irgn_par.stag = 1.00
+irgn_par.delta_inc = 10
+irgn_par.gamma_dec = 0.7
+opt.irgn_par = irgn_par
+
+opt.execute_2D()
+
+result_tgv = (opt.result)
+res = opt.gn_res
+del opt
+
 
     
 ################################################################################
