@@ -35,7 +35,7 @@ filenames = []
 for root, dirs, files in os.walk(root_dir, topdown=False):
     for name in files:
         filenames.append(os.path.join(root, name))
-        
+filenames.sort() 
 filenames.reverse()
 NResults = len(filenames)
 M0_tgv = []
@@ -95,12 +95,23 @@ for files in filenames:
     NResults -=1
   else:
     scale = file['full_result'].attrs['E1_scale']    
-    M0_tgv.append(data[names.index('M0_final')])
+    M0_tgv.append(data[names.index('full_result')])
 #    M0_tikh.append(data[names.index('M0_ref')])
     T1_tgv.append(-tr/np.log(data[names.index('full_result')]*scale))
 #    T1_tikh.append(-1000/np.log(data[names.index('T1_ref')]))
     plot_names.append(fname[-2:] + " Spokes TGV")  
     plot_names.append(fname[-2:] + " Spokes Tikh")    
+    
+for i in range(len(T1_tgv)):
+  T1_tgv[i] = np.flip(T1_tgv[i],axis=0)
+  M0_tgv[i] = np.flip(M0_tgv[i],axis=0)
+  for j in range(T1_tgv[i].shape[0]):
+    if np.sum(T1_tgv[i][j,1,...]):
+      T1_tgv[i] = T1_tgv[i][j,1,...]
+      M0_tgv[i] = M0_tgv[i][j,0,...]
+      break
+    
+    
 dz = 1
 
 
@@ -168,6 +179,7 @@ for files in filenames:
       cbar.ax.spines[spine].set_color('white')
     #fig.colorbar(im, pad=0)
     plt.show()  
+    plt.savefig('/media/data/Papers/Parameter_Mapping/3D_'+save_name+'_ref.eps', format='eps', dpi=1000)
 
   
 ax = []
@@ -222,10 +234,11 @@ for j in range(NResults):
     cbar.ax.spines[spine].set_color('white')
   #fig.colorbar(im, pad=0)
   plt.show()  
+  plt.savefig('/media/data/Papers/Parameter_Mapping/3D_'+save_name+'_'+str(j)+'.eps', format='eps', dpi=1000)
 
 
 
-plt.savefig('/media/data/Papers/Parameter_Mapping/3D_'+save_name+'.eps', format='eps', dpi=1000)
+
 #
 #if int(input("Enter 0 for no ref or 1 for ref: ")):
 #  T1_ref = np.flip(T1_ref,axis=0)

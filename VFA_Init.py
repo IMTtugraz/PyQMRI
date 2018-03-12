@@ -12,7 +12,7 @@ import Model_Reco_old as Model_Reco_Tikh
 
 from pynfft.nfft import NFFT
 
-import VFA_model as VFA_model
+import VFA_model_FA as VFA_model
 import goldcomp
 
 import pyopencl as cl
@@ -104,8 +104,8 @@ par.Nproj = Nproj
 
 #### TEST
 par.unknowns_TGV = 2
-par.unknowns_H1 = 0
-par.unknowns = 2
+par.unknowns_H1 = 1
+par.unknowns = 2+1
 
 
 ################################################################################
@@ -296,9 +296,6 @@ par.U[abs(data) == 0] = False
 ################################################################################
 ### IRGN - TGV Reco ############################################################
 ################################################################################
-gamma_min = np.linspace(1e-3,1e-1,10)
-delta_max = np.logspace(1,6,10)
-
 
 opt = Model_Reco.Model_Reco(par)
 
@@ -321,7 +318,7 @@ irgn_par.max_GN_it = 20
 irgn_par.lambd = 5e2
 irgn_par.gamma = 1e0   #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-1 #### 8spk in-vivo 1e-2
-irgn_par.omega = 1e-10
+irgn_par.omega = 1e2
 irgn_par.display_iterations = True
 irgn_par.gamma_min = 2e-1
 irgn_par.delta_max = 1e1
@@ -332,12 +329,12 @@ irgn_par.gamma_dec = 0.7
 opt.irgn_par = irgn_par
 
 opt.execute_2D()
-
-result_tgv = opt.result
-res = opt.gn_res
-res = opt.gn_res
-res = np.array(res)/(irgn_par.lambd*NSlice)
-del opt
+#
+#result_tgv = opt.result
+#res = opt.gn_res
+#res = opt.gn_res
+#res = np.array(res)/(irgn_par.lambd*NSlice)
+#del opt
 
 
     
@@ -364,7 +361,7 @@ irgn_par.max_GN_it = 20
 irgn_par.lambd = 1e2
 irgn_par.gamma = 1e-2  #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-4  #### 8spk in-vivo 1e-2
-irgn_par.omega = 1e0
+irgn_par.omega = 1e2
 irgn_par.display_iterations = True
 irgn_par.gamma_min = 1e-6
 irgn_par.delta_max = 1e0
