@@ -64,7 +64,7 @@ plot_names = []
 #T1_ref = data[1]
 
 if "IRLL" in filenames[0]:
-  tr = 1000
+  tr = 5000
   save_name = "IRLL"
 else:
   tr = 5.38
@@ -94,14 +94,24 @@ for files in filenames:
     plot_names.append(" ")
     NResults -=1
   else:
-    scale = file['full_result'].attrs['E1_scale']    
-    M0_tgv.append(data[names.index('full_result')])
-#    M0_tikh.append(data[names.index('M0_ref')])
-    T1_tgv.append(-tr/np.log(data[names.index('full_result')]*scale))
-#    T1_tikh.append(-1000/np.log(data[names.index('T1_ref')]))
-    plot_names.append(fname[-2:] + " Spokes TGV")  
-    plot_names.append(fname[-2:] + " Spokes Tikh")    
-    
+    if "IRLL" in files:
+#      T1_tgv.append(data[names.index("T1_final")]*5500)
+#      T1_tikh.append(data[names.index("T1_ref")]*5500)      
+      T1_tgv.append((data[names.index('T1_final')])*tr)
+#      T1_tikh.append((data[names.index('T1_ref')])*tr)       
+      M0_tgv.append(data[names.index('M0_final')])
+#      M0_tikh.append(data[names.index('M0_ref')])      
+    else:
+      scale = file['full_result'].attrs['E1_scale']  
+      T1_tgv.append(-tr/np.log(data[names.index('full_result')]*scale))
+#      T1_tikh.append(-tr/np.log(data[names.index('T1_ref')]*scale)) 
+      M0_tgv.append(data[names.index('full_result')])
+#      M0_tikh.append(data[names.index('M0_ref')])
+
+    plot_names.append(fname[-5:].split('_')[1] + " TGV")  
+    plot_names.append(fname[-5:].split('_')[0] + " Tikh")  
+  file.close()
+#    
 for i in range(len(T1_tgv)):
   T1_tgv[i] = np.flip(T1_tgv[i],axis=0)
   M0_tgv[i] = np.flip(M0_tgv[i],axis=0)
@@ -130,13 +140,23 @@ M0_max = np.abs(np.max(M0_tgv[0]))
 
 
 ax_ref = []
+#T1_ref = test
+
 for files in filenames: 
   if "ref" in files:
+    if len(T1_ref.shape) == 2:
+      dimz = 1
+      dimy, dimx =   T1_ref.shape
+      T1_ref = T1_ref[None,...]
+    else:      
+      dimz, dimy, dimx =   T1_ref.shape
+    T1_plot.append(T1_ref)
+    T1_plot.append(np.zeros((dimy,dimx)))    
     T1_ref = ((T1_ref))
-    T1 = T1_ref*mask
+    T1 = T1_ref*mask[int(z/2),...]
     T1_plot=[]
     
-    T1_plot.append(np.squeeze(T1[int(z/2),:,:,].T))
+    T1_plot.append(np.squeeze(T1[int(dimz/2),:,:,].T))
     T1_plot.append(np.flip((T1[:,int(x/2+10),:].T),1))
     T1_plot.append([])
     T1_plot.append((T1[:,:,int(y/2-15)]))
@@ -145,15 +165,15 @@ for files in filenames:
     #  T1_min = 300
     #  T1_max = 3000
     
-    fig = plt.figure(figsize = (8,8))
-    fig.subplots_adjust(hspace=0, wspace=0)
-    fig.patch.set_facecolor(cm.viridis.colors[0])
+    fig_ref = plt.figure(figsize = (8,8))
+    fig_ref.subplots_adjust(hspace=0, wspace=0)
+    fig_ref.patch.set_facecolor(cm.viridis.colors[0])
     upper_bg = patches.Rectangle((0, 0), width=1, height=1, 
-                                 transform=fig.transFigure,      # use figure coordinates
+                                 transform=fig_ref.transFigure,      # use figure coordinates
                                  facecolor=cm.viridis.colors[0],               # define color
                                  edgecolor='none',               # remove edges
                                  zorder=0)     
-    fig.patches.extend([upper_bg])
+    fig_ref.patches.extend([upper_bg])
     gs = gridspec.GridSpec(2,3, width_ratios=[x/z,1,1/10],height_ratios=[x/z,1])
 
     
@@ -173,7 +193,7 @@ for files in filenames:
     ax_ref[4].set_anchor("NW")  
     ax_ref[5].set_anchor("C")  
     cax = plt.subplot(gs[:,2])
-    cbar = fig.colorbar(im, cax=cax)
+    cbar = fig_ref.colorbar(im, cax=cax)
     cbar.ax.tick_params(labelsize=12,colors='white')
     for spine in cbar.ax.spines:
       cbar.ax.spines[spine].set_color('white')
@@ -234,7 +254,7 @@ for j in range(NResults):
     cbar.ax.spines[spine].set_color('white')
   #fig.colorbar(im, pad=0)
   plt.show()  
-  plt.savefig('/media/data/Papers/Parameter_Mapping/3D_'+save_name+'_'+str(j)+'.eps', format='eps', dpi=1000)
+  plt.savefig('/media/data/Papers/Parameter_Mapping/3D_'+save_name+'_'+str(j)+'.svg', format='svg', dpi=1000)
 
 
 
@@ -278,7 +298,22 @@ for j in range(NResults):
 #    plt.show()  
   
 offset = 0
+import scipy.stats as stat
+from matplotlib.path import Path
 
+
+
+import polyroi as polyroi
+
+roi = polyroi.polyroi(T1_ref,int(z/2))
+#test = np.array(roi.select_roi())
+ 
+
+coord_map = np.vstack((np.repeat(np.arange(0,256,1)[None,:],256,0).flatten(), np.repeat(np.arange(0,256,1)[None,:].T,256,1).flatten())).T
+#polypath = Path((test).astype(int))
+#mask = polypath.contains_points(coord_map).reshape(y,x)
+
+  
 roi_num = int(input("Enter the number of desired ROIs: "))
 if roi_num > 0:
   if not "Reference" in plot_names:
@@ -286,24 +321,36 @@ if roi_num > 0:
   mean_TGV = []
   std_TGV = []
   col_names = []
+  statistic = []
   selector = cv2.cvtColor(np.abs(T1_ref[int(z/2),:,:].T/np.max(3000)).astype(np.float32),cv2.COLOR_GRAY2BGR)
+  cv2.namedWindow('ROISelector', cv2.WINDOW_NORMAL)
   for j in range(roi_num):
-    r = (cv2.selectROI(selector))
+#    r = (cv2.selectROI('ROISelector',selector,fromCenter=False))
+    r = np.array(roi.select_roi()) 
     col_names.append("ROI "+str(j+1))
-    mean_TGV.append(np.abs(np.mean(T1_ref[int(z/2),int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
-    std_TGV.append(np.abs(np.std(T1_ref[int(z/2),int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))   
+    polypath = Path((r).astype(int))
+    mask = polypath.contains_points(coord_map).reshape(y,x)
+#    mean_TGV.append(np.abs(np.mean(T1_ref[int(z/2),int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
+#    std_TGV.append(np.abs(np.std(T1_ref[int(z/2),int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))      
+    mean_TGV.append(np.abs(np.mean(T1_ref[int(z/2),mask.T])))
+    std_TGV.append(np.abs(np.std(T1_ref[int(z/2),mask.T])))   
     for i in range(NResults):
-      mean_TGV.append(np.abs(np.mean(T1_tgv[i][int(z/2),int(r[0]+offset):int(r[0]+r[2]+offset), int(r[1])+offset:int(r[1]+r[3]+offset)])))
-      std_TGV.append(np.abs(np.std(T1_tgv[i][int(z/2),int(r[0]+offset):int(r[0]+r[2]+offset), int(r[1]+offset):int(r[1]+r[3]+offset)])))
-    rects = patches.Rectangle((int(r[0]),int(r[1])),
-                                   int(r[2]),int(r[3]),linewidth=3,edgecolor='r',facecolor='none')
-    posx = int(r[0])
-    posy = int(r[1]-5)
+      mean_TGV.append(np.abs(np.mean(T1_tgv[i][int(z/2),mask.T])))
+      std_TGV.append(np.abs(np.std(T1_tgv[i][int(z/2),mask.T])))
+      statistic.append(stat.ttest_ind(np.abs(T1_tgv[i][int(z/2),mask.T]).flatten(),
+                                      np.abs((T1_ref[int(z/2),mask.T]).flatten())
+                                      ,equal_var=False))
+#      statistic.append(stat.normaltest(np.abs(T1_tgv[0][int(z/2),int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])]).flatten()))
+#    rects = patches.Rectangle((int(r[0]),int(r[1])),
+#                                   int(r[2]),int(r[3]),linewidth=3,edgecolor='r',facecolor='none')
+    rects = patches.Polygon(r,linewidth=3,edgecolor='r',facecolor='none')      
+    posx = int(r[0][0])
+    posy = int(r[0][1]-5)
     ax_ref[0].text(posx,posy,str(j+1),color='red')
     ax_ref[0].add_patch(rects) 
 
-  mean_TGV = np.round(pd.DataFrame(np.reshape(np.asarray(mean_TGV),(roi_num,NResults+1)).T,index=['Reference','TGV_21','TGV_08','TGV_13'],columns=col_names),decimals=0)
-  std_TGV =  np.round(pd.DataFrame(np.reshape(np.asarray(std_TGV),(roi_num,NResults+1)).T,index=['Reference','TGV_21','TGV_08','TGV_13'],columns=col_names),decimals=0)
+  mean_TGV = np.round(pd.DataFrame(np.reshape(np.asarray(mean_TGV),(roi_num,NResults+1)).T,index=['Reference','TGV_89','TGV_55','TGV_34','TGV_21','TGV_13','TGV_08'],columns=col_names),decimals=0)
+  std_TGV =  np.round(pd.DataFrame(np.reshape(np.asarray(std_TGV),(roi_num,NResults+1)).T,index=['Reference','TGV_89','TGV_55','TGV_34','TGV_21','TGV_13','TGV_08'],columns=col_names),decimals=0)
   
   f = open("3Drois.tex","w")
   f.write(mean_TGV.to_latex())
@@ -311,6 +358,11 @@ if roi_num > 0:
   f.flush()
   f.close()
   
+  f = open("VFA_Invivo_Satistic.tex","w")
+  f.write(pd.DataFrame(statistic).to_latex())
+  f.flush()
+  f.close()
+#  
   
   from pandas.plotting import table
   
@@ -332,3 +384,57 @@ if roi_num > 0:
       ax_table[i].set_title("Mean")
     else:
       ax_table[i].set_title("Standardeviation")
+      
+
+
+mask2 = (masking.skullstrip(M0_ref))      
+      
+from matplotlib.colors import LogNorm, PowerNorm
+hist_fig = plt.figure(figsize = (8,4))
+hist_fig.subplots_adjust(hspace=0.5, wspace=0.5)
+gs_hist = gridspec.GridSpec(2,3)#, width_ratios=[0.5,0.5], height_ratios=[1])
+ax_hist = []
+
+cont_fig = plt.figure(figsize = (8,4))
+cont_fig.subplots_adjust(hspace=0.5, wspace=0.5)
+gs_cont = gridspec.GridSpec(2,3)#, width_ratios=[0.5,0.5], height_ratios=[1])
+ax_cont = []
+myhist = []
+mycont = []
+V = np.logspace(np.log10(10),4+np.log10(5),num=3*(4+np.log10(5)-np.log10(10)+1),base=10,dtype='int')
+#V2 = np.logspace(np.log10(10),4+np.log10(5),num=2*(4+np.log10(5)-np.log10(10)+1),base=10,dtype='int')/2
+#V = np.vstack((V2,V1))
+#V = V.flatten(order='F')
+# int(np.sqrt(np.sum(mask2/z)))
+for i in range(NResults):
+  ax_hist.append(hist_fig.add_subplot(gs_hist[i]))
+  myhist.append(ax_hist[i].hist2d(np.abs(T1_ref[mask2>0].flatten()),np.abs(T1_tgv[i][mask2>0].flatten()),
+                      bins=100,range=[[0,4500],[0,4500]],norm=LogNorm()))
+  data = myhist[i][0]
+  data[data<0] = 0
+  myhist[i][3].set_data(data.T)
+  xticks = np.linspace(*ax_hist[i].get_xlim())
+  ax_hist[i].plot(xticks, xticks,color='r',linestyle='--')
+  cbar = hist_fig.colorbar(myhist[0][3])
+  ax_hist[i].set_xlabel('Ref T1 in ms')
+  ax_hist[i].set_ylabel(plot_names[2+(2*i)]+' in ms')
+
+  ax_cont.append(cont_fig.add_subplot(gs_cont[i]))  
+  mycont.append(ax_cont[i].contourf(data.T,V,extent=[myhist[i][2].min(),myhist[i][2].max(),
+                               myhist[i][1].min(),myhist[i][1].max()],norm=PowerNorm(0.22),cmap='gnuplot2'))
+  xticks = np.linspace(*ax_hist[i].get_xlim())
+  ax_cont[i].plot(xticks, xticks,color='r',linestyle='--')
+  cbar = cont_fig.colorbar(mycont[0],ax=ax_cont[i])
+  ax_cont[i].set_xlabel('Ref T1 in ms')
+  ax_cont[i].set_ylabel(plot_names[2+(2*i)]+' in ms')
+#
+#f = open('acc_test.img','wb')  
+#images = np.zeros((NResults,256,256),dtype='float32')
+#for i in range(NResults):
+#  images[i,...] = np.abs(T1_tgv[i][int(z/2),...]).astype(np.float32)
+#  
+#f.write(images.tobytes())
+#f.flush()
+#f.close()
+
+plt.savefig('/media/data/Papers/Parameter_Mapping/2D_Histogram'+save_name+'_'+str(j)+'.eps', format='eps', dpi=1000)
