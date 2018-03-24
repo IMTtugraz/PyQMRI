@@ -102,8 +102,12 @@ for files in filenames:
       M0_tgv.append(data[names.index('M0_final')])
 #      M0_tikh.append(data[names.index('M0_ref')])      
     else:
-      scale = file['full_result'].attrs['E1_scale']  
-      T1_tgv.append(-tr/np.log(data[names.index('full_result')]*scale))
+      scale_tgv = file.attrs['E1_scale_TGV']  
+#      scale_ref = file.attrs['E1_scale_ref']  
+#      scale_tgv = file['full_result'].attrs['E1_scale']
+#      scale_ref = scale_tgv
+      T1_tgv.append(-tr/np.log(data[names.index('full_result')]*scale_tgv))
+#      T1_tikh.append(-tr/np.log(data[names.index('T1_ref')]*scale_ref)) 
 #      T1_tikh.append(-tr/np.log(data[names.index('T1_ref')]*scale)) 
       M0_tgv.append(data[names.index('full_result')])
 #      M0_tikh.append(data[names.index('M0_ref')])
@@ -417,16 +421,18 @@ for i in range(NResults):
   ax_hist[i].plot(xticks, xticks,color='r',linestyle='--')
   cbar = hist_fig.colorbar(myhist[0][3])
   ax_hist[i].set_xlabel('Ref T1 in ms')
-  ax_hist[i].set_ylabel(plot_names[2+(2*i)]+' in ms')
+  ax_hist[i].set_ylabel('T1 in ms')
+  ax_hist[i].set_title(plot_names[2+(2*i)][:2] + ' spokes')
 
   ax_cont.append(cont_fig.add_subplot(gs_cont[i]))  
   mycont.append(ax_cont[i].contourf(data.T,V,extent=[myhist[i][2].min(),myhist[i][2].max(),
-                               myhist[i][1].min(),myhist[i][1].max()],norm=PowerNorm(0.22),cmap='gnuplot2'))
+                               myhist[i][1].min(),myhist[i][1].max()],norm=PowerNorm(0.22),cmap='gnuplot2_r'))
   xticks = np.linspace(*ax_hist[i].get_xlim())
   ax_cont[i].plot(xticks, xticks,color='r',linestyle='--')
   cbar = cont_fig.colorbar(mycont[0],ax=ax_cont[i])
   ax_cont[i].set_xlabel('Ref T1 in ms')
-  ax_cont[i].set_ylabel(plot_names[2+(2*i)]+' in ms')
+  ax_cont[i].set_ylabel('T1 in ms')
+  ax_cont[i].set_title(plot_names[2+(2*i)][:2] + ' spokes')
 #
 #f = open('acc_test.img','wb')  
 #images = np.zeros((NResults,256,256),dtype='float32')
@@ -437,4 +443,4 @@ for i in range(NResults):
 #f.flush()
 #f.close()
 
-plt.savefig('/media/data/Papers/Parameter_Mapping/2D_Histogram'+save_name+'_'+str(j)+'.eps', format='eps', dpi=1000)
+plt.savefig('/media/data/Papers/Parameter_Mapping/2D_Histogram'+save_name+'.svg', format='svg', dpi=1000)

@@ -151,7 +151,19 @@ class Model_Reco:
       self.conjCoils = np.conj(self.Coils)
       for i in range(self.irgn_par.max_GN_it):
         start = time.time()       
+        
+        self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(self.result[i,:,:,:,:]))
 
+        scale = np.linalg.norm(np.abs(self.grad_x[0,...]))/np.linalg.norm(np.abs(self.grad_x[1,...]))
+        
+        for j in range(len(self.model.constraints)-1):
+          self.model.constraints[j+1].update(scale)
+          
+        self.result[i,1,...] = self.result[i,1,...]*self.model.T1_sc        
+        self.model.T1_sc = self.model.T1_sc*(scale)
+        self.result[i,1,...] = self.result[i,1,...]/self.model.T1_sc
+        
+        
         self.step_val = np.nan_to_num(self.model.execute_forward_3D(self.result[i,:,:,:,:]))
         self.grad_x_2D = np.nan_to_num(self.model.execute_gradient_3D(self.result[i,:,:,:,:]))
         self.conj_grad_x_2D = np.nan_to_num(np.conj(self.grad_x_2D))

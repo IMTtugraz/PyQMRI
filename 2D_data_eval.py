@@ -24,7 +24,7 @@ import Compute_mask as masking
 from itertools import compress
 
 import os
-
+from skimage.measure import compare_ssim as ssim
 root = Tk()
 root.withdraw()
 root.update()
@@ -83,9 +83,12 @@ for files in filenames:
       M0_tgv.append(data[names.index('M0_final')])
       M0_tikh.append(data[names.index('M0_ref')])      
     else:
-      scale = file.attrs['E1_scale']  
-      T1_tgv.append(-tr/np.log(data[names.index('full_result')]*scale))
-      T1_tikh.append(-tr/np.log(data[names.index('T1_ref')]*scale)) 
+      scale_tgv = file.attrs['E1_scale_TGV']  
+      scale_ref = file.attrs['E1_scale_ref']  
+#      scale_tgv = file['full_result'].attrs['E1_scale']
+#      scale_ref = scale_tgv
+      T1_tgv.append(-tr/np.log(data[names.index('full_result')]*scale_tgv))
+      T1_tikh.append(-tr/np.log(data[names.index('T1_ref')]*scale_ref)) 
       M0_tgv.append(data[names.index('full_result')])
       M0_tikh.append(data[names.index('M0_ref')])
 
@@ -118,8 +121,8 @@ T1_max = 3000
 M0_min = 0
 M0_max = np.abs(np.max(M0_tgv[0]))
 
-mid_x = int(x/2)#55
-mid_y = int(y/2)#55
+mid_x = int(x/2)#55#105
+mid_y = int(y/2)#55#105#
 offset = 0
 plot_err = True
 
@@ -268,11 +271,10 @@ else:
     cbar.ax.spines[spine].set_color('white')
   plt.show()  
 
-
-
 import scipy.stats as stat
   
 
+plt.savefig('/media/data/Papers/Parameter_Mapping/2Dvs3D_'+save_name+'.svg', format='svg', dpi=1000)
 roi_num = int(input("Enter the number of desired ROIs: "))
 if roi_num > 0:
   if not "Reference" in plot_names:
@@ -372,6 +374,6 @@ del plot_names[1]
 plt.legend(plot_names)
 plt.xlabel('Pixel')
 plt.ylabel('T1 in ms')
-plt.savefig('/media/data/Papers/Parameter_Mapping/Lineplot'+save_name+'.svg', format='svg', dpi=1000)
 
-plt.savefig('/media/data/Papers/Parameter_Mapping/2Dvs3D_'+save_name+'.svg', format='svg', dpi=1000)
+
+plt.savefig('/media/data/Papers/Parameter_Mapping/Lineplot'+save_name+'.svg', format='svg', dpi=1000)

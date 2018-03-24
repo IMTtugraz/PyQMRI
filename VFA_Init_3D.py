@@ -331,8 +331,8 @@ irgn_par.gamma = 1e0   #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-1 #### 8spk in-vivo 1e-2
 irgn_par.omega = 0e-10
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 1e-1
-irgn_par.delta_max = 1e5
+irgn_par.gamma_min = 2e-1  
+irgn_par.delta_max = 1e1
 irgn_par.tol = 5e-3
 irgn_par.stag = 1.00
 irgn_par.delta_inc = 10
@@ -344,11 +344,14 @@ opt.execute_3D()
 result_tgv = opt.result
 res = opt.gn_res
 res = np.array(res)/(irgn_par.lambd*NSlice)
+scale_E1_TGV = opt.model.T1_sc
 del opt
 
 ###############################################################################
 ## IRGN - Tikhonov referenz ###################################################
 ###############################################################################
+model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images,\
+                            par.phase_map,NSlice)
 
 opt_t = Model_Reco_Tikh.Model_Reco(par)
 
@@ -364,14 +367,14 @@ opt_t.traj = traj
 #IRGN Params
 irgn_par = struct()
 irgn_par.start_iters = 10
-irgn_par.max_iters = 1000
+irgn_par.max_iters = 300
 irgn_par.max_GN_it = 20
 irgn_par.lambd = 1e2
 irgn_par.gamma = 1e-2  #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-4  #### 8spk in-vivo 1e-2
-irgn_par.omega = 1e0
+irgn_par.omega = 0e0
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 1e-6
+irgn_par.gamma_min = 1e-4
 irgn_par.delta_max = 1e0
 irgn_par.tol = 1e-5
 irgn_par.stag = 1.05
@@ -383,6 +386,7 @@ opt_t.irgn_par = irgn_par
 opt_t.execute_3D()
 
 result_ref = opt_t.result
+scale_E1_ref = opt_t.model.T1_sc
 del opt_t
 ###############################################################################
 ## New .hdf5 save files #######################################################
@@ -416,7 +420,8 @@ dset_M0_ref=f.create_dataset("M0_ref",np.squeeze(result_ref[-1,0,...]).shape\
 #                 dtype=np.float64,data=np.squeeze(model.M0_guess))
 f.attrs['data_norm'] = dscale
 f.attrs['dcf_scaling'] = (N*(np.pi/(4*Nproj)))
-f.attrs['E1_scale'] = model.T1_sc
+f.attrs['E1_scale_TGV'] =scale_E1_TGV
+f.attrs['E1_scale_ref'] =scale_E1_ref
 f.attrs['M0_scale'] = model.M0_sc
 f.attrs['IRGN_TGV_res'] = res
 f.flush()
