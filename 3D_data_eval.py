@@ -142,7 +142,7 @@ dz = 1
 
 
 
-mask = (masking.compute(M0_tgv[-1]))
+mask = (masking.compute(M0_tgv[0]))
 
 [z,y,x] = M0_tgv[0].shape
 z = z*dz
@@ -321,11 +321,11 @@ from matplotlib.path import Path
 
 import polyroi as polyroi
 
-roi = polyroi.polyroi(T1_ref,int(z/2))
+roi = polyroi.polyroi(T1_ref,int(0/2))
 #test = np.array(roi.select_roi())
  
 
-coord_map = np.vstack((np.repeat(np.arange(0,256,1)[None,:],256,0).flatten(), np.repeat(np.arange(0,256,1)[None,:].T,256,1).flatten())).T
+coord_map = np.vstack((np.repeat(np.arange(0,x,1)[None,:],x,0).flatten(), np.repeat(np.arange(0,y,1)[None,:].T,y,1).flatten())).T
 #polypath = Path((test).astype(int))
 #mask = polypath.contains_points(coord_map).reshape(y,x)
 
@@ -338,7 +338,7 @@ if roi_num > 0:
   std_TGV = []
   col_names = []
   statistic = []
-  selector = cv2.cvtColor(np.abs(T1_ref[int(z/2),:,:].T/np.max(3000)).astype(np.float32),cv2.COLOR_GRAY2BGR)
+  selector = cv2.cvtColor(np.abs(T1_ref[int(0/2),:,:].T/np.max(3000)).astype(np.float32),cv2.COLOR_GRAY2BGR)
   cv2.namedWindow('ROISelector', cv2.WINDOW_NORMAL)
   for j in range(roi_num):
 #    r = (cv2.selectROI('ROISelector',selector,fromCenter=False))
@@ -348,13 +348,13 @@ if roi_num > 0:
     mask = polypath.contains_points(coord_map).reshape(y,x)
 #    mean_TGV.append(np.abs(np.mean(T1_ref[int(z/2),int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
 #    std_TGV.append(np.abs(np.std(T1_ref[int(z/2),int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))      
-    mean_TGV.append(np.abs(np.mean(T1_ref[int(z/2),mask.T])))
-    std_TGV.append(np.abs(np.std(T1_ref[int(z/2),mask.T])))   
+    mean_TGV.append(np.abs(np.mean(T1_ref[int(0/2),mask.T])))
+    std_TGV.append(np.abs(np.std(T1_ref[int(0/2),mask.T])))   
     for i in range(NResults):
       mean_TGV.append(np.abs(np.mean(T1_tgv[i][int(z/2),mask.T])))
       std_TGV.append(np.abs(np.std(T1_tgv[i][int(z/2),mask.T])))
       statistic.append(stat.ttest_ind(np.abs(T1_tgv[i][int(z/2),mask.T]).flatten(),
-                                      np.abs((T1_ref[int(z/2),mask.T]).flatten())
+                                      np.abs((T1_ref[int(0/2),mask.T]).flatten())
                                       ,equal_var=False))
 #      statistic.append(stat.normaltest(np.abs(T1_tgv[0][int(z/2),int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])]).flatten()))
 #    rects = patches.Rectangle((int(r[0]),int(r[1])),
@@ -365,8 +365,8 @@ if roi_num > 0:
     ax_ref[0].text(posx,posy,str(j+1),color='red')
     ax_ref[0].add_patch(rects) 
 
-  mean_TGV = np.round(pd.DataFrame(np.reshape(np.asarray(mean_TGV),(roi_num,NResults+1)).T,index=['Reference','TGV_89','TGV_55','TGV_34','TGV_21','TGV_13','TGV_08'],columns=col_names),decimals=0)
-  std_TGV =  np.round(pd.DataFrame(np.reshape(np.asarray(std_TGV),(roi_num,NResults+1)).T,index=['Reference','TGV_89','TGV_55','TGV_34','TGV_21','TGV_13','TGV_08'],columns=col_names),decimals=0)
+  mean_TGV = np.round(pd.DataFrame(np.reshape(np.asarray(mean_TGV),(roi_num,NResults+1)).T,index=['Reference','IRLL'],columns=col_names),decimals=0)
+  std_TGV =  np.round(pd.DataFrame(np.reshape(np.asarray(std_TGV),(roi_num,NResults+1)).T,index=['Reference','IRLL'],columns=col_names),decimals=0)
   
   f = open("3Drois.tex","w")
   f.write(mean_TGV.to_latex())
