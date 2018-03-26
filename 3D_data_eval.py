@@ -88,8 +88,8 @@ for files in filenames:
     names.append(name)
     data.append(file[name][()])  
   if "ref" in files:
-    T1_ref = data[names.index('t1_corr')]
-    M0_ref = data[names.index('m0_corr')]
+    T1_ref = data[names.index('T1_ref')]
+    M0_ref = data[names.index('M0_ref')]
     plot_names.append("Reference")
     plot_names.append(" ")
     NResults -=1

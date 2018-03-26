@@ -12,7 +12,7 @@ import Model_Reco_old as Model_Reco_Tikh
 
 #from pynfft.nfft import NFFT
 
-import IRLL_Model_new as IRLL_Model
+import IRLL_Model as IRLL_Model
 import goldcomp
 import primaldualtoolbox
 DTYPE = np.complex64
@@ -385,7 +385,7 @@ irgn_par.gamma = 1e1   #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
 irgn_par.omega = 0e0
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 1e-1#gamma_min[j]
+irgn_par.gamma_min = 1e0#gamma_min[j]
 irgn_par.delta_max = 1e1#delta_max[i]
 irgn_par.tol = 5e-3
 irgn_par.stag = 1.00
