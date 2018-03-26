@@ -22,6 +22,9 @@ class constraint:
     self.min = min_val
     self.max = max_val
     self.real = real_const
+  def update(self,scale):
+    self.min = self.min/scale
+    self.max = self.max/scale
 
 class IRLL_Model:
   

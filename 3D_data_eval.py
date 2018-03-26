@@ -64,7 +64,7 @@ plot_names = []
 #T1_ref = data[1]
 
 if "IRLL" in filenames[0]:
-  tr = 5000
+  tr = 100
   save_name = "IRLL"
 else:
   tr = 5.38
@@ -88,30 +88,37 @@ for files in filenames:
     names.append(name)
     data.append(file[name][()])  
   if "ref" in files:
-    T1_ref = data[names.index('T1_ref')]
-    M0_ref = data[names.index('M0_ref')]
+    T1_ref = data[names.index('t1_corr')]
+    M0_ref = data[names.index('m0_corr')]
     plot_names.append("Reference")
     plot_names.append(" ")
     NResults -=1
   else:
     if "IRLL" in files:
+      scale_tgv = file.attrs['E1_scale_TGV']       
 #      T1_tgv.append(data[names.index("T1_final")]*5500)
 #      T1_tikh.append(data[names.index("T1_ref")]*5500)      
-      T1_tgv.append((data[names.index('T1_final')])*tr)
+      T1_tgv.append(-tr/np.log(data[names.index('T1_final')]*scale_tgv))
 #      T1_tikh.append((data[names.index('T1_ref')])*tr)       
       M0_tgv.append(data[names.index('M0_final')])
 #      M0_tikh.append(data[names.index('M0_ref')])      
     else:
-      scale_tgv = file.attrs['E1_scale_TGV']  
-#      scale_ref = file.attrs['E1_scale_ref']  
-#      scale_tgv = file['full_result'].attrs['E1_scale']
-#      scale_ref = scale_tgv
-      T1_tgv.append(-tr/np.log(data[names.index('full_result')]*scale_tgv))
-#      T1_tikh.append(-tr/np.log(data[names.index('T1_ref')]*scale_ref)) 
-#      T1_tikh.append(-tr/np.log(data[names.index('T1_ref')]*scale)) 
-      M0_tgv.append(data[names.index('full_result')])
-#      M0_tikh.append(data[names.index('M0_ref')])
-
+      if "2D" in fname:
+        T1_tgv.append((data[names.index('full_result')]))
+  #      T1_tikh.append(-tr/np.log(data[names.index('T1_ref')]*scale_ref)) 
+  #      T1_tikh.append(-tr/np.log(data[names.index('T1_ref')]*scale)) 
+        M0_tgv.append(data[names.index('full_result')])       
+      else:
+        scale_tgv = file.attrs['E1_scale_TGV']  
+  #      scale_ref = file.attrs['E1_scale_ref']  
+  #      scale_tgv = file['full_result'].attrs['E1_scale']
+  #      scale_ref = scale_tgv
+        T1_tgv.append(-tr/np.log(data[names.index('full_result')]*scale_tgv))
+  #      T1_tikh.append(-tr/np.log(data[names.index('T1_ref')]*scale_ref)) 
+  #      T1_tikh.append(-tr/np.log(data[names.index('T1_ref')]*scale)) 
+        M0_tgv.append(data[names.index('full_result')])
+  #      M0_tikh.append(data[names.index('M0_ref')])
+        
     plot_names.append(fname[-5:].split('_')[1] + " TGV")  
     plot_names.append(fname[-5:].split('_')[0] + " Tikh")  
   file.close()
@@ -119,18 +126,23 @@ for files in filenames:
 for i in range(len(T1_tgv)):
   T1_tgv[i] = np.flip(T1_tgv[i],axis=0)
   M0_tgv[i] = np.flip(M0_tgv[i],axis=0)
-  for j in range(T1_tgv[i].shape[0]):
-    if np.sum(T1_tgv[i][j,1,...]):
-      T1_tgv[i] = T1_tgv[i][j,1,...]
-      M0_tgv[i] = M0_tgv[i][j,0,...]
-      break
+  tmp_T1 = np.ones((40,256,256),dtype=np.complex64)
+  tmp_M0 = np.ones((40,256,256),dtype=np.complex64)
+  for k in range(T1_tgv[i].shape[2]):
+    for j in range(T1_tgv[i].shape[0]):
+      if np.sum(T1_tgv[i][j,1,k,...]):
+        tmp_T1[k,...] = T1_tgv[i][j,1,k,...]
+        tmp_M0[k,...] = M0_tgv[i][j,0,k,...]
+        break
+  T1_tgv[i] = tmp_T1
+  M0_tgv[i] = tmp_M0
     
     
 dz = 1
 
 
 
-mask = (masking.compute(M0_tgv[0]))
+mask = (masking.compute(M0_tgv[-1]))
 
 [z,y,x] = M0_tgv[0].shape
 z = z*dz

@@ -47,10 +47,10 @@ plot_names = []
 full_res = []
 NRef = 0
 if "IRLL" in filenames[0]:
-  tr = 3000
+  tr = 100
   save_name = "IRLL"
 else:
-  tr = 5.38
+  tr = 5
   save_name = "VFA"
 
 for files in filenames:
@@ -66,8 +66,8 @@ for files in filenames:
     names.append(name)
     data.append(file[name][()])  
   if "ref" in files:
-    T1_ref = np.flip(data[names.index('T1_referenz')],axis=0)
-    M0_ref = data[names.index('M0_referenz')]
+    T1_ref = np.flip(data[names.index('t1_ref_l2')],axis=0)
+    M0_ref = data[names.index('m0_ref_l2')]
     plot_names.append("Reference")
     plot_names.append(" ")
     NRef = 1
@@ -75,13 +75,24 @@ for files in filenames:
   else:
           
     if "IRLL" in files:
-#      T1_tgv.append(data[names.index("T1_final")]*5500)
-#      T1_tikh.append(data[names.index("T1_ref")]*5500)      
-      T1_tgv.append((data[names.index('T1_final')])*tr)
-      T1_tikh.append((data[names.index('T1_ref')])*tr)       
-      full_res.append(data[names.index('full_result')])
-      M0_tgv.append(data[names.index('M0_final')])
-      M0_tikh.append(data[names.index('M0_ref')])      
+      if "E1" in fname:
+        scale_tgv = file.attrs['E1_scale_TGV']       
+        scale_ref = file.attrs['E1_scale_ref']  
+  #      T1_tgv.append(data[names.index("T1_final")]*5500)
+  #      T1_tikh.append(data[names.index("T1_ref")]*5500)      
+        T1_tgv.append(-tr/np.log(data[names.index('full_result')]*scale_tgv))
+        T1_tikh.append(-tr/np.log(data[names.index('T1_ref')]*scale_ref))     
+        M0_tgv.append(data[names.index('full_result')])
+        M0_tikh.append(data[names.index('M0_ref')])      
+      else:
+        scale_tgv = file.attrs['E1_scale_TGV']       
+        scale_ref = file.attrs['E1_scale_ref']  
+  #      T1_tgv.append(data[names.index("T1_final")]*5500)
+  #      T1_tikh.append(data[names.index("T1_ref")]*5500)      
+        T1_tgv.append((data[names.index('full_result')]*scale_tgv))
+        T1_tikh.append((data[names.index('T1_ref')]*scale_ref))     
+        M0_tgv.append(data[names.index('full_result')])
+        M0_tikh.append(data[names.index('M0_ref')])          
     else:
       scale_tgv = file.attrs['E1_scale_TGV']  
       scale_ref = file.attrs['E1_scale_ref']  
@@ -116,15 +127,15 @@ z = z*dz
 
 T1_plot=[]
 M0_plot=[]
-T1_min = 300  
-T1_max = 3000
+T1_min = 0  
+T1_max = 2000
 M0_min = 0
 M0_max = np.abs(np.max(M0_tgv[0]))
 
-mid_x = int(x/2)#55#105
-mid_y = int(y/2)#55#105#
+mid_x = 105#int(x/2)#55#105
+mid_y = 105#int(y/2)#55#105#
 offset = 0
-plot_err = True
+plot_err = False
 
 pos_ref = 0
 pos = 0
