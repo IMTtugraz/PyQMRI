@@ -66,8 +66,8 @@ for files in filenames:
     names.append(name)
     data.append(file[name][()])  
   if "ref" in files:
-    T1_ref = np.flip(data[names.index('t1_ref_l2')],axis=0)
-    M0_ref = data[names.index('m0_ref_l2')]
+    T1_ref = np.flip(data[names.index('T1_ref')],axis=0)
+    M0_ref = data[names.index('M0_ref')]
     plot_names.append("Reference")
     plot_names.append(" ")
     NRef = 1

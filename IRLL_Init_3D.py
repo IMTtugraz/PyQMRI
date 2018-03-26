@@ -12,7 +12,7 @@ import Model_Reco_old as Model_Reco_Tikh
 
 #from pynfft.nfft import NFFT
 
-import IRLL_Model as IRLL_Model
+import IRLL_Model_new as IRLL_Model
 import goldcomp
 import primaldualtoolbox
 DTYPE = np.complex64
@@ -99,8 +99,8 @@ par.fa_corr = file['fa_corr'][()].astype(DTYPE)
 ################################################################################
 
 data = data[None,:,int(NSlice/2)-\
-            int(np.ceil(reco_Slices/2))+2:int(NSlice/2)+\
-            int(np.floor(reco_Slices/2))+2,:,:]
+            int(np.ceil(reco_Slices/2)):int(NSlice/2)+\
+            int(np.floor(reco_Slices/2)),:,:]
 if reco_Slices ==1:
   data = data[:,:,None,:,:]
   
