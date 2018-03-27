@@ -104,7 +104,7 @@ data = data[None,:,int(NSlice/2)-\
 if reco_Slices ==1:
   data = data[:,:,None,:,:]
   
-par.fa_corr = np.ones_like(np.flip(par.fa_corr,axis=0)[int((NSlice-os_slices)/2)-\
+par.fa_corr = (np.flip(par.fa_corr,axis=0)[int((NSlice-os_slices)/2)-\
             int(np.ceil(reco_Slices/2)):int((NSlice-os_slices)/2)+\
             int(np.floor(reco_Slices/2)),6:-6,6:-6])
 
