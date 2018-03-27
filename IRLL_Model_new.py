@@ -74,7 +74,7 @@ class IRLL_Model:
     print('T1 scale: ',self.T1_sc,
                               '/ M0_scale: ',self.M0_sc)
     
-    self.guess = np.array([1/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),np.exp(-self.scale/1500)/self.T1_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE)])               
+    self.guess = np.array([1/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),np.exp(-self.scale/800)/self.T1_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE)])               
     self.constraints.append(constraint(-300,300,False)  )
     self.constraints.append(constraint(np.exp(-self.scale/10)/self.T1_sc, np.exp(-self.scale/5500)/self.T1_sc,True))
 

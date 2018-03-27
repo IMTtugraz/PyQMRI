@@ -79,7 +79,7 @@ dimX = 212
 dimY = 212
 
 ############### Set number of Slices ###########################################
-reco_Slices = 2
+reco_Slices = 3
 os_slices = 20
 
 class struct:
@@ -92,7 +92,7 @@ par = struct()
 ### FA correction ##############################################################
 ################################################################################
 
-par.fa_corr = file['fa_corr'][()].astype(DTYPE)
+par.fa_corr = file['interpol_fa'][()].astype(DTYPE)
 
 ################################################################################
 ### Pick slices for reconstruction #############################################
@@ -422,7 +422,7 @@ opt_t.traj = traj
 ################################################################################
 ##IRGN Params
 irgn_par = struct()
-irgn_par.start_iters = 10
+irgn_par.start_iters = 100
 irgn_par.max_iters = 300
 irgn_par.max_GN_it = 20
 irgn_par.lambd = 1e2
@@ -431,7 +431,7 @@ irgn_par.delta = 1e-4  #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e0
 irgn_par.display_iterations = True
 irgn_par.gamma_min = 1e-6
-irgn_par.delta_max = 5e-1
+irgn_par.delta_max = 1e0
 irgn_par.tol = 1e-5
 irgn_par.stag = 1.05
 irgn_par.delta_inc = 10

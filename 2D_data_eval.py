@@ -80,19 +80,19 @@ for files in filenames:
         scale_ref = file.attrs['E1_scale_ref']  
   #      T1_tgv.append(data[names.index("T1_final")]*5500)
   #      T1_tikh.append(data[names.index("T1_ref")]*5500)      
-        T1_tgv.append(-tr/np.log(data[names.index('full_result')]*scale_tgv))
-        T1_tikh.append(-tr/np.log(data[names.index('T1_ref')]*scale_ref))     
-        M0_tgv.append(data[names.index('full_result')])
-        M0_tikh.append(data[names.index('M0_ref')])      
+        T1_tgv.append(-tr/np.log(data[names.index('full_result')]*scale_tgv)[:,:,:,4:-4,:])
+        T1_tikh.append(-tr/np.log(data[names.index('T1_ref')]*scale_ref)[:,4:-4,:])     
+        M0_tgv.append(data[names.index('full_result')][:,:,:,4:-4,:])
+        M0_tikh.append(data[names.index('M0_ref')][:,4:-4,:])      
       else:
         scale_tgv = file.attrs['E1_scale_TGV']       
         scale_ref = file.attrs['E1_scale_ref']  
   #      T1_tgv.append(data[names.index("T1_final")]*5500)
   #      T1_tikh.append(data[names.index("T1_ref")]*5500)      
-        T1_tgv.append((data[names.index('full_result')]*scale_tgv))
-        T1_tikh.append((data[names.index('T1_ref')]*scale_ref))     
-        M0_tgv.append(data[names.index('full_result')])
-        M0_tikh.append(data[names.index('M0_ref')])          
+        T1_tgv.append((data[names.index('full_result')]*scale_tgv)[:,:,:,4:-4,:])
+        T1_tikh.append((data[names.index('T1_ref')]*scale_ref)[:,4:-4,:])     
+        M0_tgv.append(data[names.index('full_result')][:,:,:,4:-4,:])
+        M0_tikh.append(data[names.index('M0_ref')][:,4:-4,:])          
     else:
       scale_tgv = file.attrs['E1_scale_TGV']  
       scale_ref = file.attrs['E1_scale_ref']  
@@ -139,7 +139,7 @@ plot_err = False
 
 pos_ref = 0
 pos = 0
-mask = mask[int(z/2)+pos,int(y/2)-mid_y+offset:int(y/2)+mid_y+offset,int(x/2)-mid_x+offset:int(x/2)+mid_x+offset]
+mask = mask[int(np.floor(z/2-1))+pos,int(y/2-1)-mid_y+offset:int(y/2-1)+mid_y+offset,int(x/2-1)-mid_x+offset:int(x/2-1)+mid_x+offset]
 
 if "Reference" in plot_names:
   if len(T1_ref.shape) == 2:
@@ -148,7 +148,7 @@ if "Reference" in plot_names:
     T1_ref = T1_ref[None,...]
   else:      
     dimz, dimy, dimx =   T1_ref.shape
-  T1_ref = ((T1_ref[int(dimz/2)+pos_ref,int(dimy/2)-mid_y+offset:int(dimy/2)+mid_y+offset,int(dimx/2)-mid_x+offset:int(dimx/2)+mid_x+offset]*mask).T)
+  T1_ref = ((T1_ref[int(dimz/2-1)+pos_ref,int(dimy/2-1)-mid_y+offset:int(dimy/2-1)+mid_y+offset,int(dimx/2-1)-mid_x+offset:int(dimx/2-1)+mid_x+offset]*mask).T)
   T1_plot.append(T1_ref)
   T1_plot.append(np.zeros((dimy,dimx)))
   
@@ -162,14 +162,14 @@ T1_err_max = 30
 
 
 for i in range(NResults-NRef):
-  slices, x, y = T1_tgv[i].shape
-  T1_tikh[i] = np.reshape(T1_tikh[i],(slices,x,y))
-  M0_tikh[i] = np.reshape(M0_tikh[i],(slices,x,y))
+  slices, y, x = T1_tgv[i].shape
+  T1_tikh[i] = np.reshape(T1_tikh[i],(slices,y,x))
+  M0_tikh[i] = np.reshape(M0_tikh[i],(slices,y,x))
   
-  T1_tgv[i] = T1_tgv[i][int(np.floor(slices/2))+pos,int(y/2)-mid_y+offset:int(y/2)+mid_y+offset,int(x/2)-mid_x+offset:int(x/2)+mid_x+offset]*mask
-  M0_tgv[i] = M0_tgv[i][int(np.floor(slices/2))+pos,int(y/2)-mid_y+offset:int(y/2)+mid_y+offset,int(x/2)-mid_x+offset:int(x/2)+mid_x+offset]*mask
-  T1_tikh[i] = T1_tikh[i][int(np.floor(slices/2))+pos,int(y/2)-mid_y+offset:int(y/2)+mid_y+offset,int(x/2)-mid_x+offset:int(x/2)+mid_x+offset]*mask
-  M0_tikh[i] = M0_tikh[i][int(np.floor(slices/2))+pos,int(y/2)-mid_y+offset:int(y/2)+mid_y+offset,int(x/2)-mid_x+offset:int(x/2)+mid_x+offset]*mask
+  T1_tgv[i] = T1_tgv[i][int(np.floor(slices/2-1))+pos,int(y/2-1)-mid_y+offset:int(y/2-1)+mid_y+offset,int(x/2-1)-mid_x+offset:int(x/2-1)+mid_x+offset]*mask
+  M0_tgv[i] = M0_tgv[i][int(np.floor(slices/2-1))+pos,int(y/2-1)-mid_y+offset:int(y/2-1)+mid_y+offset,int(x/2-1)-mid_x+offset:int(x/2-1)+mid_x+offset]*mask
+  T1_tikh[i] = T1_tikh[i][int(np.floor(slices/2-1))+pos,int(y/2-1)-mid_y+offset:int(y/2-1)+mid_y+offset,int(x/2-1)-mid_x+offset:int(x/2-1)+mid_x+offset]*mask
+  M0_tikh[i] = M0_tikh[i][int(np.floor(slices/2-1))+pos,int(y/2-1)-mid_y+offset:int(y/2-1)+mid_y+offset,int(x/2-1)-mid_x+offset:int(x/2-1)+mid_x+offset]*mask
 
   T1_plot.append(np.squeeze(T1_tgv[i][...]).T)
   T1_plot.append(np.squeeze(T1_tikh[i][...]).T)
@@ -286,6 +286,14 @@ import scipy.stats as stat
   
 
 plt.savefig('/media/data/Papers/Parameter_Mapping/2Dvs3D_'+save_name+'.svg', format='svg', dpi=1000)
+
+
+from matplotlib.path import Path
+import polyroi as polyroi
+[y,x] = T1_tgv[0].shape
+roi = polyroi.polyroi(T1_ref.T)
+coord_map = np.vstack((np.repeat(np.arange(0,x,1)[None,:],y,0).flatten(), np.repeat(np.arange(0,y,1)[None,:].T,x,1).flatten())).T
+
 roi_num = int(input("Enter the number of desired ROIs: "))
 if roi_num > 0:
   if not "Reference" in plot_names:
@@ -296,24 +304,26 @@ if roi_num > 0:
   std_Tikh =  []
   col_names = []
   statistic = []
-  selector = cv2.cvtColor(np.abs(np.squeeze(T1_ref[...])/3000).astype(np.float32),cv2.COLOR_GRAY2BGR)
-  
+#  selector = cv2.cvtColor(np.abs(T1_ref.T/np.max(3000)).astype(np.float32),cv2.COLOR_GRAY2BGR)
+  cv2.namedWindow('ROISelector', cv2.WINDOW_NORMAL)
   for j in range(roi_num):
-    r = (cv2.selectROI(selector,False))
+    r = np.array(roi.select_roi()) 
     col_names.append("ROI "+str(j+1))
-    mean_TGV.append(np.abs(np.mean(T1_ref.T[int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))   
-    std_TGV.append(np.abs(np.std(T1_ref.T[int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))       
+    polypath = Path((r).astype(int))
+    mask = polypath.contains_points(coord_map).reshape(y,x)
+
+    mean_TGV.append(np.abs(np.mean(T1_ref[mask])))   
+    std_TGV.append(np.abs(np.std(T1_ref[mask])))       
     for i in range((NResults-1)):    
-      mean_TGV.append(np.abs(np.mean(T1_tgv[i][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
-      mean_Tikh.append(np.abs(np.mean(T1_tikh[i][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
-      std_TGV.append(np.abs(np.std(T1_tgv[i][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
-      std_Tikh.append(np.abs(np.std(T1_tikh[i][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
-      statistic.append(stat.ttest_ind(np.abs(T1_tgv[0][int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])]).flatten(),
-                                      np.abs((T1_ref[int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])).flatten()))
-    rects = patches.Rectangle((int(r[0]),int(r[1])),
-                                   int(r[2]),int(r[3]),linewidth=1,edgecolor='r',facecolor='none')
-    posx = int(r[1]-5)
-    posy = int(r[0])
+      mean_TGV.append(np.abs(np.mean(T1_tgv[i][mask.T])))
+      mean_Tikh.append(np.abs(np.mean(T1_tikh[i][mask.T])))
+      std_TGV.append(np.abs(np.std(T1_tgv[i][mask.T])))
+      std_Tikh.append(np.abs(np.std(T1_tikh[i][mask.T])))
+      statistic.append(stat.ttest_ind(np.abs(T1_tgv[0][mask.T]).flatten(),
+                                      np.abs((T1_ref[mask])).flatten()))
+    rects = patches.Polygon(r,linewidth=3,edgecolor='r',facecolor='none')      
+    posx = int(r[0][1])
+    posy = int(r[0][0]-5)
     ax[0].text(posy,posx,str(j+1),color='red')
     ax[0].add_patch(rects) 
   
