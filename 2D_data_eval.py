@@ -66,8 +66,8 @@ for files in filenames:
     names.append(name)
     data.append(file[name][()])  
   if "ref" in files:
-    T1_ref = np.flip(data[names.index('T1_ref')],axis=0)
-    M0_ref = data[names.index('M0_ref')]
+    T1_ref = np.flip(data[names.index('t1_ref_l2')],axis=0)[:-8,:]
+    M0_ref = data[names.index('m0_ref_l2')]
     plot_names.append("Reference")
     plot_names.append(" ")
     NRef = 1
@@ -139,7 +139,7 @@ plot_err = False
 
 pos_ref = 0
 pos = 0
-mask = mask[int(np.floor(z/2-1))+pos,int(y/2-1)-mid_y+offset:int(y/2-1)+mid_y+offset,int(x/2-1)-mid_x+offset:int(x/2-1)+mid_x+offset]
+mask = mask[int(np.floor((z-1)/2))+pos,int((y-1)/2)-mid_y+offset:int((y-1)/2)+mid_y+offset,int((x-1)/2-1)-mid_x+offset:int((x-1)/2)+mid_x+offset]
 
 if "Reference" in plot_names:
   if len(T1_ref.shape) == 2:
@@ -148,7 +148,7 @@ if "Reference" in plot_names:
     T1_ref = T1_ref[None,...]
   else:      
     dimz, dimy, dimx =   T1_ref.shape
-  T1_ref = ((T1_ref[int(dimz/2-1)+pos_ref,int(dimy/2-1)-mid_y+offset:int(dimy/2-1)+mid_y+offset,int(dimx/2-1)-mid_x+offset:int(dimx/2-1)+mid_x+offset]*mask).T)
+  T1_ref = ((T1_ref[int((dimz-1)/2)+pos_ref,int((dimy-1)/2)-mid_y+offset:int((dimy-1)/2)+mid_y+offset,int((dimx-1)/2)-mid_x+offset:int((dimx-1)/2)+mid_x+offset]*mask).T)
   T1_plot.append(T1_ref)
   T1_plot.append(np.zeros((dimy,dimx)))
   
@@ -166,10 +166,10 @@ for i in range(NResults-NRef):
   T1_tikh[i] = np.reshape(T1_tikh[i],(slices,y,x))
   M0_tikh[i] = np.reshape(M0_tikh[i],(slices,y,x))
   
-  T1_tgv[i] = T1_tgv[i][int(np.floor(slices/2-1))+pos,int(y/2-1)-mid_y+offset:int(y/2-1)+mid_y+offset,int(x/2-1)-mid_x+offset:int(x/2-1)+mid_x+offset]*mask
-  M0_tgv[i] = M0_tgv[i][int(np.floor(slices/2-1))+pos,int(y/2-1)-mid_y+offset:int(y/2-1)+mid_y+offset,int(x/2-1)-mid_x+offset:int(x/2-1)+mid_x+offset]*mask
-  T1_tikh[i] = T1_tikh[i][int(np.floor(slices/2-1))+pos,int(y/2-1)-mid_y+offset:int(y/2-1)+mid_y+offset,int(x/2-1)-mid_x+offset:int(x/2-1)+mid_x+offset]*mask
-  M0_tikh[i] = M0_tikh[i][int(np.floor(slices/2-1))+pos,int(y/2-1)-mid_y+offset:int(y/2-1)+mid_y+offset,int(x/2-1)-mid_x+offset:int(x/2-1)+mid_x+offset]*mask
+  T1_tgv[i] = T1_tgv[i][int(np.floor((slices-1)/2))+pos,int((y-1)/2)-mid_y+offset:int((y-1)/2)+mid_y+offset,int((x-1)/2)-mid_x+offset:int((x-1)/2)+mid_x+offset]*mask
+  M0_tgv[i] = M0_tgv[i][int(np.floor((slices-1)/2))+pos,int((y-1)/2)-mid_y+offset:int((y-1)/2)+mid_y+offset,int((x-1)/2)-mid_x+offset:int((x-1)/2)+mid_x+offset]*mask
+  T1_tikh[i] = T1_tikh[i][int(np.floor((slices-1)/2))+pos,int((y-1)/2)-mid_y+offset:int((y-1)/2)+mid_y+offset,int((x-1)/2)-mid_x+offset:int((x-1)/2)+mid_x+offset]*mask
+  M0_tikh[i] = M0_tikh[i][int(np.floor((slices-1)/2))+pos,int((y-1)/2)-mid_y+offset:int((y-1)/2)+mid_y+offset,int((x-1)/2)-mid_x+offset:int((x-1)/2)+mid_x+offset]*mask
 
   T1_plot.append(np.squeeze(T1_tgv[i][...]).T)
   T1_plot.append(np.squeeze(T1_tikh[i][...]).T)
