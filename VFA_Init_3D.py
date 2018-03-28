@@ -67,7 +67,7 @@ for attributes in test_attributes:
 ################################################################################
 ### Read Data ##################################################################
 ################################################################################
-reco_Slices = 5
+reco_Slices = 3
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)    
     
 data = file['real_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE) +\
@@ -332,7 +332,7 @@ irgn_par.delta = 1e-1 #### 8spk in-vivo 1e-2
 irgn_par.omega = 0e-10
 irgn_par.display_iterations = True
 irgn_par.gamma_min = 5e-1  
-irgn_par.delta_max = 1e1
+irgn_par.delta_max = 1e0
 irgn_par.tol = 5e-3
 irgn_par.stag = 1.00
 irgn_par.delta_inc = 10
