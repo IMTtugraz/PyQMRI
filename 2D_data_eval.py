@@ -132,14 +132,14 @@ T1_max = 2000
 M0_min = 0
 M0_max = np.abs(np.max(M0_tgv[0]))
 
-mid_x = 105#int(x/2)#55#105
-mid_y = 105#int(y/2)#55#105#
+mid_x = 100#int(x/2)#55#105
+mid_y = 100#int(y/2)#55#105#
 offset = 0
 plot_err = False
 
 pos_ref = 0
 pos = 0
-mask = mask[int(np.floor((z-1)/2))+pos,int((y-1)/2)-mid_y+offset:int((y-1)/2)+mid_y+offset,int((x-1)/2-1)-mid_x+offset:int((x-1)/2)+mid_x+offset]
+mask = mask[int(np.floor((z-1)/2))+pos,int((y-1)/2)-mid_y+offset:int((y-1)/2)+mid_y+offset,int((x-1)/2)-mid_x+offset:int((x-1)/2)+mid_x+offset]
 
 if "Reference" in plot_names:
   if len(T1_ref.shape) == 2:
