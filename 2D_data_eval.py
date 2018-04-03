@@ -50,7 +50,7 @@ if "IRLL" in filenames[0]:
   tr = 100
   save_name = "IRLL"
 else:
-  tr = 5
+  tr = 5.38
   save_name = "VFA"
 
 for files in filenames:
@@ -127,14 +127,14 @@ z = z*dz
 
 T1_plot=[]
 M0_plot=[]
-T1_min = 0  
-T1_max = 2000
+T1_min = 300  
+T1_max = 3000
 M0_min = 0
 M0_max = np.abs(np.max(M0_tgv[0]))
 
-mid_x = int(x/2)#55#105
-mid_y = int(y/2)#55#105#
-offset = 0
+mid_x = 55#105int(x/2)#
+mid_y = 55#105#int(y/2)#
+offset = 15
 plot_err = False
 
 pos_ref = 0
