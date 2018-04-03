@@ -66,8 +66,8 @@ for files in filenames:
     names.append(name)
     data.append(file[name][()])  
   if "ref" in files:
-    T1_ref = np.flip(data[names.index('t1_ref_l2')],axis=0)[:-4,:]
-    M0_ref = data[names.index('m0_ref_l2')][:-4,:]
+    T1_ref = np.flip(data[names.index('T1_ref')],axis=0)[:-4,:]
+    M0_ref = data[names.index('M0_ref')][:-4,:]
     plot_names.append("Reference")
     plot_names.append(" ")
     NRef = 1
@@ -94,14 +94,20 @@ for files in filenames:
         M0_tgv.append(data[names.index('full_result')][:,:,:,2:-2,:])
         M0_tikh.append(data[names.index('M0_ref')][:,2:-2,:])          
     else:
-      scale_tgv = file.attrs['E1_scale_TGV']  
-      scale_ref = file.attrs['E1_scale_ref']  
-#      scale_tgv = file['full_result'].attrs['E1_scale']
-#      scale_ref = scale_tgv
-      T1_tgv.append(-tr/np.log(data[names.index('full_result')]*scale_tgv))
-      T1_tikh.append(-tr/np.log(data[names.index('T1_ref')]*scale_ref)) 
-      M0_tgv.append(data[names.index('full_result')])
-      M0_tikh.append(data[names.index('M0_ref')])
+      if "2D" in fname:
+        T1_tgv.append((data[names.index('full_result')]))
+        T1_tikh.append(data[names.index('T1_ref')])
+        M0_tikh.append(data[names.index('M0_ref')])
+        M0_tgv.append(data[names.index('full_result')])     
+      else:
+        scale_tgv = file.attrs['E1_scale_TGV']  
+        scale_ref = file.attrs['E1_scale_ref']  
+  #      scale_tgv = file['full_result'].attrs['E1_scale']
+  #      scale_ref = scale_tgv
+        T1_tgv.append(-tr/np.log(data[names.index('full_result')]*scale_tgv))
+        T1_tikh.append(-tr/np.log(data[names.index('T1_ref')]*scale_ref)) 
+        M0_tgv.append(data[names.index('full_result')])
+        M0_tikh.append(data[names.index('M0_ref')])
 
     plot_names.append(fname[-5:].split('_')[1] + " TGV")  
     plot_names.append(fname[-5:].split('_')[0] + " Tikh")  
@@ -119,10 +125,10 @@ for i in range(len(T1_tgv)):
 dz = 1
 
 
-mask = (masking.compute(M0_tgv[0]))
+mask = (masking.compute(M0_tgv[1]))
 
 
-[z,y,x] = M0_tgv[0].shape
+[z,y,x] = M0_tgv[1].shape
 z = z*dz
 
 T1_plot=[]
@@ -282,12 +288,12 @@ else:
     cbar.ax.spines[spine].set_color('white')
   plt.show()  
 
-import scipy.stats as stat
+
   
 
 plt.savefig('/media/data/Papers/Parameter_Mapping/2Dvs3D_'+save_name+'.svg', format='svg', dpi=1000)
 
-
+import scipy.stats as stat
 from matplotlib.path import Path
 import polyroi as polyroi
 [y,x] = T1_tgv[0].shape
