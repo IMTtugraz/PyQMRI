@@ -67,7 +67,7 @@ for files in filenames:
     data.append(file[name][()])  
   if "ref" in files:
     T1_ref = np.flip(data[names.index('T1_ref')],axis=0)[:-4,:]
-    M0_ref = data[names.index('M0_ref')][:-4,:]
+#    M0_ref = data[names.index('M0_ref')][:-4,:]
     plot_names.append("Reference")
     plot_names.append(" ")
     NRef = 1
@@ -125,22 +125,22 @@ for i in range(len(T1_tgv)):
 dz = 1
 
 
-mask = (masking.compute(M0_tgv[1]))
+mask = (masking.compute(M0_tgv[0]))
 
 
-[z,y,x] = M0_tgv[1].shape
+[z,y,x] = M0_tgv[0].shape
 z = z*dz
 
 T1_plot=[]
 M0_plot=[]
-T1_min = 300  
-T1_max = 3000
+T1_min = 0  
+T1_max = 2000
 M0_min = 0
 M0_max = np.abs(np.max(M0_tgv[0]))
 
-mid_x = 55#105int(x/2)#
-mid_y = 55#105#int(y/2)#
-offset = 15
+mid_x = int(x/2)#55#105
+mid_y = int(y/2)#55#105#
+offset = 0
 plot_err = False
 
 pos_ref = 0
@@ -298,7 +298,7 @@ from matplotlib.path import Path
 import polyroi as polyroi
 [y,x] = T1_tgv[0].shape
 roi = polyroi.polyroi(T1_ref.T)
-coord_map = np.vstack((np.repeat(np.arange(0,x,1)[None,:],y,0).flatten(), np.repeat(np.arange(0,y,1)[None,:].T,x,1).flatten())).T
+coord_map = np.vstack((np.repeat(np.arange(0,y,1)[None,:],x,0).flatten(), np.repeat(np.arange(0,x,1)[None,:].T,y,1).flatten())).T
 
 roi_num = int(input("Enter the number of desired ROIs: "))
 if roi_num > 0:
@@ -316,7 +316,7 @@ if roi_num > 0:
     r = np.array(roi.select_roi()) 
     col_names.append("ROI "+str(j+1))
     polypath = Path((r).astype(int))
-    mask = polypath.contains_points(coord_map).reshape(y,x)
+    mask = polypath.contains_points(coord_map).reshape(x,y)
 
     mean_TGV.append(np.abs(np.mean(T1_ref[mask])))   
     std_TGV.append(np.abs(np.std(T1_ref[mask])))       

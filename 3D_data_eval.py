@@ -88,8 +88,8 @@ for files in filenames:
     names.append(name)
     data.append(file[name][()])  
   if "ref" in files:
-    T1_ref = data[names.index('T1_ref')][6:-6,...]
-    M0_ref = data[names.index('M0_ref')][6:-6,...]
+    T1_ref = data[names.index('t1_corr')]
+    M0_ref = data[names.index('m0_corr')]
     plot_names.append("Reference")
     plot_names.append(" ")
     NResults -=1
@@ -125,10 +125,11 @@ for files in filenames:
 #    
 for i in range(len(T1_tgv)):
   if len(T1_tgv[i].shape)>3:
-    T1_tgv[i] = -tr/np.log(np.flip(T1_tgv[i],axis=0))
+#    T1_tgv[i] = -tr/np.log(np.flip(T1_tgv[i],axis=0))
+    T1_tgv[i] = np.flip(T1_tgv[i],axis=0)
     M0_tgv[i] = np.flip(M0_tgv[i],axis=0)
-    tmp_T1 = np.ones((40,256,256),dtype=np.complex64)
-    tmp_M0 = np.ones((40,256,256),dtype=np.complex64)
+    tmp_T1 = np.ones((40,212,212),dtype=np.complex64)
+    tmp_M0 = np.ones((40,212,212),dtype=np.complex64)
     for k in range(T1_tgv[i].shape[2]):
       for j in range(T1_tgv[i].shape[0]):
         if np.sum(T1_tgv[i][j,1,k,...]):
@@ -153,7 +154,7 @@ M0_plot=[]
 T1_min = 300
 T1_max = 3000
 M0_min = 0
-M0_max = np.abs(np.max(M0_tgv[0]))
+M0_max = np.abs(np.max(M0_tgv[0]))*0.5
 
 
 ax_ref = []
@@ -274,7 +275,59 @@ for j in range(NResults):
   plt.savefig('/media/data/Papers/Parameter_Mapping/3D_'+save_name+'_'+str(j)+'.svg', format='svg', dpi=1000)
 
 
+ax_M0 = []
+for j in range(NResults): 
+  M0 = M0_tgv[j]*mask
+  M0_plot=[]
+  
+  M0_plot.append(np.squeeze(M0[int(z/2),:,:,]).T)
+  M0_plot.append(np.flip((M0[:,int(x/2+10),:]).T,1))
+  M0_plot.append([])
+  M0_plot.append((M0[:,:,int(y/2-15)]))
+  M0_plot.append(np.zeros((20,20)))
+  M0_plot.append([])
+#  T1_min = 300
+#  T1_max = 3000
+  
+  fig = plt.figure(figsize = (8,8))
+  fig.subplots_adjust(hspace=0, wspace=0)
+  fig.patch.set_facecolor(cm.viridis.colors[0])
+  upper_bg = patches.Rectangle((0, 0), width=1, height=1, 
+                               transform=fig.transFigure,      # use figure coordinates
+                               facecolor=cm.viridis.colors[0],               # define color
+                               edgecolor='none',               # remove edges
+                               zorder=0)     
+  fig.patches.extend([upper_bg])
+  gs = gridspec.GridSpec(2,3, width_ratios=[x/z,1,1/10],height_ratios=[x/z,1])
+  #ax = [fig.add_subplot(2,2,i+1) for i in range(4)]
 
+#  plot_extend_x = [1,z/x,1/10,1,z/x,1/10]
+#  plot_extend_y = [1,1,1,z/x,z/x,z/x]
+#  extent=[0,plot_extend_x[i],0,plot_extend_y[i]]
+  
+  for i in range(6):
+    ax_M0.append(plt.subplot(gs[i]))  
+    if i==2 or i==5:
+      ax_M0[i+j*6].axis('off')    
+    else:
+      im = ax_M0[i+j*6].imshow(np.abs(M0_plot[i]),vmin=M0_min,vmax=M0_max, aspect=1,cmap=cm.viridis)
+      ax_M0[i+j*6].axis('off')
+
+  #  ax[i].axis('scaled')
+  ax_M0[0+j*6].set_anchor("SE")  
+  ax_M0[1+j*6].set_anchor("SW")  
+  ax_M0[2+j*6].set_anchor("C")  
+  ax_M0[3+j*6].set_anchor("NE")  
+  ax_M0[4+j*6].set_anchor("NW")  
+  ax_M0[5+j*6].set_anchor("C")  
+  cax = plt.subplot(gs[:,2])
+  cbar = fig.colorbar(im, cax=cax)
+  cbar.ax.tick_params(labelsize=12,colors='white')
+  for spine in cbar.ax.spines:
+    cbar.ax.spines[spine].set_color('white')
+  #fig.colorbar(im, pad=0)
+  plt.show()  
+  plt.savefig('/media/data/Papers/Parameter_Mapping/3D_'+save_name+'_'+str(j)+'_M0.svg', format='svg', dpi=1000)
 
 #
 #if int(input("Enter 0 for no ref or 1 for ref: ")):
@@ -322,7 +375,7 @@ from matplotlib.path import Path
 
 import polyroi as polyroi
 
-roi = polyroi.polyroi(T1_ref,int(z/2))
+roi = polyroi.polyroi(T1_ref,int(0/2))
 #test = np.array(roi.select_roi())
  
 
@@ -349,13 +402,13 @@ if roi_num > 0:
     mask = polypath.contains_points(coord_map).reshape(y,x)
 #    mean_TGV.append(np.abs(np.mean(T1_ref[int(z/2),int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))
 #    std_TGV.append(np.abs(np.std(T1_ref[int(z/2),int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])])))      
-    mean_TGV.append(np.abs(np.mean(T1_ref[int(z/2),mask.T])))
-    std_TGV.append(np.abs(np.std(T1_ref[int(z/2),mask.T])))   
+    mean_TGV.append(np.abs(np.mean(T1_ref[int(0/2),mask.T])))
+    std_TGV.append(np.abs(np.std(T1_ref[int(0/2),mask.T])))   
     for i in range(NResults):
       mean_TGV.append(np.abs(np.mean(T1_tgv[i][int(z/2),mask.T])))
       std_TGV.append(np.abs(np.std(T1_tgv[i][int(z/2),mask.T])))
       statistic.append(stat.ttest_ind(np.abs(T1_tgv[i][int(z/2),mask.T]).flatten(),
-                                      np.abs((T1_ref[int(z/2),mask.T]).flatten())
+                                      np.abs((T1_ref[int(0/2),mask.T]).flatten())
                                       ,equal_var=False))
 #      statistic.append(stat.normaltest(np.abs(T1_tgv[0][int(z/2),int(r[0]):int(r[0]+r[2]), int(r[1]):int(r[1]+r[3])]).flatten()))
 #    rects = patches.Rectangle((int(r[0]),int(r[1])),
@@ -366,8 +419,8 @@ if roi_num > 0:
     ax_ref[0].text(posx,posy,str(j+1),color='red')
     ax_ref[0].add_patch(rects) 
 
-  mean_TGV = np.round(pd.DataFrame(np.reshape(np.asarray(mean_TGV),(roi_num,NResults+1)).T,index=['Reference','34_2D','34','21_2D','21','13_2D','13','08_2D','08'],columns=col_names),decimals=0)
-  std_TGV =  np.round(pd.DataFrame(np.reshape(np.asarray(std_TGV),(roi_num,NResults+1)).T,index=['Reference','34_2D','34','21_2D','21','13_2D','13','08_2D','08'],columns=col_names),decimals=0)
+  mean_TGV = np.round(pd.DataFrame(np.reshape(np.asarray(mean_TGV),(roi_num,NResults+1)).T,index=['Reference','34_2D'],columns=col_names),decimals=0)
+  std_TGV =  np.round(pd.DataFrame(np.reshape(np.asarray(std_TGV),(roi_num,NResults+1)).T,index=['Reference','34_2D'],columns=col_names),decimals=0)
   
   f = open("3Drois.tex","w")
   f.write(mean_TGV.to_latex())
@@ -425,7 +478,7 @@ V = np.logspace(np.log10(10),4+np.log10(5),num=3*(4+np.log10(5)-np.log10(10)+1),
 # int(np.sqrt(np.sum(mask2/z)))
 for i in range(NResults):
   ax_hist.append(hist_fig.add_subplot(gs_hist[i]))
-  myhist.append(ax_hist[i].hist2d(np.abs(T1_ref[mask2>0].flatten()),np.abs(T1_tgv[i][mask2>0].flatten()),
+  myhist.append(ax_hist[i].hist2d(np.abs(T1_ref[0,mask2>0].flatten()),np.abs(T1_tgv[i][int(z/2),mask2>0].flatten()),
                       bins=100,range=[[0,4500],[0,4500]],norm=LogNorm()))
   data = myhist[i][0]
   data[data<0] = 0
