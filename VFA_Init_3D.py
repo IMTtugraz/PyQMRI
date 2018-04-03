@@ -20,7 +20,7 @@ import primaldualtoolbox
 DTYPE = np.complex64
 np.seterr(divide='ignore', invalid='ignore')
    
-os.system("taskset -p 0xfff %d" % os.getpid()) 
+#os.system("taskset -p 0xfff %d" % os.getpid()) 
 
 ################################################################################
 ### Initiate parallel interface ################################################
@@ -295,7 +295,7 @@ del op
 ### Init forward model and initial guess #######################################
 ################################################################################
 model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images,\
-                            par.phase_map,NSlice)
+                            par.phase_map,NSlice,Nproj)
 
 #test_T1 = np.reshape(np.linspace(10,5500,dimX*dimY*NSlice),(NSlice,dimX,dimY))/model.T1_sc
 #G_x = model.execute_forward_3D(np.array([1*np.ones((NSlice,dimY,dimX),dtype=DTYPE),np.exp(-model.TR/(test_T1*np.ones((NSlice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE))
@@ -326,16 +326,16 @@ irgn_par = struct()
 irgn_par.max_iters = 300
 irgn_par.start_iters = 100
 irgn_par.max_GN_it = 20
-irgn_par.lambd = 5e2
-irgn_par.gamma = 1e1   #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.lambd = 1e2
+irgn_par.gamma = 1e0   #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-1 #### 8spk in-vivo 1e-2
 irgn_par.omega = 0e-10
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 5e-1  
+irgn_par.gamma_min = 1e-1  
 irgn_par.delta_max = 1e0
 irgn_par.tol = 5e-3
 irgn_par.stag = 1.00
-irgn_par.delta_inc = 10
+irgn_par.delta_inc = 2
 irgn_par.gamma_dec = 0.7
 opt.irgn_par = irgn_par
 
@@ -351,7 +351,7 @@ del opt
 ## IRGN - Tikhonov referenz ###################################################
 ###############################################################################
 model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images,\
-                            par.phase_map,NSlice)
+                            par.phase_map,NSlice,Nproj)
 
 opt_t = Model_Reco_Tikh.Model_Reco(par)
 
@@ -378,7 +378,7 @@ irgn_par.gamma_min = 1e-6
 irgn_par.delta_max = 1e0
 irgn_par.tol = 1e-5
 irgn_par.stag = 1.05
-irgn_par.delta_inc = 10
+irgn_par.delta_inc = 2
 irgn_par.gamma_dec = 0.5
 opt_t.irgn_par = irgn_par
 
@@ -391,7 +391,7 @@ del opt_t
 ###############################################################################
 ## New .hdf5 save files #######################################################
 ###############################################################################
-outdir = time.strftime("%Y-%m-%d  %H-%M-%S_"+name[:-3])
+outdir = time.strftime("%Y-%m-%d  %H-%M-%S_MRI_"+name[:-3])
 if not os.path.exists('./output'):
     os.makedirs('./output')
 os.makedirs("output/"+ outdir)

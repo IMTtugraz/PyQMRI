@@ -88,8 +88,8 @@ for files in filenames:
     names.append(name)
     data.append(file[name][()])  
   if "ref" in files:
-    T1_ref = data[names.index('T1_ref')]
-    M0_ref = data[names.index('M0_ref')]
+    T1_ref = data[names.index('T1_ref')][6:-6,...]
+    M0_ref = data[names.index('M0_ref')][6:-6,...]
     plot_names.append("Reference")
     plot_names.append(" ")
     NResults -=1
@@ -98,9 +98,9 @@ for files in filenames:
       scale_tgv = file.attrs['E1_scale_TGV']       
 #      T1_tgv.append(data[names.index("T1_final")]*5500)
 #      T1_tikh.append(data[names.index("T1_ref")]*5500)      
-      T1_tgv.append(-tr/np.log(data[names.index('T1_final')]*scale_tgv))
+      T1_tgv.append(-tr/np.log(data[names.index('full_result')]*scale_tgv))
 #      T1_tikh.append((data[names.index('T1_ref')])*tr)       
-      M0_tgv.append(data[names.index('M0_final')])
+      M0_tgv.append(data[names.index('full_result')])
 #      M0_tikh.append(data[names.index('M0_ref')])      
     else:
       if "2D" in fname:
@@ -113,10 +113,10 @@ for files in filenames:
   #      scale_ref = file.attrs['E1_scale_ref']  
   #      scale_tgv = file['full_result'].attrs['E1_scale']
   #      scale_ref = scale_tgv
-        T1_tgv.append(-tr/np.log(data[names.index('full_result')]*scale_tgv))
+        T1_tgv.append(-tr/np.log(data[names.index('T1_final')]*scale_tgv))
   #      T1_tikh.append(-tr/np.log(data[names.index('T1_ref')]*scale_ref)) 
   #      T1_tikh.append(-tr/np.log(data[names.index('T1_ref')]*scale)) 
-        M0_tgv.append(data[names.index('full_result')])
+        M0_tgv.append(data[names.index('M0_final')])
   #      M0_tikh.append(data[names.index('M0_ref')])
         
     plot_names.append(fname[-5:].split('_')[1] + " TGV")  
@@ -124,18 +124,19 @@ for files in filenames:
   file.close()
 #    
 for i in range(len(T1_tgv)):
-  T1_tgv[i] = np.flip(T1_tgv[i],axis=0)
-  M0_tgv[i] = np.flip(M0_tgv[i],axis=0)
-  tmp_T1 = np.ones((40,256,256),dtype=np.complex64)
-  tmp_M0 = np.ones((40,256,256),dtype=np.complex64)
-  for k in range(T1_tgv[i].shape[2]):
-    for j in range(T1_tgv[i].shape[0]):
-      if np.sum(T1_tgv[i][j,1,k,...]):
-        tmp_T1[k,...] = T1_tgv[i][j,1,k,...]
-        tmp_M0[k,...] = M0_tgv[i][j,0,k,...]
-        break
-  T1_tgv[i] = tmp_T1
-  M0_tgv[i] = tmp_M0
+  if len(T1_tgv[i].shape)>3:
+    T1_tgv[i] = -tr/np.log(np.flip(T1_tgv[i],axis=0))
+    M0_tgv[i] = np.flip(M0_tgv[i],axis=0)
+    tmp_T1 = np.ones((40,256,256),dtype=np.complex64)
+    tmp_M0 = np.ones((40,256,256),dtype=np.complex64)
+    for k in range(T1_tgv[i].shape[2]):
+      for j in range(T1_tgv[i].shape[0]):
+        if np.sum(T1_tgv[i][j,1,k,...]):
+          tmp_T1[k,...] = T1_tgv[i][j,1,k,...]
+          tmp_M0[k,...] = M0_tgv[i][j,0,k,...]
+          break
+    T1_tgv[i] = tmp_T1
+    M0_tgv[i] = tmp_M0
     
     
 dz = 1
@@ -215,7 +216,7 @@ for files in filenames:
       cbar.ax.spines[spine].set_color('white')
     #fig.colorbar(im, pad=0)
     plt.show()  
-    plt.savefig('/media/data/Papers/Parameter_Mapping/3D_'+save_name+'_ref.eps', format='eps', dpi=1000)
+    plt.savefig('/media/data/Papers/Parameter_Mapping/3D_'+save_name+'_ref.svg', format='svg', dpi=1000)
 
   
 ax = []
@@ -338,8 +339,8 @@ if roi_num > 0:
   std_TGV = []
   col_names = []
   statistic = []
-  selector = cv2.cvtColor(np.abs(T1_ref[int(z/2),:,:].T/np.max(3000)).astype(np.float32),cv2.COLOR_GRAY2BGR)
-  cv2.namedWindow('ROISelector', cv2.WINDOW_NORMAL)
+#  selector = cv2.cvtColor(np.abs(T1_ref[int(z/2),:,:].T/np.max(3000)).astype(np.float32),cv2.COLOR_GRAY2BGR)
+#  cv2.namedWindow('ROISelector', cv2.WINDOW_NORMAL)
   for j in range(roi_num):
 #    r = (cv2.selectROI('ROISelector',selector,fromCenter=False))
     r = np.array(roi.select_roi()) 
@@ -365,8 +366,8 @@ if roi_num > 0:
     ax_ref[0].text(posx,posy,str(j+1),color='red')
     ax_ref[0].add_patch(rects) 
 
-  mean_TGV = np.round(pd.DataFrame(np.reshape(np.asarray(mean_TGV),(roi_num,NResults+1)).T,index=['Reference','89','55','34','21','13','08'],columns=col_names),decimals=0)
-  std_TGV =  np.round(pd.DataFrame(np.reshape(np.asarray(std_TGV),(roi_num,NResults+1)).T,index=['Reference','89','55','34','21','13','08'],columns=col_names),decimals=0)
+  mean_TGV = np.round(pd.DataFrame(np.reshape(np.asarray(mean_TGV),(roi_num,NResults+1)).T,index=['Reference','89','55','34','21','13','08','89_2D','34_2D','21_2D','08_2D'],columns=col_names),decimals=0)
+  std_TGV =  np.round(pd.DataFrame(np.reshape(np.asarray(std_TGV),(roi_num,NResults+1)).T,index=['Reference','89','55','34','21','13','08','89_2D','34_2D','21_2D','08_2D'],columns=col_names),decimals=0)
   
   f = open("3Drois.tex","w")
   f.write(mean_TGV.to_latex())
@@ -408,12 +409,12 @@ mask2 = (masking.skullstrip(M0_ref))
 from matplotlib.colors import LogNorm, PowerNorm
 hist_fig = plt.figure(figsize = (8,4))
 hist_fig.subplots_adjust(hspace=0.5, wspace=0.5)
-gs_hist = gridspec.GridSpec(2,3)#, width_ratios=[0.5,0.5], height_ratios=[1])
+gs_hist = gridspec.GridSpec(4,3)#, width_ratios=[0.5,0.5], height_ratios=[1])
 ax_hist = []
 
 cont_fig = plt.figure(figsize = (8,4))
 cont_fig.subplots_adjust(hspace=0.5, wspace=0.5)
-gs_cont = gridspec.GridSpec(2,3)#, width_ratios=[0.5,0.5], height_ratios=[1])
+gs_cont = gridspec.GridSpec(4,3)#, width_ratios=[0.5,0.5], height_ratios=[1])
 ax_cont = []
 myhist = []
 mycont = []

@@ -62,7 +62,7 @@ for attributes in test_attributes:
 ################################################################################
 ### Read Data ##################################################################
 ################################################################################
-reco_Slices = 40
+reco_Slices = 5
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)    
     
 data = file['real_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE) +\
@@ -300,7 +300,7 @@ del op
 ################################################################################
 ### Init forward model and initial guess #######################################
 ################################################################################
-model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images,par.phase_map,1)
+model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images,par.phase_map,NSlice,Nproj)
 
 par.U = np.ones((data).shape, dtype=bool)
 par.U[abs(data) == 0] = False
@@ -327,16 +327,16 @@ irgn_par = struct()
 irgn_par.start_iters = 100
 irgn_par.max_iters = 300
 irgn_par.max_GN_it = 20
-irgn_par.lambd = 5e2
-irgn_par.gamma = 1e0  #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.lambd = 1e2
+irgn_par.gamma = 1e1  #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
 irgn_par.omega = 0e0
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 5e-1#gamma_min[j] # best 2e-1
-irgn_par.delta_max = 1e1#delta_max[i]# best 1e1
+irgn_par.gamma_min = 8e-2#gamma_min[j] # best 2e-1
+irgn_par.delta_max = 1e0#delta_max[i]# best 1e1
 irgn_par.tol = 5e-3
 irgn_par.stag = 1.00
-irgn_par.delta_inc = 10
+irgn_par.delta_inc = 2
 irgn_par.gamma_dec = 0.7
 opt.irgn_par = irgn_par
 
@@ -355,7 +355,7 @@ del opt
 ################################################################################
 
 model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images,\
-                            par.phase_map,NSlice)
+                            par.phase_map,NSlice,Nproj)
 opt_t = Model_Reco_Tikh.Model_Reco(par)
 
 opt_t.par = par

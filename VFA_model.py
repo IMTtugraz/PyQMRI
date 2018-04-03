@@ -34,7 +34,7 @@ class constraint:
 
 
 class VFA_Model:
-  def __init__(self,fa,fa_corr,TR,images,phase_map,Nislice):
+  def __init__(self,fa,fa_corr,TR,images,phase_map,Nislice,Nproj):
     self.constraints = []    
     self.TR = TR
     self.images = images
@@ -117,7 +117,7 @@ class VFA_Model:
 #    self.M0_guess = np.copy(M0_guess)
 ###
     test_T1 = np.reshape(np.linspace(10,5500,dimX*dimY*Nislice),(Nislice,dimX,dimY))
-    test_M0 = 1#np.reshape(np.linspace(0,1,dimX*dimY*Nislice),(Nislice,dimX,dimY))
+    test_M0 = 0.1*np.sqrt((dimX*np.pi/2)/Nproj)
     G_x = self.execute_forward_3D(np.array([test_M0/self.M0_sc*np.ones((Nislice,dimY,dimX),dtype=DTYPE),1/self.T1_sc*np.exp(-self.TR/(test_T1*np.ones((Nislice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE))
     self.M0_sc = self.M0_sc*np.median(np.abs(images))/np.median(np.abs(G_x))
 #    test_M0 = 0.5
