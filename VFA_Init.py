@@ -62,7 +62,7 @@ for attributes in test_attributes:
 ################################################################################
 ### Read Data ##################################################################
 ################################################################################
-reco_Slices = 5
+reco_Slices = 1
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)    
     
 data = file['real_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE) +\
@@ -108,7 +108,7 @@ par.Nproj = Nproj
 #### TEST
 par.unknowns_TGV = 2
 par.unknowns_H1 = 0
-par.unknowns = 2
+par.unknowns = par.unknowns_TGV+par.unknowns_H1
 
 
 ################################################################################
@@ -328,16 +328,18 @@ irgn_par.start_iters = 100
 irgn_par.max_iters = 300
 irgn_par.max_GN_it = 20
 irgn_par.lambd = 1e2
-irgn_par.gamma = 1e1  #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.gamma = 1e0  #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
-irgn_par.omega = 0e0
+irgn_par.omega = 1e3
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 8e-2#gamma_min[j] # best 2e-1
+irgn_par.gamma_min = 2e1#gamma_min[j] # best 2e-1
 irgn_par.delta_max = 1e0#delta_max[i]# best 1e1
-irgn_par.tol = 5e-3
+irgn_par.tol = 5e-5
 irgn_par.stag = 1.00
 irgn_par.delta_inc = 2
 irgn_par.gamma_dec = 0.7
+irgn_par.omega_dec = 0.5
+irgn_par.omega_min = 1e0
 opt.irgn_par = irgn_par
 
 opt.execute_2D()
