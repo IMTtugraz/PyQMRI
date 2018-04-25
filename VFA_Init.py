@@ -292,7 +292,6 @@ ctx = cl.Context(
 
 queue = cl.CommandQueue(ctx)
 opt = Model_Reco.Model_Reco(par,ctx,queue)
-
 ###############################test#####################################
 
 dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2000))/(np.linalg.norm(data.flatten()))
@@ -321,7 +320,7 @@ opt.traj = traj
 irgn_par = struct()
 irgn_par.start_iters = 100
 irgn_par.max_iters = 300
-irgn_par.max_GN_it = 1
+irgn_par.max_GN_it = 50
 irgn_par.lambd = 1e2
 irgn_par.gamma = 5e-5   #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-1#### 8spk in-vivo 1e-2
