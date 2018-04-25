@@ -330,16 +330,16 @@ irgn_par.max_GN_it = 20
 irgn_par.lambd = 1e2
 irgn_par.gamma = 1e0  #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
-irgn_par.omega = 1e3
+irgn_par.omega = 0e3
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 2e1#gamma_min[j] # best 2e-1
+irgn_par.gamma_min = 2e-1#gamma_min[j] # best 2e-1
 irgn_par.delta_max = 1e0#delta_max[i]# best 1e1
 irgn_par.tol = 5e-5
 irgn_par.stag = 1.00
 irgn_par.delta_inc = 2
 irgn_par.gamma_dec = 0.7
 irgn_par.omega_dec = 0.5
-irgn_par.omega_min = 1e0
+irgn_par.omega_min = 0e0
 opt.irgn_par = irgn_par
 
 opt.execute_2D()

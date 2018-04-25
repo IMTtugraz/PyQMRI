@@ -17,6 +17,8 @@ plt.ion()
 np.import_array()
 DTYPE = np.complex64
 ctypedef np.complex64_t DTYPE_t
+DTYPE_real = np.float32
+ctypedef np.float32_t DTYPE_t_real
 from numpy cimport ndarray
 
 #import pynfft.nfft as nfft
@@ -379,7 +381,7 @@ cdef class Model_Reco:
     
     cdef double mu_line = 0.5
     cdef double delta_line = 1
-    cdef np.ndarray[DTYPE_t, ndim=2] scal = np.zeros((self.par.dimX,self.par.dimY),dtype=DTYPE)
+    cdef np.ndarray[DTYPE_t_real, ndim=2] scal = np.zeros((self.par.dimX,self.par.dimY),dtype=DTYPE_real)
     
     cdef double ynorm = 0.0
     cdef double lhs = 0.0
@@ -441,10 +443,10 @@ cdef class Model_Reco:
         
         z1_new = z1 + beta_line*tau_new*( gradx[:self.unknowns_TGV] + theta_line*gradx_xold[:self.unknowns_TGV]
                                           - v_new - theta_line*v_vold  )
-        z1_new = z1_new/np.maximum(1,(np.sqrt(np.sum(z1_new**2,axis=(0,1)))/alpha))
+        z1_new = z1_new/np.maximum(1,(np.sqrt(np.sum(np.abs(z1_new)**2,axis=(0,1)))/alpha))
      
         z2_new = z2 + beta_line*tau_new*( symgrad_v + theta_line*symgrad_v_vold )
-        scal = np.sqrt( np.sum(z2_new[:,0,:,:]**2 + z2_new[:,1,:,:]**2 + 2*z2_new[:,2,:,:]**2,axis=0) )
+        scal = np.sqrt( np.sum(np.abs(z2_new[:,0,:,:])**2 + np.abs(z2_new[:,1,:,:])**2 + 2*np.abs(z2_new[:,2,:,:])**2,axis=0) )
 
         scal = np.maximum(1,scal/(beta))
 
@@ -596,7 +598,7 @@ cdef class Model_Reco:
     cdef double mu_line = 0.5
     cdef double delta_line = 1
     
-    cdef np.ndarray[DTYPE_t,ndim=3] scal = np.zeros((self.par.NSlice,self.par.dimX,self.par.dimY),dtype=DTYPE)
+    cdef np.ndarray[DTYPE_t_real,ndim=3] scal = np.zeros((self.par.NSlice,self.par.dimX,self.par.dimY),dtype=DTYPE_real)
     
     cdef double ynorm = 0
     cdef double lhs = 0
@@ -654,12 +656,12 @@ cdef class Model_Reco:
         theta_line = tau_new/tau
         
         z1_new = z1 + beta_line*tau_new*( gradx[:self.unknowns_TGV] + theta_line*gradx_xold[:self.unknowns_TGV] - v_new - theta_line*v_vold  )
-        z1_new = z1_new/np.maximum(1,(np.sqrt(np.sum(z1_new**2,axis=(0,1)))/alpha))
+        z1_new = z1_new/np.maximum(1,(np.sqrt(np.sum(np.abs(z1_new)**2,axis=(0,1)))/alpha))
 
         z2_new = z2 + beta_line*tau_new*( symgrad_v + theta_line*symgrad_v_vold )
-        scal = np.sqrt( np.sum(z2_new[:,0,:,:,:]**2 + z2_new[:,1,:,:,:]**2 +
-                    z2_new[:,2,:,:,:]**2+ 2*z2_new[:,3,:,:,:]**2 + 
-                    2*z2_new[:,4,:,:,:]**2+2*z2_new[:,5,:,:,:]**2,axis=0))
+        scal = np.sqrt( np.sum(np.abs(z2_new[:,0,:,:,:])**2 + np.abs(z2_new[:,1,:,:,:])**2 +
+                    np.abs(z2_new[:,2,:,:,:])**2+ 2*np.abs(z2_new[:,3,:,:,:])**2 + 
+                    2*np.abs(z2_new[:,4,:,:,:])**2+2*np.abs(z2_new[:,5,:,:,:])**2,axis=0))
         scal = np.maximum(1,scal/(beta))
         z2_new = z2_new/scal
         
