@@ -20,8 +20,9 @@ import pyopencl as cl
 DTYPE = np.complex64
 np.seterr(divide='ignore', invalid='ignore')
    
+import ipyparallel as ipp
 
-import MR_Phantom
+c = ipp.Client()
   
 ################################################################################
 ### Select input file ##########################################################
@@ -59,11 +60,11 @@ for attributes in test_attributes:
 ################################################################################
 ### Read Data ##################################################################
 ################################################################################
-reco_Slices = 3
+reco_Slices = 1
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)    
     
-data = file['real_dat'][:,:,int(NSlice/2)-int(reco_Slices/2):int(NSlice/2)+int(reco_Slices/2)+1,...].astype(DTYPE) +\
-       1j*file['imag_dat'][:,:,int(NSlice/2)-int(reco_Slices/2):int(NSlice/2)+int(reco_Slices/2)+1,...].astype(DTYPE)
+data = file['real_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE) +\
+       1j*file['imag_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE)
 
 
 traj = file['real_traj'][()].astype(DTYPE) + \
@@ -71,13 +72,6 @@ traj = file['real_traj'][()].astype(DTYPE) + \
 
 
 dcf = np.array(goldcomp.cmp(traj),dtype=DTYPE)
-
-
-
-
-############### Set number of Slices ###########################################
-
-
 
 #Create par struct to store everyting
 class struct:
@@ -88,7 +82,7 @@ par = struct()
 ### FA correction ##############################################################
 ################################################################################
 
-par.fa_corr = file['fa_corr'][int(NSlice/2)-int(reco_Slices/2):int(NSlice/2)+int(reco_Slices/2)+1,...].astype(DTYPE)
+par.fa_corr = np.flip(file['fa_corr'][()].astype(DTYPE),0)[int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...]
 par.fa_corr[par.fa_corr==0] = 1
 
 
