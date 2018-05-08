@@ -101,7 +101,7 @@ def generate_birdcage_sensitivities(matrix_size = 256, number_of_coils = 8, rela
 
 
 
-def generate_phantom_data(N=128, M=128, NC=4, TR = 5,  TR_bSSFP=5,  genBoth = True):
+def generate_phantom_data(N=128, M=128, NC=4, TR = 5,  TR_bSSFP=5,  genBoth = False):
     #N,M image Dimensions, NC number of coils TR and TR_bSSFP
     #Generate Parameter Maps
     params = Parameter()
@@ -117,14 +117,14 @@ def generate_phantom_data(N=128, M=128, NC=4, TR = 5,  TR_bSSFP=5,  genBoth = Tr
     #Flip angles for the FLASH sequence, equal to number of Scans
     alpha = np.array([1, 3, 5, 7, 9, 11, 13, 15, 17, 19])*pi/180
     #Add Noise to every coil:
-    randnoise = 0.001*np.random.randn(N, M, NC)
+    randnoise = 0.00*np.random.randn(N, M, NC)
     coils_noisy = coils+randnoise
     #... and common Noise to the image
-    commnoise = 0.001*np.random.randn(N, M, 1)
+    commnoise = 0.00*np.random.randn(N, M, 1)
     #Generate FLASH Data
     data1 = np.zeros((N, M,  NC, np.size(alpha)), dtype =np.complex64)
     for i in range(0, np.size(alpha)):
-        data1[:, :, :, i] =np.fft.fft2(np.multiply(np.repeat(FLASH(M0, T1, alpha[i],  TR)+commnoise, NC, axis=2), coils_noisy), axes=(0, 1), norm='ortho')
+        data1[:, :, :, i] = (np.multiply(np.repeat(FLASH(M0, T1, alpha[i],  TR)+commnoise, NC, axis=2), (coils_noisy)))
     if (genBoth):
         alpha_bSSFP =  np.array([5, 10, 15, 20, 25, 30, 35, 40, 50, 60, 70])*pi/180
         #Add Noise to every coil:

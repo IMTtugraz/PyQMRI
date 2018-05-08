@@ -20,7 +20,8 @@ import pyopencl as cl
 DTYPE = np.complex64
 np.seterr(divide='ignore', invalid='ignore')
    
-os.system("taskset -p 0xff %d" % os.getpid()) 
+
+import MR_Phantom
   
 ################################################################################
 ### Select input file ##########################################################
@@ -58,11 +59,11 @@ for attributes in test_attributes:
 ################################################################################
 ### Read Data ##################################################################
 ################################################################################
-reco_Slices = 1
+reco_Slices = 3
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)    
     
-data = file['real_dat'][:,:,int(NSlice/2)-1:int(NSlice/2),...].astype(DTYPE) +\
-       1j*file['imag_dat'][:,:,int(NSlice/2)-1:int(NSlice/2),...].astype(DTYPE)
+data = file['real_dat'][:,:,int(NSlice/2)-int(reco_Slices/2):int(NSlice/2)+int(reco_Slices/2)+1,...].astype(DTYPE) +\
+       1j*file['imag_dat'][:,:,int(NSlice/2)-int(reco_Slices/2):int(NSlice/2)+int(reco_Slices/2)+1,...].astype(DTYPE)
 
 
 traj = file['real_traj'][()].astype(DTYPE) + \
@@ -87,7 +88,7 @@ par = struct()
 ### FA correction ##############################################################
 ################################################################################
 
-par.fa_corr = file['fa_corr'][int(NSlice/2)-1:int(NSlice/2),...].astype(DTYPE)
+par.fa_corr = file['fa_corr'][int(NSlice/2)-int(reco_Slices/2):int(NSlice/2)+int(reco_Slices/2)+1,...].astype(DTYPE)
 par.fa_corr[par.fa_corr==0] = 1
 
 
@@ -280,10 +281,26 @@ model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images,par.phase_map,1,Npr
 par.U = np.ones((data).shape, dtype=bool)
 par.U[abs(data) == 0] = False
 
-data = np.fft.fftshift(np.fft.fft(np.fft.fftshift(data_save/np.sqrt(dcf),-1),axis=-1)/np.sqrt(512),-1)
+data = np.fft.ifftshift(np.fft.fft(np.fft.fftshift(data_save/np.sqrt(dcf),-1),axis=-1)/np.sqrt(512),-1)
+#data = data[:,:,:,:,int(N/2-dimX/2):int(N/2+dimX/2)]
+#par.N = 512
+#par.dimX = 128
+#par.dimY = 128
+
+#test = MR_Phantom.generate_phantom_data(256,256,NC=4,TR=par.TR).T
+#
+#data = opt.nFT_2D((test))
+#
+#
+#test1 = clarray.to_device(opt.queue,data[0,:,0,...].T)
+#test2 = clarray.zeros(opt.queue,(256,256),dtype=DTYPE,order='F')
+#
+#opt.operator_adjoint_2D(test2,test1)
+
 ################################################################################
 ### IRGN - TGV Reco ############################################################
 ################################################################################
+import Model_Reco_OpenCL_Kristian as Model_Reco
 platforms = cl.get_platforms()
 
 ctx = cl.Context(
@@ -291,28 +308,22 @@ ctx = cl.Context(
         properties=[(cl.context_properties.PLATFORM, platforms[1])])
 
 queue = cl.CommandQueue(ctx)
-opt = Model_Reco.Model_Reco(par,ctx,queue)
+opt = Model_Reco.Model_Reco(par,ctx,queue,traj,model)
+
+data = np.linalg.norm(data_save)/np.linalg.norm(data)*data
+
+
 ###############################test#####################################
+#
+#dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2000))/(np.linalg.norm(data.flatten()))
+#par.dscale = dscale
+#data = data*dscale
 
-dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2000))/(np.linalg.norm(data.flatten()))
-par.dscale = dscale
-data = data*dscale
-
-#images2= (np.sum(opt.FTH(data[:,:,0,...])[:,:,None,...]*(np.conj(opt.par.C)),axis = 1))
-
-#tmp_traj = np.zeros((10,21,512),dtype=DTYPE)
-#for i in range(10):
-#  tmp_traj[i,...] = traj[i,i*21:(i+1)*21]
-
-
-opt.par = par
 opt.data =  data
 opt.images = images
 opt.nfftplan = plan
 opt.dcf = np.sqrt(dcf)
 opt.dcf_flat = np.sqrt(dcf).flatten()
-opt.model = model
-opt.traj = traj 
 
 #IRGN Params
 ################################################################################
@@ -320,17 +331,17 @@ opt.traj = traj
 irgn_par = struct()
 irgn_par.start_iters = 100
 irgn_par.max_iters = 300
-irgn_par.max_GN_it = 50
+irgn_par.max_GN_it = 20
 irgn_par.lambd = 1e2
-irgn_par.gamma = 5e-5   #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.gamma = 1e-1   #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-1#### 8spk in-vivo 1e-2
 irgn_par.omega = 0e-10
 irgn_par.display_iterations = True
 irgn_par.gamma_min = 1e-3
-irgn_par.delta_max = 1e3
-irgn_par.tol = 1e-5
+irgn_par.delta_max = 1e1
+irgn_par.tol = 1e-6
 irgn_par.stag = 1.00
-irgn_par.delta_inc = 2
+irgn_par.delta_inc = 5
 opt.irgn_par = irgn_par
 
 
@@ -358,7 +369,7 @@ msv.imshow(np.abs(test))
 opt_t = Model_Reco_Tikh.Model_Reco(par)
 
 opt_t.par = par
-opt_t.data =  data
+opt_t.data =  data_save
 opt_t.images = images
 opt_t.nfftplan = plan
 opt_t.dcf = np.sqrt(dcf)

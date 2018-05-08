@@ -31,9 +31,11 @@ class Program(object):
 
 
 class Model_Reco: 
-  def __init__(self,par,ctx,queue):
+  def __init__(self,par,ctx,queue,traj,model):
     self.par = par
     self.C = par.C
+    self.traj = traj
+    self.model = model
     self.unknowns_TGV = par.unknowns_TGV
     self.unknowns_H1 = par.unknowns_H1
     self.unknowns = par.unknowns
@@ -174,6 +176,7 @@ __kernel void functional_tgv(__global float *accum, __global float *u,
   accum[i] = alpha1*hypot(val.s0, val.s1)
            + alpha0*hypot(hypot(val2.s0, val2.s1), 2.0f*val2.s2);
 }
+
 __kernel void radon(__global float2 *sino, __global float2 *img,
                     __constant float4 *ofs, const int X,
                     const int Y, const int CS, const float scale)
@@ -184,12 +187,12 @@ __kernel void radon(__global float2 *sino, __global float2 *img,
   size_t j = get_global_id(1);
   size_t k = get_global_id(0);
   
-  int scan = (k/CS);
+  size_t scan = k/CS;
+    
+  img += k*X*Y;
 
   float4 o = ofs[j+scan*J];
   float2 acc = 0.0f;
-  
-  img += k*(X*Y);
   
   for(int y = 0; y < Y; y++) {
     int x_low, x_high;
@@ -219,7 +222,7 @@ __kernel void radon(__global float2 *sino, __global float2 *img,
     }
     img += X;
   }
-  sino[k*I*J + j*I + i] = acc/scale;
+  sino[k*I*J+j*I + i] = acc/scale;
 }
 
 __kernel void radon_ad(__global float2 *img, __global float2 *sino,
@@ -232,14 +235,14 @@ __kernel void radon_ad(__global float2 *img, __global float2 *sino,
   size_t y = get_global_id(1);
   size_t k = get_global_id(0);
   
-  int scan = (k/CS);  
+  size_t scan = k/CS;
+  
+  sino += k*I*J;
 
   float4 c = (float4)(x,y,1,0);
   float2 acc = 0.0f;
-  sino += k*(I*J);
-  
   for (int j=0; j < J; j++) {
-    float i = dot(c, ofs[j+scan*J]);
+    float i = dot(c, ofs[j+J*scan]);
     if ((i > -1) && (i < I)) {
       float i_floor;
       float2 w = fract(i, &i_floor);
@@ -248,191 +251,139 @@ __kernel void radon_ad(__global float2 *img, __global float2 *sino,
     }
     sino += I;
   }
-  img[k*X*Y + y*X + x] = acc/scale;
+  img[k*X*Y+y*X + x] = acc/scale;
 }
-    
 __kernel void operator_fwd(__global float2 *out, __global float2 *in,
                        __global float2 *coils, __global float2 *grad, const int NCo,
-                       const int NSl, const int NSc, const int NUn)
+                       const int NSl, const int NScan, const int Nuk)
 {
-  size_t X = get_global_size(1);
-  size_t Y = get_global_size(0);
-  size_t x = get_global_id(1);
-  size_t y = get_global_id(0);
- // size_t k = get_global_id(0);
+  size_t X = get_global_size(0);
+  size_t Y = get_global_size(1);
+  size_t x = get_global_id(0);
+  size_t y = get_global_id(1);
   
-  //int scan = k/(NSl*NCo);
-  //int coil = (k-scan*(NSl*NCo))/(NSl);
-  //int slice = (k-scan*(NSl*NCo)-coil*NSl);
-  
-  
-  for (int j=0; j < NUn; j++)
-  {
-  for (int scan=0; scan < NSc; scan++)
-  {
-  for (int coil=0; coil < NCo; coil++)
-  {
+  float2 tmp_in = 0.0f;
+  float2 tmp_grad = 0.0f;
+  float2 tmp_coil = 0.0f;
+  float2 tmp_mul = 0.0f;
+
   for (int slice=0; slice < NSl; slice++)
   {
-    float2 tmp_in = in[j*NSl*X*Y + slice*X*Y+ y*X + x];
-    float2 tmp_grad = grad[j*NSc*NSl*X*Y + scan*NSl*X*Y+ slice*X*Y+y*X+x];
-    float2 tmp_coil = coils[coil*NSl*X*Y + slice*X*Y + y*X + x];
-    
-    float2 tmp_mul =  (float2)(tmp_in.x*tmp_grad.x-tmp_in.y*tmp_grad.y,tmp_in.x*tmp_grad.y+tmp_in.y*tmp_grad.x);
-    out[scan*NCo*NSl*X*Y+coil*NSl*X*Y+slice*X*Y + y*X + x] += (float2)(tmp_mul.x*tmp_coil.x-tmp_mul.y*tmp_coil.y,
-                                                                         tmp_mul.x*tmp_coil.y+tmp_mul.y*tmp_coil.x);                                                                 
-  }
-  }
-  }
+    for (int scan=0; scan<NScan; scan++)
+    {
+      for (int coil=0; coil < NCo; coil++)
+      {
+        tmp_coil = coils[coil*NSl*X*Y + slice*X*Y + y*X + x];
+        float2 sum = 0.0f;
+        for (int uk=0; uk<Nuk; uk++)
+        {
+          tmp_grad = grad[uk*NScan*NSl*X*Y+scan*NSl*X*Y + slice*X*Y + y*X + x];  
+          tmp_in = in[uk*NSl*X*Y+slice*X*Y+ y*X + x];         
+          
+          tmp_mul = (float2)(tmp_in.x*tmp_grad.x-tmp_in.y*tmp_grad.y,tmp_in.x*tmp_grad.y+tmp_in.y*tmp_grad.x);          
+          sum += (float2)(tmp_mul.x*tmp_coil.x-tmp_mul.y*tmp_coil.y,
+                                                    tmp_mul.x*tmp_coil.y+tmp_mul.y*tmp_coil.x);
+
+        }
+        out[scan*NCo*NSl*X*Y+coil*NSl*X*Y+slice*X*Y + y*X + x] = sum;
+      }
+    }
   }
   
 }
 __kernel void operator_ad(__global float2 *out, __global float2 *in,
                        __global float2 *coils, __global float2 *grad, const int NCo,
-                       const int NSl, const int NSc, const int NUn)
+                       const int NSl, const int NScan, const int Nuk)
 {
-  size_t X = get_global_size(1);
-  size_t Y = get_global_size(0);
-  size_t x = get_global_id(1);
-  size_t y = get_global_id(0);
-//  size_t k = get_global_id(0);
+  size_t X = get_global_size(0);
+  size_t Y = get_global_size(1);
+  size_t x = get_global_id(0);
+  size_t y = get_global_id(1);
   
-//  int scan = k/(NSl*NCo);
-//  int coil = (k-scan*(NSl*NCo))/(NSl);
-//  int slice = (k-scan*(NSl*NCo)-coil*NSl);
-
-  for (int j=0; j < NUn; j++)
-  {
-  for (int scan=0; scan < NSc; scan++)
-  {
-  for (int coil=0; coil < NCo; coil++)
-  {
+  float2 tmp_in = 0.0f;
+  float2 tmp_mul = 0.0f;
+  float2 conj_grad = 0.0f;
+  float2 conj_coils = 0.0f;
+  
   for (int slice=0; slice < NSl; slice++)
   {
-    float2 conj_grad = (float2) (grad[j*NSc*NSl*X*Y + scan*NSl*X*Y+ slice*X*Y+y*X+x].x, 
-                                 -grad[j*NSc*NSl*X*Y + scan*NSl*X*Y+ slice*X*Y+y*X+x].y);
-    float2 conj_coils = (float2) (coils[coil*NSl*X*Y + slice*X*Y + y*X + x].x,
-                                  -coils[coil*NSl*X*Y + slice*X*Y + y*X + x].y);
-    float2 tmp_in = in[scan*NSl*NCo*X*Y + coil*NSl*X*Y + slice*X*Y+ y*X + x];
-    
-    if(isnan(tmp_in.x) || tmp_in.y)
-    {
-      tmp_in.x = 0;
-      tmp_in.y = 0;
-    } 
-    
-    float2 tmp_mul = (float2) (tmp_in.x*conj_grad.x-tmp_in.y*conj_grad.y,tmp_in.x*conj_grad.y+tmp_in.y*conj_grad.x);
-    
-    out[j*NSl*X*Y+ slice*X*Y+y*X+x] += (float2) (tmp_mul.x*conj_coils.x-tmp_mul.y*conj_coils.y,
-                                                   tmp_mul.x*conj_coils.y+tmp_mul.y*conj_coils.x);
-
-  }
-  }
-  }
-  }
-}
-__kernel void box_con(__global float2 *out, __global float *min,
-                       __global float *max, __global int *real, const int NCon)
-{
-  size_t X = get_global_size(1);
-  size_t Y = get_global_size(0);
-  size_t x = get_global_id(1);
-  size_t y = get_global_id(0);
-
   
-  size_t id = X*y+x;
-  
-//  int scan = k/(NSl*NCo);
-//  int coil = (k-scan*(NSl*NCo))/(NSl);
-//  int slice = (k-scan*(NSl*NCo)-coil*NSl);
-
-  for (int j=0; j < NCon; j++)
+  for (int uk=0; uk<Nuk; uk++)
   {
-    if(real[j])
-    {
-      out[id].y = 0.0f;      
-      if(out[id].x >= max[j])
-      {
-        out[id].x = max[j];
-      }
-      if(out[id].x <= min[j])
-      {
-        out[id].x = min[j];
-      }
-    }
-    else  
-    {   
-      if(out[id].x >= max[j])
-      {
-        out[id].x = max[j];
-      }
-      if(out[id].x <= min[j])
-      {
-        out[id].x = min[j];
-      }
-      if(out[id].y >= max[j])
-      {
-        out[id].y = max[j];
-      }
-      if(out[id].y <= min[j])
-      {
-        out[id].y = min[j];
-      }      
-    }
+  float2 sum = (float2) 0.0f;  
+  for (int scan=0; scan<NScan; scan++)
+  {
+    conj_grad = (float2) (grad[uk*NScan*NSl*X*Y+scan*NSl*X*Y + slice*X*Y + y*X + x].x,
+                          -grad[uk*NScan*NSl*X*Y+scan*NSl*X*Y + slice*X*Y + y*X + x].y);  
+  for (int coil=0; coil < NCo; coil++)
+  {
+    conj_coils = (float2) (coils[coil*NSl*X*Y + slice*X*Y + y*X + x].x,
+                                  -coils[coil*NSl*X*Y + slice*X*Y + y*X + x].y);
+
+    tmp_in = in[scan*NCo*NSl*X*Y+coil*NSl*X*Y + slice*X*Y+ y*X + x];
+    tmp_mul = (float2)(tmp_in.x*conj_grad.x-tmp_in.y*conj_grad.y,tmp_in.x*conj_grad.y+tmp_in.y*conj_grad.x);    
+
+
+    sum += (float2)(tmp_mul.x*conj_coils.x-tmp_mul.y*conj_coils.y, 
+                                     tmp_mul.x*conj_coils.y+tmp_mul.y*conj_coils.x);
   }
-}
+  }
+  out[uk*NSl*X*Y+slice*X*Y+y*X+x] = sum; 
+  }
+  
+  }
+}  
 """)
 
-
+    self.r_struct=self.radon_struct()
+    self.scale = (self.radon_normest())
+    print("Radon Norm: %f" %(self.scale))
 
 
     print("Please Set Parameters, Data and Initial images")
       
   def radon_struct(self, n_detectors=None,
                    detector_width=1.0, detector_shift=0.0):
-      if np.isscalar(self.Nproj):
-          angles = np.mod(-90+111.246117975*np.arange(self.Nproj*self.NScan),360)/180*np.pi#linspace(0,pi,angles+1)[:-1]
-      if n_detectors is None:
-          nd = 2*np.max((self.dimX,self.dimY))#int(ceil(hypot(shape[0],shape[1])))
-      else:
-          nd = n_detectors
-          
-      shift_read = np.array((0.0298, 0.0325 ,  0.0309  , 0.0338  , 0.0341   ,0.0334   ,0.0343   ,-0.0322  , 0.0295,   0.0316))
-      shift_phase = np.array((0.0916,0.0911,0.0889,0.0901,0.0940,0.0919,0.0951,0.0965,0.1004,0.1055))
+
+    angles = np.reshape(np.angle(self.traj[:,:,0]),(self.Nproj*self.NScan))
+#    angles = np.linspace(0,np.pi,(self.Nproj))
+    nd = self.N
+    shift_read = np.array((-0.0322,-0.0314 ,  -0.0319  , -0.0315  , -0.0312   ,-0.0302   ,-0.0306   ,-0.0302  , -0.0302,       -0.0300))
+    shift_phase = np.array((0.1280  ,  0.1283 ,   0.1282  ,  0.1307 ,   0.1333  ,  0.1327  ,  0.1379,    0.1395 ,   0.1293,    0.1290))
            
-      midpoint_domain = np.zeros((self.NScan,2))
-      for i in range(self.NScan):
-        midpoint_domain[i,:] = np.array([self.dimX/2.0-shift_read[i], self.dimY/2.0-shift_phase[i]])
-      midpoint_domain = np.repeat(midpoint_domain,self.Nproj)  
-      midpoint_detectors = (nd-1.0)/2.0
-      
-      angles = np.reshape(np.angle(self.traj[:,:,0]),(self.Nproj*self.NScan))
-  
-      X = np.cos(angles)/detector_width
-      Y = np.sin(angles)/detector_width
-      Xinv = 1.0/X
-  
-      # set near vertical lines to vertical
-      mask = abs(Xinv) > 10*nd
-      X[mask] = 0
-      Y[mask] = np.sin(angles[mask]).round()/detector_width
-      Xinv[mask] = 0
-      
-      offset = midpoint_detectors - X*midpoint_domain[0] \
-               - Y*midpoint_domain[1] + detector_shift/detector_width
-  
-      ofs = np.zeros((self.NScan*self.Nproj,4), dtype=np.float32, order='C')
-      ofs[:,0] = X; ofs[:,1] = Y; ofs[:,2] = offset; ofs[:,3] = Xinv
-      ofs = np.require(ofs.reshape((self.NScan,self.Nproj,4)), np.float32, 'C')
-  
-      ofs_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=ofs.data)
-      
-      sinogram_shape = (self.NScan*self.NSlice*self.NC,self.Nproj,nd)
-      
-      return (ofs_buf, (self.NScan*self.NSlice*self.NC,self.dimX,self.dimY), sinogram_shape)
+    midpoint_domain = np.zeros((self.NScan,2))
+    for i in range(self.NScan):
+#        midpoint_domain[i,:] = np.array([(self.dimX-1)/2.0-shift_read[i], (self.dimY-1)/2.0-shift_phase[i]])
+      midpoint_domain[i,:] = np.array([(self.dimX-1)/2.0, (self.dimY-1)/2.0])
+    midpoint_domain=np.repeat(midpoint_domain,self.Nproj,0)    
+        
+    midpoint_detectors = (nd-1.0)/2.0
+   
+    X = np.cos(angles)/detector_width
+    Y = np.sin(angles)/detector_width
+    Xinv = 1.0/X
+   
+    # set near vertical lines to vertical
+    mask = np.abs(Xinv) > 10*nd
+    X[mask] = 0
+    Y[mask] = np.sin(angles[mask]).round()/detector_width
+    Xinv[mask] = 0
+   
+    offset = midpoint_detectors - X*midpoint_domain[:,0] \
+             - Y*midpoint_domain[:,1] + detector_shift/detector_width
+             
+    ofs = np.zeros((len(angles),4), dtype=np.float32, order='C')
+    ofs[:,0] = X; ofs[:,1] = Y; ofs[:,2] = offset; ofs[:,3] = Xinv
+   
+    ofs_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=ofs.data)
+   #    cl.enqueue_copy(queue, ofs_buf, ofs.data).wait()
     
+    sinogram_shape = (self.NScan*self.NC*self.NSlice,self.Nproj,nd)
+    
+    return (ofs_buf, (self.NScan*self.NC*self.NSlice,self.dimY,self.dimX), sinogram_shape)
+       
   
-  def radon(self,sino, img, wait_for=None, scan=0):
+  def radon(self,sino, img, scan=0, wait_for=None):
       (ofs_buf, shape, sinogram_shape) = self.r_struct
       
       return self.prg.radon(sino.queue, sinogram_shape, None,
@@ -441,7 +392,7 @@ __kernel void box_con(__global float2 *out, __global float *min,
                        np.int32(self.NC*self.NSlice), np.float32(self.scale),
                        wait_for=wait_for)
   
-  def radon_ad(self,img, sino, wait_for=None, scan=0):
+  def radon_ad(self,img, sino, scan=0, wait_for=None):
       (ofs_buf, shape, sinogram_shape) = self.r_struct
   
       return self.prg.radon_ad(img.queue, shape, None,
@@ -488,16 +439,19 @@ __kernel void box_con(__global float2 *out, __global float *min,
     test = np.abs(a-b)
     print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,(test)))
     x_old = np.copy(x)
-    x = clarray.to_device(self.queue,x)
-    res = data - self.FT(self.step_val[:,None,:,:]*self.Coils) + self.operator_forward_2D(x).get()
-  
-    x = self.tgv_solve_2D(x,res,iters)      
     
-    self.fval= (self.irgn_par.lambd/2*np.linalg.norm(data - self.FT(self.model.execute_forward_2D(x,0)[:,None,:,:]*self.Coils))**2
+    x = clarray.to_device(self.queue,np.require(x,requirements="C"))
+    a = np.squeeze(self.operator_forward_2D(x).get())
+    b = np.squeeze(self.FT(self.step_val[:,None,...]*self.Coils))
+
+    res = np.squeeze(data) - b + a
+  
+    x = self.tgv_solve_2D(x.get(),res,iters)      
+    
+    self.fval= (self.irgn_par.lambd/2*np.linalg.norm(data - np.squeeze(self.FT(self.model.execute_forward_2D(x,0)[:,None,:,:]*self.Coils)))**2
            +self.irgn_par.gamma*np.sum(np.abs(gd.fgrad_1(x[:self.unknowns_TGV,...])-self.v))
            +self.irgn_par.gamma*(2)*np.sum(np.abs(gd.sym_bgrad_2(self.v))) 
-           +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2
-           +self.irgn_par.omega/2*np.linalg.norm(gd.fgrad_1(x[-self.unknowns_H1:,...]))**2)    
+           +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2)    
     print("-"*80)
     print ("Function value after GN-Step: %f" %(self.fval/self.irgn_par.lambd))
 
@@ -505,13 +459,10 @@ __kernel void box_con(__global float2 *out, __global float *min,
   
     
   def execute_2D(self):
-      self.r_struct = self.radon_struct()
-      self.scale = (self.radon_normest())
-      print("Radon Norm: %f" %(self.scale))
-#      self.data = self.data/self.scale
-      
+     
       self.FT = self.nFT_2D
       self.FTH = self.nFTH_2D      
+#      self.irgn_par.lambd *= self.scale
 
       gamma = self.irgn_par.gamma
       delta = self.irgn_par.delta
@@ -547,11 +498,11 @@ __kernel void box_con(__global float2 *out, __global float *min,
           self.conj_grad_x_2D = np.conj(self.grad_x_2D)
                         
                         
-          self.irgn_solve_2D(result[:,islice,:,:], iters, self.data[:,:,islice,:,:])
+          result[:,islice,:,:] = self.irgn_solve_2D(result[:,islice,:,:], iters, self.data[:,:,islice,:,:])
           self.result[i,:,islice,:,:] = result[:,islice,:,:]
           
           iters = np.fmin(iters*2,self.irgn_par.max_iters)
-          self.irgn_par.gamma = np.maximum(self.irgn_par.gamma*0.1,self.irgn_par.gamma_min)
+          self.irgn_par.gamma = np.maximum(self.irgn_par.gamma*0.5,self.irgn_par.gamma_min)
           self.irgn_par.delta = np.minimum(self.irgn_par.delta*self.irgn_par.delta_inc, self.irgn_par.delta_max)
           
           end = time.time()-start
@@ -575,25 +526,26 @@ __kernel void box_con(__global float2 *out, __global float *min,
     
 #    return self.FT(np.sum(x[:,None,...]*self.grad_x_2D,axis=0)[:,None,...]*self.Coils)
        
-    tmp_img = clarray.reshape(x,(self.unknowns,self.dimY,self.dimX))
+    tmp_img = clarray.to_device(self.queue,np.require(np.reshape(x.get(),(self.unknowns*self.NSlice,self.dimY,self.dimX)),DTYPE,"C"))
     tmp_result = clarray.zeros(self.queue,(self.NScan*self.NC,self.dimY,self.dimX),DTYPE,"C")
     tmp_result.add_event(self.eval_fwd(tmp_result,tmp_img))
-    tmp_sino = clarray.zeros(self.queue,self.r_struct[2],DTYPE,"C")
+    tmp_sino = clarray.zeros(self.queue,self.r_struct[2],DTYPE,"C")#self.FT(np.reshape(tmp_result.get(),(self.NScan,self.NC,self.dimY,self.dimX)))#
     (self.radon(tmp_sino,tmp_result,wait_for=tmp_result.events)).wait()
-    result = clarray.reshape(tmp_sino,(self.NScan,self.NC,self.Nproj,self.N)) 
-    return np.squeeze(result)
+    result = clarray.reshape(tmp_sino,(self.NScan,self.NC,self.Nproj,self.N))
+    return result
     
   def operator_adjoint_2D(self, x):
     
 #    return np.squeeze(np.sum(np.squeeze(np.sum(self.FTH(x)*self.conjCoils,axis=1))*self.conj_grad_x_2D,axis=1)) 
-   
-    tmp_sino = clarray.reshape(x,(self.NScan*self.NC,self.Nproj,self.N))
-    tmp_img =  clarray.zeros(self.queue,self.r_struct[1],DTYPE,"C")
+    tmp_sino = clarray.to_device(self.queue,np.require(np.reshape(x.get(),(self.NScan*self.NC*self.NSlice,self.Nproj,self.N)),DTYPE,"C"))
+#    tmp_sino = clarray.reshape(x,(self.NScan*self.NC,self.Nproj,self.N))
+    tmp_img =  clarray.zeros(self.queue,self.r_struct[1],DTYPE,"C")#clarray.to_device(self.queue,self.FTH(x.get()))#
     (self.radon_ad(tmp_img,tmp_sino)).wait()
     tmp_result = clarray.zeros(self.queue,(self.unknowns,self.dimY,self.dimX),DTYPE,"C")
+    
     tmp_result.add_event(self.eval_adj(tmp_result,tmp_img))
-    result = np.reshape(tmp_result,(self.unknowns,self.dimY,self.dimX))
-    return np.squeeze(result)
+    result = clarray.reshape(tmp_result,(self.unknowns,self.dimY,self.dimX))
+    return result
 
   def eval_adj(self,x,y,wait_for=None):
 
@@ -622,11 +574,11 @@ __kernel void box_con(__global float2 *out, __global float *min,
   
     
   def tgv_solve_2D(self, x,res, iters):
-    alpha = self.irgn_par.gamma/self.scale**2
-    beta = self.irgn_par.gamma*2/self.scale**2
+    alpha = self.irgn_par.gamma
+    beta = self.irgn_par.gamma*2
     
-    xx = np.zeros_like(x.get(),dtype=DTYPE)
-    yy = np.zeros_like(x.get(),dtype=DTYPE)
+    xx = np.zeros_like(x,dtype=DTYPE)
+    yy = np.zeros_like(x,dtype=DTYPE)
     xx = np.random.random_sample(x.shape).astype(DTYPE)
     xxcl = clarray.to_device(self.queue,xx) 
     yy = self.operator_adjoint_2D(self.operator_forward_2D(xxcl)).get();
@@ -639,14 +591,16 @@ __kernel void box_con(__global float2 *out, __global float *min,
        yy = self.operator_adjoint_2D(self.operator_forward_2D(xxcl)).get()
        l1 = np.vdot(yy.flatten(),xx.flatten());
     L = np.max(np.abs(l1)) ## Lipschitz constant estimate   
-    L = (L+8**2+16**2)
+    L = 0.5*(18.0 + np.sqrt(33))
     print('L: %f'%(L))
 
     
     tau = 1/np.sqrt(L)
     tau_new = 0
     
-    xk = x
+    
+    x = clarray.to_device(self.queue,x)
+    xk = x.copy()
     x_new = clarray.zeros_like(x)
     
     r = clarray.to_device(self.queue,self.r)#np.zeros_like(res,dtype=DTYPE)
@@ -655,28 +609,7 @@ __kernel void box_con(__global float2 *out, __global float *min,
    
     v = clarray.to_device(self.queue,self.v)#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
     res = clarray.to_device(self.queue, res)
-    r_new = clarray.zeros_like(res)
-    z1_new = clarray.zeros(self.queue,(self.unknowns_TGV,2,self.par.dimX,self.par.dimY),dtype=DTYPE,order='C')
-    z2_new = clarray.zeros(self.queue,(self.unknowns_TGV,3,self.par.dimX,self.par.dimY),dtype=DTYPE,order='C')
 
-    z3_new = clarray.zeros(self.queue,(self.unknowns_H1,2,self.par.dimX,self.par.dimY),dtype=DTYPE,order='C')    
-    z3 = clarray.to_device(self.queue,self.z3)#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE) 
-      
-      
-    v_new = clarray.zeros(self.queue,(self.unknowns_TGV,2,self.par.dimX,self.par.dimY),dtype=DTYPE,order='C')
-    
-
-    Kyk1 = clarray.zeros_like(x)
-    Kyk2 = clarray.zeros_like(z1)
-    
-    Ax = clarray.zeros_like(res)
-    Ax_Axold = clarray.zeros_like(res)
-    Axold = clarray.zeros_like(res)    
-    tmp = clarray.zeros_like(res)    
-    
-    Kyk1_new = clarray.zeros_like(x)
-    Kyk2_new = clarray.zeros_like(z1)
-    
     
     delta = self.irgn_par.delta
     mu = 1/delta
@@ -684,7 +617,7 @@ __kernel void box_con(__global float2 *out, __global float *min,
     theta_line = 1.0
 
     
-    beta_line = 400
+    beta_line = 10
     beta_new = 0
     
     mu_line = 0.5
@@ -698,35 +631,23 @@ __kernel void box_con(__global float2 *out, __global float *min,
     dual = 0.0
     gap_min = 0.0
     gap = 0.0
-    
-
-    
-    gradx = clarray.zeros_like(z1)
-    gradx_xold = clarray.zeros_like(z1)
-    
-#    v_old = clarray.zeros_like(v,dtype=DTYPE)
-    symgrad_v = clarray.zeros_like(z2)
-    symgrad_v_vold = clarray.zeros_like(z2)
-    
+        
     
     Axold = self.operator_forward_2D(x)
     
-    if self.unknowns_H1 > 0:
-      Kyk1 = self.operator_adjoint_2D(r) - np.concatenate((gd.bdiv_1(z1),(gd.bdiv_1(z3))),0)
-    else:
-      Kyk1 = self.operator_adjoint_2D(r) - clarray.to_device(self.queue,gd.bdiv_1(z1.get()))
+    Kyk1 = self.operator_adjoint_2D(r) - clarray.to_device(self.queue,gd.bdiv_1(z1.get()))
       
     Kyk2 = -z1 - clarray.to_device(self.queue,gd.fdiv_2(z2.get()))
     
     for i in range(iters):
         
       x_new = ((x - tau*(Kyk1))+(tau/delta)*xk)/(1+tau/delta)
-      
-      if self.unknowns_H1 > 0:
-        x_new[-self.unknowns_H1:,...] = (x_new[-self.unknowns_H1:,...]*(1+tau/delta)+tau*self.irgn_par.omega*self.par.fa)/(1+tau/delta+tau*self.irgn_par.omega)
-      
-#      self.eval_const(x_new)
-
+      x_new = x_new.get()      
+      for j in range(len(self.model.constraints)):   
+        x_new[j,...] = np.maximum(self.model.constraints[j].min,np.minimum(self.model.constraints[j].max,x_new[j,...]))
+        if self.model.constraints[j].real:
+          x_new[j,...] = np.real(x_new[j,...])
+      x_new = clarray.to_device(self.queue,x_new)    
 
 
       v_new = v-tau*Kyk2
@@ -734,17 +655,14 @@ __kernel void box_con(__global float2 *out, __global float *min,
       beta_new = beta_line*(1+mu*tau)
       
       tau_new = tau*np.sqrt(beta_line/beta_new*(1+theta_line))
-#      tau_new = tau*np.sqrt(beta_line/beta_new)      
-      
-#      tau_new = tau*np.sqrt((1+theta_line))     
       
       beta_line = beta_new
       
-      gradx =  clarray.to_device(self.queue,gd.fgrad_1(x_new.get()))
-      gradx_xold = gradx - clarray.to_device(self.queue, gd.fgrad_1(x.get()))
+      gradx = clarray.to_device(self.queue,gd.fgrad_1(x_new.get()))
+      gradx_xold = gradx - clarray.to_device(self.queue,gd.fgrad_1(x.get()))
       v_vold = v_new-v
-      symgrad_v =  clarray.to_device(self.queue,gd.sym_bgrad_2(v_new.get()))
-      symgrad_v_vold = symgrad_v -  clarray.to_device(self.queue,gd.sym_bgrad_2(v.get()))
+      symgrad_v = clarray.to_device(self.queue,gd.sym_bgrad_2(v_new.get()))
+      symgrad_v_vold = symgrad_v - clarray.to_device(self.queue,gd.sym_bgrad_2(v.get()))
       Ax = self.operator_forward_2D(x_new)
       Ax_Axold = Ax-Axold
     
@@ -754,36 +672,26 @@ __kernel void box_con(__global float2 *out, __global float *min,
         
         z1_new = (z1 + beta_line*tau_new*( gradx[:self.unknowns_TGV] + theta_line*gradx_xold[:self.unknowns_TGV]
                                           - v_new - theta_line*v_vold  )).get()
-        z1_new = z1_new/np.maximum(1,((np.sum(np.abs(z1_new)**2,axis=(0,1)))**(1/2)/alpha))
-        z1_new = clarray.to_device(self.queue,z1_new)
+        z1_new = clarray.to_device(self.queue,z1_new/np.maximum(1,(np.sqrt(np.sum(np.abs(z1_new)**2,axis=(0,1)))/alpha)))
      
-        z2_new = (z2 + beta_line*tau_new*( symgrad_v + theta_line*symgrad_v_vold )).get()
+        z2_new = z2 + beta_line*tau_new*( symgrad_v + theta_line*symgrad_v_vold )
+        z2_new = z2_new.get()
         scal = np.sqrt( np.sum(np.abs(z2_new[:,0,:,:])**2 + np.abs(z2_new[:,1,:,:])**2 + 2*np.abs(z2_new[:,2,:,:])**2,axis=0) )
 
         scal = np.maximum(1,scal/(beta))
 
-        z2_new = z2_new/scal
-        z2_new = clarray.to_device(self.queue,z2_new)
+        z2_new = clarray.to_device(self.queue,z2_new/scal)
         
         tmp = Ax+theta_line*Ax_Axold
 
-
-        r_new = (( r  + beta_line*tau_new*(tmp) ) - beta_line*tau_new*res)/(1+beta_line*tau_new/self.irgn_par.lambd)   
+        r_new = ( r  + beta_line*tau_new*(tmp - res))/(1+beta_line*tau_new/self.irgn_par.lambd)    
         
-        if self.unknowns_H1 > 0:
-          z3_new = z3 + beta_line*tau_new*( gradx[-self.unknowns_H1:,...] + theta_line*gradx_xold[-self.unknowns_H1:,...])  
-          z3_new = z3_new/(1+beta_line*tau_new/self.irgn_par.omega)
-          Kyk1_new = self.operator_adjoint_2D(r_new) - np.concatenate((gd.bdiv_1(z1_new),(gd.bdiv_1(z3_new))),0)
-          ynorm = np.linalg.norm(np.concatenate([(r_new-r).flatten(),(z1_new-z1).flatten(),(z2_new-z2).flatten(),(z3_new-z3).flatten()]))
-        else:
-          Kyk1_new = self.operator_adjoint_2D(r_new) - clarray.to_device(self.queue,(gd.bdiv_1(z1_new.get())))
-          ynorm = ((clarray.vdot((r_new-r),(r_new-r))+clarray.vdot((z1_new-z1),(z1_new-z1))+clarray.vdot((z2_new-z2),(z2_new-z2)))**(1/2)).real
+        Kyk1_new = self.operator_adjoint_2D(r_new) - clarray.to_device(self.queue,gd.bdiv_1(z1_new.get()))
+        ynorm = ((clarray.vdot(r_new-r,r_new-r)+clarray.vdot(z1_new-z1,z1_new-z1)+clarray.vdot(z2_new-z2,z2_new-z2))**(1/2)).real
         Kyk2_new = -z1_new -clarray.to_device(self.queue,gd.fdiv_2(z2_new.get()))
+
         
-        
-        
-        lhs = np.sqrt(beta_line)*tau_new*((clarray.vdot((Kyk1_new-Kyk1),(Kyk1_new-Kyk1))+clarray.vdot((Kyk2_new-Kyk2),(Kyk2_new-Kyk2)))**(1/2)).real
-#        print(lhs)
+        lhs = np.sqrt(beta_line)*tau_new*((clarray.vdot(Kyk1_new-Kyk1,Kyk1_new-Kyk1)+clarray.vdot(Kyk2_new-Kyk2,Kyk2_new-Kyk2))**(1/2)).real
         if lhs <= ynorm*delta_line:
             break
         else:
@@ -794,8 +702,6 @@ __kernel void box_con(__global float2 *out, __global float *min,
       Axold =(Ax)
       z1 = (z1_new)
       z2 = (z2_new)
-      if self.unknowns_H1 > 0:
-        z3 = (z3_new)
       r =  (r_new)
       tau =  (tau_new)
         
@@ -803,50 +709,41 @@ __kernel void box_con(__global float2 *out, __global float *min,
       if not np.mod(i,20):
           
         self.model.plot_unknowns(x_new.get(),True)
-        if self.unknowns_H1 > 0:
-          primal_new= np.real(self.irgn_par.lambd/2*clarray.vdot((Ax-res),(Ax-res))+alpha*np.sum(np.abs((gradx[:self.unknowns_TGV]-v))) +
-                   beta*np.sum(np.abs(symgrad_v)) + 1/(2*delta)*clarray.vdot((x_new-xk),(x_new-xk))
-                   +self.irgn_par.omega/2*np.linalg.norm(gradx[-self.unknowns_H1:,...]-self.par.fa)**2)
+        primal_new= (self.irgn_par.lambd/2*clarray.vdot(Ax-res,Ax-res)+alpha*clarray.sum(abs((gradx[:self.unknowns_TGV]-v))) +beta*clarray.sum(abs(symgrad_v)) + 1/(2*delta)*clarray.vdot(x_new-xk,x_new-xk)).real
       
-          dual = np.real(-delta/2*np.linalg.norm((-Kyk1_new).flatten())**2 - np.vdot(xk.flatten(),(-Kyk1_new).flatten()) + np.sum(Kyk2_new) 
-                  - 1/(2*self.irgn_par.lambd)*np.linalg.norm(r.flatten())**2 - np.vdot(res.flatten(),r.flatten())
-                  - 1/(2*self.irgn_par.omega)*np.linalg.norm(z3.flatten())**2)
-        else:
-          primal_new= (self.irgn_par.lambd/2*clarray.vdot((Ax-res),(Ax-res))+alpha*clarray.sum(abs((gradx[:self.unknowns_TGV]-v))) +
-                   beta*clarray.sum(abs(symgrad_v)) + 1/(2*delta)*clarray.vdot((x_new-xk),(x_new-xk))).real
-#          print(primal_new)
-      
-#          dual = (-delta/2*clarray.vdot((-Kyk1_new),(-Kyk1_new)) - clarray.vdot(xk,(-Kyk1_new)) + clarray.sum(Kyk2_new) 
-#                  - 1/(2*self.irgn_par.lambd)*clarray.vdot(r,r) - np.vdot(res,r)).real
-#          print(dual)
+        dual = (-delta/2*clarray.vdot(-Kyk1_new,-Kyk1_new)- clarray.vdot(xk,(-Kyk1_new)) + clarray.sum(Kyk2_new) 
+                  - 1/(2*self.irgn_par.lambd)*clarray.vdot(r,r) - clarray.vdot(res,r)).real
             
-        gap = abs(primal_new - dual)
+        gap = np.abs(primal_new - dual)
         if i==0:
           gap_min = gap
-        if abs(primal-primal_new)<self.irgn_par.lambd*self.irgn_par.tol:
-          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(i,np.abs(primal-primal_new)/self.irgn_par.lambd))
-          self.v = v_new
-          self.r = r
-          self.z1 = z1
-          self.z2 = z2
-          return x_new
+        if np.abs(primal-primal_new)<self.irgn_par.lambd*self.irgn_par.tol:
+          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(i,abs(primal-primal_new).get()/self.irgn_par.lambd))
+          self.v = v_new.get()
+          self.r = r.get()
+          self.z1 = z1.get()
+          self.z2 = z2.get()
+          return x_new.get()
         if (gap > gap_min*self.irgn_par.stag) and i>1:
-          self.v = v
-          self.r = r
-          self.z1 = z1
-          self.z2 = z2
+          self.v = v.get()
+          self.r = r.get()
+          self.z1 = z1.get()
+          self.z2 = z2.get()
           print("Terminated at iteration %d because the method stagnated"%(i))
-          return x
-        if abs(gap - gap_min)<self.irgn_par.lambd*self.irgn_par.tol and i>1:
-          self.v = v_new
-          self.r = r
-          self.z1 = z1
+          return x.get()
+        if np.abs(gap - gap_min)<self.irgn_par.lambd*self.irgn_par.tol and i>1:
+          self.v = v_new.get()
+          self.r = r.get()
+          self.z1 = z1.get()
           self.z2 = z2
-          print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(i,np.abs(gap - gap_min)/self.irgn_par.lambd))
-          return x_new        
+          print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(i,abs(gap - gap_min).get()/self.irgn_par.lambd))
+          return x_new.get()        
         primal = primal_new
         gap_min = np.minimum(gap,gap_min)
-        print("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f "%(i,primal.get()/self.irgn_par.lambd,dual/self.irgn_par.lambd,gap.get()/self.irgn_par.lambd))
+        print("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f "%(i,primal.get()/self.irgn_par.lambd,dual.get()/self.irgn_par.lambd,gap.get()/self.irgn_par.lambd))
+#        print("Norm of primal gradient: %.3e"%(np.linalg.norm(Kyk1)+np.linalg.norm(Kyk2)))
+#        print("Norm of dual gradient: %.3e"%(np.linalg.norm(tmp)+np.linalg.norm(gradx[:self.unknowns_TGV] + theta_line*gradx_xold[:self.unknowns_TGV]
+#                                          - v_new - theta_line*v_vold)+np.linalg.norm( symgrad_v + theta_line*symgrad_v_vold)))
         
       x = (x_new)
       v = (v_new)
@@ -855,32 +752,50 @@ __kernel void box_con(__global float2 *out, __global float *min,
     self.v = v.get()
     self.r = r.get()
     self.z1 = z1.get()
-    self.z2 = z2.get()
-    if self.unknowns_H1 > 0:
-      self.z3 = z3.get()
-    
-    return x
+    self.z2 = z2.get()    
+    return x.get()
   
 
 
+#  def nFT_2D(self, x):
+#    result = np.zeros((self.NScan,self.NC,self.Nproj,self.N),dtype=DTYPE)  
+#    for i in range(self.NScan):
+#     for j in range(self.NC):
+#         tmp_img = clarray.to_device(self.queue,np.require(np.reshape(x[i,j,...],(self.dimY,self.dimX)),DTYPE,"C"))
+#         tmp_sino = clarray.zeros(self.queue,self.r_struct[i][2],DTYPE,"C")
+#         (self.radon(tmp_sino,tmp_img,i))
+#         result[i,j,...] = np.reshape(tmp_sino.get(),(self.Nproj,self.N))
+#
+#    return result
+#
+#
+#
+#  def nFTH_2D(self, x):
+#    result = np.zeros((self.NScan,self.NC,self.dimY,self.dimX),dtype=DTYPE)  
+#    for i in range(self.NScan):
+#     for j in range(self.NC):    
+#        tmp_sino = clarray.to_device(self.queue,np.require(np.reshape(x[i,j,...],(self.Nproj,self.N)),DTYPE,"C"))
+#        tmp_img = clarray.zeros(self.queue,self.r_struct[i][1],DTYPE,"C")
+#        (self.radon_ad(tmp_img,tmp_sino,i))
+#        result[i,j,...] = np.reshape(tmp_img.get(),(self.dimY,self.dimX))
+#  
+#    return result
   def nFT_2D(self, x):
     result = np.zeros((self.NScan,self.NC,self.Nproj,self.N),dtype=DTYPE)  
     tmp_img = clarray.to_device(self.queue,np.require(np.reshape(x,(self.NScan*self.NC*self.NSlice,self.dimY,self.dimX)),DTYPE,"C"))
     tmp_sino = clarray.zeros(self.queue,self.r_struct[2],DTYPE,"C")
-    (self.radon(tmp_sino,tmp_img)).wait()
-    result = np.reshape(tmp_sino.get(),(self.NScan,self.NC,self.Nproj,self.N))
-  
+    (self.radon(tmp_sino,tmp_img))
+    result = np.reshape(tmp_sino.get(),(self.NScan,self.NC,self.NSlice,self.Nproj,self.N))
+
     return result
 
 
 
   def nFTH_2D(self, x):
-    result = np.zeros((self.NScan,self.NC,self.dimY,self.dimX),dtype=DTYPE)  
+    result = np.zeros((self.NScan,self.NC,self.dimY,self.dimX),dtype=DTYPE)    
     tmp_sino = clarray.to_device(self.queue,np.require(np.reshape(x,(self.NScan*self.NC*self.NSlice,self.Nproj,self.N)),DTYPE,"C"))
     tmp_img = clarray.zeros(self.queue,self.r_struct[1],DTYPE,"C")
-    (self.radon_ad(tmp_img,tmp_sino)).wait()
-    result = np.reshape(tmp_img.get(),(self.NScan,self.NC,self.dimY,self.dimX))
+    (self.radon_ad(tmp_img,tmp_sino))
+    result = np.reshape(tmp_img.get(),(self.NScan,self.NC,self.NSlice,self.dimY,self.dimX))
   
     return result
-
-      
