@@ -28,10 +28,13 @@ class constraint:
     self.min = min_val
     self.max = max_val
     self.real = real_const
+  def update(self,scale):
+    self.min = self.min/scale
+    self.max = self.max/scale
 
 
 class VFA_Model:
-  def __init__(self,fa,fa_corr,TR,images,phase_map,Nislice):
+  def __init__(self,fa,fa_corr,TR,images,phase_map,Nislice,Nproj):
     self.constraints = []    
     self.TR = TR
     self.images = images
@@ -114,16 +117,17 @@ class VFA_Model:
 #    self.M0_guess = np.copy(M0_guess)
 ###
     test_T1 = np.reshape(np.linspace(10,5500,dimX*dimY*Nislice),(Nislice,dimX,dimY))
-    test_M0 = 1#np.reshape(np.linspace(0,1,dimX*dimY*Nislice),(Nislice,dimX,dimY))
+    test_M0 = 0.1*np.sqrt((dimX*np.pi/2)/Nproj)
     G_x = self.execute_forward_3D(np.array([test_M0/self.M0_sc*np.ones((Nislice,dimY,dimX),dtype=DTYPE),1/self.T1_sc*np.exp(-self.TR/(test_T1*np.ones((Nislice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE))
-    self.M0_sc = self.M0_sc*np.mean(np.abs(images))/np.mean(np.abs(G_x))
-#test_T1*np.ones((Nislice,dimY,dimX),dtype=DTYPE)],dtype=DTYPE))#    
+    self.M0_sc = self.M0_sc*np.median(np.abs(images))/np.median(np.abs(G_x))
+#    test_M0 = 0.5
     DG_x =  self.execute_gradient_3D(np.array([test_M0/self.M0_sc*np.ones((Nislice,dimY,dimX),dtype=DTYPE),1/self.T1_sc*np.exp(-self.TR/(test_T1*np.ones((Nislice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE)) 
     self.T1_sc = self.T1_sc*np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...]))
     
-    self.T1_sc = self.T1_sc / self.M0_sc
+    self.T1_sc = self.T1_sc/np.sqrt(self.M0_sc) #/ self.M0_sc
     DG_x =  self.execute_gradient_3D(np.array([test_M0/self.M0_sc*np.ones((Nislice,dimY,dimX),dtype=DTYPE),1/self.T1_sc*np.exp(-self.TR/(test_T1*np.ones((Nislice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE))
-    print('Grad Scaling', np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...])))   
+    print('Grad Scaling init', np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...])))    
+
     #print(mask_guess)#
 #    self.T1_sc = 3e3
     print('T1 scale: ',self.T1_sc,
@@ -146,7 +150,7 @@ class VFA_Model:
 #    E1[~np.isfinite(E1)] = 1e-20
 
 #    result = np.array(np.concatenate((self.M0_guess[None,:,:,:]/self.M0_sc,E1),axis=0),dtype=DTYPE)
-    result = np.array([0.5/self.M0_sc*np.ones((Nislice,dimY,dimX),dtype=DTYPE),1/self.T1_sc*np.exp(-self.TR/(1500*np.ones((Nislice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE)
+    result = np.array([1/self.M0_sc*np.ones((Nislice,dimY,dimX),dtype=DTYPE),1/self.T1_sc*np.exp(-self.TR/(800*np.ones((Nislice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE)
 #    result = np.concatenate((((M0_guess)*np.exp(1j*np.angle(phase_map)))[None,:,:,:],(T1_guess)[None,None,:,:]),axis=0)
 #    result = np.array([(0.01+0*M0_guess*np.exp(1j*np.angle(phase_map))),0.3+0*(T1_guess)])
 #    result = np.array([1/self.M0_sc*np.ones((Nislice,dimY,dimX),dtype=DTYPE),1500/self.T1_sc*np.ones((Nislice,dimY,dimX),dtype=DTYPE)])
@@ -154,6 +158,7 @@ class VFA_Model:
     self.constraints.append(constraint(-300,300,False)  )
 #    self.constraints.append(constraint(10/self.T1_sc,5500/self.T1_sc,True))
     self.constraints.append(constraint(np.exp(-self.TR/(50))/self.T1_sc,np.exp(-self.TR/(5500))/self.T1_sc,True))
+    
   def execute_forward_2D(self,x,islice):
 #    E1 = np.exp(-self.TR/(x[1,:,:]*self.T1_sc))
     E1 = x[1,...]*self.T1_sc
@@ -179,7 +184,7 @@ class VFA_Model:
     return grad
   
   def execute_forward_3D(self,x):
-#    E1 = np.exp(-self.TR/(x[1,:,:]*self.T1_sc))
+    print('T1_sc: ',self.T1_sc)
     E1 = x[1,...]*self.T1_sc
 
     S = x[0,:,:]*self.M0_sc*(-E1 + 1)*self.sin_phi/(-E1*self.cos_phi + 1)
@@ -199,7 +204,8 @@ class VFA_Model:
     grad_T1 = M0*self.M0_sc*self.T1_sc*(-E1 + 1)*self.sin_phi*self.cos_phi/(-E1*self.cos_phi + 1)**2 -\
     M0*self.M0_sc*self.T1_sc*self.sin_phi/(-E1*self.cos_phi + 1)
     grad = np.array([grad_M0,grad_T1],dtype=DTYPE)
-    grad[~np.isfinite(grad)] = 1e-20
+    grad[~np.isfinite(grad)] = 1e-20      
+    print('Grad Scaling', np.linalg.norm(np.abs(grad_M0))/np.linalg.norm(np.abs(grad_T1))) 
     return grad
   
 

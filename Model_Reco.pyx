@@ -149,13 +149,23 @@ cdef class Model_Reco:
         self.z3 = np.zeros(([self.unknowns_H1,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)  
         iters = self.irgn_par.start_iters          
         for i in range(self.irgn_par.max_GN_it):
-          start = time.time()       
+          start = time.time() 
+          self.grad_x_2D = np.nan_to_num(self.model.execute_gradient_2D(result[:,islice,:,:],islice))
+    
+          scale = np.linalg.norm(np.abs(self.grad_x_2D[0,...]))/np.linalg.norm(np.abs(self.grad_x_2D[1,...]))
+            
+          for j in range(len(self.model.constraints)-1):
+            self.model.constraints[j+1].update(scale)
+              
+          result[1,islice,:,:] = result[1,islice,:,:]*self.model.T1_sc        
+          self.model.T1_sc = self.model.T1_sc*(scale)
+          result[1,islice,:,:] = result[1,islice,:,:]/self.model.T1_sc          
           self.step_val = self.model.execute_forward_2D(result[:,islice,:,:],islice)
           self.grad_x_2D = self.model.execute_gradient_2D(result[:,islice,:,:],islice)
           self.conj_grad_x_2D = np.conj(self.grad_x_2D)
                         
           result[:,islice,:,:] = self.irgn_solve_2D(result[:,islice,:,:], iters, self.data[:,:,islice,:])
-          self.result[i,:,islice,:,:] = result[:,islice,:,:]
+          self.result[i,:,islice,:,:] = result[:,islice,:,:]*self.model.T1_sc
           
           iters = np.fmin(iters*2,self.irgn_par.max_iters)
           self.irgn_par.gamma = np.maximum(self.irgn_par.gamma*self.irgn_par.gamma_dec,self.irgn_par.gamma_min)
@@ -241,7 +251,17 @@ cdef class Model_Reco:
       self.conjCoils3D = np.conj(self.Coils3D)
       for i in range(self.irgn_par.max_GN_it):
         start = time.time()       
+        self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(self.result[i,:,:,:,:]))
 
+        scale = np.linalg.norm(np.abs(self.grad_x[0,...]))/np.linalg.norm(np.abs(self.grad_x[1,...]))
+        
+        for j in range(len(self.model.constraints)-1):
+          self.model.constraints[j+1].update(scale)
+          
+        self.result[i,1,...] = self.result[i,1,...]*self.model.T1_sc        
+        self.model.T1_sc = self.model.T1_sc*(scale)
+        self.result[i,1,...] = self.result[i,1,...]/self.model.T1_sc
+        
         self.step_val = np.nan_to_num(self.model.execute_forward_3D(self.result[i,:,:,:,:]))
         self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(self.result[i,:,:,:,:]))
         self.conj_grad_x = np.nan_to_num(np.conj(self.grad_x))
@@ -257,7 +277,7 @@ cdef class Model_Reco:
         self.gn_res.append(self.fval)
         print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
         print("-"*80)
-        if (np.abs(self.fval_min-self.fval) < self.irgn_par.lambd*self.irgn_par.tol*self.NSlice) and i>0:
+        if (np.abs(self.fval_min-self.fval) < self.irgn_par.lambd*self.irgn_par.tol) and i>0:
           print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/(self.irgn_par.lambd*self.NSlice)))
           break
         if i==0:
@@ -468,7 +488,7 @@ cdef class Model_Reco:
         if self.unknowns_H1 > 0:
           primal_new= np.real(self.irgn_par.lambd/2*np.linalg.norm((Ax-res).flatten())**2+alpha*np.sum(np.abs((gradx[:self.unknowns_TGV]-v))) +
                    beta*np.sum(np.abs(symgrad_v)) + 1/(2*delta)*np.linalg.norm((x_new-xk).flatten())**2
-                   +self.irgn_par.omega/2*np.linalg.norm(gradx[-self.unknowns_H1:,...]-self.par.fa)**2)
+                   +self.irgn_par.omega/2*np.linalg.norm(gradx[-self.unknowns_H1:,...])**2)
       
           dual = np.real(-delta/2*np.linalg.norm((-Kyk1_new).flatten())**2 - np.vdot(xk.flatten(),(-Kyk1_new).flatten()) + np.sum(Kyk2_new) 
                   - 1/(2*self.irgn_par.lambd)*np.linalg.norm(r.flatten())**2 - np.vdot(res.flatten(),r.flatten())
@@ -695,7 +715,7 @@ cdef class Model_Reco:
         if i==0:
           gap_min = gap
         if np.abs(primal-primal_new)<self.irgn_par.lambd*self.irgn_par.tol:
-          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(i,np.abs(primal-primal_new)/self.irgn_par.lambd))
+          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(i,np.abs(primal-primal_new)/(self.irgn_par.lambd*self.NSlice)))
           self.v = v_new
           self.r = r
           self.z1 = z1
@@ -713,11 +733,11 @@ cdef class Model_Reco:
           self.r = r
           self.z1 = z1
           self.z2 = z2
-          print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(i,np.abs(gap - gap_min)/self.irgn_par.lambd))
+          print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(i,np.abs(gap - gap_min)/(self.irgn_par.lambd*self.NSlice)))
           return x_new        
         primal = primal_new
         gap_min = np.minimum(gap,gap_min)
-        print("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f "%(i,primal/(self.irgn_par.lambd*self.par.NSlice),dual/(self.irgn_par.lambd*self.par.NSlice),gap/(self.irgn_par.lambd*self.par.NSlice)))
+        print("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f "%(i,primal/(self.irgn_par.lambd*self.NSlice),dual/(self.irgn_par.lambd*self.NSlice),gap/(self.irgn_par.lambd*self.NSlice)))
 
 
         

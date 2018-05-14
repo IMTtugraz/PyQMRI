@@ -11,13 +11,13 @@ import numpy as np
 ################################################################################
 ### 3D viewer  ##########s######################################################
 ################################################################################              
-def imshow(volume):
+def imshow(volume,vmin=None,vmax=None):
 
   if volume.ndim<=3: 
     fig, ax = plt.subplots()
     ax.volume = volume
     ax.index = volume.shape[0] // 2
-    ax.imshow(volume[ax.index])
+    ax.imshow(volume[ax.index],vmin=vmin,vmax=vmax)
   elif volume.ndim==4:
     fig, ax = plt.subplots(int(np.ceil(np.sqrt(volume.shape[0]))),int(np.ceil(np.sqrt(volume.shape[0]))))
     ax = ax.flatten()
@@ -30,7 +30,7 @@ def imshow(volume):
         else:
           ax[i+ni*j].volume = volume[i+(j*ni)]
           ax[i+ni*j].index = volume[i+(j*ni)].shape[0] // 2
-          ax[i+ni*j].imshow(volume[i+(j*ni),ax[i+ni*j].index])
+          ax[i+ni*j].imshow(volume[i+(j*ni),ax[i+ni*j].index],vmin=vmin,vmax=vmax)
   else:
     raise NameError('Unsupported Dimensions')
   fig.canvas.mpl_connect('scroll_event', process_scroll)

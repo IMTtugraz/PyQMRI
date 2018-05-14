@@ -114,16 +114,27 @@ class Model_Reco:
         self.NSlice = 1
         for i in range(self.irgn_par.max_GN_it):
           start = time.time()       
+          self.grad_x_2D = np.nan_to_num(self.model.execute_gradient_2D(result[:,islice,:,:],islice))
+    
+          scale = np.linalg.norm(np.abs(self.grad_x_2D[0,...]))/np.linalg.norm(np.abs(self.grad_x_2D[1,...]))
+            
+          for j in range(len(self.model.constraints)-1):
+            self.model.constraints[j+1].update(scale)
+              
+          result[1,islice,:,:] = result[1,islice,:,:]*self.model.T1_sc        
+          self.model.T1_sc = self.model.T1_sc*(scale)
+          result[1,islice,:,:] = result[1,islice,:,:]/self.model.T1_sc          
           self.step_val = self.model.execute_forward_2D(result[:,islice,:,:],islice)
           self.grad_x_2D = self.model.execute_gradient_2D(result[:,islice,:,:],islice)
           self.conj_grad_x_2D = np.conj(self.grad_x_2D)
-
-          result[:,islice,:,:] = self.irgn_solve_2D(np.squeeze(result[:,islice,:,:]), iters, np.squeeze(self.data[:,:,islice,:]),islice)
-          self.result[i,:,islice,:,:] = result[:,islice,:,:]
+                        
+          result[:,islice,:,:] = self.irgn_solve_2D(result[:,islice,:,:], iters, self.data[:,:,islice,:],islice)
+          self.result[i,:,islice,:,:] = result[:,islice,:,:]*self.model.T1_sc
           
           iters = np.fmin(iters*2,self.irgn_par.max_iters)
           self.irgn_par.gamma = np.maximum(self.irgn_par.gamma*self.irgn_par.gamma_dec,self.irgn_par.gamma_min)
           self.irgn_par.delta = np.minimum(self.irgn_par.delta*self.irgn_par.delta_inc,self.irgn_par.delta_max)
+          
           
           end = time.time()-start
           print ("Function value after GN-Step %i: %f" %(i,self.fval))
@@ -151,7 +162,16 @@ class Model_Reco:
       self.conjCoils = np.conj(self.Coils)
       for i in range(self.irgn_par.max_GN_it):
         start = time.time()       
+        self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(self.result[i,:,:,:,:]))
 
+        scale = np.linalg.norm(np.abs(self.grad_x[0,...]))/np.linalg.norm(np.abs(self.grad_x[1,...]))
+        
+        for j in range(len(self.model.constraints)-1):
+          self.model.constraints[j+1].update(scale)
+          
+        self.result[i,1,...] = self.result[i,1,...]*self.model.T1_sc        
+        self.model.T1_sc = self.model.T1_sc*(scale)
+        self.result[i,1,...] = self.result[i,1,...]/self.model.T1_sc
         self.step_val = np.nan_to_num(self.model.execute_forward_3D(self.result[i,:,:,:,:]))
         self.grad_x_2D = np.nan_to_num(self.model.execute_gradient_3D(self.result[i,:,:,:,:]))
         self.conj_grad_x_2D = np.nan_to_num(np.conj(self.grad_x_2D))

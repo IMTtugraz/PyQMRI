@@ -91,7 +91,7 @@ data = data[None,:,int(NSlice/2)-\
             int(np.floor(reco_Slices/2)),:,:]
 
   
-par.fa_corr = np.ones_like(np.flip(par.fa_corr,axis=0)[int((NSlice-os_slices)/2)-\
+par.fa_corr = (np.flip(par.fa_corr,axis=0)[int((NSlice-os_slices)/2)-\
             int(np.ceil(reco_Slices/2)):int((NSlice-os_slices)/2)+\
             int(np.floor(reco_Slices/2)),:,:])
 
@@ -218,7 +218,7 @@ file.close()
 ### Scale Data #################################################################
 ################################################################################
 
-dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(200))/(np.linalg.norm(data.flatten()))
+dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2*1e3))/(np.linalg.norm(data.flatten()))
 par.dscale = dscale
 
 ################################################################################
@@ -333,83 +333,44 @@ par.U[abs(data) == 0] = False
 ### IRGN - TGV Reco ############################################################
 ################################################################################
 
-gamma_min = np.linspace(1e-3,1e-1,10)
-delta_max = np.logspace(1,6,10)
-import pickle
 
-for i in range(10):
-  result_tgv = []
-  for j in range(10):
-    opt = Model_Reco.Model_Reco(par)
-    
-    opt.par = par
-    opt.data =  data
-    opt.images = images
-    opt.dcf = (dcf)
-    opt.dcf_flat = (dcf).flatten()
-    opt.model = model
-    opt.traj = traj 
-    
-    opt.dz = 1
-    
-    ################################################################################
-    ##IRGN Params
-    irgn_par = struct()
-    irgn_par.start_iters = 100
-    irgn_par.max_iters = 1000
-    irgn_par.max_GN_it = 20
-    irgn_par.lambd = 1e2
-    irgn_par.gamma = 1e-1   #### 5e-2   5e-3 phantom ##### brain 1e-2
-    irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
-    irgn_par.omega = 1e-10
-    irgn_par.display_iterations = True
-    irgn_par.gamma_min = gamma_min[j]
-    irgn_par.delta_max = delta_max[i]
-    irgn_par.tol = 1e-5
-    irgn_par.stag = 1.00
-    irgn_par.delta_inc = 10
-    opt.irgn_par = irgn_par
-    
-    opt.execute_2D()
-    
-    result_tgv.append(opt.result)
-    del opt
-  with open('outfile_IRLL_iter_'+str(i), 'wb') as fp:
-    pickle.dump(result_tgv, fp)
-    
 opt = Model_Reco.Model_Reco(par)
 
 opt.par = par
 opt.data =  data
 opt.images = images
 opt.dcf = (dcf)
-opt.dcf_flat =(dcf).flatten()
+opt.dcf_flat = (dcf).flatten()
 opt.model = model
-opt.traj = traj
+opt.traj = traj 
+
+opt.dz = 1
 
 ################################################################################
-#IRGN Params
-
+##IRGN Params
 irgn_par = struct()
 irgn_par.start_iters = 100
 irgn_par.max_iters = 1000
 irgn_par.max_GN_it = 20
-irgn_par.lambd = 1e2
-irgn_par.gamma = 1e-1   #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.lambd = 5e2
+irgn_par.gamma = 1e0   #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e-10
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 1e-2
-irgn_par.delta_max = 1e2
+irgn_par.gamma_min = 1e-1
+irgn_par.delta_max = 1e1
 irgn_par.tol = 1e-5
 irgn_par.stag = 1.00
 irgn_par.delta_inc = 10
+irgn_par.gamma_dec = 0.7
 opt.irgn_par = irgn_par
 
 opt.execute_2D()
 
 result_tgv = opt.result
+res = opt.gn_res
 del opt
+    
 
 ################################################################################
 ### IRGN - Tikhonov referenz ###################################################
@@ -438,11 +399,12 @@ irgn_par.gamma = 1e-2  #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-4  #### 8spk in-vivo 1e-2
 irgn_par.omega = 1e0
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 1e-4
+irgn_par.gamma_min = 1e-6
 irgn_par.delta_max = 1e0
 irgn_par.tol = 1e-5
-irgn_par.stag = 1.00
+irgn_par.stag = 1.05
 irgn_par.delta_inc = 10
+irgn_par.gamma_dec = 0.5
 opt_t.irgn_par = irgn_par
 
 opt_t.execute_2D()
