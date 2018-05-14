@@ -62,8 +62,9 @@ class IRLL_Model:
 ###
     test_T1 = np.exp(-self.scale/np.reshape(np.linspace(10,5500,dimX*dimY*NSlice),(NSlice,dimX,dimY)))
     test_M0 = 1#np.reshape(np.linspace(0,1,dimX*dimY*Nislice),(Nislice,dimX,dimY))
-#    G_x = self.execute_forward_3D(np.array([test_M0/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1/self.T1_sc*test_T1*np.ones((NSlice,dimY,dimX),dtype=DTYPE)],dtype=DTYPE))
-#    self.M0_sc = self.M0_sc*np.median(np.abs(images))/np.median(np.abs(G_x))
+    G_x = self.execute_forward_3D(np.array([test_M0/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1/self.T1_sc*test_T1*np.ones((NSlice,dimY,dimX),dtype=DTYPE)],dtype=DTYPE))
+    self.M0_sc = self.M0_sc*np.median(np.abs(images))/np.median(np.abs(G_x))
+
 #test_T1*np.ones((Nislice,dimY,dimX),dtype=DTYPE)],dtype=DTYPE))#    
     DG_x =  self.execute_gradient_3D(np.array([test_M0/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1/self.T1_sc*test_T1*np.ones((NSlice,dimY,dimX),dtype=DTYPE)],dtype=DTYPE))
     self.T1_sc = self.T1_sc*np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...]))
@@ -74,33 +75,56 @@ class IRLL_Model:
     print('T1 scale: ',self.T1_sc,
                               '/ M0_scale: ',self.M0_sc)
     
-    self.guess = np.array([1/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),np.exp(-self.scale/1500)/self.T1_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE)])               
+
+    self.guess = np.array([1/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),np.exp(-self.scale/800)/self.T1_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE)])               
     self.constraints.append(constraint(-300,300,False)  )
     self.constraints.append(constraint(np.exp(-self.scale/10)/self.T1_sc, np.exp(-self.scale/5500)/self.T1_sc,True))
 
   def plot_unknowns(self,x,dim_2D=False):
+      M0 = np.abs(x[0,...]*self.M0_sc)
+      T1 = np.abs(x[1,...]*self.T1_sc)
+      M0_min = M0.min()
+      M0_max = M0.max()
+      T1_min = T1.min()
+      T1_max = T1.max()
       
       if dim_2D:
-          plt.figure(1)
-          plt.imshow(np.transpose(np.abs(x[0,...]*self.M0_sc)))
-          plt.pause(0.05)
-          plt.figure(2)
-          plt.imshow(np.transpose(-self.scale/np.log(np.abs(x[1,...]*self.T1_sc))))
-          plt.pause(0.05)          
-        #      plt.imshow(np.transpose(np.abs(x[1,0,:,:]*self.model.T1_sc)),vmin=0,vmax=1000)
-#          plt.pause(0.05)
-#          plt.figure(3)
-#          plt.imshow(np.transpose(np.abs(x[2,...])))
-#        #      plt.imshow(np.transpose(np.abs(x[1,0,:,:]*self.model.T1_sc)),vmin=0,vmax=1000)
-#          plt.pause(0.05)             
+         if not self.figure:
+           plt.ion()
+           self.figure, self.ax = plt.subplots(1,2,figsize=(12,5))
+           self.M0_plot = self.ax[0].imshow(np.transpose(M0))
+           self.T1_plot = self.ax[1].imshow(np.transpose(T1))
+           plt.draw()
+           plt.pause(1e-10)
+         else:   
+           self.M0_plot.set_data(np.transpose(M0))
+           self.M0_plot.set_clim([M0_min,M0_max])
+           self.T1_plot.set_data(np.transpose(T1))
+           self.T1_plot.set_clim([T1_min,T1_max])
+           plt.draw()
+           plt.pause(1e-10)          
       else:         
-          plt.figure(1)
-          plt.imshow(np.transpose(np.abs(x[0,int(self.NSlice/2),...]*self.M0_sc)))
-          plt.pause(0.05)
-          plt.figure(2)
-          plt.imshow(np.transpose(-self.scale/np.log(np.abs(x[1,int(self.NSlice/2),...]*self.T1_sc))))
-        #      plt.imshow(np.transpose(np.abs(x[1,0,:,:]*self.model.T1_sc)),vmin=0,vmax=1000)
-          plt.pause(0.05)
+         if not self.figure:
+           plt.ion()   
+           self.figure, self.ax = plt.subplots(1,2,figsize=(12,5))
+           self.M0_plot=self.ax[0].imshow(np.transpose(M0[int(self.Nislice/2),...]))
+           self.ax[0].set_title('Proton Density in a.u.')
+           self.ax[0].axis('off')
+           self.figure.colorbar(self.M0_plot,ax=self.ax[0])
+           self.T1_plot=self.ax[1].imshow(np.transpose(T1[int(self.Nislice/2),...]))
+           self.ax[1].set_title('T1 in  ms')
+           self.ax[1].axis('off')
+           self.figure.colorbar(self.T1_plot,ax=self.ax[1])
+           self.figure.tight_layout()           
+           plt.draw()
+           plt.pause(1e-10)
+         else:   
+           self.M0_plot.set_data(np.transpose(M0[int(self.Nislice/2),...]))
+           self.M0_plot.set_clim([M0_min,M0_max])
+           self.T1_plot.set_data(np.transpose(T1[int(self.Nislice/2),...]))
+           self.T1_plot.set_clim([T1_min,T1_max])
+           plt.draw()
+           plt.pause(1e-10)   
            
            
            
@@ -144,7 +168,6 @@ class IRLL_Model:
     sin_phi = self.sin_phi[islice,...]#np.sin(self.fa*x[2,...])
     cos_phi = self.cos_phi[islice,...]#np.cos(self.fa*x[2,...])+
     N = self.Nproj_measured
-    T1_sc =self.T1_sc
     scale = self.scale
     Efit = x[1,...]*self.T1_sc
     Etau = Efit**(tau/scale)     
@@ -230,7 +253,6 @@ class IRLL_Model:
     sin_phi = self.sin_phi#np.sin(self.fa*x[2,...])
     cos_phi = self.cos_phi#np.cos(self.fa*x[2,...])+
     N = self.Nproj_measured
-    T1_sc =self.T1_sc
     scale = self.scale
     Efit = x[1,...]*self.T1_sc
     Etau = Efit**(tau/scale)     

@@ -11,15 +11,15 @@ from sympy import *
 init_printing(use_unicode=True)
 
 
-M0, M0_sc, T1, T1_sc,fa,fa_corr,TR,tau,td,N,n,beta,Etau = symbols('M0,M0_sc,T1,T1_sc,fa,fa_corr,TR,tau,td,N,n,beta,Etau')
+M0, M0_sc, T1, T1_sc,fa,fa_corr,TR,tau,td,N,n,beta,scale = symbols('M0,M0_sc,T1,T1_sc,fa,fa_corr,TR,tau,td,N,n,beta,scale')
 
 #E1 = exp(-TR/(T1*T1_sc))#**(TR/1000)#exp(-TR/(T1*T1_sc))
 #Etau = exp(-tau/(T1*T1_sc))
 Efit = T1*T1_sc
 #Etd = Etau**(td/tau)#exp(-td/(T1*T1_sc))
-Etau = Efit**(tau/100)
-Etd = Etau**(td/100)
-E1 = Etau**(TR/100)
+Etau = Efit**(tau/scale)
+Etd = Efit**(td/scale)
+E1 = Efit**(TR/scale)
 
 F = (1-Etau)/(1-cos(fa*fa_corr)*Etau)
 #

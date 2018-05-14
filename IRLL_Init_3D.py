@@ -79,7 +79,7 @@ dimX = 212
 dimY = 212
 
 ############### Set number of Slices ###########################################
-reco_Slices = 40
+reco_Slices = 3
 os_slices = 20
 
 class struct:
@@ -92,7 +92,7 @@ par = struct()
 ### FA correction ##############################################################
 ################################################################################
 
-par.fa_corr = file['fa_corr'][()].astype(DTYPE)
+par.fa_corr = file['interpol_fa'][()].astype(DTYPE)
 
 ################################################################################
 ### Pick slices for reconstruction #############################################
@@ -385,11 +385,19 @@ irgn_par.gamma = 1e1   #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
 irgn_par.omega = 0e0
 irgn_par.display_iterations = True
+<<<<<<< HEAD
 irgn_par.gamma_min = 1e0#gamma_min[j]
 irgn_par.delta_max = 1e2#delta_max[i]
 irgn_par.tol = 5e-3
 irgn_par.stag = 1.00
 irgn_par.delta_inc = 10
+=======
+irgn_par.gamma_min = 5e-1#gamma_min[j]
+irgn_par.delta_max = 1e0#delta_max[i]
+irgn_par.tol = 5e-3
+irgn_par.stag = 1.00
+irgn_par.delta_inc = 2
+>>>>>>> e65e04677476ba5e196b89cac6a4ba7d339655c3
 irgn_par.gamma_dec = 0.7
 opt.irgn_par = irgn_par
 
@@ -422,19 +430,27 @@ opt_t.traj = traj
 ################################################################################
 ##IRGN Params
 irgn_par = struct()
-irgn_par.start_iters = 10
-irgn_par.max_iters = 1000
+irgn_par.start_iters = 100
+irgn_par.max_iters = 300
 irgn_par.max_GN_it = 20
 irgn_par.lambd = 1e2
-irgn_par.gamma = 1e-2  #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.gamma = 1e-2 #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-4  #### 8spk in-vivo 1e-2
-irgn_par.omega = 1e0
+irgn_par.omega = 0e0
 irgn_par.display_iterations = True
+<<<<<<< HEAD
 irgn_par.gamma_min = 1e-4
 irgn_par.delta_max = 5e-1
 irgn_par.tol = 1e-5
 irgn_par.stag = 1.05
 irgn_par.delta_inc = 10
+=======
+irgn_par.gamma_min = 1e-3
+irgn_par.delta_max = 8e-1
+irgn_par.tol = 1e-5
+irgn_par.stag = 1.05
+irgn_par.delta_inc = 2
+>>>>>>> e65e04677476ba5e196b89cac6a4ba7d339655c3
 irgn_par.gamma_dec = 0.5
 opt_t.irgn_par = irgn_par
 
