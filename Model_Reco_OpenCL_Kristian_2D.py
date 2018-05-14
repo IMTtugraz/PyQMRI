@@ -44,11 +44,11 @@ class Model_Reco:
     self.NScan = par.NScan
     self.dimX = par.dimX
     self.dimY = par.dimY
-    self.scale = 1
+    self.scale = 1#np.sqrt(par.dimX*par.dimY)
     self.NC = par.NC
     self.N = par.N
     self.Nproj = par.Nproj
-    self.dz = 1
+    self.dz = 3
     self.fval_min = 0
     self.fval = 0
     self.ctx = ctx
@@ -60,8 +60,8 @@ class Model_Reco:
 
     
     self.prg = Program(ctx, r"""
-__kernel void update_p(__global float8 *p, __global float2 *u,
-                       __global float8 *w,
+__kernel void update_p(__global float4 *p, __global float2 *u,
+                       __global float4 *w,
                        const float sigma, const float alphainv, const int NUk) {
   size_t Nx = get_global_size(0), Ny = get_global_size(1);
   size_t NSl = get_global_size(2);
@@ -69,33 +69,28 @@ __kernel void update_p(__global float8 *p, __global float2 *u,
   size_t k = get_global_id(2);
   size_t i = k*Nx*Ny+Nx*y + x;
   
-  float8 val[2];
+  float4 val[2];
   float fac = 0.0f;
   
   for (int uk=0; uk<NUk; uk++)
   {
      // gradient 
-     val[uk] = (float8)(-u[i],-u[i],-u[i],0.0f,0.0f);
+     val[uk] = (float4)(-u[i].s0,-u[i].s0,-u[i].s1,-u[i].s1);
      if (x < Nx-1) 
-     { val[uk].s0 += u[i+1].s0; val[uk].s1 += u[i+1].s1;}  
+     { val[uk].s0 += u[i+1].s0; val[uk].s2 += u[i+1].s1;}  
      else 
-     { val[uk].s0 = 0.0f; val[uk].s1 = 0.0f;}
+     { val[uk].s0 = 0.0f; val[uk].s2 = 0.0f;}
      
      if (y < Ny-1) 
-     { val[uk].s2 += u[i+Nx].s0; val[uk].s3 += u[i+Nx].s1;} 
+     { val[uk].s1 += u[i+Nx].s0; val[uk].s3 += u[i+Nx].s1;} 
      else 
-     { val[uk].s2 = 0.0f; val[uk].s35 = 0.0f; }
-     
-     if (k < NSl-1) 
-     { val[uk].s4 += u[i+Nx*Ny].s0; val[uk].s5 += u[i+Nx*Ny].s1;} 
-     else 
-     { val[uk].s4 = 0.0f; val[uk].s5 = 0.0f; }     
+     { val[uk].s1 = 0.0f; val[uk].s3 = 0.0f; }
    
      // step
      val[uk] = p[i] + sigma*(val[uk] - w[i]);
    
      // reproject
-     fac = hypot(fac,hypot(hypot(val[uk].s0,val[uk].s1), hypot(hypot(val[uk].s2,val[uk].s3),hypot(val[uk].s4,val[uk].s5)))*alphainv);
+     fac = hypot(fac,hypot(hypot(val[uk].s0,val[uk].s2), hypot(val[uk].s1,val[uk].s3))*alphainv);
      i += NSl*Nx*Ny;     
   }
   i = k*Nx*Ny+Nx*y + x;  
@@ -105,7 +100,7 @@ __kernel void update_p(__global float8 *p, __global float2 *u,
     i += NSl*Nx*Ny;    
   }
 }
-__kernel void gradient(__global float8 *grad, __global float2 *u, const int NUk) {
+__kernel void gradient(__global float4 *grad, __global float2 *u, const int NUk) {
   size_t Nx = get_global_size(0), Ny = get_global_size(1);
   size_t NSl = get_global_size(2);
   size_t x = get_global_id(0), y = get_global_id(1);
@@ -116,25 +111,21 @@ __kernel void gradient(__global float8 *grad, __global float2 *u, const int NUk)
   for (int uk=0; uk<NUk; uk++)
   {
      // gradient 
-     grad[i] = (float8)(-u[i],-u[i],-u[i],0.0f,0.0f);
+     grad[i] = (float4)(-u[i].s0,-u[i].s0,-u[i].s1,-u[i].s1);
      if (x < Nx-1) 
-     { grad[i].s0 += u[i+1].s0; grad[i].s1 += u[i+1].s1;}  
+     { grad[i].s0 += u[i+1].s0; grad[i].s2 += u[i+1].s1;}  
      else 
-     { grad[i].s0 = 0.0f; grad[i].s1 = 0.0f;}
+     { grad[i].s0 = 0.0f; grad[i].s2 = 0.0f;}
      
      if (y < Ny-1) 
-     { grad[i].s2 += u[i+Nx].s0; grad[i].s3 += u[i+Nx].s1;} 
+     { grad[i].s1 += u[i+Nx].s0; grad[i].s3 += u[i+Nx].s1;} 
      else 
-     { grad[i].s2 = 0.0f; grad[i].s3 = 0.0f; }
-     if (k < NSl-1) 
-     { grad[i].s4 += u[i+Nx*Ny].s0; grad[i].s5 +=  u[i+Nx*Ny].s1;} 
-     else 
-     { grad[i].s4 = 0.0f; grad[i].s5 = 0.0f; }    
+     { grad[i].s1 = 0.0f; grad[i].s3 = 0.0f; }
      i += NSl*Nx*Ny;       
   }   
 }
 
-__kernel void update_q(__global float16 *q, __global float8 *w,
+__kernel void update_q(__global float8 *q, __global float4 *w,
                        const float sigma, const float alphainv, const int NUk) {
   size_t Nx = get_global_size(0), Ny = get_global_size(1);
   size_t NSl = get_global_size(2);
@@ -143,41 +134,31 @@ __kernel void update_q(__global float16 *q, __global float8 *w,
   size_t i = k*Nx*Ny+Nx*y + x;
   
   float fac = 0.0f;
-  float16 val2[2];
+  float8 val2[2];
   
   for (int uk=0; uk<NUk; uk++)
   {
      // symmetrized gradient 
-     float16 val_real = (float16)(w[i].s024, w[i].s024, w[i].s024,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f);
-     float16 val_imag = (float16)(w[i].s135, w[i].s135, w[i].s135,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f);
+     float8 val = (float8)(w[i].s01, w[i].s01, w[i].s23, w[i].s23);
      if (x > 0) 
-     { val_real.s012 -= w[i-1].s024;  val_imag.s012 -= w[i-1].s135;}
+     { val.s01 -= w[i-1].s01;  val.s45 -= w[i-1].s23;}
      else 
-     { val_real.s012 = (float3) 0.0f; val_imag.s012 = (float3) 0.0f; }
+     { val.s01 = (float2)(0.0f, 0.0f); val.s45 = (float2)(0.0f, 0.0f); }
    
      if (y > 0) 
-     {val_real.s345 -= w[i-Nx].s024;  val_imag.s345 -= w[i-Nx].s135;}
+     {val.s23 -= w[i-Nx].s01;  val.s67 -= w[i-Nx].s23;}
      else 
-     {val_real.s345 = (float3)  0.0f; val_imag.s345 = (float3) 0.0f;  }
+     {val.s23 = (float2)(0.0f, 0.0f);val.s67 = (float2)(0.0f, 0.0f);  }
      
-     if (k > 0) 
-     {val_real.s678 -= w[i-Nx*Ny].s024;  val_imag.s678 -= w[i-Nx*Ny].s135;}
-     else 
-     {val_real.s678 = (float3) 0.0f; val_imag.s678 = (float3) 0.0f;  }     
-     
-     val2[uk] = (float16)(val_real.s0, val_imag.s0, val_real.s4,val_imag.s4,val_real.s8,val_imag.s8,
-                        0.5f*(val_real.s1 + val_real.s3), 0.5f*(val_imag.s1 + val_imag.s3),
-                        0.5f*(val_real.s2 + val_real.s6), 0.5f*(val_imag.s2 + val_imag.s6),
-                        0.5f*(val_real.s5 + val_real.s7), 0.5f*(val_imag.s5 + val_imag.s7),
-                        0.0f,0.0f,0.0f,0.0f);   
-
+     val2[uk] = (float8)(val.s0, val.s3, 0.5f*(val.s1 + val.s2),0.0f,
+                            val.s4, val.s7, 0.5f*(val.s5 + val.s6),0.0f);
+   
      // step
      val2[uk] = q[i] + sigma*val2[uk];
    
      // reproject
-     fac = hypot(fac,hypot(
-     hypot(hypot(hypot(val2[uk].s0,val2[uk].s1), hypot(val2[uk].s2,val2[uk].s3)),hypot(val2[uk].s4,val2[uk].s5)),
-     hypot(hypot(2.0f*hypot(val2[uk].s6,val2[uk].s7),2.0f*hypot(val2[uk].s8,val2[uk].s9)),2.0f*hypot(val2[uk].sa,val2[uk].sb)))*alphainv);
+     fac = hypot(fac,hypot(hypot(hypot(val2[uk].s0,val2[uk].s4), hypot(val2[uk].s1,val2[uk].s5)),
+                           2.0f*hypot(val2[uk].s2,val2[uk].s6))*alphainv);
      i += NSl*Nx*Ny;  
    }
   
@@ -188,7 +169,7 @@ __kernel void update_q(__global float16 *q, __global float8 *w,
     i += NSl*Nx*Ny;    
   }
 }
-__kernel void sym_grad(__global float16 *sym, __global float8 *w, const int NUk) {
+__kernel void sym_grad(__global float8 *sym, __global float4 *w, const int NUk) {
   size_t Nx = get_global_size(0), Ny = get_global_size(1);
   size_t NSl = get_global_size(2);
   size_t x = get_global_id(0), y = get_global_id(1);
@@ -199,28 +180,19 @@ __kernel void sym_grad(__global float16 *sym, __global float8 *w, const int NUk)
   for (int uk=0; uk<NUk; uk++)
   {
      // symmetrized gradient 
-     float16 val_real = (float16)(w[i].s024, w[i].s024, w[i].s024,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f);
-     float16 val_imag = (float16)(w[i].s135, w[i].s135, w[i].s135,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f);
+     float8 val = (float8)(w[i].s01, w[i].s01, w[i].s23, w[i].s23);
      if (x > 0) 
-     { val_real.s012 -= w[i-1].s024;  val_imag.s012 -= w[i-1].s135;}
+     { val.s01 -= w[i-1].s01;  val.s45 -= w[i-1].s23;}
      else 
-     { val_real.s012 = (float3) 0.0f; val_imag.s012 = (float3) 0.0f; }
+     { val.s01 = (float2)(0.0f, 0.0f); val.s45 = (float2)(0.0f, 0.0f); }
    
      if (y > 0) 
-     {val_real.s345 -= w[i-Nx].s024;  val_imag.s345 -= w[i-Nx].s135;}
+     {val.s23 -= w[i-Nx].s01;  val.s67 -= w[i-Nx].s23;}
      else 
-     {val_real.s345 = (float3)  0.0f; val_imag.s345 = (float3) 0.0f;  }
+     {val.s23 = (float2)(0.0f, 0.0f);val.s67 = (float2)(0.0f, 0.0f);  }
      
-     if (k > 0) 
-     {val_real.s678 -= w[i-Nx*Ny].s024;  val_imag.s678 -= w[i-Nx*Ny].s135;}
-     else 
-     {val_real.s678 = (float3) 0.0f; val_imag.s678 = (float3) 0.0f;  }     
-     
-     sym[i] = (float16)(val_real.s0, val_imag.s0, val_real.s4,val_imag.s4,val_real.s8,val_imag.s8,
-                        0.5f*(val_real.s1 + val_real.s3), 0.5f*(val_imag.s1 + val_imag.s3),
-                        0.5f*(val_real.s2 + val_real.s6), 0.5f*(val_imag.s2 + val_imag.s6),
-                        0.5f*(val_real.s5 + val_real.s7), 0.5f*(val_imag.s5 + val_imag.s7),
-                        0.0f,0.0f,0.0f,0.0f);
+     sym[i] = (float8)(val.s0, val.s3, (val.s1 + val.s2),0.0f,
+                            val.s4, val.s7, (val.s5 + val.s6),0.0f);
      i += NSl*Nx*Ny;       
    }
 }
@@ -236,7 +208,7 @@ __kernel void update_lambda(__global float2 *lambda, __global float2 *Ku,
 }
 
 __kernel void update_u(__global float2 *u, __global float2 *u_,
-                       __global float8 *p, __global float2 *Kstarlambda,
+                       __global float4 *p, __global float2 *Kstarlambda,
                        __global float2 *uk,
                        const float tau, const float norming, const float delta, const int NUk) {
   size_t Nx = get_global_size(0), Ny = get_global_size(1);
@@ -248,116 +220,46 @@ __kernel void update_u(__global float2 *u, __global float2 *u_,
   for (int ukn=0; ukn<NUk; ukn++)
   {
      // divergence
-     float8 val = p[i];
+     float4 val = p[i];
      if (x == Nx-1)
      {
          //real
          val.s0 = 0.0f; 
          //imag
-         val.s1 = 0.0f;
+         val.s2 = 0.0f;
      }
      if (x > 0) 
      {
          //real
          val.s0 -= p[i-1].s0; 
          //imag
-         val.s1 -= p[i-1].s1;
+         val.s2 -= p[i-1].s2;
      }
      if (y == Ny-1) 
      {
          //real
-         val.s2 = 0.0f; 
+         val.s1 = 0.0f; 
          //imag
          val.s3 = 0.0f;
      }
      if (y > 0) 
      {
          //real
-         val.s2 -= p[i-Nx].s3; 
-         //imag
-         val.s2 -= p[i-Nx].s3;
-     }    
-     if (k == NSl-1) 
-     {
-         //real
-         val.s4 = 0.0f; 
-         //imag
-         val.s5 = 0.0f;
-     }
-     if (k > 0) 
-     {
-         //real
-         val.s4 -= p[i-Nx*Ny].s4; 
-         //imag
-         val.s5 -= p[i-Nx*Ny].s5;
-     }       
-
-     // linear step
-     u[i] = (u_[i] + tau*(val.s01 + val.s23 + val.s45 - norming*Kstarlambda[i]+1/delta*uk[i]))/(1+tau/delta);
-     i += NSl*Nx*Ny;     
-  }
-
-}
-__kernel void divergence(__global float2 *div, __global float8 *p, const int NUk) {
-  size_t Nx = get_global_size(0), Ny = get_global_size(1);
-  size_t NSl = get_global_size(2);
-  size_t x = get_global_id(0), y = get_global_id(1);
-  size_t k = get_global_id(2);
-  size_t i = k*Nx*Ny+Nx*y + x;
-  
-  for (int ukn=0; ukn<NUk; ukn++)
-  {
-     // divergence
-     float8 val = p[i];
-     if (x == Nx-1)
-     {
-         //real
-         val.s0 = 0.0f; 
-         //imag
-         val.s1 = 0.0f;
-     }
-     if (x > 0) 
-     {
-         //real
-         val.s0 -= p[i-1].s0; 
-         //imag
-         val.s1 -= p[i-1].s1;
-     }
-     if (y == Ny-1) 
-     {
-         //real
-         val.s2 = 0.0f; 
-         //imag
-         val.s3 = 0.0f;
-     }
-     if (y > 0) 
-     {
-         //real
-         val.s2 -= p[i-Nx].s2; 
+         val.s1 -= p[i-Nx].s1; 
          //imag
          val.s3 -= p[i-Nx].s3;
      }    
-     if (k == NSl-1) 
-     {
-         //real
-         val.s4 = 0.0f; 
-         //imag
-         val.s5 = 0.0f;
-     }
-     if (k > 0) 
-     {
-         //real
-         val.s4 -= p[i-Nx*Ny].s4; 
-         //imag
-         val.s5 -= p[i-Nx*Ny].s5;
-     }  
-     div[i] = val.s01+val.s23+val.s45;         
+   
+   
+     // linear step
+     u[i] = (u_[i] + tau*(val.s02 + val.s13 - norming*Kstarlambda[i]+1/delta*uk[i]))/(1+tau/delta);
      i += NSl*Nx*Ny;     
   }
 
 }
-__kernel void update_w(__global float8 *w, __global float8 *w_,
-                       __global float8 *p, __global float16 *q,
+
+__kernel void update_w(__global float4 *w, __global float4 *w_,
+                       __global float4 *p, __global float8 *q,
                        const float tau, const int NUk) {
   size_t Nx = get_global_size(0), Ny = get_global_size(1);
   size_t NSl = get_global_size(2);
@@ -368,62 +270,43 @@ __kernel void update_w(__global float8 *w, __global float8 *w_,
   for (int uk=0; uk<NUk; uk++)
   {
      // divergence
-     float16 val0 = -q[i];
-     float16 val_real = (float16)(val0.s0, val0.s6, val0.s8, 
-                                  val0.s6, val0.s2, val0.sa,
-                                  val0.s8, val0.sa, val0.s4,
-                                  0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f);
-     float16 val_imag = (float16)(val0.s1, val0.s7, val0.s9, 
-                                  val0.s7, val0.s3, val0.sb,
-                                  val0.s9, val0.sb, val0.s5,
-                                  0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f); 
+     float8 val0 = -q[i];
+     float8 val = (float8)(val0.s0, val0.s2, val0.s2, val0.s1,
+                           val0.s4, val0.s6, val0.s6, val0.s5);
      if (x == 0)
      {   
          //real
-         val_real.s012 = 0.0f;
+         val.s01 = 0.0f;
          //imag
-         val_imag.s012 = 0.0f;
+         val.s45 = 0.0f;
      }
      if (x < Nx-1) 
      {
          //real
-         val_real.s012 += (float3)(q[i+1].s0, q[i+1].s68);
+         val.s01 += (float2)(q[i+1].s0, q[i+1].s2);
          //imag
-         val_imag.s012 += (float3)(q[i+1].s1, q[i+1].s79);
+         val.s45 += (float2)(q[i+1].s4, q[i+1].s6);
      }
      if (y == 0)   
      {
          //real
-         val_real.s345 = 0.0f;
+         val.s23 = 0.0f;
          //imag
-         val_imag.s345 = 0.0f;
+         val.s67 = 0.0f;
      }
      if (y < Ny-1) 
      {
          //real
-         val_real.s345 += (float3)(q[i+Nx].s6, q[i+Nx].s2, q[i+Nx].sa);
+         val.s23 += (float2)(q[i+Nx].s2, q[i+Nx].s1);
          //imag
-         val_imag.s345 += (float3)(q[i+Nx].s7, q[i+Nx].s3, q[i+Nx].sb);
+         val.s67 += (float2)(q[i+Nx].s6, q[i+Nx].s5);
      }
-     if (k == 0)   
-     {
-         //real
-         val_real.s678 = 0.0f;
-         //imag
-         val_imag.s678 = 0.0f;
-     }     
-     if (k < NSl-1) 
-     {
-         //real
-         val_real.s678 += (float3)(q[i+Nx*Ny].s8a, q[i+Nx*Ny].s4);
-         //imag
-         val_imag.s678 += (float3)(q[i+Nx*Ny].s9b, q[i+Nx*Ny].s5);
-     }   
+   
      // linear step
      //real
-     w[i].s012 = w_[i].s024 + tau*(p[i].s024 + val_real.s012 + val_real.s345 + val_real.s678);
+     w[i].s01 = w_[i].s01 + tau*(p[i].s01 + val.s01 + val.s23);
      //imag
-     w[i].s456 = w_[i].s135 + tau*(p[i].s135 + val_imag.s012 + val_imag.s345 + val_imag.s678);
+     w[i].s23 = w_[i].s23 + tau*(p[i].s23 + val.s45 + val.s67);
      i += NSl*Nx*Ny;     
   }
 }
@@ -440,7 +323,7 @@ __kernel void functional_discrepancy(__global float *accum,
 }
 
 __kernel void functional_tgv(__global float *accum, __global float2 *u,
-                        __global float8 *w,
+                        __global float4 *w,
                         const float alpha0, const float alpha1, const int NUk) {
   size_t Nx = get_global_size(0), Ny = get_global_size(1);
   size_t NSl = get_global_size(2);
@@ -451,50 +334,37 @@ __kernel void functional_tgv(__global float *accum, __global float2 *u,
   for (int uk=0; uk<NUk; uk++)
   {
      // gradient 
-     float8 val = (float8)(-u[i],-u[i],-u[i],0.0f,0.0f);
+     float4 val = (float4)(-u[i].s0,-u[i].s0,-u[i].s1,-u[i].s1);
      if (x < Nx-1) 
-     { val.s0 += u[i+1].s0; val.s1 += u[i+1].s1;}  
+     { val.s0 += u[i+1].s0; val.s2 += u[i+1].s1;}  
      else 
-     { val.s0 = 0.0f; val.s1 = 0.0f;}
+     { val.s0 = 0.0f; val.s2 = 0.0f;}
      
      if (y < Ny-1) 
-     { val.s2 += u[i+Nx].s0; val.s3 += u[i+Nx].s1;} 
+     { val.s1 += u[i+Nx].s0; val.s3 += u[i+Nx].s1;} 
      else 
-     { val.s2 = 0.0f; val.s35 = 0.0f; }
-     
-     if (k < NSl-1) 
-     { val.s4 += u[i+Nx*Ny].s0; val.s5 += u[i+Nx*Ny].s1;} 
-     else 
-     { val.s4 = 0.0f; val.s5 = 0.0f; }      
+     { val.s1 = 0.0f; val.s3 = 0.0f; }
    
-     // symmetrized gradient 
-     float16 val_real = (float16)(w[i].s024, w[i].s024, w[i].s024,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f);
-     float16 val_imag = (float16)(w[i].s135, w[i].s135, w[i].s135,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f);
+     // symmetrized gradient
+     float4 wi = w[i];
+     float8 val2 = (float8)(wi.s01, wi.s01,wi.s23, wi.s23);
      if (x > 0) 
-     { val_real.s012 -= w[i-1].s024;  val_imag.s012 -= w[i-1].s135;}
+     { val2.s01 -= w[i-1].s01;  val2.s45 -= w[i-1].s23;}
      else 
-     { val_real.s012 = (float3) 0.0f; val_imag.s012 = (float3) 0.0f; }
+     { val2.s01 = (float2)(0.0f, 0.0f); val2.s45 = (float2)(0.0f, 0.0f); }
    
      if (y > 0) 
-     {val_real.s345 -= w[i-Nx].s024;  val_imag.s345 -= w[i-Nx].s135;}
+     {val2.s23 -= w[i-Nx].s01;  val2.s67 -= w[i-Nx].s23;}
      else 
-     {val_real.s345 = (float3)  0.0f; val_imag.s345 = (float3) 0.0f;  }
+     {val2.s23 = (float2)(0.0f, 0.0f);val2.s67 = (float2)(0.0f, 0.0f);  }
+     float8 val3 = (float8)(val2.s0, val2.s3, 0.5f*(val2.s1 + val2.s2),0.0f,
+                            val2.s4, val2.s7, 0.5f*(val2.s5 + val2.s6),0.0f);
      
-     if (k > 0) 
-     {val_real.s678 -= w[i-Nx*Ny].s024;  val_imag.s678 -= w[i-Nx*Ny].s135;}
-     else 
-     {val_real.s678 = (float3) 0.0f; val_imag.s678 = (float3) 0.0f;  }     
      
-     float16 val3 = (float16)(val_real.s0, val_imag.s0, val_real.s4,val_imag.s4,val_real.s8,val_imag.s8,
-                        0.5f*(val_real.s1 + val_real.s3), 0.5f*(val_imag.s1 + val_imag.s3),
-                        0.5f*(val_real.s2 + val_real.s6), 0.5f*(val_imag.s2 + val_imag.s6),
-                        0.5f*(val_real.s5 + val_real.s7), 0.5f*(val_imag.s5 + val_imag.s7),
-                        0.0f,0.0f,0.0f,0.0f);      
-     
-     val -= w[i];
-     accum[i] = alpha1*hypot(hypot(hypot(val.s0,val.s1), hypot(val.s2,val.s3)),hypot(val.s4,val.s5))
-              + alpha0*hypot(hypot(hypot(hypot(val3.s0,val3.s1), hypot(val3.s2,val3.s3)), hypot(val3.s4,val3.s5)),
-              hypot(hypot(2.0f*hypot(val3.s6,val3.s7),2.0f*hypot(val3.s8,val3.s9)),2.0f*hypot(val3.sa,val3.sb)));
+   
+     val -= wi;
+     accum[i] = alpha1*hypot(hypot(val.s0,val.s2), hypot(val.s1,val.s3))
+              + alpha0*hypot(hypot(hypot(val3.s0,val3.s4), hypot(val3.s1,val3.s5)), 2.0f*hypot(val3.s2,val3.s6));
      i += NSl*Nx*Ny;           
   }
 }
@@ -580,37 +450,36 @@ __kernel void operator_fwd(__global float2 *out, __global float2 *in,
 {
   size_t X = get_global_size(0);
   size_t Y = get_global_size(1);
-
   size_t x = get_global_id(0);
   size_t y = get_global_id(1);
-  size_t k = get_global_id(2);
   
   float2 tmp_in = 0.0f;
   float2 tmp_grad = 0.0f;
   float2 tmp_coil = 0.0f;
   float2 tmp_mul = 0.0f;
 
-
+  for (int slice=0; slice < NSl; slice++)
+  {
     for (int scan=0; scan<NScan; scan++)
     {
       for (int coil=0; coil < NCo; coil++)
       {
-        tmp_coil = coils[coil*NSl*X*Y + k*X*Y + y*X + x];
+        tmp_coil = coils[coil*NSl*X*Y + slice*X*Y + y*X + x];
         float2 sum = 0.0f;
         for (int uk=0; uk<Nuk; uk++)
         {
-          tmp_grad = grad[uk*NScan*NSl*X*Y+scan*NSl*X*Y + k*X*Y + y*X + x];  
-          tmp_in = in[uk*NSl*X*Y+k*X*Y+ y*X + x];         
+          tmp_grad = grad[uk*NScan*NSl*X*Y+scan*NSl*X*Y + slice*X*Y + y*X + x];  
+          tmp_in = in[uk*NSl*X*Y+slice*X*Y+ y*X + x];         
           
           tmp_mul = (float2)(tmp_in.x*tmp_grad.x-tmp_in.y*tmp_grad.y,tmp_in.x*tmp_grad.y+tmp_in.y*tmp_grad.x);          
           sum += (float2)(tmp_mul.x*tmp_coil.x-tmp_mul.y*tmp_coil.y,
                                                     tmp_mul.x*tmp_coil.y+tmp_mul.y*tmp_coil.x);
 
         }
-        out[scan*NCo*NSl*X*Y+coil*NSl*X*Y+k*X*Y + y*X + x] = sum;
+        out[scan*NCo*NSl*X*Y+coil*NSl*X*Y+slice*X*Y + y*X + x] = sum;
       }
     }
-
+  }
   
 }
 __kernel void operator_ad(__global float2 *out, __global float2 *in,
@@ -621,27 +490,28 @@ __kernel void operator_ad(__global float2 *out, __global float2 *in,
   size_t Y = get_global_size(1);
   size_t x = get_global_id(0);
   size_t y = get_global_id(1);
-  size_t k = get_global_id(2);
   
   float2 tmp_in = 0.0f;
   float2 tmp_mul = 0.0f;
   float2 conj_grad = 0.0f;
   float2 conj_coils = 0.0f;
   
+  for (int slice=0; slice < NSl; slice++)
+  {
   
   for (int uk=0; uk<Nuk; uk++)
   {
   float2 sum = (float2) 0.0f;  
   for (int scan=0; scan<NScan; scan++)
   {
-    conj_grad = (float2) (grad[uk*NScan*NSl*X*Y+scan*NSl*X*Y + k*X*Y + y*X + x].x,
-                          -grad[uk*NScan*NSl*X*Y+scan*NSl*X*Y + k*X*Y + y*X + x].y);  
+    conj_grad = (float2) (grad[uk*NScan*NSl*X*Y+scan*NSl*X*Y + slice*X*Y + y*X + x].x,
+                          -grad[uk*NScan*NSl*X*Y+scan*NSl*X*Y + slice*X*Y + y*X + x].y);  
   for (int coil=0; coil < NCo; coil++)
   {
-    conj_coils = (float2) (coils[coil*NSl*X*Y + k*X*Y + y*X + x].x,
-                                  -coils[coil*NSl*X*Y + k*X*Y + y*X + x].y);
+    conj_coils = (float2) (coils[coil*NSl*X*Y + slice*X*Y + y*X + x].x,
+                                  -coils[coil*NSl*X*Y + slice*X*Y + y*X + x].y);
 
-    tmp_in = in[scan*NCo*NSl*X*Y+coil*NSl*X*Y + k*X*Y+ y*X + x];
+    tmp_in = in[scan*NCo*NSl*X*Y+coil*NSl*X*Y + slice*X*Y+ y*X + x];
     tmp_mul = (float2)(tmp_in.x*conj_grad.x-tmp_in.y*conj_grad.y,tmp_in.x*conj_grad.y+tmp_in.y*conj_grad.x);    
 
 
@@ -649,9 +519,10 @@ __kernel void operator_ad(__global float2 *out, __global float2 *in,
                                      tmp_mul.x*conj_coils.y+tmp_mul.y*conj_coils.x);
   }
   }
-  out[uk*NSl*X*Y+k*X*Y+y*X+x] = sum; 
+  out[uk*NSl*X*Y+slice*X*Y+y*X+x] = sum; 
   }
   
+  }
 }    
     
 """)
@@ -668,14 +539,13 @@ __kernel void operator_ad(__global float2 *out, __global float2 *in,
     angles = np.reshape(np.angle(self.traj[:,:,0]),(self.Nproj*self.NScan))
 #    angles = np.linspace(0,np.pi,(self.Nproj))
     nd = self.N
-    #### Shifts should be accounted for in the angle from the trajectory...
-#    shift_read = np.array((0.0294,0.0319,0.0301,0.0306,0.0311,0.0299,0.0318,0.0296,0.0281,0.0262))
-#    shift_phase = np.array((0.0904,0.0884,0.0884,0.0908,0.0912,0.0895,0.0910,0.0957,0.0968,0.0996))
+    shift_read = np.array((0.0294,0.0319,0.0301,0.0306,0.0311,0.0299,0.0318,0.0296,0.0281,0.0262))
+    shift_phase = np.array((0.0904,0.0884,0.0884,0.0908,0.0912,0.0895,0.0910,0.0957,0.0968,0.0996))
            
     midpoint_domain = np.zeros((self.NScan,2))
     for i in range(self.NScan):
-#        midpoint_domain[i,:] = np.array([(self.dimX-1)/2.0-shift_read[i], (self.dimY-1)/2.0-shift_phase[i]])
-      midpoint_domain[i,:] = np.array([(self.dimX-1)/2.0, (self.dimY-1)/2.0])
+        midpoint_domain[i,:] = np.array([(self.dimX-1)/2.0-shift_read[i], (self.dimY-1)/2.0-shift_phase[i]])
+#      midpoint_domain[i,:] = np.array([(self.dimX-1)/2.0, (self.dimY-1)/2.0])
     midpoint_domain=np.repeat(midpoint_domain,self.Nproj,0)    
         
     midpoint_detectors = (nd-1.0)/2.0
@@ -780,8 +650,8 @@ __kernel void operator_ad(__global float2 *out, __global float2 *in,
 
     
     self.fval= (self.irgn_par.lambd/2*np.linalg.norm(data - np.squeeze(self.FT(self.model.execute_forward_3D(x)[:,None,...]*self.Coils)))**2
-           +self.irgn_par.gamma*np.sum(np.abs(gd.fgrad_3(x[:self.unknowns_TGV,...])-v[:,:3,...]))
-           +self.irgn_par.gamma*(2)*np.sum(np.abs(gd.sym_bgrad_3(v[:,:3,...]))) 
+           +self.irgn_par.gamma*np.sum(np.abs(gd.fgrad_3(x[:self.unknowns_TGV,...])-v))
+           +self.irgn_par.gamma*(2)*np.sum(np.abs(gd.sym_bgrad_3(v))) 
            +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2)    
     print("-"*80)
     print ("Function value after GN-Step: %f" %(self.fval/self.irgn_par.lambd))
@@ -804,10 +674,10 @@ __kernel void operator_ad(__global float2 *out, __global float2 *in,
       self.irgn_par.delta = delta
       self.Coils = np.array(np.squeeze(self.par.C),order='C')
       self.conjCoils = np.conj(self.Coils)   
-      self.v = np.zeros((4,self.dimX,self.dimY,self.NSlice,self.unknowns), dtype=DTYPE, order='F')
+      self.v = np.zeros((2,self.dimX,self.dimY,self.NSlice,self.unknowns), dtype=DTYPE, order='F')
       self.r = np.zeros((self.NScan*self.NC*self.NSlice,self.Nproj,self.N),dtype=DTYPE, order='C').T
-      self.z1 = np.zeros((4,self.dimX,self.dimY,self.NSlice,self.unknowns), dtype=DTYPE, order='F')
-      self.z2 = np.zeros( (8,self.dimX,self.dimY,self.NSlice,self.unknowns), dtype=DTYPE, order='F')
+      self.z1 = np.zeros((2,self.dimX,self.dimY,self.NSlice,self.unknowns), dtype=DTYPE, order='F')
+      self.z2 = np.zeros( (4,self.dimX,self.dimY,self.NSlice,self.unknowns), dtype=DTYPE, order='F')
  
       iters = self.irgn_par.start_iters          
       for i in range(self.irgn_par.max_GN_it):
@@ -823,13 +693,14 @@ __kernel void operator_ad(__global float2 *out, __global float2 *in,
        self.model.T1_sc = self.model.T1_sc*(scale)
        result[1,...] = result[1,...]/self.model.T1_sc          
        self.step_val = self.model.execute_forward_3D(result)
-       self.grad_x_2D = np.nan_to_num(self.model.execute_gradient_3D(result).astype(DTYPE)).T
+       self.grad_x_2D = np.nan_to_num(self.model.execute_gradient_3D(result).astype(DTYPE))
        self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x_2D.data)          
+#          self.conj_grad_x_2D = np.conj(self.grad_x_2D)
                      
                      
        result= self.irgn_solve_2D(result, iters, self.data)
        self.E1_scale.append(self.model.T1_sc)
-       self.result[i,...] = result
+       self.result[i,...] = result[:,...]
        
        iters = np.fmin(iters*2,self.irgn_par.max_iters)
        self.irgn_par.gamma = np.maximum(self.irgn_par.gamma*0.5,self.irgn_par.gamma_min)
@@ -844,45 +715,63 @@ __kernel void operator_ad(__global float2 *out, __global float2 *in,
        self.fval_min = np.minimum(self.fval,self.fval_min)
                  
          
-  def eval_fwd(self,y,x,wait_for=[]):
+  def eval_fwd(self,y,x,wait_for=None):
  
-    return self.prg.operator_fwd(y.queue, (self.dimX,self.dimY,self.NSlice), None, 
+    return self.prg.operator_fwd(y.queue, (self.dimY,self.dimX), None, 
                                  y.data, x.data, self.coil_buf, self.grad_buf,
                                  np.int32(self.NC), np.int32(self.NSlice), np.int32(self.NScan), np.int32(self.unknowns),
                                  wait_for=wait_for)       
       
-  def operator_forward_2D(self, outp, inp ,wait_for=[]):
+  def operator_forward_2D(self, outp, inp ,wait_for=None):
     
 #    return self.FT(np.sum(x[:,None,...]*self.grad_x_2D,axis=0)[:,None,...]*self.Coils)
        
 #    tmp_img = clarray.to_device(self.queue,np.require(np.reshape(x.get(),(self.unknowns*self.NSlice,self.dimY,self.dimX)),DTYPE,"C"))
 
     tmp_result = clarray.zeros(self.queue,(self.dimY,self.dimX,self.NC*self.NScan*self.NSlice),DTYPE,"F")
-    tmp_result.add_event(self.eval_fwd(tmp_result,inp,wait_for=tmp_result.events+wait_for))
+    tmp_result.add_event(self.eval_fwd(tmp_result,inp,wait_for=wait_for))
     
 #    tmp_sino = clarray.zeros(self.queue,self.r_struct[2],DTYPE,"F")#self.FT(np.reshape(tmp_result.get(),(self.NScan,self.NC,self.dimY,self.dimX)))#
     return (self.radon(outp,tmp_result,wait_for=tmp_result.events))
 
     
-  def operator_adjoint_2D(self,outp,inp,wait_for=[]):
+  def operator_adjoint_2D(self,outp,inp,wait_for=None):
 #     msv.imshow(np.abs(x.get()))
 #    return np.squeeze(np.sum(np.squeeze(np.sum(self.FTH(x)*self.conjCoils,axis=1))*self.conj_grad_x_2D,axis=1)) 
 #    tmp_sino = clarray.to_device(self.queue,np.require(np.reshape(x.get(),(self.NScan*self.NC*self.NSlice,self.Nproj,self.N)),DTYPE,"C"))
 #    tmp_sino = clarray.reshape(x,(self.NScan*self.NC,self.Nproj,self.N))
      tmp_img =  clarray.zeros(self.queue,self.r_struct[1],DTYPE,"F")#clarray.to_device(self.queue,self.FTH(x.get()))#
-     tmp_img.add_event(self.radon_ad(tmp_img,inp,wait_for=tmp_img.events+wait_for))
+     tmp_img.add_event(self.radon_ad(tmp_img,inp,wait_for=wait_for))
 #    tmp_result = clarray.zeros(self.queue,(self.unknowns,self.dimY,self.dimX),DTYPE,"C")
 #    
      return (self.eval_adj(outp,tmp_img,wait_for=tmp_img.events))
 #    result = clarray.reshape(tmp_result,(self.unknowns,self.dimY,self.dimX))
 #    return result
 
-  def eval_adj(self,x,y,wait_for=[]):
+  def eval_adj(self,x,y,wait_for=None):
 
-    return self.prg.operator_ad(x.queue, (self.dimX,self.dimY,self.NSlice), None, 
+    return self.prg.operator_ad(x.queue, (self.dimY,self.dimX), None, 
                                  x.data, y.data, self.coil_buf, self.grad_buf,np.int32(self.NC), 
                                  np.int32(self.NSlice),  np.int32(self.NScan), np.int32(self.unknowns),
-                                 wait_for=wait_for)       
+                                 wait_for=wait_for)      
+
+  def eval_const(self, x, wait_for=None):
+    num_const = (len(self.model.constraints))  
+    min_const = np.zeros((num_const,1),dtype=np.float32)
+    max_const = np.zeros((num_const,1),dtype=np.float32)
+    real_const = np.zeros((num_const,1),dtype=np.int)
+    for j in range(num_const):
+        min_const[j] = self.model.constraints[j].min
+        max_const[j] = self.model.constraints[j].max
+        real_const[j] = self.model.constraints[j].real
+        
+#    print(x.shape[-3:])
+        
+    x.add_event(self.prg.box_con(x.queue, x.shape[-2:],None,
+                                 x.data, min_const.data, max_const.data, real_const.data,
+                                 np.float32(num_const),
+                                 wait_for=wait_for))
+  
    
 #  
   def update_p(self,p, u, w, sigma, alpha, wait_for=[]):
@@ -898,12 +787,7 @@ __kernel void operator_ad(__global float2 *out, __global float2 *in,
   def f_grad(self,grad, u, wait_for=[]):
     grad.add_event(self.prg.gradient(grad.queue, grad.shape[1:-1], None, grad.data, u.data,
                 np.int32(self.unknowns),
-                wait_for=grad.events + u.events + wait_for))
-    
-  def bdiv(self,div, u, wait_for=[]):
-    div.add_event(self.prg.divergence(div.queue, u.shape[1:-1], None, div.data, u.data,
-                np.int32(self.unknowns),
-                wait_for=div.events + u.events + wait_for))    
+                wait_for=u.events + wait_for))
 
   def sym_grad(self,sym, w, wait_for=[]):
     sym.add_event(self.prg.sym_grad(sym.queue, sym.shape[1:-1], None, sym.data, w.data,
@@ -921,7 +805,7 @@ __kernel void operator_ad(__global float2 *out, __global float2 *in,
                 p.data, Kstarlambda.data, uk.data, np.float32(tau), np.float32(1.0/normest),
                 np.float32(delta),np.int32(self.unknowns),
                 wait_for=u.events + u_.events + p.events +
-                Kstarlambda.events +uk.events+ wait_for))
+                Kstarlambda.events + wait_for))
 
   def update_w(self,w, w_, p, q, tau, wait_for=[]):
     w.add_event(self.prg.update_w(w.queue, w.shape[1:-1], None, w.data, w_.data,
@@ -1000,9 +884,9 @@ __kernel void operator_ad(__global float2 *out, __global float2 *in,
     for i in range(np.minimum(10,maxiter)):
         self.update_p(p, u_, w_, sigma, alpha[1])
         self.update_q(q, w_, sigma, alpha[0], wait_for=w_.events)
-        Ku.add_event(self.operator_forward_2D(Ku, u_, wait_for=u_.events+Ku.events))
+        Ku.add_event(self.operator_forward_2D(Ku, u_, wait_for=u_.events))
         self.update_lambda(lamb, Ku, f, sigma, normest)
-        Kstarlambda.add_event(self.operator_adjoint_2D(Kstarlambda, lamb, wait_for=lamb.events+Kstarlambda.events))
+        Kstarlambda.add_event(self.operator_adjoint_2D(Kstarlambda, lamb, wait_for=lamb.events))
         self.update_u(u_, u, p, Kstarlambda, uk, tau, normest, self.irgn_par.delta)
         self.update_w(w_, w, p, q, tau)
         
@@ -1030,9 +914,9 @@ __kernel void operator_ad(__global float2 *out, __global float2 *in,
     for i in np.arange(10,maxiter):
         self.update_p(p, u_, w_, sigma, alpha[1])
         self.update_q(q, w_, sigma, alpha[0], wait_for=w_.events)
-        Ku.add_event(self.operator_forward_2D(Ku, u_, wait_for=Ku.events+u_.events))
+        Ku.add_event(self.operator_forward_2D(Ku, u_, wait_for=u_.events))
         self.update_lambda(lamb, Ku, f, sigma, normest)
-        Kstarlambda.add_event(self.operator_adjoint_2D(Kstarlambda, lamb, wait_for=Kstarlambda.events+lamb.events))
+        Kstarlambda.add_event(self.operator_adjoint_2D(Kstarlambda, lamb, wait_for=lamb.events))
         self.update_u(u_, u, p, Kstarlambda, uk, tau, normest, self.irgn_par.delta)
         self.update_w(w_, w, p, q, tau)
         
@@ -1103,8 +987,8 @@ __kernel void operator_ad(__global float2 *out, __global float2 *in,
      tau = tau
      
      Ku = clarray.zeros(self.queue, (self.N,self.Nproj,self.NC*self.NSlice*self.NScan),dtype=DTYPE,order='F')
-     grad = clarray.zeros(self.queue, (4,self.dimX,self.dimY,self.NSlice,self.unknowns), dtype=DTYPE, order='F')
-     sym_grad = clarray.zeros(self.queue, (8,self.dimX,self.dimY,self.NSlice,self.unknowns), dtype=DTYPE, order='F')
+     grad = clarray.zeros(self.queue, (2,self.dimX,self.dimY,self.NSlice,self.unknowns), dtype=DTYPE, order='F')
+     sym_grad = clarray.zeros(self.queue, (4,self.dimX,self.dimY,self.NSlice,self.unknowns), dtype=DTYPE, order='F')
      Ku.add_event(self.operator_forward_2D(Ku, u, wait_for=u.events))
      self.f_grad(grad,u)
      grad = grad-v
@@ -1114,7 +998,7 @@ __kernel void operator_ad(__global float2 *out, __global float2 *in,
      #Get |Kx|  2 bei sym grad berücksichtigt!
      sym_grad = sym_grad.get()
 
-     nKx = np.real((clarray.vdot(Ku,Ku).get()+clarray.vdot(grad,grad).get()+np.sum(np.vdot(sym_grad[:3],sym_grad[:3]))+2*np.sum(np.vdot(sym_grad[3:],sym_grad[3:])))**(1/2))
+     nKx = np.real((clarray.vdot(Ku,Ku).get()+clarray.vdot(grad,grad).get()+np.sum(np.vdot(sym_grad[:2],sym_grad[:2]))+2*np.sum(np.vdot(sym_grad[2:],sym_grad[2:])))**(1/2))
      
      #Get |x|
      nx = np.real(((clarray.vdot(u,u)+clarray.vdot(v,v))**(1/2)).get())
