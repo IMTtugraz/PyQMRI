@@ -293,7 +293,7 @@ cdef class Model_Reco:
       self.z3 = np.zeros(([self.unknowns_H1,3,self.NSlice,self.par.dimX,self.par.dimY]),dtype=DTYPE)                        
       for i in range(self.irgn_par.max_GN_it):
         start = time.time()       
-        self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(self.result[i,:,:,:,:]))
+        self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
 
         scale = np.linalg.norm(np.abs(self.grad_x[0,...]))/np.linalg.norm(np.abs(self.grad_x[1,...]))
         
