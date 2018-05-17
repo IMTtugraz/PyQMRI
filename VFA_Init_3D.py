@@ -2,7 +2,7 @@ import numpy as np
 
 import time
 import os
-import h5py  
+import h5py
 from tkinter import filedialog
 from tkinter import Tk
 import nlinvns_maier as nlinvns
@@ -19,8 +19,8 @@ import primaldualtoolbox
 
 DTYPE = np.complex64
 np.seterr(divide='ignore', invalid='ignore')
-   
-#os.system("taskset -p 0xfff %d" % os.getpid()) 
+
+#os.system("taskset -p 0xfff %d" % os.getpid())
 
 ################################################################################
 ### Initiate parallel interface ################################################
@@ -29,7 +29,7 @@ np.seterr(divide='ignore', invalid='ignore')
 import ipyparallel as ipp
 
 c = ipp.Client()
-  
+
 ################################################################################
 ### Select input file ##########################################################
 ################################################################################
@@ -67,9 +67,9 @@ for attributes in test_attributes:
 ################################################################################
 ### Read Data ##################################################################
 ################################################################################
-reco_Slices = 5
-dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)    
-    
+reco_Slices = 3
+dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
+
 data = file['real_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE) +\
        1j*file['imag_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE)
 
@@ -107,7 +107,7 @@ par.NC          = NC
 par.dimY        = dimY
 par.dimX        = dimX
 par.NSlice      = NSlice
-par.NScan       = NScan 
+par.NScan       = NScan
 par.N = N
 par.Nproj = Nproj
 
@@ -130,60 +130,60 @@ nlinvRealConstr  = False
 
 traj_x = np.real(np.asarray(traj))
 traj_y = np.imag(np.asarray(traj))
-  
+
 config = {'osf' : 2,
             'sector_width' : 8,
             'kernel_width' : 3,
             'img_dim' : dimX}
 
-points = (np.array([traj_x.flatten(),traj_y.flatten()]))      
+points = (np.array([traj_x.flatten(),traj_y.flatten()]))
 op = primaldualtoolbox.mri.MriRadialOperator(config)
 op.setTrajectory(points)
 op.setDcf(np.repeat(np.sqrt(dcf),NScan,axis=0).flatten().astype(np.float32)[None,...])
-op.setCoilSens(np.ones((1,dimX,dimY),dtype=DTYPE))            
+op.setCoilSens(np.ones((1,dimX,dimY),dtype=DTYPE))
 
-        
-par.C = np.zeros((NC,NSlice,dimY,dimX), dtype=DTYPE)       
-par.phase_map = np.zeros((NSlice,dimY,dimX), dtype=DTYPE)   
+
+par.C = np.zeros((NC,NSlice,dimY,dimX), dtype=DTYPE)
+par.phase_map = np.zeros((NSlice,dimY,dimX), dtype=DTYPE)
 
 result = []
 for i in range(NSlice):
   print('deriving M(TI(1)) and coil profiles')
-  
-  
+
+
   ##### RADIAL PART
   combinedData = np.transpose(data[:,:,i,:,:],(1,0,2,3))
   combinedData = np.reshape(combinedData,(NC,NScan*Nproj*N))
   coilData = np.zeros((NC,dimY,dimX),dtype=DTYPE)
   for j in range(NC):
       coilData[j,:,:] = op.adjoint(combinedData[j,:]*(np.repeat(np.sqrt(dcf),NScan,axis=0).flatten())[None,...])
-      
-  combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)     
+
+  combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)
   dview = c[int(np.floor(i*len(c)/NSlice))]
-  result.append(dview.apply_async(nlinvns.nlinvns, combinedData, 
+  result.append(dview.apply_async(nlinvns.nlinvns, combinedData,
                                   nlinvNewtonSteps, True, nlinvRealConstr))
 
-for i in range(NSlice):  
+for i in range(NSlice):
   par.C[:,i,:,:] = result[i].get()[2:,-1,:,:]
 
   if not nlinvRealConstr:
     par.phase_map[i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
     par.C[:,i,:,:] = par.C[:,i,:,:]* np.exp(1j *\
          np.angle( result[i].get()[1,-1,:,:]))
-    
+
     # standardize coil sensitivity profiles
 sumSqrC = np.sqrt(np.sum((par.C * np.conj(par.C)),0)) #4, 9, 128, 128
 if NC == 1:
-  par.C = sumSqrC 
+  par.C = sumSqrC
 else:
-  par.C = par.C / np.tile(sumSqrC, (NC,1,1,1)) 
+  par.C = par.C / np.tile(sumSqrC, (NC,1,1,1))
 ################################################################################
 ### Standardize data norm ######################################################
 ################################################################################
 if file.attrs['data_normalized_with_dcf']:
-  pass  
+  pass
 else:
-  data = data*np.sqrt(dcf) 
+  data = data*np.sqrt(dcf)
 #### Close File after everything was read
 file.close()
 data = data
@@ -237,7 +237,7 @@ def gpuNUFFT(NScan,NSlice,dimX,traj,dcf,Coils):
 
   traj_x = np.real(np.asarray(traj))
   traj_y = np.imag(np.asarray(traj))
-  
+
   config = {'osf' : 2,
             'sector_width' : 8,
             'kernel_width' : 3,
@@ -245,23 +245,23 @@ def gpuNUFFT(NScan,NSlice,dimX,traj,dcf,Coils):
 
   for i in range(NScan):
     plan.append([])
-    points = (np.array([traj_x[i,:,:].flatten(),traj_y[i,:,:].flatten()]))      
+    points = (np.array([traj_x[i,:,:].flatten(),traj_y[i,:,:].flatten()]))
     for j in range(NSlice):
       op = primaldualtoolbox.mri.MriRadialOperator(config)
       op.setTrajectory(points)
       op.setDcf(dcf.flatten().astype(np.float32)[None,...])
-      op.setCoilSens(np.require(Coils[:,j,...],DTYPE,'C'))            
+      op.setCoilSens(np.require(Coils[:,j,...],DTYPE,'C'))
       plan[i].append(op)
- 
+
 
   return plan
 
 def nFT_gpu(plan,x):
     result = np.zeros((NScan,NC,NSlice,Nproj*N),dtype=DTYPE)
-    for scan in range(NScan):    
+    for scan in range(NScan):
       for islice in range(NSlice):
         result[scan,:,islice,...] = plan[scan][islice].forward(np.require(x[scan,:,islice,...],DTYPE,'C'))
-      
+
     return np.reshape(result,[NScan,NC,NSlice,Nproj,N])
 
 
@@ -270,7 +270,7 @@ def nFT_gpu(plan,x):
 def nFTH_gpu(x,Coils):
     traj_x = np.real(np.asarray(traj))
     traj_y = np.imag(np.asarray(traj))
-  
+
     config = {'osf' : 2,
             'sector_width' : 8,
             'kernel_width' : 3,
@@ -278,14 +278,14 @@ def nFTH_gpu(x,Coils):
     result = np.zeros((NScan,NSlice,dimX,dimY),dtype=DTYPE)
     x = np.require(np.reshape(x,(NScan,NC,NSlice,Nproj*N)))
     for scan in range(NScan):
-      points = (np.array([traj_x[scan,:,:].flatten(),traj_y[scan,:,:].flatten()]))  
+      points = (np.array([traj_x[scan,:,:].flatten(),traj_y[scan,:,:].flatten()]))
       for islice in range(NSlice):
           op = primaldualtoolbox.mri.MriRadialOperator(config)
           op.setTrajectory(points)
           op.setDcf(dcf.flatten().astype(np.float32)[None,...])
-          op.setCoilSens(np.require(Coils[:,islice,...],DTYPE,'C'))    
+          op.setCoilSens(np.require(Coils[:,islice,...],DTYPE,'C'))
           result[scan,islice,...] = op.adjoint(np.require(x[scan,:,islice,...],DTYPE,'C'))
-      
+
     return result
 
 
@@ -303,17 +303,7 @@ images= nFTH_gpu(data,par.C)
 #del plan
 del op
 
-
-################################################################################
-### Init forward model and initial guess #######################################
-################################################################################
-model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images,\
-                            par.phase_map,NSlice,Nproj)
-
-#test_T1 = np.reshape(np.linspace(10,5500,dimX*dimY*NSlice),(NSlice,dimX,dimY))/model.T1_sc
-#G_x = model.execute_forward_3D(np.array([1*np.ones((NSlice,dimY,dimX),dtype=DTYPE),np.exp(-model.TR/(test_T1*np.ones((NSlice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE))
-##test_T1*np.ones((NSlice,dimY,dimX),dtype=DTYPE)],dtype=DTYPE))#
-#model.M0_sc = model.M0_sc*np.max(np.abs(images))/np.max(np.abs(G_x))
+import matplotlib.pyplot as plt
 
 par.U = np.ones((data).shape, dtype=bool)
 par.U[abs(data) == 0] = False
@@ -322,74 +312,87 @@ par.U[abs(data) == 0] = False
 ################################################################################
 
 opt = Model_Reco.Model_Reco(par)
+result_tgv = []
+reg_par = np.arange(1e-1+3e-2,1e0,1e-1)
+for j in range(len(reg_par)):
+   ################################################################################
+   ### Init forward model and initial guess #######################################
+   ################################################################################
+   model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images,\
+                               par.phase_map,NSlice,Nproj)
+   opt.par = par
+   opt.data =  data
+   opt.images = images
+   opt.dcf = (dcf)
+   opt.dcf_flat = (dcf).flatten()
+   opt.model = model
+   opt.traj = traj
 
-opt.par = par
-opt.data =  data
-opt.images = images
-opt.dcf = (dcf)
-opt.dcf_flat = (dcf).flatten()
-opt.model = model
-opt.traj = traj 
+   opt.dz = 1
 
-opt.dz = 1
+   ################################################################################
+   ##IRGN Params
+   irgn_par = struct()
+   irgn_par.max_iters = 300
+   irgn_par.start_iters = 100
+   irgn_par.max_GN_it = 20
+   irgn_par.lambd = 1e2
+   irgn_par.gamma = 1e0   #### 5e-2   5e-3 phantom ##### brain 1e-2
+   irgn_par.delta = 1e-1 #### 8spk in-vivo 1e-2
+   irgn_par.omega = 0e-10
+   irgn_par.display_iterations = True
+   irgn_par.gamma_min = reg_par[j]
+   irgn_par.delta_max = 1e0
+   irgn_par.tol = 5e-3
+   irgn_par.stag = 1.00
+   irgn_par.delta_inc = 2
+   irgn_par.gamma_dec = 0.7
+   opt.irgn_par = irgn_par
 
-################################################################################
-##IRGN Params
-irgn_par = struct()
-irgn_par.max_iters = 300
-irgn_par.start_iters = 100
-irgn_par.max_GN_it = 20
-irgn_par.lambd = 1e2
-irgn_par.gamma = 1e0   #### 5e-2   5e-3 phantom ##### brain 1e-2
-irgn_par.delta = 1e-1 #### 8spk in-vivo 1e-2
-irgn_par.omega = 0e-10
-irgn_par.display_iterations = True
-irgn_par.gamma_min = 8e-2  
-irgn_par.delta_max = 1e0
-irgn_par.tol = 5e-3
-irgn_par.stag = 1.00
-irgn_par.delta_inc = 2
-irgn_par.gamma_dec = 0.7
-opt.irgn_par = irgn_par
+   opt.execute_3D()
+   result_tgv.append(opt.result)
+   plt.close('all')
 
-opt.execute_3D()
 
-result_tgv = opt.result
 res = opt.gn_res
 res = np.array(res)/(irgn_par.lambd*NSlice)
 scale_E1_TGV = opt.model.T1_sc
 ################################################################################
 #### IRGN - TV referenz ########################################################
 ################################################################################
+result_ref = []
+reg_par = np.arange(1e-1+3e-2,1e0,1e-1)
+for j in range(len(reg_par)):
+  ################################################################################
+  ### Init forward model and initial guess #######################################
+  #############################################################re###################
+  model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images,\
+                              par.phase_map,NSlice,Nproj)
+  opt.model = model
+  ################################################################################
+  ##IRGN Params
+  irgn_par = struct()
+  irgn_par.max_iters = 300
+  irgn_par.start_iters = 100
+  irgn_par.max_GN_it = 20
+  irgn_par.lambd = 1e2
+  irgn_par.gamma = 1e0   #### 5e-2   5e-3 phantom ##### brain 1e-2
+  irgn_par.delta = 1e-1 #### 8spk in-vivo 1e-2
+  irgn_par.omega = 0e-10
+  irgn_par.display_iterations = True
+  irgn_par.gamma_min = reg_par[j]
+  irgn_par.delta_max = 1e0
+  irgn_par.tol = 5e-3
+  irgn_par.stag = 1.00
+  irgn_par.delta_inc = 2
+  irgn_par.gamma_dec = 0.7
+  opt.irgn_par = irgn_par
 
-################################################################################
-### Init forward model and initial guess #######################################
-#############################################################re###################
-model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images,\
-                            par.phase_map,NSlice,Nproj)
-opt.model = model
-################################################################################
-##IRGN Params
-irgn_par = struct()
-irgn_par.max_iters = 300
-irgn_par.start_iters = 100
-irgn_par.max_GN_it = 20
-irgn_par.lambd = 1e2
-irgn_par.gamma = 1e0   #### 5e-2   5e-3 phantom ##### brain 1e-2
-irgn_par.delta = 1e-1 #### 8spk in-vivo 1e-2
-irgn_par.omega = 0e-10
-irgn_par.display_iterations = True
-irgn_par.gamma_min = 2e-1  
-irgn_par.delta_max = 1e0
-irgn_par.tol = 5e-3
-irgn_par.stag = 1.00
-irgn_par.delta_inc = 2
-irgn_par.gamma_dec = 0.7
-opt.irgn_par = irgn_par
 
+  opt.execute_3D(True)
+  result_ref.append(opt.result)
+  plt.close('all')
 
-opt.execute_3D(True)
-result_ref = opt.result
 scale_E1_ref = opt.model.T1_sc
 
 del opt
@@ -408,7 +411,7 @@ del opt
 #opt_t.dcf = (dcf)
 #opt_t.dcf_flat = (dcf).flatten()
 #opt_t.model = model
-#opt_t.traj = traj 
+#opt_t.traj = traj
 #
 ################################################################################
 ##IRGN Params
@@ -443,35 +446,37 @@ if not os.path.exists('./output'):
     os.makedirs('./output')
 os.makedirs("output/"+ outdir)
 
-os.chdir("output/"+ outdir)  
+os.chdir("output/"+ outdir)
 f = h5py.File("output_"+name,"w")
-dset_result=f.create_dataset("full_result",result_tgv.shape,\
-                             dtype=DTYPE,data=result_tgv)
-dset_result_ref=f.create_dataset("ref_full_result",result_ref.shape,\
-                                 dtype=DTYPE,data=result_ref)
-dset_T1=f.create_dataset("T1_final",np.squeeze(result_tgv[-1,1,...]).shape,\
-                         dtype=DTYPE,\
-                         data=np.squeeze(result_tgv[-1,1,...]))
-dset_M0=f.create_dataset("M0_final",np.squeeze(result_tgv[-1,0,...]).shape,\
-                         dtype=DTYPE,\
-                         data=np.squeeze(result_tgv[-1,0,...]))
-dset_T1_ref=f.create_dataset("T1_ref",np.squeeze(result_ref[-1,1,...]).shape\
-                             ,dtype=DTYPE,\
-                             data=np.squeeze(result_ref[-1,1,...]))
-dset_M0_ref=f.create_dataset("M0_ref",np.squeeze(result_ref[-1,0,...]).shape\
-                             ,dtype=DTYPE,\
-                             data=np.squeeze(result_ref[-1,0,...]))
-#f.create_dataset("T1_guess",np.squeeze(model.T1_guess).shape,\
-#                 dtype=np.float64,data=np.squeeze(model.T1_guess))
-#f.create_dataset("M0_guess",np.squeeze(model.M0_guess).shape,\
-#                 dtype=np.float64,data=np.squeeze(model.M0_guess))
-f.attrs['data_norm'] = dscale
-f.attrs['dcf_scaling'] = (N*(np.pi/(4*Nproj)))
-f.attrs['E1_scale_TGV'] =scale_E1_TGV
-f.attrs['E1_scale_ref'] =scale_E1_ref
-f.attrs['M0_scale'] = model.M0_sc
-f.attrs['IRGN_TGV_res'] = res
-f.flush()
+
+for i in range(len(result_tgv)):
+  dset_result=f.create_dataset("full_result_"+str(i),result_tgv[i].shape,\
+                               dtype=DTYPE,data=result_tgv[i])
+  dset_result_ref=f.create_dataset("ref_full_result_"+str(i),result_ref[i].shape,\
+                                   dtype=DTYPE,data=result_ref[i])
+  dset_T1=f.create_dataset("T1_final_"+str(i),np.squeeze(result_tgv[i][-1,1,...]).shape,\
+                           dtype=DTYPE,\
+                           data=np.squeeze(result_tgv[i][-1,1,...]))
+  dset_M0=f.create_dataset("M0_final_"+str(i),np.squeeze(result_tgv[i][-1,0,...]).shape,\
+                           dtype=DTYPE,\
+                           data=np.squeeze(result_tgv[i][-1,0,...]))
+  dset_T1_ref=f.create_dataset("T1_ref_"+str(i),np.squeeze(result_ref[i][-1,1,...]).shape\
+                               ,dtype=DTYPE,\
+                               data=np.squeeze(result_ref[i][-1,1,...]))
+  dset_M0_ref=f.create_dataset("M0_ref_"+str(i),np.squeeze(result_ref[i][-1,0,...]).shape\
+                               ,dtype=DTYPE,\
+                               data=np.squeeze(result_ref[i][-1,0,...]))
+  #f.create_dataset("T1_guess",np.squeeze(model.T1_guess).shape,\
+  #                 dtype=np.float64,data=np.squeeze(model.T1_guess))
+  #f.create_dataset("M0_guess",np.squeeze(model.M0_guess).shape,\
+  #                 dtype=np.float64,data=np.squeeze(model.M0_guess))
+  f.attrs['data_norm'] = dscale
+  f.attrs['dcf_scaling'] = (N*(np.pi/(4*Nproj)))
+  f.attrs['E1_scale_TGV'] =scale_E1_TGV
+  f.attrs['E1_scale_ref'] =scale_E1_ref
+  f.attrs['M0_scale'] = model.M0_sc
+  f.attrs['IRGN_TGV_res'] = res
+  f.flush()
 f.close()
 
 os.chdir('..')
