@@ -727,7 +727,7 @@ cdef class Model_Reco:
           self.r = r_new
           self.z1 = z1_new
           print("Terminated at iteration %d because the method stagnated"%(i))
-          return xnew
+          return x_new
         if np.abs(gap - gap_min)<self.irgn_par.lambd*self.irgn_par.tol and i>1:
           self.r = r_new
           self.z1 = z1_new

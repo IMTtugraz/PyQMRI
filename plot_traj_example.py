@@ -72,12 +72,13 @@ ax = fig.add_subplot(111, projection='3d')
 ax.text(traj_x[0,-1],traj_y[0,-1],0.5+0.2,"Scan 1")
 ax.text(traj_x[Nproj,-1],traj_y[Nproj,-1],-0.5+0.2,"Scan 2")
 ax.text(traj_x[2*Nproj,-1],traj_y[2*Nproj,-1],-1.5+0.2,"Scan 3")
-ax.legend(("Proj 1", "Proj 2","Proj 3","Proj 4","Proj 5"),loc=0)
+#ax.legend(("Proj 1", "Proj 2","Proj 3","Proj 4","Proj 5"),loc=0)
 ax.set_xlabel('frequency encoding x')
 ax.set_ylabel('frequency encoding y')
 #ax.set_zlabel('slice encoding')
 ax.get_xaxis().set_ticks([])
 ax.get_yaxis().set_ticks([])
+ax.set_zticks([])
 ax.quiver(traj_x[-1,-1]+0.15,traj_y[-1,-1]+0.15,0.5+0.2,0,0,-0.5,color='black')
 ax.quiver(traj_x[-1,-1]+0.15,traj_y[-1,-1]+0.15,-0.5+0.2,0,0,-0.5,color='black')
 ax.text(traj_x[-1,-1]+0.2,traj_y[-1,-1]+0.2,-0.5+0.4,"z-encoding",zdir='z')
@@ -97,6 +98,62 @@ ax.set_zlabel('Z')
 
 ax.set_title('3D Encoding')
 # Creating the Animation object
+fig.tight_layout()
 line_ani = animation.FuncAnimation(fig, update_lines, NScan*NSlice*Nproj, fargs=(traj_x, traj_y, z_dim,slice_range),
                                    interval=100, blit=False)
 line_ani.save("sampling.gif",writer="imagemagick",fps=5)
+
+
+
+z_dim = np.arange(-NSlice/2,NSlice/2)
+plt.rc('lines', linewidth=4)
+plt.rc('axes', prop_cycle=(cycler('color', ['r','r','r','r','r','r','r','r','r','r','r','r','r','r','r','g','g','g','g','g','g','g','g','g','g','g','g','g','g','g','b','b','b','b','b','b','b','b','b','b','b','b','b','b','b','y','y','y','y','y','y','y','y','y','y','y','y','y','y','y',
+'c','c','c','c','c','c','c','c','c','c','c','c','c','c','c'])))
+def update_lines_IRLL(num, traj_x, traj_y, z_dim,slice_range):
+    if num == 0:
+      for j in range(0,NScan*Nproj*NSlice):
+        lines[j].set_data([],[])
+        lines[j].set_3d_properties([])
+
+    islice = int(num/(NScan*Nproj))
+    ind = int(num-islice*NScan*Nproj)
+    lines[num].set_data(traj_x[ind],traj_y[ind])
+    lines[num].set_3d_properties(z_dim[NSlice-islice-1])
+    return lines
+
+# Attaching 3D axis to the figure
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+#ax.text(traj_x[0,-1],traj_y[0,-1],0.5+0.2,"Scan 1")
+#ax.text(traj_x[Nproj,-1],traj_y[Nproj,-1],-0.5+0.2,"Scan 2")
+#ax.text(traj_x[2*Nproj,-1],traj_y[2*Nproj,-1],-1.5+0.2,"Scan 3")
+#ax.legend(("Proj 1", "Proj 2","Proj 3","Proj 4","Proj 5"),loc=0)
+ax.set_xlabel('frequency encoding x')
+ax.set_ylabel('frequency encoding y')
+#ax.set_zlabel('slice encoding')
+ax.get_xaxis().set_ticks([])
+ax.get_yaxis().set_ticks([])
+ax.set_zticks([])
+ax.quiver(traj_x[-1,-1]+0.15,traj_y[-1,-1]+0.15,0.5+0.2,0,0,-0.5,color='black')
+ax.quiver(traj_x[-1,-1]+0.15,traj_y[-1,-1]+0.15,-0.5+0.2,0,0,-0.5,color='black')
+ax.text(traj_x[-1,-1]+0.2,traj_y[-1,-1]+0.2,-0.5+0.4,"z-encoding",zdir='z')
+ax.quiver(traj_x[-1,-1]+0.15,traj_y[-1,-1]+0.15,-1.5+0.2,0,0,-0.5,color='black')
+
+lines = [ax.plot([], [], [])[0] for x in range(NScan*Nproj*NSlice)]
+
+# Setting the axes properties
+ax.set_xlim3d([-0.5, 0.5])
+ax.set_xlabel('X')
+
+ax.set_ylim3d([-0.5, 0.5])
+ax.set_ylabel('Y')
+
+ax.set_zlim3d([np.min(z_dim), np.max(z_dim)])
+ax.set_zlabel('Z')
+
+ax.set_title('3D Encoding')
+# Creating the Animation object
+fig.tight_layout()
+line_ani = animation.FuncAnimation(fig, update_lines_IRLL, NScan*NSlice*Nproj, fargs=(traj_x, traj_y, z_dim,slice_range),
+                                   interval=100, blit=False)
+line_ani.save("sampling_IRLL.gif",writer="imagemagick",fps=5)

@@ -313,7 +313,8 @@ par.U[abs(data) == 0] = False
 
 opt = Model_Reco.Model_Reco(par)
 result_tgv = []
-reg_par = np.arange(1e-1+3e-2,1e0,1e-1)
+#reg_par = np.arange(2e-1+3e-2,4e-1,1e-2)
+reg_par = np.logspace(-4,-1,4)
 for j in range(len(reg_par)):
    ################################################################################
    ### Init forward model and initial guess #######################################
@@ -338,14 +339,14 @@ for j in range(len(reg_par)):
    irgn_par.max_GN_it = 20
    irgn_par.lambd = 1e2
    irgn_par.gamma = 1e0   #### 5e-2   5e-3 phantom ##### brain 1e-2
-   irgn_par.delta = 1e-1 #### 8spk in-vivo 1e-2
+   irgn_par.delta = reg_par[j] #### 8spk in-vivo 1e-1
    irgn_par.omega = 0e-10
    irgn_par.display_iterations = True
-   irgn_par.gamma_min = reg_par[j]
+   irgn_par.gamma_min = 4e-2
    irgn_par.delta_max = 1e0
    irgn_par.tol = 5e-3
    irgn_par.stag = 1.00
-   irgn_par.delta_inc = 2
+   irgn_par.delta_inc = 4
    irgn_par.gamma_dec = 0.7
    opt.irgn_par = irgn_par
 
@@ -361,7 +362,8 @@ scale_E1_TGV = opt.model.T1_sc
 #### IRGN - TV referenz ########################################################
 ################################################################################
 result_ref = []
-reg_par = np.arange(1e-1+3e-2,1e0,1e-1)
+#reg_par = np.arange(1e-1+3e-2,3e-1,1e-2)
+reg_par = np.logspace(-4,-1,4)
 for j in range(len(reg_par)):
   ################################################################################
   ### Init forward model and initial guess #######################################
@@ -377,14 +379,14 @@ for j in range(len(reg_par)):
   irgn_par.max_GN_it = 20
   irgn_par.lambd = 1e2
   irgn_par.gamma = 1e0   #### 5e-2   5e-3 phantom ##### brain 1e-2
-  irgn_par.delta = 1e-1 #### 8spk in-vivo 1e-2
+  irgn_par.delta = reg_par[j] #### 8spk in-vivo 1e-1
   irgn_par.omega = 0e-10
   irgn_par.display_iterations = True
-  irgn_par.gamma_min = reg_par[j]
-  irgn_par.delta_max = 1e0
+  irgn_par.gamma_min = 3e-2
+  irgn_par.delta_max = 1
   irgn_par.tol = 5e-3
   irgn_par.stag = 1.00
-  irgn_par.delta_inc = 2
+  irgn_par.delta_inc = 4
   irgn_par.gamma_dec = 0.7
   opt.irgn_par = irgn_par
 
@@ -394,7 +396,8 @@ for j in range(len(reg_par)):
   plt.close('all')
 
 scale_E1_ref = opt.model.T1_sc
-
+res_tv = opt.gn_res
+res_tv = np.array(res_tv)/(irgn_par.lambd*NSlice)
 del opt
 #
 ################################################################################
@@ -476,6 +479,7 @@ for i in range(len(result_tgv)):
   f.attrs['E1_scale_ref'] =scale_E1_ref
   f.attrs['M0_scale'] = model.M0_sc
   f.attrs['IRGN_TGV_res'] = res
+  f.attrs['IRGN_TV_res'] = res_tv
   f.flush()
 f.close()
 
