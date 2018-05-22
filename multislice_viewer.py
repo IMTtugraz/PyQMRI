@@ -10,14 +10,15 @@ import numpy as np
 
 ################################################################################
 ### 3D viewer  ##########s######################################################
-################################################################################              
+################################################################################
 def imshow(volume,vmin=None,vmax=None):
 
-  if volume.ndim<=3: 
+  if volume.ndim<=3:
     fig, ax = plt.subplots()
     ax.volume = volume
     ax.index = volume.shape[0] // 2
     ax.imshow(volume[ax.index],vmin=vmin,vmax=vmax)
+    fig.suptitle("Slice " +str(volume.shape[0] // 2))
   elif volume.ndim==4:
     fig, ax = plt.subplots(int(np.ceil(np.sqrt(volume.shape[0]))),int(np.ceil(np.sqrt(volume.shape[0]))))
     ax = ax.flatten()
@@ -43,10 +44,11 @@ def process_scroll(event):
   ax = fig.axes
   for i in range(len(ax)):
     volume = ax[i].volume
-    if (int((ax[i].index - event.step) >= volume.shape[0]) or 
+    if (int((ax[i].index - event.step) >= volume.shape[0]) or
            int((ax[i].index - event.step) < 0)):
            pass
     else:
-      ax[i].index = int((ax[i].index - event.step) % volume.shape[0])
+      ax[i].index = abs(int((ax[i].index - event.step) % volume.shape[0]))
       ax[i].images[0].set_array(volume[ax[i].index])
       fig.canvas.draw()
+  fig.suptitle("Slice " +str(abs(int((ax[0].index - event.step)))))

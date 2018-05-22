@@ -462,12 +462,12 @@ import scipy.stats
 from matplotlib.colors import LogNorm, PowerNorm
 hist_fig = plt.figure(figsize = (8,4))
 hist_fig.subplots_adjust(hspace=0.5, wspace=0.5)
-gs_hist = gridspec.GridSpec(4,6)#, width_ratios=[0.5,0.5], height_ratios=[1])
+gs_hist = gridspec.GridSpec(5,8)#, width_ratios=[0.5,0.5], height_ratios=[1])
 ax_hist = []
 
 cont_fig = plt.figure(figsize = (8,4))
 cont_fig.subplots_adjust(hspace=0.5, wspace=0.5)
-gs_cont = gridspec.GridSpec(4,6)#, width_ratios=[0.5,0.5], height_ratios=[1])
+gs_cont = gridspec.GridSpec(5,8)#, width_ratios=[0.5,0.5], height_ratios=[1])
 ax_cont = []
 myhist = []
 mycont = []
@@ -507,12 +507,12 @@ for i in range(NResults-1):
 
 hist_fig = plt.figure(figsize = (8,4))
 hist_fig.subplots_adjust(hspace=0.5, wspace=0.5)
-gs_hist = gridspec.GridSpec(4,6)#, width_ratios=[0.5,0.5], height_ratios=[1])
+gs_hist = gridspec.GridSpec(5,8)#, width_ratios=[0.5,0.5], height_ratios=[1])
 ax_hist = []
 
 cont_fig = plt.figure(figsize = (8,4))
 cont_fig.subplots_adjust(hspace=0.5, wspace=0.5)
-gs_cont = gridspec.GridSpec(4,6)#, width_ratios=[0.5,0.5], height_ratios=[1])
+gs_cont = gridspec.GridSpec(5,8)#, width_ratios=[0.5,0.5], height_ratios=[1])
 ax_cont = []
 myhist = []
 mycont = []

@@ -47,6 +47,7 @@ plot_names = []
 full_res = []
 res_tgv = []
 NRef = 0
+len_sweep = []
 if "IRLL" in filenames[0]:
   tr = 100
   save_name = "IRLL"
@@ -63,6 +64,7 @@ for files in filenames:
   file = h5py.File(files)
   names = []
   data = []
+  nsweep = 0
   for name in file:
     names.append(name)
     data.append(file[name][()])
@@ -77,19 +79,19 @@ for files in filenames:
    for name in file:
     if "IRLL" in files:
       if "E1" in fname:
-        scale_tgv = file.attrs['E1_scale_TGV']
-        scale_ref = file.attrs['E1_scale_ref']
+#        scale_tgv = file.attrs['E1_scale_TGV']
+#        scale_ref = file.attrs['E1_scale_ref']
   #      T1_tgv.append(data[names.index("T1_final")]*5500)
   #      T1_tikh.append(data[names.index("T1_ref")]*5500)
         if "ref_full" in name:
-          T1_tikh.append(-tr/np.log(data[names.index('T1_ref')]*scale_ref)[:,2:-2,:])
-          M0_tikh.append(data[names.index('M0_ref')][:,2:-2,:])
-        elif "full_result" in name:
-          T1_tgv.append(-tr/np.log(data[names.index('full_result')]*scale_tgv)[:,:,:,2:-2,:])
-          M0_tgv.append(data[names.index('full_result')][:,:,:,2:-2,:])
+          T1_tikh.append(-tr/np.log(data[names.index(name)][:,1,:,2:-2,:]))
+          M0_tikh.append(data[names.index(name)][:,0,:,2:-2,:])
+        elif "full_result" in name and not ("ref_full" in name):
+          T1_tgv.append(-tr/np.log(data[names.index(name)])[:,1,:,2:-2,:])
+          M0_tgv.append(data[names.index(name)][:,0,:,2:-2,:])
       else:
-        scale_tgv = file.attrs['E1_scale_TGV']
-        scale_ref = file.attrs['E1_scale_ref']
+#        scale_tgv = file.attrs['E1_scale_TGV']
+#        scale_ref = file.attrs['E1_scale_ref']
   #      T1_tgv.append(data[names.index("T1_final")]*5500)
         if "ref_full" in name:
           T1_tgv.append((data[names.index(name)])[:,1,...])
@@ -108,6 +110,7 @@ for files in filenames:
 #        res_tv = file.attrs['IRGN_TV_res']
         if "ref_full" in name:
          print(name)
+         nsweep+=1
          T1_tikh.append(-tr/np.log(data[names.index(name)][:,1,...]))
          M0_tikh.append(data[names.index(name)][:,0,...])
         elif "full_result" in name and not ("ref_full" in name):
@@ -117,6 +120,7 @@ for files in filenames:
     plot_names.append(fname[-5:].split('_')[1] + " TGV_"+str(name))
     plot_names.append(fname[-5:].split('_')[1] + " TV_"+str(name))
    res_tgv.append(file.attrs['IRGN_TGV_res'])
+  len_sweep.append(nsweep)
   file.close()
 
 for i in range(len(T1_tgv)):
@@ -154,10 +158,11 @@ for i in range(len(T1_tikh)):
 dz = 1
 NResults = len(T1_tgv)+NRef
 
-mask = (masking.compute(M0_tgv[0]))
+mask = (masking.compute(M0_ref[0]))
 mask = np.zeros_like(M0_tgv[2])
-mask[M0_tgv[2]>1] = 1
+mask[M0_ref[1:-1]>1] = 1
 mask = mask.astype(bool)
+
 
 [z,y,x] = M0_tgv[0].shape
 z = z*dz
@@ -177,7 +182,7 @@ plot_err = True
 pos_ref = 0
 pos = 0
 mask = mask[int(np.floor((z-1)/2))+pos,int((y-1)/2)-mid_y+offset+1:int((y)/2)+mid_y+offset,1+int((x-1)/2)-mid_x+offset:int((x)/2)+mid_x+offset]
-
+#mask[T1_ref[0,...]>2000] = 0
 if "Reference" in plot_names:
   if len(T1_ref.shape) == 2:
     dimz = 1
@@ -215,9 +220,9 @@ for i in range(NResults-NRef):
 #  M0_plot.append(np.squeeze(M0_tikh[i][...]).T)
 
   if "Reference" in plot_names:
-    T1_err.append(np.squeeze(np.abs(T1_tgv[i]-T1_ref.T)\
+    T1_err.append(np.squeeze(np.abs(np.abs(T1_tgv[i])-np.abs(T1_ref.T))\
                              /np.abs(T1_ref.T)).T*100)
-    T1_err.append(np.squeeze(np.abs(T1_tikh[i]-T1_ref.T)\
+    T1_err.append(np.squeeze(np.abs(np.abs(T1_tikh[i])-np.abs(T1_ref.T))\
                              /np.abs(T1_ref.T)).T*100)
 
 if "Reference" in plot_names and plot_err:
@@ -325,9 +330,15 @@ median_err_tgv = []
 median_err_tv = []
 ssim_tgv = []
 ssim_tv = []
+
+def my_mean(x):
+  return (np.sum(np.abs(x))/np.size(x))
+def my_median(x):
+  return np.sort(x)[int(np.size(x)/2)]
+
 for i in range(len(T1_tgv)):
-  tgv = T1_err[2*i]
-  tv = T1_err[2*i+1]
+  tgv = T1_err[2*i].T
+  tv = T1_err[2*i+1].T
   tgv[~np.isfinite(tgv)] = 0
   tv[~np.isfinite(tv)] = 0
   mean_err_tgv.append(np.mean(np.nan_to_num(tgv[mask])))
@@ -338,6 +349,24 @@ for i in range(len(T1_tgv)):
   ssim_tv.append(np.sum(ssim(np.abs(T1_ref.T/5500),np.abs(T1_tikh[i]/5500).astype(np.float64),gaussian_weights=True,sigma=1.5,use_sample_covariance=False,full=True)[-1]*mask)/np.sum(mask))
 
 
+plt.figure(10)
+plt.plot(np.array(ssim_tv[:len_sweep[1]]),label='TV_sep')
+plt.plot(np.array(ssim_tgv[:len_sweep[1]]),label='TGV_Frob')
+plt.plot(np.array(ssim_tgv[len_sweep[1]:len_sweep[1]+len_sweep[2]]),label='TGV_sep')
+plt.plot(np.array(ssim_tv[len_sweep[1]:len_sweep[1]+len_sweep[2]]),label='TV_Frob')
+plt.legend()
+plt.figure(11)
+plt.plot(np.array(mean_err_tv[:len_sweep[1]]),label='TV_sep')
+plt.plot(np.array(mean_err_tgv[:len_sweep[1]]),label='TGV_Frob')
+plt.plot(np.array(mean_err_tgv[len_sweep[1]:len_sweep[1]+len_sweep[2]]),label='TGV_sep')
+plt.plot(np.array(mean_err_tv[len_sweep[1]:len_sweep[1]+len_sweep[2]]),label='TV_Frob')
+plt.legend()
+plt.figure(12)
+plt.plot(np.array(median_err_tv[:len_sweep[1]]),label='TV_sep')
+plt.plot(np.array(median_err_tgv[:len_sweep[1]]),label='TGV_Frob')
+plt.plot(np.array(median_err_tgv[len_sweep[1]:len_sweep[1]+len_sweep[2]]),label='TGV_sep')
+plt.plot(np.array(median_err_tv[len_sweep[1]:len_sweep[1]+len_sweep[2]]),label='TV_Frob')
+plt.legend()
 
 plt.savefig('/media/data/Papers/Parameter_Mapping/2Dvs3D_'+save_name+'.svg', format='svg', dpi=1000)
 
