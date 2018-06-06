@@ -27,7 +27,7 @@ os.system("taskset -p 0xff %d" % os.getpid())
 import ipyparallel as ipp
 
 c = ipp.Client()
-  
+
 
 ################################################################################
 ### Select input file ##########################################################
@@ -103,7 +103,7 @@ data = data[None,:,int(NSlice/2)-\
             int(np.floor(reco_Slices/2)),:,:]
 if reco_Slices ==1:
   data = data[:,:,None,:,:]
-  
+
 par.fa_corr = (np.flip(par.fa_corr,axis=0)[int((NSlice-os_slices)/2)-\
             int(np.ceil(reco_Slices/2)):int((NSlice-os_slices)/2)+\
             int(np.floor(reco_Slices/2)),6:-6,6:-6])
@@ -149,52 +149,52 @@ nlinvRealConstr  = False
 
 traj_x = np.real(np.asarray(traj))
 traj_y = np.imag(np.asarray(traj))
-  
+
 config = {'osf' : 2,
             'sector_width' : 8,
             'kernel_width' : 3,
             'img_dim' : dimX}
 
-points = (np.array([traj_x.flatten(),traj_y.flatten()]))      
+points = (np.array([traj_x.flatten(),traj_y.flatten()]))
 op = primaldualtoolbox.mri.MriRadialOperator(config)
 op.setTrajectory(points)
 op.setDcf(np.repeat(np.sqrt(dcf),NScan,axis=0).flatten().astype(np.float32)[None,...])
-op.setCoilSens(np.ones((1,dimX,dimY),dtype=DTYPE))            
+op.setCoilSens(np.ones((1,dimX,dimY),dtype=DTYPE))
 
-        
-par.C = np.zeros((NC,NSlice,dimY,dimX), dtype=DTYPE)      
-par.phase_map = np.zeros((NSlice,dimY,dimX), dtype=DTYPE)   
+
+par.C = np.zeros((NC,NSlice,dimY,dimX), dtype=DTYPE)
+par.phase_map = np.zeros((NSlice,dimY,dimX), dtype=DTYPE)
 
 result = []
 for i in range(NSlice):
   print('deriving M(TI(1)) and coil profiles')
-  
-  
+
+
   ##### RADIAL PART
   combinedData = np.transpose(data[:,:,i,:,:],(1,0,2,3))
   combinedData = np.reshape(combinedData,(NC,NScan*Nproj*N))
   coilData = np.zeros((NC,dimY,dimX),dtype=DTYPE)
   for j in range(NC):
       coilData[j,:,:] = op.adjoint(combinedData[j,:]*(np.repeat(np.sqrt(dcf),NScan,axis=0).flatten())[None,...])
-      
-  combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)     
+
+  combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)
   dview = c[int(np.floor(i*len(c)/NSlice))]
-  result.append(dview.apply_async(nlinvns.nlinvns, combinedData, 
+  result.append(dview.apply_async(nlinvns.nlinvns, combinedData,
                                   nlinvNewtonSteps, True, nlinvRealConstr))
 
-for i in range(NSlice):  
+for i in range(NSlice):
   par.C[:,i,:,:] = result[i].get()[2:,-1,:,:]
   if not nlinvRealConstr:
     par.phase_map[i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
     par.C[:,i,:,:] = par.C[:,i,:,:]* np.exp(1j *\
          np.angle( result[i].get()[1,-1,:,:]))
-    
+
     # standardize coil sensitivity profiles
 sumSqrC = np.sqrt(np.sum((par.C * np.conj(par.C)),0)) #4, 9, 128, 128
 if NC == 1:
-  par.C = sumSqrC 
+  par.C = sumSqrC
 else:
-  par.C = par.C / np.tile(sumSqrC, (NC,1,1,1)) 
+  par.C = par.C / np.tile(sumSqrC, (NC,1,1,1))
 ################################################################################
 ### Reorder acquired Spokes   ##################################################
 ################################################################################
@@ -228,7 +228,7 @@ par.TR = file.attrs['time_per_slice']-(par.tau*Nproj*NScan+par.td)
 
 #### Close File after everything was read
 
-    
+
 file.close()
 
 
@@ -284,7 +284,7 @@ def gpuNUFFT(NScan,NSlice,dimX,traj,dcf,Coils):
 
   traj_x = np.real(np.asarray(traj))
   traj_y = np.imag(np.asarray(traj))
-  
+
   config = {'osf' : 2,
             'sector_width' : 8,
             'kernel_width' : 3,
@@ -292,29 +292,29 @@ def gpuNUFFT(NScan,NSlice,dimX,traj,dcf,Coils):
 
   for i in range(NScan):
     plan.append([])
-    points = (np.array([traj_x[i,:,:].flatten(),traj_y[i,:,:].flatten()]))      
+    points = (np.array([traj_x[i,:,:].flatten(),traj_y[i,:,:].flatten()]))
     for j in range(NSlice):
       op = primaldualtoolbox.mri.MriRadialOperator(config)
       op.setTrajectory(points)
       op.setDcf(dcf.flatten().astype(np.float32)[None,...])
-      op.setCoilSens(np.require(Coils[:,j,...],DTYPE,'C'))            
+      op.setCoilSens(np.require(Coils[:,j,...],DTYPE,'C'))
       plan[i].append(op)
- 
+
 
   return plan
 
 def nFT_gpu(plan,x):
     result = np.zeros((NScan,NC,NSlice,Nproj*N),dtype=DTYPE)
-    for scan in range(NScan):    
+    for scan in range(NScan):
       for islice in range(NSlice):
         result[scan,:,islice,...] = plan[scan][islice].forward(np.require(x[scan,:,islice,...],DTYPE,'C'))
-      
+
     return np.reshape(result,[NScan,NC,NSlice,Nproj,N])
 
 def nFTH_gpu(x,Coils):
     traj_x = np.real(np.asarray(traj))
     traj_y = np.imag(np.asarray(traj))
-  
+
     config = {'osf' : 2,
             'sector_width' : 8,
             'kernel_width' : 3,
@@ -322,14 +322,14 @@ def nFTH_gpu(x,Coils):
     result = np.zeros((NScan,NSlice,dimX,dimY),dtype=DTYPE)
     x = np.require(np.reshape(x,(NScan,NC,NSlice,Nproj*N)))
     for scan in range(NScan):
-      points = (np.array([traj_x[scan,:,:].flatten(),traj_y[scan,:,:].flatten()]))  
+      points = (np.array([traj_x[scan,:,:].flatten(),traj_y[scan,:,:].flatten()]))
       for islice in range(NSlice):
           op = primaldualtoolbox.mri.MriRadialOperator(config)
           op.setTrajectory(points)
           op.setDcf(dcf.flatten().astype(np.float32)[None,...])
-          op.setCoilSens(np.require(Coils[:,islice,...],DTYPE,'C'))    
+          op.setCoilSens(np.require(Coils[:,islice,...],DTYPE,'C'))
           result[scan,islice,...] = op.adjoint(np.require(x[scan,:,islice,...],DTYPE,'C'))
-      
+
     return result
 
 
@@ -380,26 +380,19 @@ irgn_par = struct()
 irgn_par.start_iters = 100
 irgn_par.max_iters = 300
 irgn_par.max_GN_it = 20
-irgn_par.lambd = 5e2
-irgn_par.gamma = 1e1   #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.lambd = 1e2
+irgn_par.gamma = 1e0   #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-1   #### 8spk in-vivo 1e-2
 irgn_par.omega = 0e0
 irgn_par.display_iterations = True
-<<<<<<< HEAD
-irgn_par.gamma_min = 1e0#gamma_min[j]
+irgn_par.gamma_min = 1e-1#gamma_min[j]
 irgn_par.delta_max = 1e2#delta_max[i]
 irgn_par.tol = 5e-3
 irgn_par.stag = 1.00
-irgn_par.delta_inc = 10
-=======
-irgn_par.gamma_min = 5e-1#gamma_min[j]
-irgn_par.delta_max = 1e0#delta_max[i]
-irgn_par.tol = 5e-3
-irgn_par.stag = 1.00
 irgn_par.delta_inc = 2
->>>>>>> e65e04677476ba5e196b89cac6a4ba7d339655c3
 irgn_par.gamma_dec = 0.7
 opt.irgn_par = irgn_par
+opt.ratio = 1e1
 
 opt.execute_3D()
 
@@ -438,19 +431,11 @@ irgn_par.gamma = 1e-2 #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-4  #### 8spk in-vivo 1e-2
 irgn_par.omega = 0e0
 irgn_par.display_iterations = True
-<<<<<<< HEAD
 irgn_par.gamma_min = 1e-4
 irgn_par.delta_max = 5e-1
 irgn_par.tol = 1e-5
 irgn_par.stag = 1.05
 irgn_par.delta_inc = 10
-=======
-irgn_par.gamma_min = 1e-3
-irgn_par.delta_max = 8e-1
-irgn_par.tol = 1e-5
-irgn_par.stag = 1.05
-irgn_par.delta_inc = 2
->>>>>>> e65e04677476ba5e196b89cac6a4ba7d339655c3
 irgn_par.gamma_dec = 0.5
 opt_t.irgn_par = irgn_par
 
@@ -467,7 +452,7 @@ if not os.path.exists('./output'):
     os.makedirs('./output')
 os.makedirs("output/"+ outdir)
 
-os.chdir("output/"+ outdir)  
+os.chdir("output/"+ outdir)
 
 f = h5py.File("output_"+name,"w")
 dset_result=f.create_dataset("full_result",result_tgv.shape,\
