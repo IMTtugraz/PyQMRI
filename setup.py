@@ -12,8 +12,14 @@ from Cython.Build import cythonize
 
 import numpy
 
-ext_modules=[ Extension("*",
-              ["./src/*.pyx"],
+ext_modules=[ Extension("gradients_divergences",
+              ["src/gradients_divergences.pyx"],
+              libraries=["m","stdc++"],
+              extra_compile_args = ["-ffast-math","-O3",'-fopenmp','-ggdb'],
+              extra_link_args=['-fopenmp'],
+              include_dirs = [numpy.get_include()]),
+              Extension("Model_Reco",
+              ["src/Model_Reco.pyx"],
               libraries=["m","stdc++"],
               extra_compile_args = ["-ffast-math","-O3",'-fopenmp','-ggdb'],
               extra_link_args=['-fopenmp'],
@@ -22,5 +28,4 @@ ext_modules=[ Extension("*",
 if __name__ == '__main__':
   setup(
       ext_modules = cythonize(ext_modules)
-
       )

@@ -7,7 +7,7 @@ from tkinter import filedialog
 from tkinter import Tk
 import src.nlinvns_maier as nlinvns
 
-import build.Model_Reco as Model_Reco
+import src.Model_Reco as Model_Reco
 
 
 import src.IRLL_Model as IRLL_Model
