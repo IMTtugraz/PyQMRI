@@ -5,13 +5,13 @@ import os
 import h5py
 from tkinter import filedialog
 from tkinter import Tk
-import nlinvns_maier as nlinvns
+import src.nlinvns_maier as nlinvns
 
-import Model_Reco as Model_Reco
+import build.Model_Reco as Model_Reco
 
 
-import IRLL_Model_new as IRLL_Model
-import goldcomp
+import src.IRLL_Model as IRLL_Model
+import src.goldcomp as goldcomp
 import primaldualtoolbox
 import matplotlib.pyplot as plt
 import ipyparallel as ipp

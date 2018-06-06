@@ -5,12 +5,12 @@ import os
 import h5py
 from tkinter import filedialog
 from tkinter import Tk
-import nlinvns_maier as nlinvns
+import src.nlinvns_maier as nlinvns
 
-import Model_Reco as Model_Reco
+import build.Model_Reco as Model_Reco
 
-import VFA_model as VFA_model
-import goldcomp
+import src.VFA_model as VFA_model
+import src.goldcomp as goldcomp
 
 import primaldualtoolbox
 import matplotlib.pyplot as plt

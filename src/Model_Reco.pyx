@@ -9,10 +9,9 @@ cimport numpy as np
 import numpy as np
 from numpy cimport ndarray
 import pywt
-
 import time
 
-cimport gradients_divergences as gd
+cimport src.gradients_divergences as gd
 
 np.import_array()
 

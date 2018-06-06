@@ -3,7 +3,6 @@
 *.html
 build/
 cython_debug/
-__*
 output/
 data/
 Memory*
@@ -16,8 +15,7 @@ knee/
 radial_amsterdam/
 Phantom_Data/
 outfile*
-<<<<<<< HEAD
 *.h5
-=======
 *.img
->>>>>>> e65e04677476ba5e196b89cac6a4ba7d339655c3
+src/__pycache__
+

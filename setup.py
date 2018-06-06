@@ -13,13 +13,14 @@ from Cython.Build import cythonize
 import numpy
 
 ext_modules=[ Extension("*",
-              ["*.pyx"],
+              ["./src/*.pyx"],
               libraries=["m","stdc++"],
               extra_compile_args = ["-ffast-math","-O3",'-fopenmp','-ggdb'],
               extra_link_args=['-fopenmp'],
               include_dirs = [numpy.get_include()])]
 
-setup(
-    ext_modules = cythonize(ext_modules)
+if __name__ == '__main__':
+  setup(
+      ext_modules = cythonize(ext_modules)
 
-    )
+      )
