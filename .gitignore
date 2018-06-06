@@ -18,4 +18,5 @@ outfile*
 *.h5
 *.img
 src/__pycache__
+__pycache__
 
