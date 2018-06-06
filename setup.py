@@ -8,12 +8,9 @@ Created on Thu Jun  1 10:21:57 2017
 
 from distutils.core import setup
 from distutils.extension import Extension
-
 from Cython.Build import cythonize
 
 import numpy
-
-
 
 ext_modules=[ Extension("*",
               ["*.pyx"],
