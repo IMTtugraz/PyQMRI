@@ -2,7 +2,7 @@ import numpy as np
 
 import time
 import os
-import h5py  
+import h5py
 from tkinter import filedialog
 from tkinter import Tk
 import nlinvns_maier as nlinvns
@@ -19,11 +19,11 @@ import pyopencl as cl
 
 DTYPE = np.complex64
 np.seterr(divide='ignore', invalid='ignore')
-   
+
 import ipyparallel as ipp
 
 c = ipp.Client()
-  
+
 ################################################################################
 ### Select input file ##########################################################
 ################################################################################
@@ -60,9 +60,9 @@ for attributes in test_attributes:
 ################################################################################
 ### Read Data ##################################################################
 ################################################################################
-reco_Slices = 5
-dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)    
-    
+reco_Slices = 3
+dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
+
 data = file['real_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE) +\
        1j*file['imag_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE)
 
@@ -99,7 +99,7 @@ par.NC          = NC
 par.dimY        = dimY
 par.dimX        = dimX
 par.NSlice      = NSlice
-par.NScan       = NScan 
+par.NScan       = NScan
 par.N = N
 par.Nproj = Nproj
 
@@ -120,14 +120,14 @@ coil_plan = NFFT((dimY,dimX),NScan*Nproj*N)
 coil_plan.x = np.transpose(np.array([np.imag(traj_coil.flatten()),\
                                      np.real(traj_coil.flatten())]))
 coil_plan.precompute()
-        
-par.C = np.zeros((NC,NSlice,dimY,dimX), dtype=DTYPE)       
-par.phase_map = np.zeros((NSlice,dimY,dimX), dtype=DTYPE)   
+
+par.C = np.zeros((NC,NSlice,dimY,dimX), dtype=DTYPE)
+par.phase_map = np.zeros((NSlice,dimY,dimX), dtype=DTYPE)
 result = []
 for i in range(0,(NSlice)):
   print('deriving M(TI(1)) and coil profiles')
-  
-  
+
+
   ##### RADIAL PART
   combinedData = np.transpose(data[:,:,i,:,:],(1,0,2,3))
   combinedData = np.reshape(combinedData,(NC,NScan*Nproj,N))
@@ -135,34 +135,34 @@ for i in range(0,(NSlice)):
   for j in range(NC):
       coil_plan.f = combinedData[j,:,:]*np.repeat(np.sqrt(dcf),NScan,axis=0)
       coilData[j,:,:] = coil_plan.adjoint()
-      
-  combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)  
-  
+
+  combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)
+
   dview = c[int(np.floor(i*len(c)/NSlice))]
-  result.append(dview.apply_async(nlinvns.nlinvns, combinedData, 
+  result.append(dview.apply_async(nlinvns.nlinvns, combinedData,
                                   nlinvNewtonSteps, True, nlinvRealConstr))
 
-for i in range(NSlice):  
+for i in range(NSlice):
   par.C[:,i,:,:] = result[i].get()[2:,-1,:,:]
 
   if not nlinvRealConstr:
     par.phase_map[i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
     par.C[:,i,:,:] = par.C[:,i,:,:]* np.exp(1j *\
          np.angle( result[i].get()[1,-1,:,:]))
-    
+
     # standardize coil sensitivity profiles
 sumSqrC = np.sqrt(np.sum((par.C * np.conj(par.C)),0)) #4, 9, 128, 128
 if NC == 1:
-  par.C = sumSqrC 
+  par.C = sumSqrC
 else:
-  par.C = par.C / np.tile(sumSqrC, (NC,1,1,1)) 
+  par.C = par.C / np.tile(sumSqrC, (NC,1,1,1))
 ################################################################################
 ### Standardize data norm ######################################################
 ################################################################################
 if file.attrs['data_normalized_with_dcf']:
-  pass  
+  pass
 else:
-  data = data*np.sqrt(dcf) 
+  data = data*np.sqrt(dcf)
 #### Close File after everything was read
 file.close()
 
@@ -177,27 +177,27 @@ par.dscale = dscale
 def nfft(NScan,NC,dimX,dimY,N,Nproj,traj):
   plan = []
   traj_x = np.imag(traj)
-  traj_y = np.real(traj)  
+  traj_y = np.real(traj)
   for i in range(NScan):
       plan.append([])
       points = np.transpose(np.array([traj_x[i,:,:].flatten(),\
-                                      traj_y[i,:,:].flatten()]))      
+                                      traj_y[i,:,:].flatten()]))
       for j in range(NC):
           plan[i].append(NFFT([dimX,dimY],N*Nproj))
           plan[i][j].x = points
           plan[i][j].precompute()
 
   return plan
-          
+
 def nFT(x,plan,dcf,NScan,NC,NSlice,Nproj,N,dimX):
   siz = np.shape(x)
   result = np.zeros((NScan,NC,NSlice,Nproj*N),dtype=DTYPE)
   for i in range(siz[0]):
-    for j in range(siz[1]): 
+    for j in range(siz[1]):
       for k in range(siz[2]):
         plan[i][j].f_hat = x[i,j,k,:,:]/dimX
         result[i,j,k,:] = plan[i][j].trafo()*np.sqrt(dcf).flatten()
-      
+
   return result
 
 
@@ -205,11 +205,11 @@ def nFTH(x,plan,dcf,NScan,NC,NSlice,dimY,dimX):
   siz = np.shape(x)
   result = np.zeros((NScan,NC,NSlice,dimY,dimX),dtype=DTYPE)
   for i in range(siz[0]):
-    for j in range(siz[1]):  
+    for j in range(siz[1]):
       for k in range(siz[2]):
         plan[i][j].f = x[i,j,k,:,:]*np.sqrt(dcf)
         result[i,j,k,:,:] = plan[i][j].adjoint()
-      
+
   return result/dimX
 
 #
@@ -221,7 +221,7 @@ def nFTH(x,plan,dcf,NScan,NC,NSlice,dimY,dimX):
 #test_adj(queue,r_struct)
 #
 #def nFT_2D(x):
-#  result = np.zeros((NScan,NC,NSlice,Nproj,N),dtype=DTYPE)  
+#  result = np.zeros((NScan,NC,NSlice,Nproj,N),dtype=DTYPE)
 #  for i in range(NScan):
 #    for j in range(NC):
 #      for k in range(NSlice):
@@ -238,7 +238,7 @@ def nFTH(x,plan,dcf,NScan,NC,NSlice,dimY,dimX):
 #
 #
 #def nFTH_2D(x):
-#  result = np.zeros((NScan,NC,NSlice,dimY,dimX),dtype=np.float32)  
+#  result = np.zeros((NScan,NC,NSlice,dimY,dimX),dtype=np.float32)
 #  for i in range(NScan):
 #    for j in range(NC):
 #      for k in range(NSlice):
@@ -294,7 +294,7 @@ data = np.fft.ifftshift(np.fft.fft(np.fft.fftshift(data_save/np.sqrt(dcf),-1),ax
 ################################################################################
 ### IRGN - TGV Reco ############################################################
 ################################################################################
-import Model_Reco_OpenCL_Kristian as Model_Reco
+import Model_Reco_OpenCL as Model_Reco
 platforms = cl.get_platforms()
 
 ctx = cl.Context(
@@ -308,17 +308,24 @@ data = np.linalg.norm(data_save)/np.linalg.norm(data)*data
 
 import pyopencl.array as clarray
 
-xx = clarray.to_device(opt.queue,np.random.random_sample((opt.unknowns,opt.NSlice,opt.dimX,opt.dimY)).T.astype(DTYPE))
-xx = xx+1j*xx
-yy = np.random.random_sample((opt.unknowns,opt.NSlice,opt.dimX,opt.dimY,4)).T.astype(DTYPE)
+xx = clarray.to_device(opt.queue,np.random.random_sample((opt.unknowns,opt.NSlice,opt.dimX,opt.dimY)).astype(DTYPE)+1j*np.random.random_sample((opt.unknowns,opt.NSlice,opt.dimX,opt.dimY)).astype(DTYPE))
+
+yy = np.random.random_sample((opt.unknowns,opt.NSlice,opt.dimX,opt.dimY,4)).astype(DTYPE)+1j*np.random.random_sample((opt.unknowns,opt.NSlice,opt.dimX,opt.dimY,4)).astype(DTYPE)
 yy = clarray.to_device(opt.queue,yy)
-yy = yy+1j*yy
+
+
+#yy = clarray.to_device(opt.queue,np.random.random_sample(opt.z1.shape).astype(DTYPE))
+
 tmp1 = clarray.zeros_like(xx)
 tmp2 = clarray.zeros_like(yy)
 opt.bdiv(tmp1,yy)
-opt.f_grad(tmp2,xx)
+opt.sym_grad(tmp2,xx)
+
+tmp = tmp2.get()[...,:3]*yy.get()[...,:3]+2*tmp2.get()[...,3:6]*yy.get()[...,3:6]
+
 a = np.vdot(xx.get().flatten(),-tmp1.get().flatten())
 b = np.vdot(tmp2.get().flatten(),yy.get().flatten())
+b=np.sum(tmp)
 test = np.abs(a-b)
 print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,(test)))
 
@@ -343,15 +350,16 @@ irgn_par.start_iters = 100
 irgn_par.max_iters = 300
 irgn_par.max_GN_it = 20
 irgn_par.lambd = 1e2
-irgn_par.gamma = 1e-1   #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.gamma = 1e2   #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-1#### 8spk in-vivo 1e-2
 irgn_par.omega = 0e-10
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 5e-4
+irgn_par.gamma_min = 1e1
 irgn_par.delta_max = 1e2
 irgn_par.tol = 1e-6
 irgn_par.stag = 1.00
-irgn_par.delta_inc = 5
+irgn_par.delta_inc = 2
+irgn_par.gamma_dec = 0.5
 opt.irgn_par = irgn_par
 
 
@@ -360,7 +368,7 @@ opt.irgn_par = irgn_par
 #opt.model = model
 
 
-opt.execute_2D()
+opt.execute_3D()
 
 #
 #
@@ -385,7 +393,7 @@ opt.execute_2D()
 #opt_t.dcf = np.sqrt(dcf)
 #opt_t.dcf_flat = np.sqrt(dcf).flatten()
 #opt_t.model = model
-#opt_t.traj = traj 
+#opt_t.traj = traj
 #
 #################################################################################
 ###IRGN Params
@@ -411,7 +419,7 @@ opt.execute_2D()
 #    os.makedirs('./output')
 #os.makedirs("output/"+ outdir)
 #
-#os.chdir("output/"+ outdir)  
+#os.chdir("output/"+ outdir)
 #
 #f = h5py.File("output_"+name,"w")
 #dset_result=f.create_dataset("full_result",opt.result.shape,\
