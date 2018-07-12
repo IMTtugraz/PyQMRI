@@ -739,26 +739,26 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
     nd = self.N
 
     ## 34 spk
-#    shift_read = np.array((0.0311,    0.0313,    0.0319,    0.0327,    0.0334,    0.0340,    0.0350,    0.0344,    0.0315,    0.0318))
-#    shift_phase = np.array((0.0902,    0.0882,    0.0898,    0.0911,    0.0929,    0.0947,    0.0971,    0.0997,    0.1028,    0.1037))
+    shift_read = np.array((0.0311,    0.0313,    0.0319,    0.0327,    0.0334,    0.0340,    0.0350,    0.0344,    0.0315,    0.0318))
+    shift_phase = np.array((0.0902,    0.0882,    0.0898,    0.0911,    0.0929,    0.0947,    0.0971,    0.0997,    0.1028,    0.1037))
 
     ## 89 spk
 #    shift_read = np.array((0.0316,    0.0310 ,   0.0324  ,  0.0322 ,   0.0329  ,  0.0341 ,   0.0346   , 0.0334 ,   0.0323  ,  0.0280))*self.Nproj/2
 #    shift_phase = np.array((0.0887,    0.0870  ,  0.0897 ,   0.0915  ,  0.0928  ,  0.0964  ,  0.0962 ,   0.0989 ,   0.1052 ,   0.1034))*self.Nproj/2
 
-#    angles = np.zeros((self.NScan,self.Nproj))
-#    GA = 111.246117975/180*np.pi
-#    offset = self.Nproj*GA
-#    for n in range(self.NScan):
-#      for ip in range(self.Nproj):
-#          angles[n,ip] = np.mod(-np.pi/2 + np.mod(offset*n,2*np.pi) + (ip)*GA,2*np.pi)
+    angles = np.zeros((self.NScan,self.Nproj))
+    GA = 111.246117975/180*np.pi
+    offset = self.Nproj*GA
+    for n in range(self.NScan):
+      for ip in range(self.Nproj):
+          angles[n,ip] = np.mod(-np.pi/2 + np.mod(offset*n,2*np.pi) + (ip)*GA,2*np.pi)
 
-#    deltax = np.zeros((self.NScan, self.Nproj))
-#    deltay = np.zeros((self.NScan, self.Nproj))
-#    for n in range(self.NScan):
-#      for ip in range(self.Nproj):
-#        deltax[n,ip] = (np.cos(2*angles[n,ip]) + 1) * shift_read[n]/2
-#        deltay[n,ip] = (-np.cos(2*angles[n,ip]) + 1) * shift_phase[n]/2
+    deltax = np.zeros((self.NScan, self.Nproj))
+    deltay = np.zeros((self.NScan, self.Nproj))
+    for n in range(self.NScan):
+      for ip in range(self.Nproj):
+        deltax[n,ip] = ((np.cos(2*angles[n,ip]) + 1) * shift_read[n]+(-np.cos(2*angles[n,ip]) + 1) * shift_phase[n])/2*np.abs(np.cos(angles[n,ip]))
+        deltay[n,ip] = ((np.cos(2*angles[n,ip]) + 1) * shift_read[n]+(-np.cos(2*angles[n,ip]) + 1) * shift_phase[n])/2*np.abs(np.sin(angles[n,ip]))
 #
 #
 #    rho = rho/self.N
@@ -767,8 +767,8 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
     midpoint_domain = np.zeros((self.NScan,self.Nproj,2))
     for i in range(self.NScan):
       for j in range(self.Nproj):
-#        midpoint_domain[i,j,:] = np.array([(self.dimX-1)/2.0-shift_read[i]*np.cos(angles[i,j]), (self.dimY-1)/2.0-shift_phase[i]*np.sin(angles[i,j])])
-        midpoint_domain[i,:] = np.array([(self.dimX-1)/2.0, (self.dimY-1)/2.0])
+        midpoint_domain[i,j,:] = np.array([(self.dimX-1)/2.0-deltax[i,j], (self.dimY-1)/2.0--deltay[i,j]])
+#        midpoint_domain[i,:] = np.array([(self.dimX-1)/2.0, (self.dimY-1)/2.0])
 
     angles = np.reshape(angles,(self.Nproj*self.NScan))
     midpoint_domain=np.reshape(midpoint_domain,(self.Nproj*self.NScan,2))
