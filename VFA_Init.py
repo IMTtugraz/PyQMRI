@@ -301,33 +301,35 @@ ctx = cl.Context(
         dev_type=cl.device_type.ALL,
         properties=[(cl.context_properties.PLATFORM, platforms[1])])
 
+
+
 queue = cl.CommandQueue(ctx)
 opt = Model_Reco.Model_Reco(par,ctx,queue,traj,model)
 
 data = np.linalg.norm(data_save)/np.linalg.norm(data)*data
 
-import pyopencl.array as clarray
+#import pyopencl.array as clarray
 
-xx = clarray.to_device(opt.queue,np.random.random_sample((opt.unknowns,opt.NSlice,opt.dimX,opt.dimY)).astype(DTYPE)+1j*np.random.random_sample((opt.unknowns,opt.NSlice,opt.dimX,opt.dimY)).astype(DTYPE))
-
-yy = np.random.random_sample((opt.unknowns,opt.NSlice,opt.dimX,opt.dimY,4)).astype(DTYPE)+1j*np.random.random_sample((opt.unknowns,opt.NSlice,opt.dimX,opt.dimY,4)).astype(DTYPE)
-yy = clarray.to_device(opt.queue,yy)
-
-
-#yy = clarray.to_device(opt.queue,np.random.random_sample(opt.z1.shape).astype(DTYPE))
-
-tmp1 = clarray.zeros_like(xx)
-tmp2 = clarray.zeros_like(yy)
-opt.bdiv(tmp1,yy)
-opt.sym_grad(tmp2,xx)
-
-tmp = tmp2.get()[...,:3]*yy.get()[...,:3]+2*tmp2.get()[...,3:6]*yy.get()[...,3:6]
-
-a = np.vdot(xx.get().flatten(),-tmp1.get().flatten())
-b = np.vdot(tmp2.get().flatten(),yy.get().flatten())
-b=np.sum(tmp)
-test = np.abs(a-b)
-print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,(test)))
+#xx = clarray.to_device(opt.queue,np.random.random_sample((opt.unknowns,opt.NSlice,opt.dimX,opt.dimY)).astype(DTYPE)+1j*np.random.random_sample((opt.unknowns,opt.NSlice,opt.dimX,opt.dimY)).astype(DTYPE))
+#
+#yy = np.random.random_sample((opt.unknowns,opt.NSlice,opt.dimX,opt.dimY,4)).astype(DTYPE)+1j*np.random.random_sample((opt.unknowns,opt.NSlice,opt.dimX,opt.dimY,4)).astype(DTYPE)
+#yy = clarray.to_device(opt.queue,yy)
+#
+#
+##yy = clarray.to_device(opt.queue,np.random.random_sample(opt.z1.shape).astype(DTYPE))
+#
+#tmp1 = clarray.zeros_like(xx)
+#tmp2 = clarray.zeros_like(yy)
+#opt.bdiv(tmp1,yy)
+#opt.sym_grad(tmp2,xx)
+#
+#tmp = tmp2.get()[...,:3]*yy.get()[...,:3]+2*tmp2.get()[...,3:6]*yy.get()[...,3:6]
+#
+#a = np.vdot(xx.get().flatten(),-tmp1.get().flatten())
+#b = np.vdot(tmp2.get().flatten(),yy.get().flatten())
+#b=np.sum(tmp)
+#test = np.abs(a-b)
+#print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,(test)))
 
 
 ###############################test#####################################
@@ -350,13 +352,13 @@ irgn_par.start_iters = 100
 irgn_par.max_iters = 300
 irgn_par.max_GN_it = 20
 irgn_par.lambd = 1e2
-irgn_par.gamma = 1e2   #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.gamma = 1e-1   #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-1#### 8spk in-vivo 1e-2
 irgn_par.omega = 0e-10
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 1e1
+irgn_par.gamma_min = 3e-3
 irgn_par.delta_max = 1e2
-irgn_par.tol = 1e-6
+irgn_par.tol = 1e-3
 irgn_par.stag = 1.00
 irgn_par.delta_inc = 2
 irgn_par.gamma_dec = 0.5
@@ -366,9 +368,17 @@ opt.irgn_par = irgn_par
 
 #model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images2,par.phase_map,1)
 #opt.model = model
+import cProfile
+import pstats
+cProfile.run('opt.execute_3D()','profile_stats')
+p = pstats.Stats('profile_stats')
 
+p.strip_dirs().sort_stats(-1).print_stats()
+p.sort_stats('name')
+p.print_stats()
 
-opt.execute_3D()
+p.sort_stats('cumulative').print_stats(20)
+
 
 #
 #
