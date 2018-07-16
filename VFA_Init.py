@@ -8,7 +8,6 @@ from tkinter import Tk
 import nlinvns_maier as nlinvns
 
 import Model_Reco_OpenCL as Model_Reco
-import Model_Reco_old as Model_Reco_Tikh
 
 from pynfft.nfft import NFFT
 
@@ -60,7 +59,7 @@ for attributes in test_attributes:
 ################################################################################
 ### Read Data ##################################################################
 ################################################################################
-reco_Slices = 3
+reco_Slices = 1
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
 
 data = file['real_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE) +\
@@ -263,8 +262,10 @@ images= (np.sum(nFTH(data_save,plan,dcf,NScan,NC,\
                      NSlice,dimY,dimX)*(np.conj(par.C)),axis = 1))
 
 
-test = nFTH(data_save,plan,dcf,NScan,NC,\
+test = nFTH(data_save/np.sqrt(dcf),plan,dcf,NScan,NC,\
                      NSlice,dimY,dimX)
+
+traj_save = np.copy(traj)
 
 
 ################################################################################
@@ -274,27 +275,75 @@ model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images,par.phase_map,1,Npr
 
 par.U = np.ones((data).shape, dtype=bool)
 par.U[abs(data) == 0] = False
+#
+### 89 spk
+#shift_read = np.array((0.0316,    0.0310 ,   0.0324  ,  0.0322 ,   0.0329  ,  0.0341 ,   0.0346   , 0.0334 ,   0.0323  ,  0.0280))
+#shift_phase = np.array((0.0887,    0.0870  ,  0.0897 ,   0.0915  ,  0.0928  ,  0.0964  ,  0.0962 ,   0.0989 ,   0.1052 ,   0.1034))
+#    ## 34 spk
+##shift_read = np.array((0.0311,    0.0313,    0.0319,    0.0327,    0.0334,    0.0340,    0.0350,    0.0344,    0.0315,    0.0318))
+##shift_phase = np.array((0.0902,    0.0882,    0.0898,    0.0911,    0.0929,    0.0947,    0.0971,    0.0997,    0.1028,    0.1037))
+#
+#angles = np.zeros((par.NScan,par.Nproj))
+#sorted_angles = np.zeros((par.NScan,par.Nproj),dtype=np.int32)
+#GA = 111.246117975/180*np.pi
+#offset = par.Nproj*GA
+#for n in range(par.NScan):
+#  for ip in range(par.Nproj):
+#      angles[n,ip] = np.mod(-np.pi/2 + np.mod(offset*n,2*np.pi) + (ip)*GA,2*np.pi)
+#  sorted_angles[n,:] = np.argsort(angles[n,:])
+#
+#
+#deltak = np.zeros((par.NScan, par.Nproj))
+#samples_data = np.zeros((par.NScan, par.Nproj, N))
+#for n in range(par.NScan):
+#  for ip in range(par.Nproj):
+#    deltak[n,ip] = ((np.cos(2*angles[n,ip]) + 1) * shift_read[n]+(-np.cos(2*angles[n,ip]) + 1) * shift_phase[n])/2
+#    samples_data[n,ip,:] = np.linspace(-N/2,N/2-1,N)-deltak[n,ip]
+#
+#
+#### -0.5....0.5 or -1...1 ????
+#samples= np.linspace(-N/2,N/2-1,N)
+#data = np.copy(data_save)/np.sqrt(dcf)
+#for j in range(par.NScan):
+#  for i in range(par.Nproj):
+#    for k in range(NC):
+#      for l in range(NSlice):
+#        data[j,k,l,i,:] = np.interp(samples_data[j,i],samples,data[j,k,l,i,:])
+#
+#
+#for j in range(par.NScan):
+#  data[j,...] = np.transpose(data[j,:,:,sorted_angles[j,:],:],(1,2,0,3))
+#  angles[j,:] = angles[j,sorted_angles[j,:]]
+#  traj[j,...] = traj_save[j,sorted_angles[j,:],:]
 
-data = np.fft.ifftshift(np.fft.fft(np.fft.fftshift(data_save/np.sqrt(dcf),-1),axis=-1)/np.sqrt(512),-1)
-#data = data[:,:,:,:,int(N/2-dimX/2):int(N/2+dimX/2)]
-#par.N = 512
-#par.dimX = 128
-#par.dimY = 128
 
-#test = MR_Phantom.generate_phantom_data(256,256,NC=4,TR=par.TR).T
-#
-#data = opt.nFT_2D((test))
-#
-#
-#test1 = clarray.to_device(opt.queue,data[0,:,0,...].T)
-#test2 = clarray.zeros(opt.queue,(256,256),dtype=DTYPE,order='F')
-#
-#opt.operator_adjoint_2D(test2,test1)
+
+data = np.fft.ifftshift(np.fft.fft(np.fft.fftshift(data_save/np.sqrt(dcf),-1),axis=-1)/(512),-1)
+
+#for j in range(par.NScan):
+#  for i in range(par.Nproj):
+#        data[j,:,:,i,:] = data[j,:,:,i,:]*np.exp(1j*deltak[j,i]*samples)
+
+
+data = np.linalg.norm(data_save)/np.linalg.norm(data)*data
+
+
 
 ################################################################################
 ### IRGN - TGV Reco ############################################################
 ################################################################################
-import Model_Reco_OpenCL as Model_Reco
+#
+#from skimage.transform import iradon
+#
+#test2 = np.transpose(data[0,0,0,...].real,(1,0))
+#test = iradon(test2,theta=angles[0,...]*180/np.pi,filter=None,output_size=256)
+#test2 = np.transpose(data[0,0,0,...].imag,(1,0))
+#test3 = iradon(test2,theta=angles[0,...]*180/np.pi,filter=None,output_size=256)
+#
+#numpyradon = test+1J*test3
+#
+#plt.imshow(np.abs(test))
+
 platforms = cl.get_platforms()
 
 ctx = cl.Context(
@@ -304,9 +353,8 @@ ctx = cl.Context(
 
 
 queue = cl.CommandQueue(ctx)
-opt = Model_Reco.Model_Reco(par,ctx,queue,traj,model)
+opt = Model_Reco.Model_Reco(par,ctx,queue,traj,model,angles)
 
-data = np.linalg.norm(data_save)/np.linalg.norm(data)*data
 
 #import pyopencl.array as clarray
 
@@ -331,13 +379,6 @@ data = np.linalg.norm(data_save)/np.linalg.norm(data)*data
 #test = np.abs(a-b)
 #print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,(test)))
 
-
-###############################test#####################################
-#
-#dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2000))/(np.linalg.norm(data.flatten()))
-#par.dscale = dscale
-#data = data*dscale
-
 opt.data =  data
 opt.images = images
 opt.nfftplan = plan
@@ -358,7 +399,7 @@ irgn_par.omega = 0e-10
 irgn_par.display_iterations = True
 irgn_par.gamma_min = 3e-3
 irgn_par.delta_max = 1e2
-irgn_par.tol = 1e-3
+irgn_par.tol = 1e-5
 irgn_par.stag = 1.00
 irgn_par.delta_inc = 2
 irgn_par.gamma_dec = 0.5
@@ -373,9 +414,9 @@ import pstats
 cProfile.run('opt.execute_3D()','profile_stats')
 p = pstats.Stats('profile_stats')
 
-p.strip_dirs().sort_stats(-1).print_stats()
-p.sort_stats('name')
-p.print_stats()
+#p.strip_dirs().sort_stats(-1)
+#p.sort_stats('name')
+#p.print_stats()
 
 p.sort_stats('cumulative').print_stats(20)
 
