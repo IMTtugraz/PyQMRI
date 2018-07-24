@@ -7,6 +7,7 @@ from __future__ import division
 import numpy as np
 import time
 
+import gradients_divergences_old as gd
 import gridroutines as NUFFT
 
 import matplotlib.pyplot as plt
@@ -33,7 +34,7 @@ class Program(object):
 
 
 class Model_Reco:
-  def __init__(self,par,ctx,queue,traj,dcf,model,angles=None):
+  def __init__(self,par,ctx,queue,traj,model,angles=None):
     self.par = par
     self.C = par.C
     self.traj = traj
@@ -59,7 +60,7 @@ class Model_Reco:
 #    self.ukscale =  np.ones(self.unknowns,dtype=DTYPE_real)
     self.ukscale =  clarray.to_device(self.queue,np.ones(self.unknowns,dtype=DTYPE_real))
     self.gn_res = []
-    self.NUFFT = NUFFT.gridding(ctx,queue,4,2,par.N,(par.NScan,par.NC,par.NSlice,par.N,par.N),(3,4),traj.astype(DTYPE),np.require(np.abs(dcf),DTYPE_real,requirements='C'),par.N,1000,DTYPE,DTYPE_real)
+    self.NUFFT = NUFFT.gridding(ctx,queue,4,2,par.N,(par.NScan,par.NC,par.NSlice,par.N,par.N),(3,4),traj.astype(DTYPE),np.sqrt(np.abs(np.require(np.abs(dcf),DTYPE_real,requirements='C'))),par.N,1000,DTYPE,DTYPE_real)
 
 
     self.prg = Program(self.ctx, r"""
@@ -742,24 +743,24 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
 
 }
 """)
-#    self.r_struct=self.radon_struct(angles)
-#    self.scale = (self.radon_normest())
+    self.r_struct=self.radon_struct(angles)
+    self.scale = (self.radon_normest())
     self.tmp_result = clarray.zeros(self.queue,(self.NScan,self.NC,self.NSlice,self.dimY,self.dimX),DTYPE,"C")
     self.tmp_result2 = clarray.zeros(self.queue,(self.unknowns,self.NSlice,self.dimY,self.dimX),DTYPE,"C")
-    self.tmp_img =  clarray.zeros(self.queue,(self.NScan,self.NC,self.NSlice,self.dimY,self.dimX),DTYPE,"C")
+    self.tmp_img =  clarray.zeros(self.queue,self.r_struct[1],DTYPE,"C")
     self.tmp_sino = clarray.zeros(self.queue,(self.NScan,self.NC,self.NSlice,self.Nproj,self.N),DTYPE,"C")
     print("Radon Norm: %f" %(self.scale))
 
 
     print("Please Set Parameters, Data and Initial images")
 
-#  def radon_struct(self, angles=None, n_detectors=None,
-#                   detector_width=1.0, detector_shift=0.0):
-#
-#    if np.all(angles==None):
-#      angles = np.reshape(np.angle(self.traj[:,:,0]),(self.Nproj*self.NScan))
-##    angles = np.linspace(0,np.pi,(self.Nproj))
-#    nd = self.N
+  def radon_struct(self, angles=None, n_detectors=None,
+                   detector_width=1.0, detector_shift=0.0):
+
+    if np.all(angles==None):
+      angles = np.reshape(np.angle(self.traj[:,:,0]),(self.Nproj*self.NScan))
+#    angles = np.linspace(0,np.pi,(self.Nproj))
+    nd = self.N
 
     ## 34 spk
 #    shift_read = np.array((0.0311,    0.0313,    0.0319,    0.0327,    0.0334,    0.0340,    0.0350,    0.0344,    0.0315,    0.0318))
@@ -781,84 +782,84 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
 #    rho = rho/self.N
 #    traj = (rho[...,int(self.N/2)]*np.exp(1j*phi[...,int(self.N/2)]))
 
-#    midpoint_domain = np.zeros((self.NScan,self.Nproj,2))
-#    for i in range(self.NScan):
-#      for j in range(self.Nproj):
-##        midpoint_domain[i,j,:] = np.array([(self.dimX-1)/2.0+deltax[i,j], (self.dimY-1)/2.0+deltay[i,j]])
-#        midpoint_domain[i,:] = np.array([(self.dimX-1)/2.0, (self.dimY-1)/2.0])
-#
-#    angles = np.reshape(angles,(self.Nproj*self.NScan))
-#    midpoint_domain=np.reshape(midpoint_domain,(self.Nproj*self.NScan,2))
-##    midpoint_domain=np.repeat(midpoint_domain,self.Nproj,0)
-#
-#    midpoint_detectors = (nd-1.0)/2.0
-#
-#    X = np.cos(angles)/detector_width
-#    Y = np.sin(angles)/detector_width
-#    Xinv = 1.0/X
-#
-#    # set near vertical lines to vertical
-#    mask = np.abs(Xinv) > 10*nd
-#    X[mask] = 0
-#    Y[mask] = np.sin(angles[mask]).round()/detector_width
-#    Xinv[mask] = 0
-#
-#    offset = midpoint_detectors - X*midpoint_domain[:,0] \
-#             - Y*midpoint_domain[:,1] + detector_shift/detector_width
-#
-#    ofs = np.zeros((len(angles),4), dtype=np.float32, order='C')
-#    ofs[:,0] = X; ofs[:,1] = Y; ofs[:,2] = offset; ofs[:,3] = Xinv
-#
-#    ofs_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=ofs.data)
-#   #    cl.enqueue_copy(queue, ofs_buf, ofs.data).wait()
-#
-#    sinogram_shape = (self.NScan*self.NC*self.NSlice,self.Nproj,nd)
-#
-#    return (ofs_buf, (self.NScan*self.NC*self.NSlice,self.dimY,self.dimX), sinogram_shape)
-#
-#
-#  def radon(self,sino, img, wait_for=None):
-#      (ofs_buf, shape, sinogram_shape) = self.r_struct
-#
-#      return self.prg.radon(sino.queue, sinogram_shape, None,
-#                       sino.data, img.data, ofs_buf,
-#                       np.int32(shape[-1]), np.int32(shape[-2]),
-#                       np.int32(self.NC*self.NSlice), np.float32(self.scale),
-#                       wait_for=wait_for)
-#
-#  def radon_ad(self,img, sino, wait_for=None):
-#      (ofs_buf, shape, sinogram_shape) = self.r_struct
-#
-#      return self.prg.radon_ad(img.queue, shape, None,
-#                          img.data, sino.data, ofs_buf,
-#                          np.int32(sinogram_shape[-1]),
-#                          np.int32(sinogram_shape[-2]),
-#                          np.int32(self.NC*self.NSlice), np.float32(self.scale),
-#                          wait_for=wait_for)
-#
-#  def radon_normest(self):
-#      img2 = np.require(np.random.randn(*(self.r_struct[1])), DTYPE, 'C')
-#      sino2 = np.require(np.random.randn(*(self.r_struct[2])), DTYPE, 'C')
-#      img = clarray.zeros(self.queue, self.r_struct[1], dtype=DTYPE, order='C')
-#
-#      sino = clarray.to_device(self.queue, sino2)
-#      img.add_event(self.radon_ad(img, sino))
-#      a = np.vdot(img2.flatten(),img.get().flatten())
-#
-#      img = clarray.to_device(self.queue, img2)
-#      sino = clarray.zeros(self.queue, self.r_struct[2], dtype=DTYPE, order='C')
-#      self.radon(sino, img, wait_for=img.events)
-#      b = np.vdot(sino.get().flatten(),sino2.flatten())
-#      print("Ajointness test: %e" %(np.abs(a-b)))
-#      img = clarray.to_device(self.queue, np.require(np.random.randn(*self.r_struct[1]), DTYPE, 'C'))
-#      sino = clarray.zeros(self.queue, self.r_struct[2], dtype=DTYPE, order='C')
-#      for i in range(10):
-#          normsqr = np.abs(clarray.sum(img).get())
-#          img /= normsqr
-#          sino.add_event(self.radon(sino, img, wait_for=img.events))
-#          img.add_event(self.radon_ad(img, sino, wait_for=sino.events))
-#
-#      return np.sqrt(normsqr)
+    midpoint_domain = np.zeros((self.NScan,self.Nproj,2))
+    for i in range(self.NScan):
+      for j in range(self.Nproj):
+#        midpoint_domain[i,j,:] = np.array([(self.dimX-1)/2.0+deltax[i,j], (self.dimY-1)/2.0+deltay[i,j]])
+        midpoint_domain[i,:] = np.array([(self.dimX-1)/2.0, (self.dimY-1)/2.0])
+
+    angles = np.reshape(angles,(self.Nproj*self.NScan))
+    midpoint_domain=np.reshape(midpoint_domain,(self.Nproj*self.NScan,2))
+#    midpoint_domain=np.repeat(midpoint_domain,self.Nproj,0)
+
+    midpoint_detectors = (nd-1.0)/2.0
+
+    X = np.cos(angles)/detector_width
+    Y = np.sin(angles)/detector_width
+    Xinv = 1.0/X
+
+    # set near vertical lines to vertical
+    mask = np.abs(Xinv) > 10*nd
+    X[mask] = 0
+    Y[mask] = np.sin(angles[mask]).round()/detector_width
+    Xinv[mask] = 0
+
+    offset = midpoint_detectors - X*midpoint_domain[:,0] \
+             - Y*midpoint_domain[:,1] + detector_shift/detector_width
+
+    ofs = np.zeros((len(angles),4), dtype=np.float32, order='C')
+    ofs[:,0] = X; ofs[:,1] = Y; ofs[:,2] = offset; ofs[:,3] = Xinv
+
+    ofs_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=ofs.data)
+   #    cl.enqueue_copy(queue, ofs_buf, ofs.data).wait()
+
+    sinogram_shape = (self.NScan*self.NC*self.NSlice,self.Nproj,nd)
+
+    return (ofs_buf, (self.NScan*self.NC*self.NSlice,self.dimY,self.dimX), sinogram_shape)
+
+
+  def radon(self,sino, img, wait_for=None):
+      (ofs_buf, shape, sinogram_shape) = self.r_struct
+
+      return self.prg.radon(sino.queue, sinogram_shape, None,
+                       sino.data, img.data, ofs_buf,
+                       np.int32(shape[-1]), np.int32(shape[-2]),
+                       np.int32(self.NC*self.NSlice), np.float32(self.scale),
+                       wait_for=wait_for)
+
+  def radon_ad(self,img, sino, wait_for=None):
+      (ofs_buf, shape, sinogram_shape) = self.r_struct
+
+      return self.prg.radon_ad(img.queue, shape, None,
+                          img.data, sino.data, ofs_buf,
+                          np.int32(sinogram_shape[-1]),
+                          np.int32(sinogram_shape[-2]),
+                          np.int32(self.NC*self.NSlice), np.float32(self.scale),
+                          wait_for=wait_for)
+
+  def radon_normest(self):
+      img2 = np.require(np.random.randn(*(self.r_struct[1])), DTYPE, 'C')
+      sino2 = np.require(np.random.randn(*(self.r_struct[2])), DTYPE, 'C')
+      img = clarray.zeros(self.queue, self.r_struct[1], dtype=DTYPE, order='C')
+
+      sino = clarray.to_device(self.queue, sino2)
+      img.add_event(self.radon_ad(img, sino))
+      a = np.vdot(img2.flatten(),img.get().flatten())
+
+      img = clarray.to_device(self.queue, img2)
+      sino = clarray.zeros(self.queue, self.r_struct[2], dtype=DTYPE, order='C')
+      self.radon(sino, img, wait_for=img.events)
+      b = np.vdot(sino.get().flatten(),sino2.flatten())
+      print("Ajointness test: %e" %(np.abs(a-b)))
+      img = clarray.to_device(self.queue, np.require(np.random.randn(*self.r_struct[1]), DTYPE, 'C'))
+      sino = clarray.zeros(self.queue, self.r_struct[2], dtype=DTYPE, order='C')
+      for i in range(10):
+          normsqr = np.abs(clarray.sum(img).get())
+          img /= normsqr
+          sino.add_event(self.radon(sino, img, wait_for=img.events))
+          img.add_event(self.radon_ad(img, sino, wait_for=sino.events))
+
+      return np.sqrt(normsqr)
 
 
   def irgn_solve_2D(self, x, iters, data):
@@ -878,9 +879,8 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
 
     x = clarray.to_device(self.queue,np.require(x,requirements="C"))
     a = (self.operator_forward(x).get())
-    b = clarray.zeros(self.queue, data.shape,dtype=DTYPE)
-    (self.FT(b,clarray.to_device(self.queue,self.step_val[:,None,...]*self.Coils)))
-    res = (data) - b.get() + a
+    b = (self.FT(self.step_val[:,None,...]*self.Coils))
+    res = (data) - b + a
 
     x = self.tgv_solve_2D(x.get(),res,iters)
     x = clarray.to_device(self.queue,x)
@@ -908,9 +908,9 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
 
   def execute_2D(self):
       self.NSlice=1
-#      self.r_struct=self.radon_struct()
-      self.FT = self.NUFFT.fwd_NUFFT
-      self.FTH = self.NUFFT.adj_NUFFT
+      self.r_struct=self.radon_struct()
+      self.FT = self.nFT
+      self.FTH = self.nFTH
 
       gamma = self.irgn_par.gamma
       delta = self.irgn_par.delta
@@ -976,8 +976,7 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
 #    tmp_result = clarray.zeros(self.queue,(self.NScan*self.NC*self.NSlice,self.dimY,self.dimX),DTYPE,"C")
     self.tmp_result.add_event(self.eval_fwd(self.tmp_result,x.astype(DTYPE),wait_for=self.tmp_result.events+x.events))
     #self.FT(np.reshape(tmp_result.get(),(self.NScan,self.NC,self.dimY,self.dimX)))#
-#    self.tmp_sino.add_event(self.radon(self.tmp_sino,self.tmp_result,wait_for=self.tmp_sino.events+self.tmp_result.events))
-    self.tmp_sino.add_event(self.NUFFT.fwd_NUFFT(self.tmp_sino,self.tmp_result))
+    self.tmp_sino.add_event(self.radon(self.tmp_sino,self.tmp_result,wait_for=self.tmp_sino.events+self.tmp_result.events))
     return  self.tmp_sino
 
   def operator_forward_full(self, out, x):
@@ -987,12 +986,12 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
 #    tmp_result = clarray.zeros(self.queue,(self.NScan*self.NC*self.NSlice,self.dimY,self.dimX),DTYPE,"C")
     self.tmp_result.add_event(self.eval_fwd(self.tmp_result,x.astype(DTYPE),wait_for=self.tmp_result.events+x.events))
     #self.FT(np.reshape(tmp_result.get(),(self.NScan,self.NC,self.dimY,self.dimX)))#
-#    return  self.radon(out,self.tmp_result,wait_for=out.events+self.tmp_result.events)
-    return  self.NUFFT.fwd_NUFFT(out,self.tmp_result)
+    return  self.radon(out,self.tmp_result,wait_for=out.events+self.tmp_result.events)
+
 
   def operator_adjoint_full(self, out, x,z, wait_for=[]):
 
-    (self.NUFFT.adj_NUFFT(self.tmp_img,x))
+    self.tmp_img.add_event(self.radon_ad(self.tmp_img,x,wait_for=self.tmp_img.events+x.events))
 
     return self.prg.update_Kyk1(out.queue, (self.NSlice,self.dimY,self.dimX), None,
                                  out.data, self.tmp_img.data, self.coil_buf, self.grad_buf, z.data, np.int32(self.NC),
@@ -1188,25 +1187,25 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
     return x.get()
 
 
-#  def nFT(self, x):
-#    result = np.zeros((self.NScan,self.NC,self.NSlice,self.Nproj,self.N),dtype=DTYPE)
-#    tmp_img = clarray.to_device(self.queue,np.require(np.reshape(x,(self.NScan*self.NC*self.NSlice,self.dimY,self.dimX)),DTYPE,"C"))
-#    tmp_sino = clarray.zeros(self.queue,self.r_struct[2],DTYPE,"C")
-#    (self.radon(tmp_sino,tmp_img))
-#    result = (np.reshape(tmp_sino.get(),(self.NScan,self.NC,self.NSlice,self.Nproj,self.N)))
-#
-#    return result
+  def nFT(self, x):
+    result = np.zeros((self.NScan,self.NC,self.NSlice,self.Nproj,self.N),dtype=DTYPE)
+    tmp_img = clarray.to_device(self.queue,np.require(np.reshape(x,(self.NScan*self.NC*self.NSlice,self.dimY,self.dimX)),DTYPE,"C"))
+    tmp_sino = clarray.zeros(self.queue,self.r_struct[2],DTYPE,"C")
+    (self.radon(tmp_sino,tmp_img))
+    result = (np.reshape(tmp_sino.get(),(self.NScan,self.NC,self.NSlice,self.Nproj,self.N)))
+
+    return result
 
 
 
-#  def nFTH(self, x):
-#    result = np.zeros((self.NScan,self.NC,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
-#    tmp_sino = clarray.to_device(self.queue,np.require(np.reshape(x,(self.NScan*self.NC*self.NSlice,self.Nproj,self.N)),DTYPE,"C"))
-#    tmp_img = clarray.zeros(self.queue,self.r_struct[1],DTYPE,"C")
-#    (self.radon_ad(tmp_img,tmp_sino))
-#    result = (np.reshape(tmp_img.get(),(self.NScan,self.NC,self.NSlice,self.dimY,self.dimX)))
-#
-#    return result
+  def nFTH(self, x):
+    result = np.zeros((self.NScan,self.NC,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
+    tmp_sino = clarray.to_device(self.queue,np.require(np.reshape(x,(self.NScan*self.NC*self.NSlice,self.Nproj,self.N)),DTYPE,"C"))
+    tmp_img = clarray.zeros(self.queue,self.r_struct[1],DTYPE,"C")
+    (self.radon_ad(tmp_img,tmp_sino))
+    result = (np.reshape(tmp_img.get(),(self.NScan,self.NC,self.NSlice,self.dimY,self.dimX)))
+
+    return result
 
 #
 #  def nFT_inplace(self, x,y):
@@ -1268,7 +1267,7 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
                                   wait_for= z_new.events + z.events + gx.events+ gx_.events+ wait_for
                                   )
   def update_r(self, r_new, r, A, A_, res, sigma, theta, lambd, wait_for=[]):
-    return self.prg.update_r(r_new.queue, (self.NScan*self.NC*self.NSlice,self.Nproj,self.N), None, r_new.data, r.data, A.data, A_.data, res.data, np.float32(sigma), np.float32(theta),
+    return self.prg.update_r(r_new.queue, self.r_struct[2], None, r_new.data, r.data, A.data, A_.data, res.data, np.float32(sigma), np.float32(theta),
                                   np.float32(1/(1+sigma/lambd)),
                                   wait_for= r_new.events + r.events + A.events+ A_.events+ wait_for
                                   )
@@ -1312,8 +1311,8 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
 ### output: optimal value of x #################################################
 ################################################################################
   def execute_3D(self, TV=0):
-   self.FT = self.NUFFT.fwd_NUFFT# self.nFT
-   self.FTH = self.NUFFT.adj_NUFFT#self.nFTH
+   self.FT = self.nFT
+   self.FTH = self.nFTH
    iters = self.irgn_par.start_iters
 
 
@@ -1459,10 +1458,8 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
 
     x_old = x
     x = clarray.to_device(self.queue,np.require(x,requirements="C"))
-    b = clarray.zeros(self.queue, data.shape,dtype=DTYPE)
-    self.FT(b,clarray.to_device(self.queue,self.step_val[:,None,...]*self.Coils3D))
 
-    res = data - b.get() + self.operator_forward(x).get()
+    res = data - self.FT(self.step_val[:,None,...]*self.Coils3D) + self.operator_forward(x).get()
 
 
     if TV==1:
@@ -1471,8 +1468,7 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
       grad = clarray.to_device(self.queue,np.zeros_like(self.z1))
       grad.add_event(self.f_grad(grad,x,wait_for=grad.events+x.events))
       x = x.get()
-      self.FT(b,clarray.to_device(self.queue,self.model.execute_forward_3D(x)[:,None,...]*self.Coils3D))
-      self.fval= (self.irgn_par.lambd/2*np.linalg.norm(data - b.get())**2
+      self.fval= (self.irgn_par.lambd/2*np.linalg.norm(data - self.FT(self.model.execute_forward_3D(x)[:,None,...]*self.Coils3D))**2
               +self.irgn_par.gamma*np.sum(np.abs(grad.get()))
               +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2)
       print('Norm M0 grad: %f  norm T1 grad: %f' %(np.linalg.norm(grad.get()[0,...]),np.linalg.norm(grad.get()[1,...])))
@@ -1490,8 +1486,7 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
        grad.add_event(self.f_grad(grad,x,wait_for=grad.events+x.events))
        sym_grad.add_event(self.sym_grad(sym_grad,v,wait_for=sym_grad.events+v.events))
        x = x.get()
-       self.FT(b,clarray.to_device(self.queue,self.model.execute_forward_3D(x)[:,None,...]*self.Coils3D))
-       self.fval= (self.irgn_par.lambd/2*np.linalg.norm(data - b.get())**2
+       self.fval= (self.irgn_par.lambd/2*np.linalg.norm(data - self.FT(self.model.execute_forward_3D(x)[:,None,...]*self.Coils3D))**2
               +self.irgn_par.gamma*np.sum(np.abs(grad.get()-self.v))
               +self.irgn_par.gamma*(2)*np.sum(np.abs(sym_grad.get()))
               +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2)
@@ -1627,7 +1622,7 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
       tau =  (tau_new)
 
 
-      if not np.mod(i,10):
+      if not np.mod(i,20):
 
         self.model.plot_unknowns(x_new.get())
         primal_new= (self.irgn_par.lambd/2*clarray.vdot(Axold-res,Axold-res)+alpha*clarray.sum(abs((gradx[:self.unknowns_TGV]-v))) +beta*clarray.sum(abs(symgrad_v)) + 1/(2*delta)*clarray.vdot(x_new-xk,x_new-xk)).real
@@ -1645,13 +1640,13 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
           self.z1 = z1.get()
           self.z2 = z2.get()
           return x_new.get()
-#        if (gap > gap_min*self.irgn_par.stag) and i>1:
-#          self.v = v_new.get()
-#          self.r = r.get()
-#          self.z1 = z1.get()
-#          self.z2 = z2.get()
-#          print("Terminated at iteration %d because the method stagnated"%(i))
-#          return x.get()
+        if (gap > gap_min*self.irgn_par.stag) and i>1:
+          self.v = v_new.get()
+          self.r = r.get()
+          self.z1 = z1.get()
+          self.z2 = z2.get()
+          print("Terminated at iteration %d because the method stagnated"%(i))
+          return x.get()
         if np.abs(gap - gap_min)<(self.irgn_par.lambd*self.NSlice)*self.irgn_par.tol and i>1:
           self.v = v_new.get()
           self.r = r.get()
@@ -1767,7 +1762,7 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
       tau =  (tau_new)
 
 
-      if not np.mod(i,100):
+      if not np.mod(i,20):
         self.model.plot_unknowns(x_new.get())
         primal_new= (self.irgn_par.lambd/2*clarray.vdot(Axold-res,Axold-res)+alpha*clarray.sum(abs((gradx[:self.unknowns_TGV]))) + 1/(2*delta)*clarray.vdot(x_new-xk,x_new-xk)).real
 

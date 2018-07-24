@@ -59,7 +59,7 @@ for attributes in test_attributes:
 ################################################################################
 ### Read Data ##################################################################
 ################################################################################
-reco_Slices = 1
+reco_Slices = 5
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
 
 data = file['real_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE) +\
@@ -267,22 +267,21 @@ test = nFTH(data_save/np.sqrt(dcf),plan,dcf,NScan,NC,\
 
 traj_save = np.copy(traj)
 
-
+par.C = np.require(np.transpose(par.C,(0,1,3,2)),requirements='C')
 ################################################################################
 ### Init forward model and initial guess #######################################
 ################################################################################
 model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images,par.phase_map,1,Nproj)
 
-par.U = np.ones((data).shape, dtype=bool)
-par.U[abs(data) == 0] = False
+
 #
 ### 89 spk
 #shift_read = np.array((0.0316,    0.0310 ,   0.0324  ,  0.0322 ,   0.0329  ,  0.0341 ,   0.0346   , 0.0334 ,   0.0323  ,  0.0280))
 #shift_phase = np.array((0.0887,    0.0870  ,  0.0897 ,   0.0915  ,  0.0928  ,  0.0964  ,  0.0962 ,   0.0989 ,   0.1052 ,   0.1034))
 #    ## 34 spk
-##shift_read = np.array((0.0311,    0.0313,    0.0319,    0.0327,    0.0334,    0.0340,    0.0350,    0.0344,    0.0315,    0.0318))
-##shift_phase = np.array((0.0902,    0.0882,    0.0898,    0.0911,    0.0929,    0.0947,    0.0971,    0.0997,    0.1028,    0.1037))
-#
+#shift_read = np.array((0.0311,    0.0313,    0.0319,    0.0327,    0.0334,    0.0340,    0.0350,    0.0344,    0.0315,    0.0318))
+#shift_phase = np.array((0.0902,    0.0882,    0.0898,    0.0911,    0.0929,    0.0947,    0.0971,    0.0997,    0.1028,    0.1037))
+
 #angles = np.zeros((par.NScan,par.Nproj))
 #sorted_angles = np.zeros((par.NScan,par.Nproj),dtype=np.int32)
 #GA = 111.246117975/180*np.pi
@@ -297,11 +296,11 @@ par.U[abs(data) == 0] = False
 #samples_data = np.zeros((par.NScan, par.Nproj, N))
 #for n in range(par.NScan):
 #  for ip in range(par.Nproj):
-#    deltak[n,ip] = ((np.cos(2*angles[n,ip]) + 1) * shift_read[n]+(-np.cos(2*angles[n,ip]) + 1) * shift_phase[n])/2
+#    deltak[n,ip] = ((np.cos(angles[n,ip]) )**2 * shift_read[n]+(np.sin(angles[n,ip]))**2 * shift_phase[n])
 #    samples_data[n,ip,:] = np.linspace(-N/2,N/2-1,N)-deltak[n,ip]
-#
-#
-#### -0.5....0.5 or -1...1 ????
+
+
+### -0.5....0.5 or -1...1 ????
 #samples= np.linspace(-N/2,N/2-1,N)
 #data = np.copy(data_save)/np.sqrt(dcf)
 #for j in range(par.NScan):
@@ -309,8 +308,8 @@ par.U[abs(data) == 0] = False
 #    for k in range(NC):
 #      for l in range(NSlice):
 #        data[j,k,l,i,:] = np.interp(samples_data[j,i],samples,data[j,k,l,i,:])
-#
-#
+
+
 #for j in range(par.NScan):
 #  data[j,...] = np.transpose(data[j,:,:,sorted_angles[j,:],:],(1,2,0,3))
 #  angles[j,:] = angles[j,sorted_angles[j,:]]
@@ -318,14 +317,14 @@ par.U[abs(data) == 0] = False
 
 
 
-data = np.fft.ifftshift(np.fft.fft(np.fft.fftshift(data_save/np.sqrt(dcf),-1),axis=-1)/(512),-1)
+#data = np.fft.ifftshift(np.fft.fft(np.fft.fftshift(data,-1),axis=-1)/(512),-1)
 
 #for j in range(par.NScan):
 #  for i in range(par.Nproj):
 #        data[j,:,:,i,:] = data[j,:,:,i,:]*np.exp(1j*deltak[j,i]*samples)
 
 
-data = np.linalg.norm(data_save)/np.linalg.norm(data)*data
+#data = np.linalg.norm(data_save)/np.linalg.norm(data)*data
 
 
 
@@ -353,7 +352,8 @@ ctx = cl.Context(
 
 
 queue = cl.CommandQueue(ctx)
-opt = Model_Reco.Model_Reco(par,ctx,queue,traj,model,angles)
+opt = Model_Reco.Model_Reco(par,ctx,queue,traj,np.sqrt(dcf),model)
+
 
 
 #import pyopencl.array as clarray
@@ -390,14 +390,14 @@ opt.dcf_flat = np.sqrt(dcf).flatten()
 #IRGN Params
 irgn_par = struct()
 irgn_par.start_iters = 100
-irgn_par.max_iters = 300
-irgn_par.max_GN_it = 20
+irgn_par.max_iters = 100
+irgn_par.max_GN_it = 13
 irgn_par.lambd = 1e2
-irgn_par.gamma = 1e-1   #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.gamma = 1e0   #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-1#### 8spk in-vivo 1e-2
 irgn_par.omega = 0e-10
 irgn_par.display_iterations = True
-irgn_par.gamma_min = 3e-3
+irgn_par.gamma_min = 4e-1
 irgn_par.delta_max = 1e2
 irgn_par.tol = 1e-5
 irgn_par.stag = 1.00
