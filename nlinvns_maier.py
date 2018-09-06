@@ -14,7 +14,7 @@
 #% Max-Planck-Institut fuer biophysikalische Chemie
 import numpy as np
 import time
-from src.fftshift2 import fftshift2
+from fftshift2 import fftshift2
 import pyfftw
 
 def nlinvns(Y, n, *arg):  #*returnProfiles,**realConstr):

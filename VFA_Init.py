@@ -5,12 +5,12 @@ import os
 import h5py
 from tkinter import filedialog
 from tkinter import Tk
-import src.nlinvns_maier as nlinvns
+import nlinvns_maier as nlinvns
 
-import src.Model_Reco as Model_Reco
+import Model_Reco as Model_Reco
 
-import src.VFA_model as VFA_model
-import src.goldcomp as goldcomp
+import VFA_model as VFA_model
+import goldcomp as goldcomp
 
 import primaldualtoolbox
 import matplotlib.pyplot as plt
@@ -60,7 +60,7 @@ def main():
 ################################################################################
 ### Read Data ##################################################################
 ################################################################################
-    reco_Slices = 40
+    reco_Slices = 5
     dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
 
     data = file['real_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE)\
@@ -85,7 +85,6 @@ def main():
 
 
     [NScan,NC,NSlice,Nproj, N] = data.shape
-
 ################################################################################
 ### Set sequence related parameters ############################################
 ################################################################################
@@ -152,12 +151,12 @@ def main():
         result.append(dview.apply_async(nlinvns.nlinvns, combinedData,
                                         nlinvNewtonSteps, True, nlinvRealConstr))
 
-        for i in range(NSlice):
-            par.C[:,i,:,:] = result[i].get()[2:,-1,:,:]
-            if not nlinvRealConstr:
-                par.phase_map[i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
-                par.C[:,i,:,:] = par.C[:,i,:,:]* np.exp(1j *\
-                                 np.angle( result[i].get()[1,-1,:,:]))
+    for i in range(NSlice):
+        par.C[:,i,:,:] = result[i].get()[2:,-1,:,:]
+        if not nlinvRealConstr:
+            par.phase_map[i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
+            par.C[:,i,:,:] = par.C[:,i,:,:]* np.exp(1j *\
+                             np.angle( result[i].get()[1,-1,:,:]))
           # standardize coil sensitivity profiles
     sumSqrC = np.sqrt(np.sum((par.C * np.conj(par.C)),0))
     if NC == 1:
@@ -263,7 +262,7 @@ def main():
     opt.irgn_par = irgn_par
     opt.ratio = 2e2
 
-    opt.execute_2D()
+    opt.execute_3D()
     result_tgv.append(opt.result)
     plt.close('all')
 

@@ -11,7 +11,7 @@ from numpy cimport ndarray
 import pywt
 import time
 
-cimport src.gradients_divergences as gd
+cimport gradients_divergences as gd
 
 np.import_array()
 
