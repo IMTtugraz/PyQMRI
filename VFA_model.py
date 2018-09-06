@@ -27,7 +27,7 @@ class constraint:
 
 
 class VFA_Model:
-  def __init__(self,fa,fa_corr,TR,images,phase_map,Nislice,Nproj):
+  def __init__(self,fa,fa_corr,TR,images,Nislice,Nproj):
     self.constraints = []
     self.TR = TR
     self.images = images
@@ -62,14 +62,14 @@ class VFA_Model:
 
     self.T1_sc = self.T1_sc/np.sqrt(self.M0_sc)
     DG_x =  self.execute_gradient_3D(np.array([test_M0/self.M0_sc*np.ones((Nislice,dimY,dimX),dtype=DTYPE),test_T1],dtype=DTYPE))
-    print('Grad Scaling init', np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...])))
-    print('T1 scale: ',self.T1_sc,
-                              '/ M0_scale: ',self.M0_sc)
+#    print('Grad Scaling init', np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...])))
+#    print('T1 scale: ',self.T1_sc,
+#                              '/ M0_scale: ',self.M0_sc)
 
 
     result = np.array([1/self.M0_sc*np.ones((Nislice,dimY,dimX),dtype=DTYPE),1/self.T1_sc*np.exp(-self.TR/(800*np.ones((Nislice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE)
     self.guess = result
-    self.constraints.append(constraint(-300,300,False)  )
+    self.constraints.append(constraint(-20/self.M0_sc,20/self.M0_sc,False)  )
     self.constraints.append(constraint(np.exp(-self.TR/(50))/self.T1_sc,np.exp(-self.TR/(5500))/self.T1_sc,True))
 
   def execute_forward_2D(self,x,islice):
@@ -88,11 +88,11 @@ class VFA_Model:
     M0*self.M0_sc*self.T1_sc*self.sin_phi[:,islice,:,:]/(-E1*self.cos_phi[:,islice,:,:] + 1)
     grad = np.array([grad_M0,grad_T1],dtype=DTYPE)
     grad[~np.isfinite(grad)] = 1e-20
-    print('Grad Scaling', np.linalg.norm(np.abs(grad_M0))/np.linalg.norm(np.abs(grad_T1)))
+#    print('Grad Scaling', np.linalg.norm(np.abs(grad_M0))/np.linalg.norm(np.abs(grad_T1)))
     return grad
 
   def execute_forward_3D(self,x):
-    print('T1_sc: ',self.T1_sc)
+#    print('T1_sc: ',self.T1_sc)
     E1 = x[1,...]*self.T1_sc
     S = x[0,:,:]*self.M0_sc*(-E1 + 1)*self.sin_phi/(-E1*self.cos_phi + 1)
     S[~np.isfinite(S)] = 1e-20
@@ -107,7 +107,7 @@ class VFA_Model:
     M0*self.M0_sc*self.T1_sc*self.sin_phi/(-E1*self.cos_phi + 1)
     grad = np.array([grad_M0,grad_T1],dtype=DTYPE)
     grad[~np.isfinite(grad)] = 1e-20
-    print('Grad Scaling', np.linalg.norm(np.abs(grad_M0))/np.linalg.norm(np.abs(grad_T1)))
+#    print('Grad Scaling', np.linalg.norm(np.abs(grad_M0))/np.linalg.norm(np.abs(grad_T1)))
     return grad
 
 

@@ -33,7 +33,7 @@ class Program(object):
 
 
 class Model_Reco:
-  def __init__(self,par,ctx,queue1,queue2,traj,dcf,model,angles=None):
+  def __init__(self,par,ctx,queue,traj,dcf,model,angles=None):
     self.par = par
     self.C = par.C
     self.traj = traj
@@ -52,15 +52,14 @@ class Model_Reco:
     self.dz = 3
     self.fval_min = 0
     self.fval = 0
-    self.ctx = ctx
-    self.queue = queue1
-    self.queue2 = queue2
+    self.ctx = ctx[0]
+    self.queue = queue[0]
     self.coil_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.C.data)
     self.ratio = 100
 #    self.ukscale =  np.ones(self.unknowns,dtype=DTYPE_real)
     self.ukscale =  clarray.to_device(self.queue,np.ones(self.unknowns,dtype=DTYPE_real))
     self.gn_res = []
-    self.NUFFT = NUFFT.gridding(ctx,queue2,4,2,par.N,(par.NScan,par.NC,par.NSlice,par.N,par.N),(3,4),traj.astype(DTYPE),np.require(np.abs(dcf),DTYPE_real,requirements='C'),par.N,1000,DTYPE,DTYPE_real)
+    self.NUFFT = NUFFT.gridding(self.ctx,queue,4,2,par.N,par.NScan,(par.NScan*par.NC*par.NSlice,par.N,par.N),(1,2),traj.astype(DTYPE),np.require(np.abs(dcf),DTYPE_real,requirements='C'),par.N,1000,DTYPE,DTYPE_real)
 
 
     self.prg = Program(self.ctx, r"""
@@ -794,8 +793,8 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
 #    self.scale = (self.radon_normest())
     self.tmp_result = clarray.zeros(self.queue,(self.NScan,self.NC,self.NSlice,self.dimY,self.dimX),DTYPE,"C")
     self.tmp_result2 = clarray.zeros(self.queue,(self.unknowns,self.NSlice,self.dimY,self.dimX),DTYPE,"C")
-    self.tmp_img =  clarray.zeros(self.queue2,(self.NScan,self.NC,self.NSlice,self.dimY,self.dimX),DTYPE,"C")
-    self.tmp_sino = clarray.zeros(self.queue2,(self.NScan,self.NC,self.NSlice,self.Nproj,self.N),DTYPE,"C")
+    self.tmp_img =  clarray.zeros(self.queue,(self.NScan,self.NC,self.NSlice,self.dimY,self.dimX),DTYPE,"C")
+    self.tmp_sino = clarray.zeros(self.queue,(self.NScan,self.NC,self.NSlice,self.Nproj,self.N),DTYPE,"C")
     print("Radon Norm: %f" %(self.scale))
 
 
@@ -1042,7 +1041,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
 
     self.tmp_img.add_event(self.NUFFT.adj_NUFFT(self.tmp_img,x,wait_for=wait_for+x.events))
 
-    return self.prg.update_Kyk1(self.queue2, (self.NSlice,self.dimY,self.dimX), None,
+    return self.prg.update_Kyk1(self.queue, (self.NSlice,self.dimY,self.dimX), None,
                                  out.data, self.tmp_img.data, self.coil_buf, self.grad_buf, z.data, np.int32(self.NC),
                                  np.int32(self.NSlice),  np.int32(self.NScan), self.ukscale.data,
                                  np.float32(np.amax(self.ukscale.get())),np.float32(self.ratio), np.int32(self.unknowns),
@@ -1147,7 +1146,6 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     Ax = clarray.zeros_like(res)
 
     Axold = self.operator_forward(x)
-
     Kyk1.add_event(self.operator_adjoint_full(Kyk1,r,z1))
     Kyk2.add_event(self.update_Kyk2(Kyk2,z2,z1))
 
@@ -1291,7 +1289,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
                 wait_for=div.events + u.events + wait_for)
 
   def sym_grad(self,sym, w, wait_for=[]):
-    return self.prg.sym_grad(self.queue2, w.shape[1:-1], None, sym.data, w.data,
+    return self.prg.sym_grad(self.queue, w.shape[1:-1], None, sym.data, w.data,
                 np.int32(self.unknowns),
                 wait_for=sym.events + w.events + wait_for)
 
@@ -1305,18 +1303,18 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
                 wait_for=div.events + u.events + z.events+wait_for)
 
   def update_primal(self, x_new, x, Kyk, xk, tau, delta, wait_for=[]):
-    return self.prg.update_primal(self.queue2, x.shape[1:], None, x_new.data, x.data, Kyk.data, xk.data, np.float32(tau),
+    return self.prg.update_primal(self.queue, x.shape[1:], None, x_new.data, x.data, Kyk.data, xk.data, np.float32(tau),
                                   np.float32(tau/delta), np.float32(1/(1+tau/delta)), self.min_const.data, self.max_const.data,
                                   self.real_const.data, np.int32(self.unknowns),
                                   wait_for=x_new.events + x.events + Kyk.events+ xk.events+wait_for
                                   )
   def update_z1(self, z_new, z, gx, gx_, vx, vx_, sigma, theta, alpha, wait_for=[]):
-    return self.prg.update_z1(self.queue2, z.shape[1:-1], None, z_new.data, z.data, gx.data, gx_.data, vx.data, vx_.data, np.float32(sigma), np.float32(theta),
+    return self.prg.update_z1(self.queue, z.shape[1:-1], None, z_new.data, z.data, gx.data, gx_.data, vx.data, vx_.data, np.float32(sigma), np.float32(theta),
                                   np.float32(1/alpha), np.int32(self.unknowns),
                                   wait_for= z_new.events + z.events + gx.events+ gx_.events+ vx.events+ vx_.events+wait_for
                                   )
   def update_z1_tv(self, z_new, z, gx, gx_, sigma, theta, alpha, wait_for=[]):
-    return self.prg.update_z1_tv(self.queue2, z.shape[1:-1], None, z_new.data, z.data, gx.data, gx_.data, np.float32(sigma), np.float32(theta),
+    return self.prg.update_z1_tv(self.queue, z.shape[1:-1], None, z_new.data, z.data, gx.data, gx_.data, np.float32(sigma), np.float32(theta),
                                   np.float32(1/alpha), np.int32(self.unknowns),
                                   wait_for= z_new.events + z.events + gx.events+ gx_.events+ wait_for
                                   )
@@ -1326,7 +1324,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
                                   wait_for= z_new.events + z.events + gx.events+ gx_.events+ wait_for
                                   )
   def update_r(self, r_new, r, A, A_, res, sigma, theta, lambd, wait_for=[]):
-    return self.prg.update_r(self.queue2, (self.NScan*self.NC*self.NSlice,self.Nproj,self.N), None, r_new.data, r.data, A.data, A_.data, res.data, np.float32(sigma), np.float32(theta),
+    return self.prg.update_r(self.queue, (self.NScan*self.NC*self.NSlice,self.Nproj,self.N), None, r_new.data, r.data, A.data, A_.data, res.data, np.float32(sigma), np.float32(theta),
                                   np.float32(1/(1+sigma/lambd)),
                                   wait_for= r_new.events + r.events + A.events+ A_.events+ wait_for
                                   )
@@ -1336,7 +1334,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
                                   wait_for= v_new.events + v.events + Kyk2.events+ wait_for
                                   )
   def update_primal_explicit(self, x_new, x, Kyk, xk, ATd, tau, delta, lambd,wait_for=[]):
-    return self.prg.update_primal_explicit(self.queue2, x.shape[1:], None, x_new.data, x.data, Kyk.data, xk.data, ATd.data, np.float32(tau),
+    return self.prg.update_primal_explicit(self.queue, x.shape[1:], None, x_new.data, x.data, Kyk.data, xk.data, ATd.data, np.float32(tau),
                                   np.float32(1/delta), np.float32(lambd), self.min_const.data, self.max_const.data,
                                   self.real_const.data, np.int32(self.unknowns),
                                   wait_for=x_new.events + x.events + Kyk.events+ xk.events+ATd.events+wait_for
@@ -1651,7 +1649,6 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     Ax = clarray.zeros_like(res)
 
     Axold.add_event(self.operator_forward_full(Axold,x))   #### Q1
-
     Kyk1.add_event(self.operator_adjoint_full(Kyk1,r,z1))    #### Q2
     Kyk2.add_event(self.update_Kyk2(Kyk2,z2,z1)) #### Q1
 
@@ -1669,7 +1666,6 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
       gradx_xold.add_event(self.f_grad(gradx_xold,x))  ### Q1
       symgrad_v.add_event(self.sym_grad(symgrad_v,v_new))  ### Q2
       symgrad_v_vold.add_event(self.sym_grad(symgrad_v_vold,v))  ### Q2
-
       Ax.add_event(self.operator_forward_full(Ax,x_new))  ### Q1
 
       while True:

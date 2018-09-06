@@ -300,13 +300,16 @@ class gridding:
 
   }
 
-  __kernel void grid_lut(__global float *sg, __global float2 *s, __global float2 *kpos, const int gridsize, const float kwidth, __global float *dcf, __constant float* kerneltable, const int nkernelpts )
+  __kernel void grid_lut(__global float *sg, __global float2 *s, __global float2 *kpos, const int gridsize, const int NC, const float kwidth, __global float *dcf, __constant float* kerneltable, const int nkernelpts )
   {
     size_t k = get_global_id(2);
     size_t kDim = get_global_size(2);
     size_t n = get_global_id(1);
     size_t NDim = get_global_size(1);
-    size_t scan = get_global_id(0);
+    size_t slice = get_global_id(0);
+
+    size_t scan = n/NC;
+    size_t icoil = n-scan*NC;
 
     int ixmin, ixmax, iymin, iymax, gridcenter, gptr_cinc, kernelind;
     float kx, ky;
@@ -315,7 +318,7 @@ class gridding:
 
 
     float* ptr, pti;
-    float2 kdat = s[k+kDim*n+kDim*NDim*scan]*(float2)(dcf[k],dcf[k]);
+    float2 kdat = s[k+kDim*n+kDim*NDim*slice]*(float2)(dcf[k],dcf[k]);
 
 
 
@@ -355,21 +358,25 @@ class gridding:
   			    kern = kerneltable[(int)kernelind]*(1-fracdk)+
   			    		kerneltable[(int)kernelind+1]*fracdk;
 
-             AtomicAdd(&(sg[2*(gcount1*gridsize+gcount2+(gridsize*gridsize)*n+(gridsize*gridsize)*NDim*scan)]),(kern * kdat.s0));
-             AtomicAdd(&(sg[2*(gcount1*gridsize+gcount2+(gridsize*gridsize)*n+(gridsize*gridsize)*NDim*scan)+1]),(kern * kdat.s1));
+             AtomicAdd(&(sg[2*(gcount1*gridsize+gcount2+(gridsize*gridsize)*n+(gridsize*gridsize)*NDim*slice)]),(kern * kdat.s0));
+             AtomicAdd(&(sg[2*(gcount1*gridsize+gcount2+(gridsize*gridsize)*n+(gridsize*gridsize)*NDim*slice)+1]),(kern * kdat.s1));
   			    }
   			}
   		}
   }
 
 
-  __kernel void invgrid_lut(__global float2 *s, __global float2 *sg, __global float2 *kpos, const int gridsize, const float kwidth, __global float *dcf, __constant float* kerneltable, const int nkernelpts )
+  __kernel void invgrid_lut(__global float2 *s, __global float2 *sg, __global float2 *kpos, const int gridsize, const int NC, const float kwidth, __global float *dcf, __constant float* kerneltable, const int nkernelpts )
   {
     size_t k = get_global_id(2);
     size_t kDim = get_global_size(2);
     size_t n = get_global_id(1);
     size_t NDim = get_global_size(1);
-    size_t scan = get_global_id(0);
+    size_t slice = get_global_id(0);
+
+    size_t scan = n/NC;
+    size_t icoil = n-scan*NC;
+
 
     int ixmin, ixmax, iymin, iymax, gridcenter, gptr_cinc, kernelind;
     float kx, ky;
@@ -413,11 +420,11 @@ class gridding:
 
   			    kern = kerneltable[(int)kernelind]*(1-fracdk)+
   			    		kerneltable[(int)kernelind+1]*fracdk;
-             tmp_dat += (float2)(kern,kern)*sg[gcount1*gridsize+gcount2+(gridsize*gridsize)*n+(gridsize*gridsize)*NDim*scan];
+             tmp_dat += (float2)(kern,kern)*sg[gcount1*gridsize+gcount2+(gridsize*gridsize)*n+(gridsize*gridsize)*NDim*slice];
   			    }
   			}
   		}
-    s[k+kDim*n+kDim*NDim*scan]= tmp_dat*(float2)(dcf[k],dcf[k]);
+    s[k+kDim*n+kDim*NDim*slice]= tmp_dat*(float2)(dcf[k],dcf[k]);
   }
                          """)
   def __del__(self):
@@ -438,13 +445,13 @@ class gridding:
     ### Zero tmp arrays
     self.tmp_fft_array.add_event(self.prg.zero_tmp(queue, (self.tmp_fft_array.size,),None,self.tmp_fft_array.data,wait_for=s.events+sg.events+self.tmp_fft_array.events+wait_for))
     ### Grid k-space
-    self.tmp_fft_array.add_event(self.prg.grid_lut(queue,(s.shape[0],s.shape[1]*s.shape[2],s.shape[-2]*self.gridsize),None,self.tmp_fft_array.data,s.data,self.traj.data, np.int32(self.gridsize),
+    self.tmp_fft_array.add_event(self.prg.grid_lut(queue,(s.shape[0],s.shape[1]*s.shape[2],s.shape[-2]*self.gridsize),None,self.tmp_fft_array.data,s.data,self.traj.data, np.int32(self.gridsize), np.int32(sg.shape[2]),
                              self.DTYPE_real(self.kwidth/self.gridsize),self.dcf.data,self.cl_kerneltable,np.int32(self.kernelpoints),
                              wait_for=wait_for+sg.events+ s.events+self.tmp_fft_array.events))
     ### FFT
     self.fftshift[idx](self.tmp_fft_array,self.tmp_fft_array)
-    for j in range(s.shape[0]):
-      self.tmp_fft_array.add_event(self.fft2[idx].enqueue_arrays(data=self.tmp_fft_array[j*s.shape[1]*s.shape[2]:(j+1)*s.shape[1]*s.shape[2],...],result=self.tmp_fft_array[j*s.shape[1]*s.shape[2]:(j+1)*s.shape[1]*s.shape[2],...],forward=False)[0])
+    for j in range(s.shape[1]):
+      self.tmp_fft_array.add_event(self.fft2[idx].enqueue_arrays(data=self.tmp_fft_array[j*s.shape[0]*s.shape[2]:(j+1)*s.shape[0]*s.shape[2],...],result=self.tmp_fft_array[j*s.shape[0]*s.shape[2]:(j+1)*s.shape[0]*s.shape[2],...],forward=False)[0])
 #    self.fft2[idx](self.tmp_fft_array,self.tmp_fft_array,inverse=True)
     self.fftshift[idx](self.tmp_fft_array,self.tmp_fft_array)
     ### Deapodization and Scaling
@@ -468,12 +475,13 @@ class gridding:
                                                     wait_for = wait_for+sg.events+self.tmp_fft_array.events))
     ### FFT
     self.fftshift[idx](self.tmp_fft_array,self.tmp_fft_array)
-    for j in range(s.shape[0]):
-      self.tmp_fft_array.add_event(self.fft2[idx].enqueue_arrays(data=self.tmp_fft_array[j*s.shape[1]*s.shape[2]:(j+1)*s.shape[1]*s.shape[2],...],result=self.tmp_fft_array[j*s.shape[1]*s.shape[2]:(j+1)*s.shape[1]*s.shape[2],...],forward=True)[0])
+    for j in range(s.shape[1]):
+      self.tmp_fft_array.add_event(self.fft2[idx].enqueue_arrays(data=self.tmp_fft_array[j*s.shape[0]*s.shape[2]:(j+1)*s.shape[0]*s.shape[2],...],result=self.tmp_fft_array[j*s.shape[0]*s.shape[2]:(j+1)*s.shape[0]*s.shape[2],...],forward=True)[0])
 #    self.fft2[idx](self.tmp_fft_array,self.tmp_fft_array,inverse=False)
     self.fftshift[idx](self.tmp_fft_array,self.tmp_fft_array)
     ### Resample on Spoke
-    return self.prg.invgrid_lut(queue,(s.shape[0],s.shape[1]*s.shape[2],s.shape[-2]*self.gridsize),None,s.data,self.tmp_fft_array.data,self.traj.data, np.int32(self.gridsize), self.DTYPE_real(self.kwidth/self.gridsize),self.dcf.data,self.cl_kerneltable,np.int32(self.kernelpoints),
+    return self.prg.invgrid_lut(queue,(s.shape[0],s.shape[1]*s.shape[2],s.shape[-2]*self.gridsize),None,s.data,self.tmp_fft_array.data,self.traj.data, np.int32(self.gridsize),
+                                np.int32(s.shape[2]),self.DTYPE_real(self.kwidth/self.gridsize),self.dcf.data,self.cl_kerneltable,np.int32(self.kernelpoints),
                              wait_for = s.events+wait_for+self.tmp_fft_array.events)
 
 
