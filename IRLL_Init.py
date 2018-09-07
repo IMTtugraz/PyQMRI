@@ -294,6 +294,7 @@ def main(args):
         opt.ratio = 2e2
 
         opt.execute_3D()
+        opt.result[:,1,...] = -model.scale/np.log(opt.result[:,1,...])
         result_tgv.append(opt.result)
         plt.close('all')
 
@@ -332,6 +333,7 @@ def main(args):
         opt.ratio = 2e2
 
         opt.execute_3D(1)
+        opt.result[:,1,...] = -model.scale/np.log(opt.result[:,1,...])
         result_tv.append(opt.result)
         plt.close('all')
 
@@ -379,6 +381,7 @@ def main(args):
         opt.ratio = 2e2
 
         opt.execute_3D(2)
+        opt.result[:,1,...] = -model.scale/np.log(opt.result[:,1,...])
         result_wt.append(opt.result)
         plt.close('all')
 
@@ -428,6 +431,7 @@ def main(args):
         opt.ratio = 2e2
 
         opt.execute_2D()
+        opt.result[:,1,...] = -model.scale/np.log(opt.result[:,1,...])
         result_tgv.append(opt.result)
         plt.close('all')
 
@@ -466,6 +470,7 @@ def main(args):
         opt.ratio = 2e2
 
         opt.execute_2D(1)
+        opt.result[:,1,...] = -model.scale/np.log(opt.result[:,1,...])
         result_tv.append(opt.result)
         plt.close('all')
 
@@ -513,6 +518,7 @@ def main(args):
         opt.ratio = 2e2
 
         opt.execute_2D(2)
+        opt.result[:,1,...] = -model.scale/np.log(opt.result[:,1,...])
         result_wt.append(opt.result)
         plt.close('all')
 

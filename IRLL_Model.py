@@ -62,7 +62,7 @@ class IRLL_Model:
 
     def plot_unknowns(self,x,dim_2D=False):
         M0 = np.abs(x[0,...]*self.M0_sc)
-        T1 = np.abs(x[1,...]*self.T1_sc)
+        T1 = np.abs(-self.scale/np.log(x[1,...]*self.T1_sc))
         M0_min = M0.min()
         M0_max = M0.max()
         T1_min = T1.min()
