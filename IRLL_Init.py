@@ -541,28 +541,29 @@ def main(args):
       if "TGV" in args.reg or args.reg=='all':
         f.create_dataset("tgv_full_result_"+str(i),result_tgv[i].shape,\
                                      dtype=DTYPE,data=result_tgv[i])
+        f.attrs['res_tgv'] = res_tgv
       if "TV" in args.reg or args.reg=='all':
         f.create_dataset("tv_full_result_"+str(i),result_tv[i].shape,\
                                          dtype=DTYPE,data=result_tv[i])
+        f.attrs['res_tv'] = res_tv
       if "WT" in args.reg or args.reg=='all':
         f.create_dataset("wt_full_result_"+str(i),result_wt[i].shape,\
                                          dtype=DTYPE,data=result_wt[i])
+        f.attrs['res_wt'] = res_wt
       f.attrs['data_norm'] = dscale
-      f.attrs['res_tgv'] = res_tgv
-      f.attrs['res_tv'] = res_tv
-      f.attrs['res_wt'] = res_wt
       f.flush()
     f.close()
 
     os.chdir('..')
     os.chdir('..')
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='T1 quantification from IRLL data. By default runs 3D regularization for TGV, TV and Wavelets.')
     parser.add_argument('--recon_type', default='3D', dest='type',help='Choose reconstruction type (default: 3D)')
     parser.add_argument('--reg_type', default='all', dest='reg',help="Choose regularization type (default: TGV)\
                                                                      options are: TGV, TV, WT, TGVTV, TGVWT, TVWT, all")
-    parser.add_argument('--slices',default=40, dest='slices', type=int, help='Number of reconstructed slices. Symmetrical around the center slice.')
+    parser.add_argument('--slices',default=40, dest='slices', type=int, help='Number of reconstructed slices (default=40). Symmetrical around the center slice.')
     args = parser.parse_args()
 
     main(args)
