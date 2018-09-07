@@ -9,7 +9,7 @@ cimport numpy as np
 import numpy as np
 from numpy cimport ndarray
 import pywt
-import time
+import time, sys
 
 cimport gradients_divergences as gd
 
@@ -1084,8 +1084,9 @@ cdef class Model_Reco:
           return x_new
         primal = primal_new
         gap_min = np.minimum(gap,gap_min)
-        print("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f "%(i,primal/self.irgn_par.lambd,dual/self.irgn_par.lambd,gap/self.irgn_par.lambd))
-
+        sys.stdout.write("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f    \r" \
+                       %(i,primal/(self.irgn_par.lambd*self.NSlice),dual/(self.irgn_par.lambd*self.NSlice),gap/(self.irgn_par.lambd*self.NSlice)))
+        sys.stdout.flush()
 ############# Update variables #################################################
       x = (x_new)
       Kyk1 = (Kyk1_new)
