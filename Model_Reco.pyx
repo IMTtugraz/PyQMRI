@@ -9,7 +9,8 @@ cimport numpy as np
 import numpy as np
 from numpy cimport ndarray
 import pywt
-import time, sys
+
+import time,sys
 
 cimport gradients_divergences as gd
 
@@ -93,6 +94,7 @@ cdef class Model_Reco:
     delta = self.irgn_par.delta
     self.result = np.zeros((self.irgn_par.max_GN_it,self.unknowns,self.par.NSlice,self.par.dimY,self.par.dimX),dtype=DTYPE)
     result = np.copy(self.model.guess)
+    self.T1_sc = self.model.T1_sc
     if TV==1:
       for islice in range(self.par.NSlice):
         self.init_plan(islice)
@@ -105,13 +107,16 @@ cdef class Model_Reco:
         self.r = np.zeros(([self.NScan,self.NC,self.Nproj,self.N]),dtype=DTYPE)
         self.z1 = np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
         iters = self.irgn_par.start_iters
+        scale = self.T1_sc/self.model.T1_sc
+        self.model.T1_sc *= scale
+        for j in range(len(self.model.constraints)-1):
+          self.model.constraints[j+1].update(scale)
+
         for i in range(self.irgn_par.max_GN_it):
           start = time.time()
           self.grad_x_2D = np.nan_to_num(self.model.execute_gradient_2D(result[:,islice,:,:],islice))
 
           scale = np.linalg.norm(np.abs(self.grad_x_2D[0,...]))/np.linalg.norm(np.abs(self.grad_x_2D[1,...]))
-          if scale > 1e3:
-            scale = 1
 
           for j in range(len(self.model.constraints)-1):
             self.model.constraints[j+1].update(scale)
@@ -155,13 +160,15 @@ cdef class Model_Reco:
         self.z1 = np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
         self.z2 = np.zeros(([self.unknowns,3,self.par.dimX,self.par.dimY]),dtype=DTYPE)
         iters = self.irgn_par.start_iters
+        scale = self.T1_sc/self.model.T1_sc
+        self.model.T1_sc *= scale
+        for j in range(len(self.model.constraints)-1):
+          self.model.constraints[j+1].update(scale)
         for i in range(self.irgn_par.max_GN_it):
           start = time.time()
           self.grad_x_2D = np.nan_to_num(self.model.execute_gradient_2D(result[:,islice,:,:],islice))
 
           scale = np.linalg.norm(np.abs(self.grad_x_2D[0,...]))/np.linalg.norm(np.abs(self.grad_x_2D[1,...]))
-          if scale > 1e3:
-            scale = 1
 
           for j in range(len(self.model.constraints)-1):
             self.model.constraints[j+1].update(scale)
@@ -206,15 +213,16 @@ cdef class Model_Reco:
         for j in range(len(self.z1)):
           self.z1[j] = np.array(self.z1[j])
           self.z1[j] = np.zeros_like(self.z1[j]).astype(DTYPE)
-
         iters = self.irgn_par.start_iters
+        scale = self.T1_sc/self.model.T1_sc
+        self.model.T1_sc *= scale
+        for j in range(len(self.model.constraints)-1):
+          self.model.constraints[j+1].update(scale)
         for i in range(self.irgn_par.max_GN_it):
           start = time.time()
           self.grad_x_2D = np.nan_to_num(self.model.execute_gradient_2D(result[:,islice,:,:],islice))
 
           scale = np.linalg.norm(np.abs(self.grad_x_2D[0,...]))/np.linalg.norm(np.abs(self.grad_x_2D[1,...]))
-          if scale > 1e3:
-            scale = 1
 
           for j in range(len(self.model.constraints)-1):
             self.model.constraints[j+1].update(scale)
@@ -262,7 +270,6 @@ cdef class Model_Reco:
        self.fval= (self.irgn_par.lambd/2*np.linalg.norm(data - self.FT(self.model.execute_forward_2D(x,0)))**2
               +self.irgn_par.gamma*np.sum(np.abs(gd.fgrad_1(self.scale_fwd(x))))
               +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2)
-       print('Norm M0 grad: %f  norm T1 grad: %f' %(np.linalg.norm(gd.fgrad_1(self.scale_fwd(x))[0,...]),np.linalg.norm(gd.fgrad_1(self.scale_fwd(x))[1,...])))
        scale = np.linalg.norm(gd.fgrad_1(self.scale_fwd(x))[0,...])/np.linalg.norm(gd.fgrad_1(self.scale_fwd(x))[1,...])
        if scale == 0 or not np.isfinite(scale):
          self.ratio = self.ratio
@@ -274,8 +281,6 @@ cdef class Model_Reco:
               +self.irgn_par.gamma*np.sum(np.abs(gd.fgrad_1(self.scale_fwd(x))-self.v))
               +self.irgn_par.gamma*(2)*np.sum(np.abs(gd.sym_bgrad_2(self.v)))
               +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2)
-      print('Norm M0 grad: %f  norm T1 grad: %f' %(np.linalg.norm(gd.fgrad_1(self.scale_fwd(x))[0,...]),
-                                                    np.linalg.norm(gd.fgrad_1(self.scale_fwd(x))[1,...])))
       scale = np.linalg.norm(gd.fgrad_1(self.scale_fwd(x))[0,...])/np.linalg.norm(gd.fgrad_1(self.scale_fwd(x))[1,...])
       if scale == 0 or not np.isfinite(scale):
         self.ratio = self.ratio
@@ -284,7 +289,6 @@ cdef class Model_Reco:
     else:
        x = self.wt_solve_2D(x,res,iters)
        grad = pywt.wavedec2(self.scale_fwd(x),self.wavelet,self.border)
-       print('Norm M0 grad: %f  norm T1 grad: %f' %(np.linalg.norm(np.array(grad[len(grad)-1])[:,0,...]),np.linalg.norm(np.array(grad[len(grad)-1])[:,1,...])))
        scale = np.linalg.norm(np.array(grad[len(grad)-1])[:,0,...])/np.linalg.norm(np.array(grad[len(grad)-1])[:,1,...])
        if scale == 0 or not np.isfinite(scale):
          self.ratio = self.ratio
@@ -461,7 +465,6 @@ cdef class Model_Reco:
       self.fval= (self.irgn_par.lambd/2*np.linalg.norm(data - self.FT(self.model.execute_forward_3D(x)))**2
               +self.irgn_par.gamma*np.sum(np.abs(grad))
               +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2)
-      print('Norm M0 grad: %f  norm T1 grad: %f' %(np.linalg.norm(grad[0,...]),np.linalg.norm(grad[1,...])))
       scale = np.linalg.norm(grad[0,...])/np.linalg.norm(grad[1,...])
       if scale == 0 or not np.isfinite(scale):
         self.ratio = self.ratio
@@ -474,7 +477,6 @@ cdef class Model_Reco:
               +self.irgn_par.gamma*np.sum(np.abs(gd.fgrad_3(self.scale_fwd(x),1,1,self.dz)-self.v))
               +self.irgn_par.gamma*(2)*np.sum(np.abs(gd.sym_bgrad_3(self.v,1,1,self.dz)))
               +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2)
-       print('Norm M0 grad: %f  norm T1 grad: %f' %(np.linalg.norm(grad[0,...]),np.linalg.norm(grad[1,...])))
        scale = np.linalg.norm(grad[0,...])/np.linalg.norm(grad[1,...])
        if scale == 0 or not np.isfinite(scale):
          self.ratio = self.ratio
@@ -483,7 +485,6 @@ cdef class Model_Reco:
     else:
        x = self.wt_solve_3D(x,res,iters)
        grad = pywt.wavedec2(self.scale_fwd(x),self.wavelet,self.border)
-       print('Norm M0 grad: %f  norm T1 grad: %f' %(np.linalg.norm(np.array(grad[len(grad)-1])[:,0,...]),np.linalg.norm(np.array(grad[len(grad)-1])[:,1,...])))
        scale = np.linalg.norm(np.array(grad[len(grad)-1])[:,0,...])/np.linalg.norm(np.array(grad[len(grad)-1])[:,1,...])
        if scale == 0 or not np.isfinite(scale):
          self.ratio = self.ratio
@@ -541,22 +542,7 @@ cdef class Model_Reco:
     cdef double beta = self.irgn_par.gamma*self.alpha0_alpha1
 
 ### Optimal determine the operator norm
-#    cdef np.ndarray[DTYPE_t,ndim=3] xx = np.zeros_like(x,dtype=DTYPE)
-#    cdef np.ndarray[DTYPE_t,ndim=3] yy = np.zeros_like(x,dtype=DTYPE)
-#    xx = np.random.random_sample(np.shape(x)).astype(DTYPE)
-#    yy = self.operator_adjoint_2D(self.operator_forward_2D(xx));
-#    cdef int j = 0
-#    for j in range(10):
-#       if not np.isclose(np.linalg.norm(yy.flatten()),0):
-#           xx = yy/np.linalg.norm(yy.flatten())
-#       else:
-#           xx = yy
-#       yy = self.operator_adjoint_2D(self.operator_forward_2D(xx))
-#       l1 = np.vdot(yy.flatten(),xx.flatten());
-#    L = np.max(np.abs(l1)) ## Lipschitz constant estimate
-#    L = (L+12)
-    L = (12)
-    print('L: %f'%(L))
+    L = np.float32(0.5*(18.0 + np.sqrt(33)))
 
 
 
@@ -724,7 +710,10 @@ cdef class Model_Reco:
           return x_new
         primal = primal_new
         gap_min = np.minimum(gap,gap_min)
-        print("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f "%(i,primal/self.irgn_par.lambd,dual/self.irgn_par.lambd,gap/self.irgn_par.lambd))
+        sys.stdout.write("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f    \r" \
+                       %(i,primal/(self.irgn_par.lambd*self.NSlice),dual/(self.irgn_par.lambd*self.NSlice),gap/(self.irgn_par.lambd*self.NSlice)))
+        sys.stdout.flush()
+
 
 ############# Update variables #################################################
       Kyk1 = (Kyk1_new)
@@ -753,23 +742,7 @@ cdef class Model_Reco:
     cdef double alpha = self.irgn_par.gamma
 
 ############## Optimal determine operator  norm of #############################
-#    cdef np.ndarray[DTYPE_t,ndim=3] xx = np.zeros_like(x,dtype=DTYPE)
-#    cdef np.ndarray[DTYPE_t,ndim=3] yy = np.zeros_like(x,dtype=DTYPE)
-#    xx = np.random.random_sample(np.shape(x)).astype(DTYPE)
-#    yy = self.operator_adjoint_2D(self.operator_forward_2D(xx));
-#    cdef int j = 0
-#    for j in range(10):
-#       if not np.isclose(np.linalg.norm(yy.flatten()),0):
-#           xx = yy/np.linalg.norm(yy.flatten())
-#       else:
-#           xx = yy
-#       yy = self.operator_adjoint_2D(self.operator_forward_2D(xx))
-#       l1 = np.vdot(yy.flatten(),xx.flatten());
-#    L = np.max(np.abs(l1)) ## Lipschitz constant estimate
-#
-#    L = (L+8)
     L= 8
-    print('L: %f'%(L))
 
 
 
@@ -895,7 +868,10 @@ cdef class Model_Reco:
           return x_new
         primal = primal_new
         gap_min = np.minimum(gap,gap_min)
-        print("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f "%(i,primal/self.irgn_par.lambd,dual/self.irgn_par.lambd,gap/self.irgn_par.lambd))
+        sys.stdout.write("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f    \r" \
+                       %(i,primal/(self.irgn_par.lambd*self.NSlice),dual/(self.irgn_par.lambd*self.NSlice),gap/(self.irgn_par.lambd*self.NSlice)))
+        sys.stdout.flush()
+
 
 ############# Update variables #################################################
       x = (x_new)
@@ -919,24 +895,7 @@ cdef class Model_Reco:
   cdef np.ndarray[DTYPE_t,ndim=3] wt_solve_2D(self, np.ndarray[DTYPE_t, ndim=3] x, np.ndarray[DTYPE_t, ndim=4] res, int iters):
     cdef double alpha = self.irgn_par.gamma
 
-############## Optimal determine operator  norm of #############################
-#    cdef np.ndarray[DTYPE_t,ndim=3] xx = np.zeros_like(x,dtype=DTYPE)
-#    cdef np.ndarray[DTYPE_t,ndim=3] yy = np.zeros_like(x,dtype=DTYPE)
-#    xx = np.random.random_sample(np.shape(x)).astype(DTYPE)
-#    yy = self.operator_adjoint_2D(self.operator_forward_2D(xx));
-#    cdef int j = 0
-#    for j in range(10):
-#       if not np.isclose(np.linalg.norm(yy.flatten()),0):
-#           xx = yy/np.linalg.norm(yy.flatten())
-#       else:
-#           xx = yy
-#       yy = self.operator_adjoint_2D(self.operator_forward_2D(xx))
-#       l1 = np.vdot(yy.flatten(),xx.flatten());
-#    L = np.max(np.abs(l1)) ## Lipschitz constant estimate
-#
-#    L = (L+8)
     L= 8
-    print('L: %f'%(L))
 
 
 
@@ -1087,6 +1046,8 @@ cdef class Model_Reco:
         sys.stdout.write("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f    \r" \
                        %(i,primal/(self.irgn_par.lambd*self.NSlice),dual/(self.irgn_par.lambd*self.NSlice),gap/(self.irgn_par.lambd*self.NSlice)))
         sys.stdout.flush()
+
+
 ############# Update variables #################################################
       x = (x_new)
       Kyk1 = (Kyk1_new)
@@ -1113,7 +1074,7 @@ cdef class Model_Reco:
 
     cdef float dz = self.dz
 
-    L = (12)
+    L = np.float32(0.5*(18.0 + np.sqrt(33)))
 
 
     cdef double tau = 1/np.sqrt(L)
@@ -1268,7 +1229,10 @@ cdef class Model_Reco:
           return x_new
         primal = primal_new
         gap_min = np.minimum(gap,gap_min)
-        print("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f "%(i,primal/(self.irgn_par.lambd*self.NSlice),dual/(self.irgn_par.lambd*self.NSlice),gap/(self.irgn_par.lambd*self.NSlice)))
+        sys.stdout.write("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f    \r" \
+                       %(i,primal/(self.irgn_par.lambd*self.NSlice),dual/(self.irgn_par.lambd*self.NSlice),gap/(self.irgn_par.lambd*self.NSlice)))
+        sys.stdout.flush()
+
 ############# Update variables #################################################
       Kyk1 = (Kyk1_new)
       Kyk2 =  (Kyk2_new)
@@ -1416,7 +1380,10 @@ cdef class Model_Reco:
           return x_new
         primal = primal_new
         gap_min = np.minimum(gap,gap_min)
-        print("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f "%(i,primal/(self.irgn_par.lambd*self.NSlice),dual/(self.irgn_par.lambd*self.NSlice),gap/(self.irgn_par.lambd*self.NSlice)))
+        sys.stdout.write("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f    \r" \
+                       %(i,primal/(self.irgn_par.lambd*self.NSlice),dual/(self.irgn_par.lambd*self.NSlice),gap/(self.irgn_par.lambd*self.NSlice)))
+        sys.stdout.flush()
+
 ############# Update variables #################################################
       x = x_new
       Kyk1 = (Kyk1_new)
@@ -1440,7 +1407,6 @@ cdef class Model_Reco:
     cdef double alpha = self.irgn_par.gamma
 
     L= 8
-    print('L: %f'%(L))
 
 
 
@@ -1588,7 +1554,10 @@ cdef class Model_Reco:
           return x_new
         primal = primal_new
         gap_min = np.minimum(gap,gap_min)
-        print("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f "%(i,primal/(self.irgn_par.lambd*self.NSlice),dual/(self.irgn_par.lambd*self.NSlice),gap/(self.irgn_par.lambd*self.NSlice)))
+        sys.stdout.write("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f    \r" \
+                       %(i,primal/(self.irgn_par.lambd*self.NSlice),dual/(self.irgn_par.lambd*self.NSlice),gap/(self.irgn_par.lambd*self.NSlice)))
+        sys.stdout.flush()
+
 
 ############# Update variables #################################################
       x = (x_new)
@@ -1694,7 +1663,6 @@ cdef class Model_Reco:
   cpdef set_scale(self,x):
     for j in range(x.shape[0]):
       self.ukscale[j] = np.linalg.norm(x[j,...])
-      print('scale %f at uk %i' %(self.ukscale[j],j))
   cpdef scale_fwd(self,x):
     y = np.copy(x)
     for j in range(x.shape[0]):

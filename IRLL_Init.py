@@ -5,18 +5,18 @@ import os
 import h5py
 from tkinter import filedialog
 from tkinter import Tk
-import src.nlinvns_maier as nlinvns
+import nlinvns_maier as nlinvns
 
-import src.Model_Reco as Model_Reco
+import Model_Reco as Model_Reco
+import argparse
 
-
-import src.IRLL_Model as IRLL_Model
-import src.goldcomp as goldcomp
+import IRLL_Model as IRLL_Model
+import goldcomp as goldcomp
 import primaldualtoolbox
 import matplotlib.pyplot as plt
 import ipyparallel as ipp
 
-def main():
+def main(args):
     DTYPE = np.complex64
     np.seterr(divide='ignore', invalid='ignore')
 
@@ -252,134 +252,277 @@ def main():
     del op
 
 
+    if args.type=='3D':
+      opt = Model_Reco.Model_Reco(par)
 ################################################################################
 ### IRGN - TGV Reco ############################################################
 ################################################################################
+      if "TGV" in args.reg or args.reg=='all':
+        result_tgv = []
+    ################################################################################
+    ### Init forward model and initial guess #######################################
+    ################################################################################
+        model = IRLL_Model.IRLL_Model(par.fa,par.fa_corr,par.TR,par.tau,par.td,\
+                                    NScan,NSlice,dimY,dimX,Nproj,Nproj_measured,1,images)
+        opt.par = par
+        opt.data =  data
+        opt.images = images
+        opt.dcf = (dcf)
+        opt.dcf_flat = (dcf).flatten()
+        opt.model = model
+        opt.traj = traj
+        opt.dz = 1
 
-################################################################################
-### Init forward model and initial guess #######################################
-################################################################################
-    model = IRLL_Model.IRLL_Model(par.fa,par.fa_corr,par.TR,par.tau,par.td,\
-                                NScan,NSlice,dimY,dimX,Nproj,Nproj_measured,1,images)
+    ################################################################################
+    ##IRGN Params
+        irgn_par = struct()
+        irgn_par.max_iters = 300
+        irgn_par.start_iters = 100
+        irgn_par.max_GN_it = 13
+        irgn_par.lambd = 1e2
+        irgn_par.gamma = 1e0
+        irgn_par.delta = 1e-1
+        irgn_par.omega = 0e-10
+        irgn_par.display_iterations = True
+        irgn_par.gamma_min = 0.18
+        irgn_par.delta_max = 1e2
+        irgn_par.tol = 5e-3
+        irgn_par.stag = 1
+        irgn_par.delta_inc = 2
+        irgn_par.gamma_dec = 0.7
+        opt.irgn_par = irgn_par
+        opt.ratio = 2e2
 
-    opt = Model_Reco.Model_Reco(par)
+        opt.execute_3D()
+        result_tgv.append(opt.result)
+        plt.close('all')
 
-    opt.par = par
-    opt.data =  data
-    opt.images = images
-    opt.dcf = (dcf)
-    opt.dcf_flat = (dcf).flatten()
-    opt.model = model
-    opt.traj = traj
 
-################################################################################
-#IRGN Params
-    irgn_par = struct()
-    irgn_par.start_iters = 100
-    irgn_par.max_iters = 300
-    irgn_par.max_GN_it = 20
-    irgn_par.lambd = 1e2
-    irgn_par.gamma = 1e0
-    irgn_par.delta = 1e-1
-    irgn_par.omega = 0e0
-    irgn_par.display_iterations = True
-    irgn_par.gamma_min = 1e-1
-    irgn_par.delta_max = 1e2
-    irgn_par.tol = 5e-3
-    irgn_par.stag = 1.00
-    irgn_par.delta_inc = 2
-    irgn_par.gamma_dec = 0.7
-    opt.irgn_par = irgn_par
-    opt.ratio = 1e1
+        res_tgv = opt.gn_res
+        res_tgv = np.array(res_tgv)/(irgn_par.lambd*NSlice)
+  ################################################################################
+  #### IRGN - TV referenz ########################################################
+  ################################################################################
+      if "TV" in args.reg or args.reg=='all':
+        result_tv = []
+    ################################################################################
+    ### Init forward model and initial guess #######################################
+    #############################################################re###################
+        model = IRLL_Model.IRLL_Model(par.fa,par.fa_corr,par.TR,par.tau,par.td,\
+                                    NScan,NSlice,dimY,dimX,Nproj,Nproj_measured,1,images)
+        opt.model = model
+    ################################################################################
+    ##IRGN Params
+        irgn_par = struct()
+        irgn_par.max_iters = 300
+        irgn_par.start_iters = 100
+        irgn_par.max_GN_it = 13
+        irgn_par.lambd = 1e2
+        irgn_par.gamma = 1e0
+        irgn_par.delta = 1e-1
+        irgn_par.omega = 0e-10
+        irgn_par.display_iterations = True
+        irgn_par.gamma_min = 0.23
+        irgn_par.delta_max = 1e2
+        irgn_par.tol = 5e-3
+        irgn_par.stag = 1.00
+        irgn_par.delta_inc = 2
+        irgn_par.gamma_dec = 0.7
+        opt.irgn_par = irgn_par
+        opt.ratio = 2e2
 
-    opt.execute_3D()
+        opt.execute_3D(1)
+        result_tv.append(opt.result)
+        plt.close('all')
 
-    result_tgv = opt.result
-    res_tgv = opt.gn_res
-    res_tgv = np.array(res_tgv)/(irgn_par.lambd*NSlice)
-################################################################################
-#### IRGN - TV referenz ########################################################
-################################################################################
-    result_tv = []
-################################################################################
-### Init forward model and initial guess #######################################
-################################################################################
-    model = IRLL_Model.IRLL_Model(par.fa,par.fa_corr,par.TR,par.tau,par.td,\
-                                NScan,NSlice,dimY,dimX,Nproj,Nproj_measured,1,images)
-    opt.model = model
-################################################################################
-##IRGN Params
-    irgn_par = struct()
-    irgn_par.max_iters = 300
-    irgn_par.start_iters = 100
-    irgn_par.max_GN_it = 13
-    irgn_par.lambd = 1e2
-    irgn_par.gamma = 1e0
-    irgn_par.delta = 1e-1
-    irgn_par.omega = 0e-10
-    irgn_par.display_iterations = True
-    irgn_par.gamma_min = 0.23
-    irgn_par.delta_max = 1e2
-    irgn_par.tol = 5e-3
-    irgn_par.stag = 1.00
-    irgn_par.delta_inc = 2
-    irgn_par.gamma_dec = 0.7
-    opt.irgn_par = irgn_par
-    opt.ratio = 2e2
+        res_tv = opt.gn_res
+        res_tv = np.array(res_tv)/(irgn_par.lambd*NSlice)
 
-    opt.execute_2D(1)
-    result_tv.append(opt.result)
-    plt.close('all')
-    res_tv = opt.gn_res
-    res_tv = np.array(res_tv)/(irgn_par.lambd*NSlice)
-################################################################################
-#### IRGN - WT referenz ########################################################
-################################################################################
-    result_wt = []
-################################################################################
-### Init forward model and initial guess #######################################
-################################################################################
-    model = IRLL_Model.IRLL_Model(par.fa,par.fa_corr,par.TR,par.tau,par.td,\
-                                NScan,NSlice,dimY,dimX,Nproj,Nproj_measured,1,images)
-    opt.par = par
-    opt.data =  data
-    opt.images = images
-    opt.dcf = (dcf)
-    opt.dcf_flat = (dcf).flatten()
-    opt.model = model
-    opt.traj = traj
+  ################################################################################
+  #### IRGN - WT referenz ########################################################
+  ################################################################################
+      if "WT" in args.reg or args.reg=='all':
+        result_wt = []
+    ################################################################################
+    ### Init forward model and initial guess #######################################
+    ################################################################################
+        model = IRLL_Model.IRLL_Model(par.fa,par.fa_corr,par.TR,par.tau,par.td,\
+                                    NScan,NSlice,dimY,dimX,Nproj,Nproj_measured,1,images)
+        opt.par = par
+        opt.data =  data
+        opt.images = images
+        opt.dcf = (dcf)
+        opt.dcf_flat = (dcf).flatten()
+        opt.model = model
+        opt.traj = traj
 
-    opt.dz = 1
+        opt.dz = 1
 
-################################################################################
-##IRGN Params
-    irgn_par = struct()
-    irgn_par.max_iters = 300
-    irgn_par.start_iters = 100
-    irgn_par.max_GN_it = 13
-    irgn_par.lambd = 1e2
-    irgn_par.gamma = 1e0
-    irgn_par.delta = 1e-1
-    irgn_par.omega = 0e-10
-    irgn_par.display_iterations = True
-    irgn_par.gamma_min = 0.37
-    irgn_par.delta_max = 1e2
-    irgn_par.tol = 5e-3
-    irgn_par.stag = 1.00
-    irgn_par.delta_inc = 2
-    irgn_par.gamma_dec = 0.7
-    opt.irgn_par = irgn_par
-    opt.ratio = 2e2
+    ################################################################################
+    ##IRGN Params
+        irgn_par = struct()
+        irgn_par.max_iters = 300
+        irgn_par.start_iters = 100
+        irgn_par.max_GN_it = 13
+        irgn_par.lambd = 1e2
+        irgn_par.gamma = 1e0
+        irgn_par.delta = 1e-1
+        irgn_par.omega = 0e-10
+        irgn_par.display_iterations = True
+        irgn_par.gamma_min = 0.37
+        irgn_par.delta_max = 1e2
+        irgn_par.tol = 5e-3
+        irgn_par.stag = 1.00
+        irgn_par.delta_inc = 2
+        irgn_par.gamma_dec = 0.7
+        opt.irgn_par = irgn_par
+        opt.ratio = 2e2
 
-    opt.execute_2D(2)
-    result_wt.append(opt.result)
-    plt.close('all')
-    res_wt = opt.gn_res
-    res_wt = np.array(res_wt)/(irgn_par.lambd*NSlice)
-    del opt
+        opt.execute_3D(2)
+        result_wt.append(opt.result)
+        plt.close('all')
+
+
+        res_wt = opt.gn_res
+        res_wt = np.array(res_wt)/(irgn_par.lambd*NSlice)
+      del opt
+    else:
 ################################################################################
-### New .hdf5 save files #######################################################
+### IRGN - TGV Reco ############################################################
 ################################################################################
+      opt = Model_Reco.Model_Reco(par)
+      if "TGV" in args.reg or args.reg=='all':
+        result_tgv = []
+    ################################################################################
+    ### Init forward model and initial guess #######################################
+    ################################################################################
+        model = IRLL_Model.IRLL_Model(par.fa,par.fa_corr,par.TR,par.tau,par.td,\
+                                    NScan,NSlice,dimY,dimX,Nproj,Nproj_measured,1,images)
+        opt.par = par
+        opt.data =  data
+        opt.images = images
+        opt.dcf = (dcf)
+        opt.dcf_flat = (dcf).flatten()
+        opt.model = model
+        opt.traj = traj
+        opt.dz = 1
+
+    ################################################################################
+    ##IRGN Params
+        irgn_par = struct()
+        irgn_par.max_iters = 300
+        irgn_par.start_iters = 100
+        irgn_par.max_GN_it = 13
+        irgn_par.lambd = 1e2
+        irgn_par.gamma = 1e0
+        irgn_par.delta = 1e-1
+        irgn_par.omega = 0e-10
+        irgn_par.display_iterations = True
+        irgn_par.gamma_min = 0.18
+        irgn_par.delta_max = 1e2
+        irgn_par.tol = 5e-3
+        irgn_par.stag = 1
+        irgn_par.delta_inc = 2
+        irgn_par.gamma_dec = 0.7
+        opt.irgn_par = irgn_par
+        opt.ratio = 2e2
+
+        opt.execute_2D()
+        result_tgv.append(opt.result)
+        plt.close('all')
+
+
+        res_tgv = opt.gn_res
+        res_tgv = np.array(res_tgv)/(irgn_par.lambd*NSlice)
+  ################################################################################
+  #### IRGN - TV referenz ########################################################
+  ################################################################################
+      if "TV" in args.reg or args.reg=='all':
+        result_tv = []
+    ################################################################################
+    ### Init forward model and initial guess #######################################
+    #############################################################re###################
+        model = IRLL_Model.IRLL_Model(par.fa,par.fa_corr,par.TR,par.tau,par.td,\
+                                    NScan,NSlice,dimY,dimX,Nproj,Nproj_measured,1,images)
+        opt.model = model
+    ################################################################################
+    ##IRGN Params
+        irgn_par = struct()
+        irgn_par.max_iters = 300
+        irgn_par.start_iters = 100
+        irgn_par.max_GN_it = 13
+        irgn_par.lambd = 1e2
+        irgn_par.gamma = 1e0
+        irgn_par.delta = 1e-1
+        irgn_par.omega = 0e-10
+        irgn_par.display_iterations = True
+        irgn_par.gamma_min = 0.23
+        irgn_par.delta_max = 1e2
+        irgn_par.tol = 5e-3
+        irgn_par.stag = 1.00
+        irgn_par.delta_inc = 2
+        irgn_par.gamma_dec = 0.7
+        opt.irgn_par = irgn_par
+        opt.ratio = 2e2
+
+        opt.execute_2D(1)
+        result_tv.append(opt.result)
+        plt.close('all')
+
+        res_tv = opt.gn_res
+        res_tv = np.array(res_tv)/(irgn_par.lambd*NSlice)
+
+  ################################################################################
+  #### IRGN - WT referenz ########################################################
+  ################################################################################
+      if "WT" in args.reg or args.reg=='all':
+        result_wt = []
+    ################################################################################
+    ### Init forward model and initial guess #######################################
+    ################################################################################
+        model = IRLL_Model.IRLL_Model(par.fa,par.fa_corr,par.TR,par.tau,par.td,\
+                                    NScan,NSlice,dimY,dimX,Nproj,Nproj_measured,1,images)
+        opt.par = par
+        opt.data =  data
+        opt.images = images
+        opt.dcf = (dcf)
+        opt.dcf_flat = (dcf).flatten()
+        opt.model = model
+        opt.traj = traj
+
+        opt.dz = 1
+
+    ################################################################################
+    ##IRGN Params
+        irgn_par = struct()
+        irgn_par.max_iters = 300
+        irgn_par.start_iters = 100
+        irgn_par.max_GN_it = 13
+        irgn_par.lambd = 1e2
+        irgn_par.gamma = 1e0
+        irgn_par.delta = 1e-1
+        irgn_par.omega = 0e-10
+        irgn_par.display_iterations = True
+        irgn_par.gamma_min = 0.37
+        irgn_par.delta_max = 1e2
+        irgn_par.tol = 5e-3
+        irgn_par.stag = 1.00
+        irgn_par.delta_inc = 2
+        irgn_par.gamma_dec = 0.7
+        opt.irgn_par = irgn_par
+        opt.ratio = 2e2
+
+        opt.execute_2D(2)
+        result_wt.append(opt.result)
+        plt.close('all')
+
+
+        res_wt = opt.gn_res
+        res_wt = np.array(res_wt)/(irgn_par.lambd*NSlice)
+      del opt
+###############################################################################
+## New .hdf5 save files #######################################################
+###############################################################################
     outdir = time.strftime("%Y-%m-%d  %H-%M-%S_MRI_joint_2D_"+name[:-3])
     if not os.path.exists('./output'):
         os.makedirs('./output')
@@ -389,14 +532,16 @@ def main():
     f = h5py.File("output_"+name,"w")
 
     for i in range(len(result_tgv)):
-      f.create_dataset("tgv_full_result_"+str(i),result_tgv[i].shape,\
-                                   dtype=DTYPE,data=result_tgv[i])
-      f.create_dataset("tv_full_result_"+str(i),result_tv[i].shape,\
-                                       dtype=DTYPE,data=result_tv[i])
-      f.create_dataset("wt_full_result_"+str(i),result_wt[i].shape,\
-                                       dtype=DTYPE,data=result_wt[i])
+      if "TGV" in args.reg or args.reg=='all':
+        f.create_dataset("tgv_full_result_"+str(i),result_tgv[i].shape,\
+                                     dtype=DTYPE,data=result_tgv[i])
+      if "TV" in args.reg or args.reg=='all':
+        f.create_dataset("tv_full_result_"+str(i),result_tv[i].shape,\
+                                         dtype=DTYPE,data=result_tv[i])
+      if "WT" in args.reg or args.reg=='all':
+        f.create_dataset("wt_full_result_"+str(i),result_wt[i].shape,\
+                                         dtype=DTYPE,data=result_wt[i])
       f.attrs['data_norm'] = dscale
-      f.attrs['dscale'] = dscale
       f.attrs['res_tgv'] = res_tgv
       f.attrs['res_tv'] = res_tv
       f.attrs['res_wt'] = res_wt
@@ -407,4 +552,10 @@ def main():
     os.chdir('..')
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description='T1 quantification from IRLL data. By default runs 3D regularization for TGV, TV and Wavelets.')
+    parser.add_argument('--recon_type', default='3D', dest='type',help='Choose reconstruction type (default: 3D)')
+    parser.add_argument('--reg_type', default='all', dest='reg',help="Choose regularization type (default: TGV)\
+                                                                     options are: TGV, TV, WT, TGVTV, TGVWT, TVWT, all")
+    args = parser.parse_args()
+
+    main(args)

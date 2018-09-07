@@ -137,7 +137,7 @@ def main(args):
 
     result = []
     for i in range(NSlice):
-        print('deriving M(TI(1)) and coil profiles')
+        print('deriving coil profile ' + str(i))
 
 
         ##### RADIAL PART
@@ -529,7 +529,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='T1 quantification from VFA data. By default runs 3D regularization for TGV, TV and Wavelets.')
     parser.add_argument('--recon_type', default='3D', dest='type',help='Choose reconstruction type (default: 3D)')
     parser.add_argument('--reg_type', default='all', dest='reg',help="Choose regularization type (default: TGV)\
-                                                                     options are: TGV, TV, WT, TGVTV, TGVWT, TVWT")
+                                                                     options are: TGV, TV, WT, TGVTV, TGVWT, TVWT, all")
     args = parser.parse_args()
 
     main(args)

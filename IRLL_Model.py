@@ -56,9 +56,6 @@ class IRLL_Model:
 
         self.T1_sc = self.T1_sc
         DG_x =  self.execute_gradient_3D(np.array([test_M0/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1/self.T1_sc*test_T1*np.ones((NSlice,dimY,dimX),dtype=DTYPE)],dtype=DTYPE))
-        print('Grad Scaling', np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...])))
-        print('T1 scale: ',self.T1_sc,
-                                  '/ M0_scale: ',self.M0_sc)
         self.guess = np.array([1/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),np.exp(-self.scale/800)/self.T1_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE)])
         self.constraints.append(constraint(-300,300,False)  )
         self.constraints.append(constraint(np.exp(-self.scale/10)/self.T1_sc, np.exp(-self.scale/5500)/self.T1_sc,True))
