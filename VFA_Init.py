@@ -61,7 +61,7 @@ def main(args):
 ################################################################################
 ### Read Data ##################################################################
 ################################################################################
-    reco_Slices = 5
+    reco_Slices = args.slices
     dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
 
     data = file['real_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE)\
@@ -536,6 +536,7 @@ if __name__ == '__main__':
     parser.add_argument('--recon_type', default='3D', dest='type',help='Choose reconstruction type (default: 3D)')
     parser.add_argument('--reg_type', default='all', dest='reg',help="Choose regularization type (default: TGV)\
                                                                      options are: TGV, TV, WT, TGVTV, TGVWT, TVWT, all")
+    parser.add_argument('--slices',default=40, dest='slices', type=int, help='Number of reconstructed slices. Symmetrical around the center slice.')
     args = parser.parse_args()
 
     main(args)

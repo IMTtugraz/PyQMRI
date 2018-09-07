@@ -73,7 +73,7 @@ def main(args):
     dimY = 212
 
 ############### Set number of Slices ###########################################
-    reco_Slices = 3
+    reco_Slices = args.slices
     os_slices = 20
     class struct:
       pass
@@ -562,6 +562,7 @@ if __name__ == '__main__':
     parser.add_argument('--recon_type', default='3D', dest='type',help='Choose reconstruction type (default: 3D)')
     parser.add_argument('--reg_type', default='all', dest='reg',help="Choose regularization type (default: TGV)\
                                                                      options are: TGV, TV, WT, TGVTV, TGVWT, TVWT, all")
+    parser.add_argument('--slices',default=40, dest='slices', type=int, help='Number of reconstructed slices. Symmetrical around the center slice.')
     args = parser.parse_args()
 
     main(args)
