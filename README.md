@@ -13,19 +13,22 @@ resolution 3D data with model‐based reconstruction.__<br>
 
 ### Prerequisites
 
-A working python 3 installation with cython
+A working python 3 installation with cython, pyfftw and ipyparallel
 Imageutilities from [https://github.com/VLOGroup/imageutilities] build with gpuNUFFT
 
 ### Installing
 
 Prior to any use run
-
 ```
 python setup.py build_ext --inplace
 ```
 in the root folder of the project.
 
 ## How to
+First start a ipyparallel cluster in the project folder:
+```
+ipcluster start &
+```
 To run the VFA reconstruction simple type:
 ```
 python VFA_Init.py 
@@ -34,6 +37,10 @@ If no further options are specified this runs 3D reconstruction with TGV, TV and
 To see the available options type:
 ```
 python VFA_Init.py -h
+```
+IRLL reconstruction can be started with:
+```
+python IRLL_Init.py 
 ```
 
 ## Sample Data
