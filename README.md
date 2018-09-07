@@ -13,8 +13,10 @@ resolution 3D data with model‐based reconstruction.__<br>
 
 ### Prerequisites
 
-A working python 3 installation with cython, pyfftw and ipyparallel
-Imageutilities from [https://github.com/VLOGroup/imageutilities] build with gpuNUFFT
+A working python 3 installation with numpy, scipy, matplotlib, cython, pyfftw numexp, and ipyparallel. We highly recommend to use Anaconda.
+To use Wavelet regularization the pywt package is required. 
+
+The primaldual toolbox from [https://github.com/VLOGroup/imageutilities] build with gpuNUFFT
 
 ### Installing
 
