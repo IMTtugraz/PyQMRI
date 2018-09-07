@@ -39,7 +39,7 @@ python VFA_Init.py -h
 ## Sample Data
 
 In-vivo datasets used in the publication can be found at 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.1410918)](https://doi.org/10.5281/zenodo.1410918)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.1410918.svg)](https://doi.org/10.5281/zenodo.1410918)
 
 ## License
 This software is published under GNU GPLv3. In particular, all source code is provided "as is" without warranty of any kind, either expressed or implied. For details, see the attached LICENSE.
