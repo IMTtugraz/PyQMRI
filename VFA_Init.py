@@ -394,7 +394,7 @@ irgn_par = struct()
 irgn_par.start_iters = 100
 irgn_par.max_iters = 300
 irgn_par.max_GN_it = 12
-irgn_par.lambd = 1e2*10/NScan
+irgn_par.lambd = 1e2
 irgn_par.gamma = 1e0   #### 5e-2   5e-3 phantom ##### brain 1e-2
 irgn_par.delta = 1e-1#### 8spk in-vivo 1e-2
 irgn_par.omega = 0e-10
@@ -406,7 +406,7 @@ irgn_par.stag = 1.00
 irgn_par.delta_inc = 2
 irgn_par.gamma_dec = 0.5
 opt.irgn_par = irgn_par
-
+opt.ratio = 2e2
 
 opt.execute_3D()
 

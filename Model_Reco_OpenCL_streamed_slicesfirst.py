@@ -70,11 +70,11 @@ class Model_Reco:
     self.par_slices = 1
     self.ukscale = []
     self.prg = []
-    self.overlap = 1
+    self.overlap = 0
     self.alloc=[]
     for j in range(self.num_dev):
       self.alloc.append(MyAllocator(ctx[j]))
-      self.NUFFT.append(NUFFT.gridding(ctx[j],self.queue[3*j:3*(j+1)-1],4,2,par.N,par.NScan, (par.NScan*par.NC*(self.par_slices+self.overlap),par.N,par.N),(1,2),traj.astype(DTYPE),np.require(np.abs(dcf),DTYPE_real,requirements='C'),par.N,1000,DTYPE,DTYPE_real))
+      self.NUFFT.append(NUFFT.gridding(ctx[j],self.queue[3*j:3*(j+1)-1],4,2,par.N,par.NScan, (par.NScan*par.NC*(self.par_slices+self.overlap),par.N,par.N),(1,2),traj.astype(DTYPE),np.require(np.abs(dcf),DTYPE_real,requirements='C'),par.N,10000,DTYPE,DTYPE_real))
       self.ukscale.append(clarray.to_device(self.queue[3*j],np.ones(self.unknowns,dtype=DTYPE_real)))
 
       self.prg.append(Program(self.ctx[j], r"""
@@ -1637,7 +1637,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
       tau =  (tau_new)
 
 
-      if not np.mod(myit,10):
+      if not np.mod(myit,20):
         self.model.plot_unknowns(np.transpose(x_new,[1,0,2,3]))
         primal_new= (self.irgn_par.lambd/2*np.vdot(Axold-res,Axold-res)+alpha*np.sum(abs((gradx[:,:self.unknowns_TGV]-v))) +beta*np.sum(abs(symgrad_v)) + 1/(2*delta)*np.vdot(x_new-xk,x_new-xk)).real
 
@@ -1693,7 +1693,9 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         idx_stop = (i+1)*self.par_slices
         cl_data.append(clarray.to_device(self.queue[3*i], inp[idx_start:idx_stop+self.overlap,...]))
       for i in range(self.num_dev):
-        cl_out[2*i].add_event(self.NUFFT[i].fwd_NUFFT(cl_out[2*i],cl_data[i],0))
+        self.queue[3*i].finish()
+#        cl_out[2*i].add_event(self.NUFFT[i].fwd_NUFFT(cl_out[2*i],cl_data[i],0))
+        (self.NUFFT[i].fwd_NUFFT(cl_out[2*i],cl_data[i],0)).wait()
       for i in range(self.num_dev):
         idx_start = (i+1+self.num_dev-1)*self.par_slices
         idx_stop = (i+2+self.num_dev-1)*self.par_slices
@@ -1702,7 +1704,9 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         else:
           cl_data.append(clarray.to_device(self.queue[3*i+1], inp[idx_start:idx_stop+self.overlap,...]))
       for i in range(self.num_dev):
+        self.queue[3*i+1].finish()
         cl_out[2*i+1].add_event(self.NUFFT[i].fwd_NUFFT(cl_out[2*i+1],cl_data[self.num_dev+i],1))
+#        (self.NUFFT[i].fwd_NUFFT(cl_out[2*i+1],cl_data[self.num_dev+i],1)).wait()
 
       for j in range(2*self.num_dev,int(self.NSlice/(2*self.par_slices*self.num_dev)+(2*self.num_dev-1))):
           for i in range(self.num_dev):
@@ -1716,7 +1720,9 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1))*self.par_slices
             cl_data[i] = clarray.to_device(self.queue[3*i], inp[idx_start:idx_stop+self.overlap,...])
           for i in range(self.num_dev):
+            self.queue[3*i].finish()
             cl_out[2*i].add_event(self.NUFFT[i].fwd_NUFFT(cl_out[2*i],cl_data[i],0))
+#            (self.NUFFT[i].fwd_NUFFT(cl_out[2*i],cl_data[i],0)).wait()
           for i in range(self.num_dev):
             self.queue[3*i+1].finish()
             idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
@@ -1731,7 +1737,9 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             else:
               cl_data[i+self.num_dev] = clarray.to_device(self.queue[3*i+1],inp[idx_start:idx_stop+self.overlap,...])
           for i in range(self.num_dev):
+            self.queue[3*i+1].finish()
             cl_out[2*i+1].add_event(self.NUFFT[i].fwd_NUFFT(cl_out[2*i+1],cl_data[i+self.num_dev],1))
+#            (self.NUFFT[i].fwd_NUFFT(cl_out[2*i+1],cl_data[self.num_dev+i],1)).wait()
       if j< 2*self.num_dev:
         j = 2*self.num_dev
       else:
@@ -1755,10 +1763,11 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
 
 
   def eval_fwd_streamed(self,y,x,idx=0,idxq=0,wait_for=[]):
-    return self.prg[idx].operator_fwd(self.queue[3*idx+idxq], (self.par_slices+self.overlap,self.dimY,self.dimX), None,
+    self.prg[idx].operator_fwd(self.queue[3*idx+idxq], (self.par_slices+self.overlap,self.dimY,self.dimX), None,
                                  y.data, x.data, self.coil_buf_part[idx+idxq*self.num_dev].data, self.grad_buf_part[idx+idxq*self.num_dev].data,
                                  np.int32(self.NC), np.int32(self.par_slices+self.overlap), np.int32(self.NScan), np.int32(self.unknowns),
-                                 wait_for= y.events+x.events+wait_for)
+                                 wait_for= y.events+x.events+wait_for).wait()
+    return y.events[-1]
 
   def operator_forward_streamed(self, outp, inp):
       cl_out = []
@@ -1783,7 +1792,8 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
       for i in range(self.num_dev):
         cl_tmp[2*i].add_event(self.eval_fwd_streamed(cl_tmp[2*i],cl_data[i],idx=i,idxq=0,wait_for=cl_tmp[2*i].events+cl_data[i].events
               +self.coil_buf_part[i].events+self.grad_buf_part[i].events))
-        cl_out[2*i].add_event(self.NUFFT[i].fwd_NUFFT(cl_out[2*i],cl_tmp[2*i],0,wait_for=cl_tmp[2*i].events+cl_out[2*i].events))
+#        cl_out[2*i].add_event(self.NUFFT[i].fwd_NUFFT(cl_out[2*i],cl_tmp[2*i],0,wait_for=cl_tmp[2*i].events+cl_out[2*i].events))
+        (self.NUFFT[i].fwd_NUFFT(cl_out[2*i],cl_tmp[2*i],0,wait_for=cl_tmp[2*i].events+cl_out[2*i].events)).wait()
 
 
       for i in range(self.num_dev):
@@ -1803,6 +1813,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         cl_tmp[2*i+1].add_event(self.eval_fwd_streamed(cl_tmp[2*i+1],cl_data[self.num_dev+i],idx=i,idxq=1,wait_for=cl_tmp[2*i+1].events+cl_data[self.num_dev+i].events
               +self.coil_buf_part[self.num_dev+i].events+self.grad_buf_part[self.num_dev+i].events))
         cl_out[2*i+1].add_event(self.NUFFT[i].fwd_NUFFT(cl_out[2*i+1],cl_tmp[2*i+1],1,wait_for=cl_tmp[2*i+1].events+cl_out[2*i+1].events))
+#        (self.NUFFT[i].fwd_NUFFT(cl_out[2*i+1],cl_tmp[2*i+1],1,wait_for=cl_tmp[2*i+1].events+cl_out[2*i+1].events)).wait()
 
 
       for j in range(2*self.num_dev,int(self.NSlice/(2*self.par_slices*self.num_dev)+(2*self.num_dev-1))):
@@ -1824,7 +1835,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             cl_tmp[2*i].add_event(self.eval_fwd_streamed(cl_tmp[2*i],cl_data[i],idx=i,idxq=0,wait_for=cl_tmp[2*i].events+cl_data[i].events
                   +self.coil_buf_part[i].events+self.grad_buf_part[i].events))
             cl_out[2*i].add_event(self.NUFFT[i].fwd_NUFFT(cl_out[2*i],cl_tmp[2*i],0,wait_for=cl_tmp[2*i].events+cl_out[2*i].events))
-
+#            (self.NUFFT[i].fwd_NUFFT(cl_out[2*i],cl_tmp[2*i],0,wait_for=cl_tmp[2*i].events+cl_out[2*i].events)).wait()
           for i in range(self.num_dev):
             self.queue[3*i+1].finish()
             idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
@@ -1848,6 +1859,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             cl_tmp[2*i+1].add_event(self.eval_fwd_streamed(cl_tmp[2*i+1],cl_data[self.num_dev+i],idx=i,idxq=1,wait_for=cl_tmp[2*i+1].events+cl_data[self.num_dev+i].events
                   +self.coil_buf_part[self.num_dev+i].events+self.grad_buf_part[self.num_dev+i].events))
             cl_out[2*i+1].add_event(self.NUFFT[i].fwd_NUFFT(cl_out[2*i+1],cl_tmp[2*i+1],1,wait_for=cl_tmp[2*i+1].events+cl_out[2*i+1].events))
+#            (self.NUFFT[i].fwd_NUFFT(cl_out[2*i+1],cl_tmp[2*i+1],1,wait_for=cl_tmp[2*i+1].events+cl_out[2*i+1].events)).wait()
       if j<2*self.num_dev:
         j = 2*self.num_dev
       else:
