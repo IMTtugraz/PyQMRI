@@ -13,19 +13,24 @@ resolution 3D data with model‐based reconstruction.__<br>
 
 ### Prerequisites
 
-A working python 3 installation with cython
-Imageutilities from [https://github.com/VLOGroup/imageutilities] build with gpuNUFFT
+A working python 3 installation with numpy, scipy, matplotlib, cython, pyfftw numexp, h5py, and ipyparallel. We highly recommend to use Anaconda.
+To use Wavelet regularization the pywt package is required. 
+
+The primaldual toolbox from [https://github.com/VLOGroup/imageutilities] build with gpuNUFFT
 
 ### Installing
 
 Prior to any use run
-
 ```
 python setup.py build_ext --inplace
 ```
 in the root folder of the project.
 
 ## How to
+First start a ipyparallel cluster in the project folder:
+```
+ipcluster start &
+```
 To run the VFA reconstruction simple type:
 ```
 python VFA_Init.py 
@@ -35,7 +40,22 @@ To see the available options type:
 ```
 python VFA_Init.py -h
 ```
+IRLL reconstruction can be started with:
+```
+python IRLL_Init.py 
+```
+To display the results, load them using h5py and run the shipped multislice_viewer in a python session e.g. to diplay T1:
+```
+import h5py
+import multislice_viewer as msv
+import numpy as np
 
+file = h5py.File("path_to_file")
+some_results = file["tgv_full_result_0"][()]
+
+msv.imshow(np.abs(some_result)[-1,1,....])
+```
+The first dimension contains the results after each GN step. Therefore, -1 is used to show the final results. The second dimension conotains proton density and T1 where proton density is located at 0 and T1 at position 1.
 ## Sample Data
 
 In-vivo datasets used in the publication can be found at 
