@@ -286,6 +286,14 @@ def main(args):
         model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images,\
                                 par.phase_map,NSlice,Nproj)
         opt.model = model
+        opt.par = par
+        opt.data =  data
+        opt.images = images
+        opt.dcf = (dcf)
+        opt.dcf_flat = (dcf).flatten()
+        opt.model = model
+        opt.traj = traj
+        opt.dz = 1
     ################################################################################
     ##IRGN Params
         irgn_par = struct()

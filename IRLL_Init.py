@@ -448,7 +448,14 @@ def main(args):
     #############################################################re###################
         model = IRLL_Model.IRLL_Model(par.fa,par.fa_corr,par.TR,par.tau,par.td,\
                                     NScan,NSlice,dimY,dimX,Nproj,Nproj_measured,1,images)
+        opt.par = par
+        opt.data =  data
+        opt.images = images
+        opt.dcf = (dcf)
+        opt.dcf_flat = (dcf).flatten()
         opt.model = model
+        opt.traj = traj
+        opt.dz = 1
     ################################################################################
     ##IRGN Params
         irgn_par = struct()
@@ -494,9 +501,7 @@ def main(args):
         opt.dcf_flat = (dcf).flatten()
         opt.model = model
         opt.traj = traj
-
         opt.dz = 1
-
     ################################################################################
     ##IRGN Params
         irgn_par = struct()
