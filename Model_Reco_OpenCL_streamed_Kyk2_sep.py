@@ -955,7 +955,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     sym_grad = clarray.to_device(self.queue[0],np.zeros_like(self.z2))
     grad.add_event(self.f_grad(grad,x,wait_for=grad.events+x.events))
     sym_grad.add_event(self.sym_grad(sym_grad,v,wait_for=sym_grad.events+v.events))
-    x = x.get()
+    x = np.require(np.transpose(x.get(),[1,0,2,3]),requirements='C')
     self.FT(b,np.require(np.transpose(self.model.execute_forward_3D(x),[1,0,2,3]),requirements='C')[:,:,None,...]*self.C[:,None,...])
     self.fval= (self.irgn_par.lambd/2*np.linalg.norm(data - b)**2
             +self.irgn_par.gamma*np.sum(np.abs(grad.get()-self.v))
@@ -1852,7 +1852,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           self.r = r
           self.z1 = z1
           self.z2 = z2
-          return np.require(np.transpose(x_new,[1,0,2,3]),requirements='C')
+          return x_new
 #        if (gap > gap_min*self.irgn_par.stag) and myit>1:
 #          self.v = v_new
 #          self.r = r
@@ -1866,7 +1866,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           self.z1 = z1
           self.z2 = z2
           print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(myit,abs(gap - gap_min)/(self.irgn_par.lambd*self.NSlice)))
-          return np.require(np.transpose(x_new,[1,0,2,3]),requirements='C')
+          return x_new
         primal = primal_new
         gap_min = np.minimum(gap,gap_min)
         sys.stdout.write("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f    \r" \
@@ -1879,7 +1879,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     self.r = r
     self.z1 = z1
     self.z2 = z2
-    return np.require(np.transpose(x,[1,0,2,3]),requirements='C')
+    return x
 
   def FT_streamed(self,outp,inp):
       cl_out = []
