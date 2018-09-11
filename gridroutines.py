@@ -413,6 +413,7 @@ class gridding:
 
   			    kern = kerneltable[(int)kernelind]*(1-fracdk)+
   			    		kerneltable[(int)kernelind+1]*fracdk;
+
              tmp_dat += (float2)(kern,kern)*sg[gcount1*gridsize+gcount2+(gridsize*gridsize)*n+(gridsize*gridsize)*NDim*scan];
   			    }
   			}

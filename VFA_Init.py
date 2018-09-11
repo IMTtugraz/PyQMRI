@@ -8,7 +8,7 @@ from tkinter import filedialog
 from tkinter import Tk
 import nlinvns_maier as nlinvns
 
-import Model_Reco_OpenCL_streamed_slicesfirst as Model_Reco
+import Model_Reco_OpenCL_streamed_Kyk2_sep as Model_Reco
 
 from pynfft.nfft import NFFT
 
@@ -61,14 +61,14 @@ for attributes in test_attributes:
 ### Read Data ##################################################################
 ################################################################################
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
-reco_Slices = 4
+reco_Slices = 40
 
-data = file['real_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE) +\
-       1j*file['imag_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE)
+data = file['real_dat'][::2,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE) +\
+       1j*file['imag_dat'][::2,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE)
 
 
-traj = file['real_traj'][()].astype(DTYPE) + \
-       1j*file['imag_traj'][()].astype(DTYPE)
+traj = file['real_traj'][()].astype(DTYPE)[::2] + \
+       1j*file['imag_traj'][()].astype(DTYPE)[::2]
 
 
 dcf = np.array(goldcomp.cmp(traj),dtype=DTYPE)
@@ -94,7 +94,7 @@ par.fa_corr[par.fa_corr==0] = 1
 ### Set sequence related parameters ############################################
 ################################################################################
 
-par.fa = file.attrs['flip_angle(s)']*np.pi/180
+par.fa = file.attrs['flip_angle(s)'][::2]*np.pi/180
 
 
 par.TR          = file.attrs['TR']
@@ -321,6 +321,7 @@ model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images,NSlice,Nproj)
 #  queue.append(cl.CommandQueue(tmp, device,properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE))#))#, platforms[0].get_devices()[device]))#properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE))
 #  queue.append(cl.CommandQueue(tmp, device,properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE))
 
+#import Model_Reco_OpenCL_streamed_slicesfirst as Model_Reco
 
 platforms = cl.get_platforms()
 
@@ -354,31 +355,33 @@ opt = Model_Reco.Model_Reco(par,ctx,queue,traj,np.sqrt(dcf),model)
 #images2= (np.sum(test4*(np.conj(par.C)),axis = 1))
 #
 #import pyopencl.array as clarray
-#xx = (np.random.randn(4,2,256,256)+1j*np.random.randn(4,2,256,256)).astype(DTYPE)
-#yy =(np.random.randn(4,10,5,34,512)+1j*np.random.randn(4,10,5,34,512)).astype(DTYPE)
-#test1 = np.zeros_like(yy)
-#test2 =  np.zeros_like(xx)
+#xx = clarray.to_device(queue[0],np.random.randn(4,2,256,256,4)+1j*np.random.randn(4,2,256,256,4)).astype(DTYPE)
+#yy =clarray.to_device(queue[0],np.random.randn(4,2,256,256,8)+1j*np.random.randn(4,2,256,256,8)).astype(DTYPE)
+#test1 = clarray.zeros_like(yy)
+#test2 =  clarray.zeros_like(xx)
+##
+##
+###opt.NUFFT[0].fwd_NUFFT(test1,xx)
+###opt.NUFFT[0].adj_NUFFT(test2,yy)
+#opt.sym_grad(test1,xx)
+#opt.sym_bdiv(test2,yy)
 #
-#
-##opt.NUFFT[0].fwd_NUFFT(test1,xx)
-##opt.NUFFT[0].adj_NUFFT(test2,yy)
-#opt.operator_forward_streamed(test1,xx)
-#opt.operator_adjoint_streamed(test2,yy)
-
-#
-#opt.f_grad(test1,xx)
-#opt.bdiv(test2,yy)
-#
-#
+##
+##opt.f_grad(test1,xx)
+##opt.bdiv(test2,yy)
+##
+##
 #test1 = test1.get()
 #test2 = test2.get()
 #yy = yy.get()
 #xx = xx.get()
+##
 #
-#a = np.vdot(test1,yy)
-#b = np.vdot(xx,test2)
-#
-#print(np.abs(a-b)/(4*2*256**2))
+#a = np.sum(np.conj((test1[...,0:3]))*yy[...,0:3]+2*np.conj(test1[...,3:6])*yy[...,3:6])
+##a = np.vdot(test1,yy)
+#b = np.vdot(-xx[...,0:3],test2[...,0:3])
+##
+#print(np.abs(a-b))
 
 
 opt.data =  data
