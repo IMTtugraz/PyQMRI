@@ -16,6 +16,40 @@ import primaldualtoolbox
 import matplotlib.pyplot as plt
 import ipyparallel as ipp
 
+def user_input():
+  input_dict = {}
+  input_dict["max_iters"] = 300
+  input_dict["start_iters"] = 100
+  input_dict["max_GN_it"] = 13
+  input_dict["lambd"] = 1e2
+  input_dict["gamma"] = 1e0
+  input_dict["delta"] = 1e-1
+  input_dict["display_iterations"] = True
+  input_dict["gamma_min"] = 0.18
+  input_dict["delta_max"] = 1e2
+  input_dict["tol"] = 5e-3
+  input_dict["stag"] = 1
+  input_dict["delta_inc"] = 2
+  input_dict["gamma_dec"] = 0.7
+  input_dict["ratio"] =2e2
+  for name,value in input_dict.items():
+    while True:
+      print("Editing %s, current value: %f"%(name,value))
+      new_val = (input("New value: "))
+      if not len(new_val):
+         break
+      else:
+        try:
+          new_val = type(value)(new_val)
+        except ValueError:
+          print("Not an %s" %type(value))
+          continue
+        else:
+          print("%s changed to %f"%(name,new_val))
+          input_dict[name] = new_val
+          break
+  return input_dict
+
 def main(args):
     DTYPE = np.complex64
     np.seterr(divide='ignore', invalid='ignore')
@@ -81,7 +115,7 @@ def main(args):
 ################################################################################
 ### FA correction ##############################################################
 ################################################################################
-    par.fa_corr = file['interpol_fa'][()].astype(DTYPE)
+    par.fa_corr = file['fa_corr'][()].astype(DTYPE)
 ################################################################################
 ### Pick slices for reconstruction #############################################
 ################################################################################
@@ -120,56 +154,122 @@ def main(args):
 #% Estimates sensitivities and complex image.
 #%(see Martin Uecker: Image reconstruction by regularized nonlinear
 #%inversion joint estimation of coil sensitivities and image content)
-    nlinvNewtonSteps = 6
-    nlinvRealConstr  = False
+    class B(Exception):
+      pass
+    try:
+      if not file['Coils'][()].shape[1] >= reco_Slices:
+        nlinvNewtonSteps = 6
+        nlinvRealConstr  = False
 
-    traj_x = np.real(np.asarray(traj))
-    traj_y = np.imag(np.asarray(traj))
+        traj_x = np.real(np.asarray(traj))
+        traj_y = np.imag(np.asarray(traj))
 
-    config = {'osf' : 2,
-              'sector_width' : 8,
-              'kernel_width' : 3,
-              'img_dim' : dimX}
+        config = {'osf' : 2,
+                    'sector_width' : 8,
+                    'kernel_width' : 3,
+                    'img_dim' : dimX}
 
-    points = (np.array([traj_x.flatten(),traj_y.flatten()]))
-    op = primaldualtoolbox.mri.MriRadialOperator(config)
-    op.setTrajectory(points)
-    op.setDcf(np.repeat(np.sqrt(dcf),NScan,axis=0).flatten().astype(np.float32)[None,...])
-    op.setCoilSens(np.ones((1,dimX,dimY),dtype=DTYPE))
-
-
-    par.C = np.zeros((NC,NSlice,dimY,dimX), dtype=DTYPE)
-    par.phase_map = np.zeros((NSlice,dimY,dimX), dtype=DTYPE)
-
-    result = []
-    for i in range(NSlice):
-        print('deriving M(TI(1)) and coil profiles')
+        points = (np.array([traj_x.flatten(),traj_y.flatten()]))
+        op = primaldualtoolbox.mri.MriRadialOperator(config)
+        op.setTrajectory(points)
+        op.setDcf(np.repeat(np.sqrt(dcf),NScan,axis=0).flatten().astype(np.float32)[None,...])
+        op.setCoilSens(np.ones((1,dimX,dimY),dtype=DTYPE))
 
 
-        ##### RADIAL PART
-        combinedData = np.transpose(data[:,:,i,:,:],(1,0,2,3))
-        combinedData = np.reshape(combinedData,(NC,NScan*Nproj*N))
-        coilData = np.zeros((NC,dimY,dimX),dtype=DTYPE)
-        for j in range(NC):
-            coilData[j,:,:] = op.adjoint(combinedData[j,:]*(np.repeat(np.sqrt(dcf),NScan,axis=0).flatten())[None,...])
+        par.C = np.zeros((NC,NSlice,dimY,dimX), dtype=DTYPE)
+        par.phase_map = np.zeros((NSlice,dimY,dimX), dtype=DTYPE)
 
-        combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)
-        dview = c[int(np.floor(i*len(c)/NSlice))]
-        result.append(dview.apply_async(nlinvns.nlinvns, combinedData,
-                                        nlinvNewtonSteps, True, nlinvRealConstr))
+        result = []
+        for i in range(NSlice):
+            print('deriving coil profile ' + str(i))
+
+
+            ##### RADIAL PART
+            combinedData = np.transpose(data[:,:,i,:,:],(1,0,2,3))
+            combinedData = np.reshape(combinedData,(NC,NScan*Nproj*N))
+            coilData = np.zeros((NC,dimY,dimX),dtype=DTYPE)
+            for j in range(NC):
+                  coilData[j,:,:] = op.adjoint(combinedData[j,:]*(np.repeat(np.sqrt(dcf),NScan,axis=0).flatten())[None,...])
+
+            combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)
+            dview = c[int(np.floor(i*len(c)/NSlice))]
+            result.append(dview.apply_async(nlinvns.nlinvns, combinedData,
+                                            nlinvNewtonSteps, True, nlinvRealConstr))
 
         for i in range(NSlice):
             par.C[:,i,:,:] = result[i].get()[2:,-1,:,:]
-        if not nlinvRealConstr:
-            par.phase_map[i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
-            par.C[:,i,:,:] = par.C[:,i,:,:]* np.exp(1j*np.angle( result[i].get()[1,-1,:,:]))
-
-          # standardize coil sensitivity profiles
-        sumSqrC = np.sqrt(np.sum((par.C * np.conj(par.C)),0)) #4, 9, 128, 128
+            if not nlinvRealConstr:
+                par.phase_map[i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
+                par.C[:,i,:,:] = par.C[:,i,:,:]* np.exp(1j *\
+                                 np.angle( result[i].get()[1,-1,:,:]))
+              # standardize coil sensitivity profiles
+        sumSqrC = np.sqrt(np.sum((par.C * np.conj(par.C)),0))
         if NC == 1:
             par.C = sumSqrC
         else:
             par.C = par.C / np.tile(sumSqrC, (NC,1,1,1))
+        del file['Coils']
+        file.create_dataset("Coils",par.C.shape,dtype=par.C.dtype,data=par.C)
+        file.flush()
+        del op
+      else:
+        print("Using precomputed coil sensitivities")
+        slices_coils = file['Coils'][()].shape[1]
+        par.C = file['Coils'][:,int(slices_coils/2)-int(np.floor((reco_Slices)/2)):int(slices_coils/2)+int(np.ceil(reco_Slices/2)),...]
+    except:
+        nlinvNewtonSteps = 6
+        nlinvRealConstr  = False
+
+        traj_x = np.real(np.asarray(traj))
+        traj_y = np.imag(np.asarray(traj))
+
+        config = {'osf' : 2,
+                    'sector_width' : 8,
+                    'kernel_width' : 3,
+                    'img_dim' : dimX}
+
+        points = (np.array([traj_x.flatten(),traj_y.flatten()]))
+        op = primaldualtoolbox.mri.MriRadialOperator(config)
+        op.setTrajectory(points)
+        op.setDcf(np.repeat(np.sqrt(dcf),NScan,axis=0).flatten().astype(np.float32)[None,...])
+        op.setCoilSens(np.ones((1,dimX,dimY),dtype=DTYPE))
+
+
+        par.C = np.zeros((NC,NSlice,dimY,dimX), dtype=DTYPE)
+        par.phase_map = np.zeros((NSlice,dimY,dimX), dtype=DTYPE)
+
+        result = []
+        for i in range(NSlice):
+            print('deriving coil profile ' + str(i))
+
+
+            ##### RADIAL PART
+            combinedData = np.transpose(data[:,:,i,:,:],(1,0,2,3))
+            combinedData = np.reshape(combinedData,(NC,NScan*Nproj*N))
+            coilData = np.zeros((NC,dimY,dimX),dtype=DTYPE)
+            for j in range(NC):
+                  coilData[j,:,:] = op.adjoint(combinedData[j,:]*(np.repeat(np.sqrt(dcf),NScan,axis=0).flatten())[None,...])
+
+            combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)
+            dview = c[int(np.floor(i*len(c)/NSlice))]
+            result.append(dview.apply_async(nlinvns.nlinvns, combinedData,
+                                            nlinvNewtonSteps, True, nlinvRealConstr))
+
+        for i in range(NSlice):
+            par.C[:,i,:,:] = result[i].get()[2:,-1,:,:]
+            if not nlinvRealConstr:
+                par.phase_map[i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
+                par.C[:,i,:,:] = par.C[:,i,:,:]* np.exp(1j *\
+                                 np.angle( result[i].get()[1,-1,:,:]))
+              # standardize coil sensitivity profiles
+        sumSqrC = np.sqrt(np.sum((par.C * np.conj(par.C)),0))
+        if NC == 1:
+            par.C = sumSqrC
+        else:
+            par.C = par.C / np.tile(sumSqrC, (NC,1,1,1))
+        file.create_dataset("Coils",par.C.shape,dtype=par.C.dtype,data=par.C)
+        file.flush()
+        del op
 ################################################################################
 ### Reorder acquired Spokes   ##################################################
 ################################################################################
@@ -249,7 +349,6 @@ def main(args):
 
     data = data* dscale
     images= nFTH_gpu(data,par.C)
-    del op
 
 
     if args.type=='3D':
@@ -275,23 +374,26 @@ def main(args):
 
     ################################################################################
     ##IRGN Params
-        irgn_par = struct()
-        irgn_par.max_iters = 300
-        irgn_par.start_iters = 100
-        irgn_par.max_GN_it = 13
-        irgn_par.lambd = 1e2
-        irgn_par.gamma = 1e0
-        irgn_par.delta = 1e-1
-        irgn_par.omega = 0e-10
-        irgn_par.display_iterations = True
-        irgn_par.gamma_min = 0.18
-        irgn_par.delta_max = 1e2
-        irgn_par.tol = 5e-3
-        irgn_par.stag = 1
-        irgn_par.delta_inc = 2
-        irgn_par.gamma_dec = 0.7
+        irgn_par = {}
+        if args.def_par:
+          irgn_par = user_input()
+        else:
+          irgn_par["max_iters"] = 300
+          irgn_par["start_iters"] = 100
+          irgn_par["max_GN_it"] = 13
+          irgn_par["lambd"] = 1e2
+          irgn_par["gamma"] = 1e0
+          irgn_par["delta"] = 1e-1
+          irgn_par["display_iterations"] = True
+          irgn_par["gamma_min"] = 0.18
+          irgn_par["delta_max"] = 1e2
+          irgn_par["tol"] = 5e-3
+          irgn_par["stag"] = 1
+          irgn_par["delta_inc"] = 2
+          irgn_par["gamma_dec"] = 0.7
+          irgn_par["ratio"] = 2e2
         opt.irgn_par = irgn_par
-        opt.ratio = 2e2
+        opt.ratio = irgn_par["ratio"]
 
         opt.execute_3D()
         opt.result[:,1,...] = -model.scale/np.log(opt.result[:,1,...])
@@ -300,7 +402,7 @@ def main(args):
 
 
         res_tgv = opt.gn_res
-        res_tgv = np.array(res_tgv)/(irgn_par.lambd*NSlice)
+        res_tgv = np.array(res_tgv)/(irgn_par["lambd"]*NSlice)
   ################################################################################
   #### IRGN - TV referenz ########################################################
   ################################################################################
@@ -314,23 +416,26 @@ def main(args):
         opt.model = model
     ################################################################################
     ##IRGN Params
-        irgn_par = struct()
-        irgn_par.max_iters = 300
-        irgn_par.start_iters = 100
-        irgn_par.max_GN_it = 13
-        irgn_par.lambd = 1e2
-        irgn_par.gamma = 1e0
-        irgn_par.delta = 1e-1
-        irgn_par.omega = 0e-10
-        irgn_par.display_iterations = True
-        irgn_par.gamma_min = 0.23
-        irgn_par.delta_max = 1e2
-        irgn_par.tol = 5e-3
-        irgn_par.stag = 1.00
-        irgn_par.delta_inc = 2
-        irgn_par.gamma_dec = 0.7
+        irgn_par = {}
+        if args.def_par:
+          irgn_par = user_input()
+        else:
+          irgn_par["max_iters"] = 300
+          irgn_par["start_iters"] = 100
+          irgn_par["max_GN_it"] = 13
+          irgn_par["lambd"] = 1e2
+          irgn_par["gamma"] = 1e0
+          irgn_par["delta"] = 1e-1
+          irgn_par["display_iterations"] = True
+          irgn_par["gamma_min"] = 0.23
+          irgn_par["delta_max"] = 1e2
+          irgn_par["tol"] = 5e-3
+          irgn_par["stag"] = 1
+          irgn_par["delta_inc"] = 2
+          irgn_par["gamma_dec"] = 0.7
+          irgn_par["ratio"] = 2e2
         opt.irgn_par = irgn_par
-        opt.ratio = 2e2
+        opt.ratio = irgn_par["ratio"]
 
         opt.execute_3D(1)
         opt.result[:,1,...] = -model.scale/np.log(opt.result[:,1,...])
@@ -338,7 +443,7 @@ def main(args):
         plt.close('all')
 
         res_tv = opt.gn_res
-        res_tv = np.array(res_tv)/(irgn_par.lambd*NSlice)
+        res_tv = np.array(res_tv)/(irgn_par["lambd"]*NSlice)
 
   ################################################################################
   #### IRGN - WT referenz ########################################################
@@ -362,24 +467,26 @@ def main(args):
 
     ################################################################################
     ##IRGN Params
-        irgn_par = struct()
-        irgn_par.max_iters = 300
-        irgn_par.start_iters = 100
-        irgn_par.max_GN_it = 13
-        irgn_par.lambd = 1e2
-        irgn_par.gamma = 1e0
-        irgn_par.delta = 1e-1
-        irgn_par.omega = 0e-10
-        irgn_par.display_iterations = True
-        irgn_par.gamma_min = 0.37
-        irgn_par.delta_max = 1e2
-        irgn_par.tol = 5e-3
-        irgn_par.stag = 1.00
-        irgn_par.delta_inc = 2
-        irgn_par.gamma_dec = 0.7
+        irgn_par = {}
+        if args.def_par:
+          irgn_par = user_input()
+        else:
+          irgn_par["max_iters"] = 300
+          irgn_par["start_iters"] = 100
+          irgn_par["max_GN_it"] = 13
+          irgn_par["lambd"] = 1e2
+          irgn_par["gamma"] = 1e0
+          irgn_par["delta"] = 1e-1
+          irgn_par["display_iterations"] = True
+          irgn_par["gamma_min"] = 0.37
+          irgn_par["delta_max"] = 1e2
+          irgn_par["tol"] = 5e-3
+          irgn_par["stag"] = 1
+          irgn_par["delta_inc"] = 2
+          irgn_par["gamma_dec"] = 0.7
+          irgn_par["ratio"] = 2e2
         opt.irgn_par = irgn_par
-        opt.ratio = 2e2
-
+        opt.ratio = irgn_par["ratio"]
         opt.execute_3D(2)
         opt.result[:,1,...] = -model.scale/np.log(opt.result[:,1,...])
         result_wt.append(opt.result)
@@ -387,7 +494,7 @@ def main(args):
 
 
         res_wt = opt.gn_res
-        res_wt = np.array(res_wt)/(irgn_par.lambd*NSlice)
+        res_wt = np.array(res_wt)/(irgn_par["lambd"]*NSlice)
       del opt
     else:
 ################################################################################
@@ -412,23 +519,26 @@ def main(args):
 
     ################################################################################
     ##IRGN Params
-        irgn_par = struct()
-        irgn_par.max_iters = 300
-        irgn_par.start_iters = 100
-        irgn_par.max_GN_it = 13
-        irgn_par.lambd = 1e2
-        irgn_par.gamma = 1e0
-        irgn_par.delta = 1e-1
-        irgn_par.omega = 0e-10
-        irgn_par.display_iterations = True
-        irgn_par.gamma_min = 0.18
-        irgn_par.delta_max = 1e2
-        irgn_par.tol = 5e-3
-        irgn_par.stag = 1
-        irgn_par.delta_inc = 2
-        irgn_par.gamma_dec = 0.7
+        irgn_par = {}
+        if args.def_par:
+          irgn_par = user_input()
+        else:
+          irgn_par["max_iters"] = 300
+          irgn_par["start_iters"] = 100
+          irgn_par["max_GN_it"] = 13
+          irgn_par["lambd"] = 1e2
+          irgn_par["gamma"] = 1e0
+          irgn_par["delta"] = 1e-1
+          irgn_par["display_iterations"] = True
+          irgn_par["gamma_min"] = 0.18
+          irgn_par["delta_max"] = 1e2
+          irgn_par["tol"] = 5e-3
+          irgn_par["stag"] = 1
+          irgn_par["delta_inc"] = 2
+          irgn_par["gamma_dec"] = 0.7
+          irgn_par["ratio"] = 2e2
         opt.irgn_par = irgn_par
-        opt.ratio = 2e2
+        opt.ratio = irgn_par["ratio"]
 
         opt.execute_2D()
         opt.result[:,1,...] = -model.scale/np.log(opt.result[:,1,...])
@@ -437,7 +547,7 @@ def main(args):
 
 
         res_tgv = opt.gn_res
-        res_tgv = np.array(res_tgv)/(irgn_par.lambd*NSlice)
+        res_tgv = np.array(res_tgv)/(irgn_par["lambd"]*NSlice)
   ################################################################################
   #### IRGN - TV referenz ########################################################
   ################################################################################
@@ -458,23 +568,26 @@ def main(args):
         opt.dz = 1
     ################################################################################
     ##IRGN Params
-        irgn_par = struct()
-        irgn_par.max_iters = 300
-        irgn_par.start_iters = 100
-        irgn_par.max_GN_it = 13
-        irgn_par.lambd = 1e2
-        irgn_par.gamma = 1e0
-        irgn_par.delta = 1e-1
-        irgn_par.omega = 0e-10
-        irgn_par.display_iterations = True
-        irgn_par.gamma_min = 0.23
-        irgn_par.delta_max = 1e2
-        irgn_par.tol = 5e-3
-        irgn_par.stag = 1.00
-        irgn_par.delta_inc = 2
-        irgn_par.gamma_dec = 0.7
+        irgn_par = {}
+        if args.def_par:
+          irgn_par = user_input()
+        else:
+          irgn_par["max_iters"] = 300
+          irgn_par["start_iters"] = 100
+          irgn_par["max_GN_it"] = 13
+          irgn_par["lambd"] = 1e2
+          irgn_par["gamma"] = 1e0
+          irgn_par["delta"] = 1e-1
+          irgn_par["display_iterations"] = True
+          irgn_par["gamma_min"] = 0.23
+          irgn_par["delta_max"] = 1e2
+          irgn_par["tol"] = 5e-3
+          irgn_par["stag"] = 1
+          irgn_par["delta_inc"] = 2
+          irgn_par["gamma_dec"] = 0.7
+          irgn_par["ratio"] = 2e2
         opt.irgn_par = irgn_par
-        opt.ratio = 2e2
+        opt.ratio = irgn_par["ratio"]
 
         opt.execute_2D(1)
         opt.result[:,1,...] = -model.scale/np.log(opt.result[:,1,...])
@@ -482,7 +595,7 @@ def main(args):
         plt.close('all')
 
         res_tv = opt.gn_res
-        res_tv = np.array(res_tv)/(irgn_par.lambd*NSlice)
+        res_tv = np.array(res_tv)/(irgn_par["lambd"]*NSlice)
 
   ################################################################################
   #### IRGN - WT referenz ########################################################
@@ -504,23 +617,26 @@ def main(args):
         opt.dz = 1
     ################################################################################
     ##IRGN Params
-        irgn_par = struct()
-        irgn_par.max_iters = 300
-        irgn_par.start_iters = 100
-        irgn_par.max_GN_it = 13
-        irgn_par.lambd = 1e2
-        irgn_par.gamma = 1e0
-        irgn_par.delta = 1e-1
-        irgn_par.omega = 0e-10
-        irgn_par.display_iterations = True
-        irgn_par.gamma_min = 0.37
-        irgn_par.delta_max = 1e2
-        irgn_par.tol = 5e-3
-        irgn_par.stag = 1.00
-        irgn_par.delta_inc = 2
-        irgn_par.gamma_dec = 0.7
+        irgn_par = {}
+        if args.def_par:
+          irgn_par = user_input()
+        else:
+          irgn_par["max_iters"] = 300
+          irgn_par["start_iters"] = 100
+          irgn_par["max_GN_it"] = 13
+          irgn_par["lambd"] = 1e2
+          irgn_par["gamma"] = 1e0
+          irgn_par["delta"] = 1e-1
+          irgn_par["display_iterations"] = True
+          irgn_par["gamma_min"] = 0.37
+          irgn_par["delta_max"] = 1e2
+          irgn_par["tol"] = 5e-3
+          irgn_par["stag"] = 1
+          irgn_par["delta_inc"] = 2
+          irgn_par["gamma_dec"] = 0.7
+          irgn_par["ratio"] = 2e2
         opt.irgn_par = irgn_par
-        opt.ratio = 2e2
+        opt.ratio = irgn_par["ratio"]
 
         opt.execute_2D(2)
         opt.result[:,1,...] = -model.scale/np.log(opt.result[:,1,...])
@@ -529,7 +645,7 @@ def main(args):
 
 
         res_wt = opt.gn_res
-        res_wt = np.array(res_wt)/(irgn_par.lambd*NSlice)
+        res_wt = np.array(res_wt)/(irgn_par["lambd"]*NSlice)
       del opt
 ###############################################################################
 ## New .hdf5 save files #######################################################
@@ -569,6 +685,7 @@ if __name__ == '__main__':
     parser.add_argument('--reg_type', default='all', dest='reg',help="Choose regularization type (default: TGV)\
                                                                      options are: TGV, TV, WT, TGVTV, TGVWT, TVWT, all")
     parser.add_argument('--slices',default=40, dest='slices', type=int, help='Number of reconstructed slices (default=40). Symmetrical around the center slice.')
+    parser.add_argument('--def_par', default=0, dest='def_par', type=int, help='Run the script with default (0) or specify your own (1) regularization parameters. ')
     args = parser.parse_args()
 
     main(args)
