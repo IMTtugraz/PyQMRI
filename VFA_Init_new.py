@@ -54,7 +54,7 @@ def user_input():
   return input_dict
 
 def main(args):
-    if args.streamed or args.slices > 10:
+    if args.streamed:
       import Model_Reco_OpenCL_streamed_Kyk2_sep as Model_Reco
     else:
       import Model_Reco_OpenCL as Model_Reco

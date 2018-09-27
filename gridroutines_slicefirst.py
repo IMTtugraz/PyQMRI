@@ -36,7 +36,6 @@ class gridding:
       self.dcf = clarray.to_device(self.queue[0],dcf)
       self.traj = clarray.to_device(self.queue[0],traj)
       self.tmp_fft_array = (clarray.zeros(self.queue[0],fft_size,dtype=DTYPE))
-  #    self.tmp_fft_array2 = (clarray.zeros(self.queue[0],fft_size,dtype=DTYPE))
       self.fft2 = []
       self.fftshift = []
       self.thr = []

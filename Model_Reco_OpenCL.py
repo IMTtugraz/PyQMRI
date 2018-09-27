@@ -1476,9 +1476,9 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
 
     for i in range(iters):
       x_new.add_event(self.update_primal(x_new,x,Kyk1,xk,tau,delta)) ### Q2
-      x_new = x_new.get()
-      x_new[-1,...] = np.median(x_new[-1,...])*np.ones_like(x_new[-1,...])
-      x_new = clarray.to_device(self.queue,x_new)
+#      x_new = x_new.get()
+#      x_new[-1,...] = np.median(x_new[-1,...])*np.ones_like(x_new[-1,...])
+#      x_new = clarray.to_device(self.queue,x_new)
       v_new.add_event(self.update_v(v_new,v,Kyk2,tau)) ### Q1
 
       beta_new = beta_line*(1+mu*tau)
