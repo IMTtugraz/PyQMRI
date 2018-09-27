@@ -18,34 +18,53 @@ class Program(object):
 
 
 class gridding:
-  def __init__(self, ctx,queue, kwidth,overgridfactor,G,NScan,fft_size,fft_dim,traj,dcf,gridsize,klength=400, DTYPE=np.complex128,DTYPE_real=np.float64):
-    (self.kerneltable,self.kerneltable_FT,self.u) = calckbkernel(kwidth,overgridfactor,G,klength)
-    self.kernelpoints = self.kerneltable.size
-    self.ctx = ctx
-    self.queue = queue
-    self.api = cluda.ocl_api()
-    self.fft_scale = DTYPE_real(fft_size[-1])
-    self.deapo = 1/self.kerneltable_FT.astype(DTYPE_real)
-    self.kwidth = kwidth/2
-    self.cl_kerneltable = cl.Buffer(self.queue[0].context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.kerneltable.astype(DTYPE_real).data)
-    self.deapo_cl = cl.Buffer(self.queue[0].context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.deapo.data)
-    self.dcf = clarray.to_device(self.queue[0],dcf)
-    self.traj = clarray.to_device(self.queue[0],traj)
-    self.tmp_fft_array = (clarray.zeros(self.queue[0],fft_size,dtype=DTYPE))
-#    self.tmp_fft_array2 = (clarray.zeros(self.queue[0],fft_size,dtype=DTYPE))
-    self.fft2 = []
-    self.fftshift = []
-    self.thr = []
-    for j in range(len(queue)):
-      self.thr.append(self.api.Thread(queue[j]))
-      fftshift = FFTShift(self.tmp_fft_array,axes=fft_dim)
-      self.fftshift.append(fftshift.compile(self.thr[j]))
-      fft = FFT(ctx,queue[j],self.tmp_fft_array[0:int(fft_size[0]/NScan),...],out_array=self.tmp_fft_array[0:int(fft_size[0]/NScan),...],axes=fft_dim)
-#      self.fft2.append(fft.compile(self.thr[j]))
-      self.fft2.append(fft)
-    self.gridsize = gridsize
+  def __init__(self, ctx,queue, kwidth,overgridfactor,G,NScan,fft_size,fft_dim,traj,dcf,gridsize,klength=400, DTYPE=np.complex128,DTYPE_real=np.float64, radial=True):
+    self.radial = radial
     self.DTYPE = DTYPE
     self.DTYPE_real = DTYPE_real
+    if self.radial:
+      (self.kerneltable,self.kerneltable_FT,self.u) = calckbkernel(kwidth,overgridfactor,G,klength)
+      self.kernelpoints = self.kerneltable.size
+      self.ctx = ctx
+      self.queue = queue
+      self.api = cluda.ocl_api()
+      self.fft_scale = DTYPE_real(fft_size[-1])
+      self.deapo = 1/self.kerneltable_FT.astype(DTYPE_real)
+      self.kwidth = kwidth/2
+      self.cl_kerneltable = cl.Buffer(self.queue[0].context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.kerneltable.astype(DTYPE_real).data)
+      self.deapo_cl = cl.Buffer(self.queue[0].context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.deapo.data)
+      self.dcf = clarray.to_device(self.queue[0],dcf)
+      self.traj = clarray.to_device(self.queue[0],traj)
+      self.tmp_fft_array = (clarray.zeros(self.queue[0],fft_size,dtype=DTYPE))
+  #    self.tmp_fft_array2 = (clarray.zeros(self.queue[0],fft_size,dtype=DTYPE))
+      self.fft2 = []
+      self.fftshift = []
+      self.thr = []
+      for j in range(len(queue)):
+        self.thr.append(self.api.Thread(queue[j]))
+        fftshift = FFTShift(self.tmp_fft_array,axes=fft_dim)
+        self.fftshift.append(fftshift.compile(self.thr[j]))
+        fft = FFT(ctx,queue[j],self.tmp_fft_array[0:int(fft_size[0]/NScan),...],out_array=self.tmp_fft_array[0:int(fft_size[0]/NScan),...],axes=fft_dim)
+  #      self.fft2.append(fft.compile(self.thr[j]))
+        self.fft2.append(fft)
+      self.gridsize = gridsize
+      self.fwd_NUFFT = self.NUFFT
+      self.adj_NUFFT = self.NUFFTH
+    else:
+      self.traj=None
+      self.dcf = None
+      self.ctx = ctx
+      self.queue = queue
+      self.fft_scale = DTYPE_real(np.sqrt(np.prod(fft_size[fft_dim[0]:])))
+      self.tmp_fft_array = (clarray.zeros(self.queue[0],fft_size,dtype=DTYPE))
+      self.fft2 = []
+      self.fft_shape = fft_size
+      self.par_fft = int(fft_size[0]/NScan)
+      for j in range(len(queue)):
+        fft = FFT(ctx,queue[j],self.tmp_fft_array[0:int(fft_size[0]/NScan),...],out_array=self.tmp_fft_array[0:int(fft_size[0]/NScan),...],axes=fft_dim)
+        self.fft2.append(fft)
+      self.fwd_NUFFT = self.FFT
+      self.adj_NUFFT = self.FFTH
     if DTYPE==np.complex128:
       print('Using double precission')
       self.prg = Program(self.ctx, r"""
@@ -426,17 +445,29 @@ class gridding:
   		}
     s[k+kDim*n+kDim*NDim*slice]= tmp_dat*(float2)(dcf[k],dcf[k]);
   }
+
+__kernel void copy(__global float2 *out, __global float2 *in, const float scale)
+  {
+    size_t x = get_global_id(0);
+    out[x] = in[x]*scale;
+
+  }
+
                          """)
   def __del__(self):
-    del self.traj
-    del self.dcf
-    del self.tmp_fft_array
-    del self.cl_kerneltable
-    del self.fft2
-    del self.fftshift
-    del self.deapo_cl
+    if self.radial:
+      del self.traj
+      del self.dcf
+      del self.tmp_fft_array
+      del self.cl_kerneltable
+      del self.fft2
+      del self.fftshift
+      del self.deapo_cl
+    else:
+      del self.tmp_fft_array
+      del self.fft2
 
-  def adj_NUFFT(self,sg,s,idx=None,wait_for=[]):
+  def NUFFTH(self,sg,s,idx=None,wait_for=[]):
     if idx==None:
       idx = 0
       queue=self.queue[0]
@@ -465,7 +496,7 @@ class gridding:
 
 
 
-  def fwd_NUFFT(self,s,sg,idx=None,wait_for=[]):
+  def NUFFT(self,s,sg,idx=None,wait_for=[]):
     if idx==None:
       idx = 0
       queue=self.queue[0]
@@ -489,3 +520,28 @@ class gridding:
                              wait_for = s.events+wait_for+self.tmp_fft_array.events+sg.events)
 
 
+  def FFTH(self,sg,s,idx=None,wait_for=[]):
+    if idx==None:
+      idx = 0
+      queue=self.queue[0]
+    else:
+      queue=self.queue[idx]
+
+    self.tmp_fft_array.add_event(self.prg.copy(queue,(s.size,),None,self.tmp_fft_array.data,s.data,self.DTYPE_real(1)))
+    for j in range(s.shape[1]):
+      self.tmp_fft_array.add_event(self.fft2[idx].enqueue_arrays(data=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],result=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],forward=False)[0])
+    ### Scaling
+    return  (self.prg.copy(queue,(sg.size,),None,sg.data,self.tmp_fft_array.data,self.DTYPE_real(self.fft_scale)))
+
+
+  def FFT(self,s,sg,idx=None,wait_for=[]):
+    if idx==None:
+      idx = 0
+      queue=self.queue[0]
+    else:
+      queue=self.queue[idx]
+
+    self.tmp_fft_array.add_event(self.prg.copy(queue,(sg.size,),None,self.tmp_fft_array.data,sg.data,self.DTYPE_real(1/self.fft_scale)))
+    for j in range(s.shape[1]):
+      self.tmp_fft_array.add_event(self.fft2[idx].enqueue_arrays(data=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],result=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],forward=True)[0])
+    return (self.prg.copy(queue,(s.size,),None,s.data,self.tmp_fft_array.data,self.DTYPE_real(1)))

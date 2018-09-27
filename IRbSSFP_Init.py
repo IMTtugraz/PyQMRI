@@ -12,7 +12,7 @@ import Model_Reco_OpenCL as Model_Reco
 
 from pynfft.nfft import NFFT
 
-import VFA_model as VFA_model
+import IR_bSSFP_model as bSSFP_model
 import goldcomp
 
 import pyopencl as cl
@@ -61,15 +61,18 @@ for attributes in test_attributes:
 ### Read Data ##################################################################
 ################################################################################
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
-reco_Slices = 2
+reco_Slices = 1
 
-data = file['real_dat'][::2,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE) +\
-       1j*file['imag_dat'][::2,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE)
+data = file['real_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE) +\
+       1j*file['imag_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE)
 
 
-traj = file['real_traj'][()].astype(DTYPE)[::2] + \
-       1j*file['imag_traj'][()].astype(DTYPE)[::2]
-
+traj = file['real_traj'][()].astype(DTYPE) + \
+       1j*file['imag_traj'][()].astype(DTYPE)
+#
+M0_ref = file['M0_ref'][int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...]
+T1_ref = file['T1_ref'][int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...]
+T2_ref = file['T2_ref'][int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...]
 
 dcf = np.array(goldcomp.cmp(traj),dtype=DTYPE)
 
@@ -89,12 +92,17 @@ par.fa_corr[par.fa_corr==0] = 1
 #par.fa_corr[par.fa_corr==0] = 1
 
 
+#data = data[None,...]
+
+data = data.transpose((4,1,2,0,3))
+traj = np.squeeze(traj.transpose((2,0,1)))
+dcf = np.squeeze(dcf)
 [NScan,NC,reco_Slices,Nproj, N] = data.shape
 ################################################################################
 ### Set sequence related parameters ############################################
 ################################################################################
 
-par.fa = file.attrs['flip_angle(s)'][::2]*np.pi/180
+par.fa = file.attrs['flip_angle(s)']*np.pi/180
 
 
 par.TR          = file.attrs['TR']
@@ -107,9 +115,9 @@ par.N = N
 par.Nproj = Nproj
 
 #### TEST
-par.unknowns_TGV = 2
+par.unknowns_TGV = 3
 par.unknowns_H1 = 0
-par.unknowns = 2
+par.unknowns = 3
 
 
 
@@ -229,18 +237,36 @@ except:
     par.C = par.C / np.tile(sumSqrC, (NC,1,1,1))
   file.create_dataset("Coils",par.C.shape,dtype=par.C.dtype,data=par.C)
   file.flush()
+
+[NScan,NC,NSlice,Nproj, N] = data.shape
+#
+Nproj_new = 34
+
+NScan = np.floor_divide(Nproj,Nproj_new)
+Nproj_measured = Nproj
+Nproj = Nproj_new
+
+par.Nproj = Nproj
+par.NScan = NScan
+
+data = np.require(np.transpose(np.reshape(data[:,:,:,:Nproj*NScan,:],\
+                               (NC,NSlice,NScan,Nproj,N)),(2,0,1,3,4)),requirements='C')
+traj = np.require(np.reshape(traj[:Nproj*NScan,:],(NScan,Nproj,N)),requirements='C')
+dcf = np.array(goldcomp.cmp(traj),dtype=DTYPE)
+
 #### Close File after everything was read
 file.close()
-[NScan,NC,NSlice,Nproj, N] = data.shape
 ################################################################################
 ### Standardize data norm ######################################################
 ################################################################################
 
 #data = data*(10/NScan)
 #data = data/(NC*NScan*Nproj*NSlice)
-dscale = np.sqrt(NSlice)*np.sqrt(2*1e3)/(np.linalg.norm(data.flatten()))
-par.dscale = dscale
 
+#data[5:] /= (np.linalg.norm(data[5:])/np.linalg.norm(data[:5]))/3.4414
+
+dscale = np.sqrt(NSlice)*np.sqrt(2*1e3)/(np.linalg.norm(data.flatten()))
+data *= dscale
 ################################################################################
 ### generate nFFT for radial cases #############################################
 ################################################################################
@@ -286,7 +312,7 @@ def nFTH(x,plan,dcf,NScan,NC,NSlice,dimY,dimX):
 
 plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
 
-data = data* dscale
+
 
 data_save = data
 
@@ -300,7 +326,11 @@ par.fa_corr = np.require((np.transpose(par.fa_corr,(0,2,1))),requirements='C')
 ################################################################################
 ### Init forward model and initial guess #######################################
 ################################################################################
-model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images,NSlice,Nproj)
+
+model = bSSFP_model.bSSFP_Model(par.fa,par.fa_corr,par.TR,images,NSlice,Nproj)
+#import VFA_model as VFA_model
+#model = VFA_model.VFA_Model(par.fa[:10],par.fa_corr,par.TR,images[:10],NSlice,Nproj)
+
 
 
 ################################################################################
@@ -338,8 +368,7 @@ for device in range(num_dev):
   queue.append(cl.CommandQueue(tmp, platforms[1].get_devices()[0],properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE | cl.command_queue_properties.PROFILING_ENABLE))
 
 
-
-opt = Model_Reco.Model_Reco(par,ctx,queue,traj,np.sqrt(dcf))
+opt = Model_Reco.Model_Reco(par,ctx,queue,traj,np.sqrt(dcf),model)
 
 
 
@@ -357,7 +386,7 @@ opt = Model_Reco.Model_Reco(par,ctx,queue,traj,np.sqrt(dcf))
 #
 #import pyopencl.array as clarray
 #xx = clarray.to_device(queue[0],np.random.randn(4,2,256,256,4)+1j*np.random.randn(4,2,256,256,4)).astype(DTYPE)
-#yy =clarray.to_device(queue[0],np.random.randn(4,2,256,256,8)+1j*np.random.randn(4,2,256,256,8)).astype(DTYPE)
+#yy =clarray.to_device(queue[0],n        self.result[i+1,2,...] = result[2,...]*self.model.T2_scp.random.randn(4,2,256,256,8)+1j*np.random.randn(4,2,256,256,8)).astype(DTYPE)
 #test1 = clarray.zeros_like(yy)
 #test2 =  clarray.zeros_like(xx)
 ##
@@ -384,38 +413,34 @@ opt = Model_Reco.Model_Reco(par,ctx,queue,traj,np.sqrt(dcf))
 ##
 #print(np.abs(a-b))
 
-#data =np.fft.fftshift( np.fft.fft(np.fft.fftshift(data,2),axis=2,norm='ortho'),2)
 
 opt.data =  data
-opt.model = model
 opt.images = images
-opt.nfftplan = plan
 opt.dcf = np.sqrt(dcf)
 opt.dcf_flat = np.sqrt(dcf).flatten()
 result_tgv = []
 #IRGN Params
 ################################################################################
 #IRGN Params
-irgn_par = {}
-irgn_par["max_iters"] = 300
-irgn_par["start_iters"] = 100
-irgn_par["max_GN_it"] = 5
-irgn_par["lambd"] = 1e2
-irgn_par["gamma"] = 1e0
-irgn_par["delta"] = 1e-1
-irgn_par["display_iterations"] = True
-irgn_par["gamma_min"] = 0.23
-irgn_par["delta_max"] = 1e2
-irgn_par["tol"] = 5e-3
-irgn_par["stag"] = 1
-irgn_par["delta_inc"] = 2
-irgn_par["gamma_dec"] = 0.7
+irgn_par = struct()
+irgn_par.start_iters = 100
+irgn_par.max_iters = 300
+irgn_par.max_GN_it = 30
+irgn_par.lambd = 1e2
+irgn_par.gamma = 1e0   #### 5e-2   5e-3 phantom ##### brain 1e-2
+irgn_par.delta = 5e-2#### 8spk in-vivo 1e-2
+irgn_par.omega = 0e-10
+irgn_par.display_iterations = True
+irgn_par.gamma_min = 1e-1
+irgn_par.delta_max = 1e0
+irgn_par.tol = 1e-5
+irgn_par.stag = 1e0
+irgn_par.delta_inc = 2
+irgn_par.gamma_dec = 0.5
 opt.irgn_par = irgn_par
 
 
-opt.execute_3D()
-
-
+opt.execute_3D(0)
 
 
 
@@ -428,8 +453,8 @@ opt.execute_3D()
 
 result_tgv.append(opt.result)
 res = opt.gn_res
-res = np.array(res)/(irgn_par["lambd"]*NSlice)
-
+res = np.array(res)/(irgn_par.lambd*NSlice)
+scale_E1_TGV = opt.model.T1_sc
 
 ################################################################################
 ### New .hdf5 save files #######################################################
@@ -467,7 +492,11 @@ for i in range(len(result_tgv)):
   #                 dtype=np.float64,data=np.squeeze(model.M0_guess))
   f.attrs['data_norm'] = dscale
   f.attrs['dcf_scaling'] = (N*(np.pi/(4*Nproj)))
+  f.attrs['E1_scale_TGV'] =scale_E1_TGV
+#  f.attrs['E1_scale_ref'] =scale_E1_ref
+  f.attrs['M0_scale'] = model.M0_sc
   f.attrs['IRGN_TGV_res'] = res
+#  f.attrs['IRGN_TV_res'] = res_tv
   f.attrs['dscale'] = dscale
   f.flush()
 f.close()
