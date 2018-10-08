@@ -459,6 +459,7 @@ __kernel void copy(__global float2 *out, __global float2 *in, const float scale)
       else:
         del self.tmp_fft_array
         del self.fft2
+
   def NUFFTH(self,sg,s,idx=None,wait_for=[]):
     if idx==None:
       idx = 0
@@ -473,6 +474,7 @@ __kernel void copy(__global float2 *out, __global float2 *in, const float scale)
                              self.DTYPE_real(self.kwidth/self.gridsize),self.dcf.data,self.cl_kerneltable,np.int32(self.kernelpoints),
                              wait_for=wait_for+sg.events+ s.events+self.tmp_fft_array.events))
     ### FFT
+
     self.fftshift[idx](self.tmp_fft_array,self.tmp_fft_array)
     for j in range(s.shape[0]):
       self.tmp_fft_array.add_event(self.fft2[idx].enqueue_arrays(data=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],result=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],forward=False)[0])
@@ -533,4 +535,3 @@ __kernel void copy(__global float2 *out, __global float2 *in, const float scale)
     for j in range(s.shape[0]):
       self.tmp_fft_array.add_event(self.fft2[idx].enqueue_arrays(data=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],result=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],forward=True)[0])
     return (self.prg.copy(queue,(s.size,),None,s.data,self.tmp_fft_array.data,self.DTYPE_real(1)))
-

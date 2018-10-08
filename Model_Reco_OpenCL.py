@@ -1168,7 +1168,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
                                   wait_for= r_new.events + r.events + A.events+ A_.events+ wait_for
                                   )
   def update_v(self, v_new, v, Kyk2, tau, wait_for=[]):
-    return self.prg.update_v(self.queue, (self.unknowns*v.shape[1]*self.NSlice,v.shape[-2],v.shape[-1]), None,
+    return self.prg.update_v(self.queue, (self.unknowns*self.NSlice,self.dimY,self.dimX), None,
                              v_new.data, v.data, Kyk2.data, np.float32(tau),
                                   wait_for= v_new.events + v.events + Kyk2.events+ wait_for
                                   )
@@ -1352,7 +1352,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
               +self.irgn_par["gamma"]*np.sum(np.abs(grad.get()))
               +1/(2*self.irgn_par["delta"])*np.linalg.norm((x-x_old).flatten())**2)
       for knt in range(self.unknowns):
-         print('Norm M0 grad: %f  norm T1 grad: %f' %(np.linalg.norm(grad.get()[0,...]),np.linalg.norm(grad.get()[knt,...])))
+         print('Norm uk%i grad: %f' %(knt,np.linalg.norm(grad.get()[knt,...])))
          scale = np.linalg.norm(grad.get()[knt,...])/np.linalg.norm(grad.get()[1,...])
          if scale == 0 or not np.isfinite(scale):
            pass
@@ -1374,7 +1374,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
               +self.irgn_par["gamma"]*(2)*np.sum(np.abs(sym_grad.get()))
               +1/(2*self.irgn_par["delta"])*np.linalg.norm((x-x_old).flatten())**2)
        for knt in range(self.unknowns):
-         print('Norm M0 grad: %f  norm T1 grad: %f' %(np.linalg.norm(grad.get()[0,...]),np.linalg.norm(grad.get()[knt,...])))
+         print('Norm uk%i grad: %f' %(knt,np.linalg.norm(grad.get()[knt,...])))
          scale = np.linalg.norm(grad.get()[knt,...])/np.linalg.norm(grad.get()[1,...])
          if scale == 0 or not np.isfinite(scale):
            pass
@@ -1396,7 +1396,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
               +self.irgn_par["gamma"]*(2)*np.sum(np.abs(sym_grad.get()))
               +1/(2*self.irgn_par["delta"])*np.linalg.norm((x-x_old).flatten())**2)
        for knt in range(self.unknowns):
-         print('Norm M0 grad: %f  norm T1 grad: %f' %(np.linalg.norm(grad.get()[0,...]),np.linalg.norm(grad.get()[knt,...])))
+         print('Norm uk%i grad: %f' %(knt,np.linalg.norm(grad.get()[knt,...])))
          scale = np.linalg.norm(grad.get()[knt,...])/np.linalg.norm(grad.get()[1,...])
          if scale == 0 or not np.isfinite(scale):
            pass
@@ -1656,7 +1656,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
       tau =  (tau_new)
 
 
-      if not np.mod(i,100):
+      if not np.mod(i,1):
         self.model.plot_unknowns(x_new.get())
         primal_new= (self.irgn_par["lambd"]/2*clarray.vdot(Axold-res,Axold-res)+alpha*clarray.sum(abs((gradx[:self.unknowns_TGV]))) + 1/(2*delta)*clarray.vdot(x_new-xk,x_new-xk)).real
 

@@ -14,11 +14,11 @@ M0, M0_sc, T1, fa,fa_corr,TR,T1_sc,T2,T2_sc,n,TE = symbols('M0,M0_sc,T1,fa,fa_co
 init_printing(use_unicode=True)
 
 
-E1 = exp(-TR/(T1*T1_sc))
-E2 = exp(-TR/(T2*T2_sc))
-T1_star = (1/(T1*T1_sc)*cos(fa/2)**2+1/(T2*T2_sc)*sin(fa/2)**2)**(-1)
-INV =  1 + (sin(fa/2)/sin(fa))*(((T1*T1_sc)/(T2*T2_sc)+1)-cos(fa)*((T1*T1_sc)/(T2*T2_sc)-1))
-bSSFP = M0*M0_sc*(sin(fa)*(1-E1))/(1-(E1-E2)*cos(fa)-(E1*E2))
+#E1 = exp(-TR/(T1*T1_sc))
+#E2 = exp(-TR/(T2*T2_sc))
+#T1_star = (1/(T1*T1_sc)*cos(fa/2)**2+1/(T2*T2_sc)*sin(fa/2)**2)**(-1)
+#INV =  1 + (sin(fa/2)/sin(fa))*(((T1*T1_sc)/(T2*T2_sc)+1)-cos(fa)*((T1*T1_sc)/(T2*T2_sc)-1))
+#bSSFP = M0*M0_sc*(sin(fa)*(1-E1))/(1-(E1-E2)*cos(fa)-(E1*E2))
 
 
 #E1 = exp(-TR/(T1*T1_sc))#**(TR/1000)#exp(-TR/(T1*T1_sc))
@@ -40,8 +40,10 @@ bSSFP = M0*M0_sc*(sin(fa)*(1-E1))/(1-(E1-E2)*cos(fa)-(E1*E2))
 
 #S = (M0*M0_sc*sin(fa*fa_corr)*(1-E1*T1_sc))/(1-(E1*T1_sc-E2*T2_sc)*cos(fa*fa_corr)-(E1*T1_sc*E2*T2_sc));
 
-S = bSSFP*(1-INV*exp(-n*TR/T1_star))
+#S = bSSFP*(1-INV*exp(-n*TR/T1_star))
+
+S = M0*M0_sc*exp(-TE/(T2*T2_sc))
 
 M0_grad = str((diff(S,M0)))
-E1_grad = str((diff(S,T1)))
+#E1_grad = str((diff(S,T1)))
 E2_grad = str((diff(S,T2)))

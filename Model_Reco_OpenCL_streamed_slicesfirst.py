@@ -41,12 +41,11 @@ class Program(object):
 
 
 class Model_Reco:
-  def __init__(self,par,ctx,queue,traj,dcf,model,angles=None):
+  def __init__(self,par,ctx,queue,traj,dcf,angles=None):
 
     self.par = par
     self.C = np.require(np.transpose(par.C,[1,0,2,3]),requirements='C')
     self.traj = traj
-    self.model = model
     self.unknowns_TGV = par.unknowns_TGV
     self.unknowns_H1 = par.unknowns_H1
     self.unknowns = par.unknowns
@@ -1016,7 +1015,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
 ################################################################################
   def execute_3D(self, TV=0):
    self.FT = self.FT_streamed
-   iters = self.irgn_par.start_iters
+   iters = self.irgn_par["start_iters"]
 
 
    self.r = np.zeros_like(self.data,dtype=DTYPE)
@@ -1024,25 +1023,23 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
    self.z1 = np.zeros(([self.NSlice,self.unknowns,self.par.dimX,self.par.dimY,4]),dtype=DTYPE)
 
 
-   self.result = np.zeros((self.irgn_par.max_GN_it+1,self.unknowns,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
+   self.result = np.zeros((self.irgn_par["max_GN_it"]+1,self.unknowns,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
    self.result[0,:,:,:,:] = np.copy(self.model.guess)
 
    result = np.copy(self.model.guess)
 
    self.v = np.zeros(([self.NSlice,self.unknowns,self.par.dimX,self.par.dimY,4]),dtype=DTYPE)
    self.z2 = np.zeros(([self.NSlice,self.unknowns,self.par.dimX,self.par.dimY,8]),dtype=DTYPE)
-   for i in range(self.irgn_par.max_GN_it):
+   for i in range(self.irgn_par["max_GN_it"]):
     start = time.time()
     self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
 
-    scale = np.linalg.norm(np.abs(self.grad_x[0,...]))/np.linalg.norm(np.abs(self.grad_x[1,...]))
-
-    for j in range(len(self.model.constraints)-1):
-      self.model.constraints[j+1].update(scale)
-
-    result[1,...] = result[1,...]*self.model.T1_sc
-    self.model.T1_sc = self.model.T1_sc*(scale)
-    result[1,...] = result[1,...]/self.model.T1_sc
+    for uk in range(self.unknowns-1):
+      scale = np.linalg.norm(np.abs(self.grad_x[0,...]))/np.linalg.norm(np.abs(self.grad_x[uk+1,...]))
+      self.model.constraints[uk+1].update(scale)
+      result[uk+1,...] = result[uk+1,...]*self.model.uk_scale[uk+1]
+      self.model.uk_scale[uk+1] = self.model.uk_scale[uk+1]*scale
+      result[uk+1,...] = result[uk+1,...]/self.model.uk_scale[uk+1]
 
     self.step_val = np.nan_to_num(self.model.execute_forward_3D(result))
     self.step_val = np.require(np.transpose(self.step_val,[1,0,2,3]),requirements='C')
@@ -1050,19 +1047,19 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     self.grad_x = np.require(np.transpose(self.grad_x,[2,0,1,3,4]),requirements='C')
 
     result = self.irgn_solve_3D(result, iters, self.data,TV)
-    self.result[i+1,0,...] = result[0,...]*self.model.M0_sc
-    self.result[i+1,1,...] = result[1,...]*self.model.T1_sc
+    for uk in range(self.unknowns):
+      self.result[i+1,uk,...] = result[uk,...]*self.model.uk_scale[uk]
 
-    iters = np.fmin(iters*2,self.irgn_par.max_iters)
-    self.irgn_par.gamma = np.maximum(self.irgn_par.gamma*self.irgn_par.gamma_dec,self.irgn_par.gamma_min)
-    self.irgn_par.delta = np.minimum(self.irgn_par.delta*self.irgn_par.delta_inc,self.irgn_par.delta_max)
+    iters = np.fmin(iters*2,self.irgn_par["max_iters"])
+    self.irgn_par["gamma"] = np.maximum(self.irgn_par["gamma"]*self.irgn_par["gamma_dec"],self.irgn_par["gamma_min"])
+    self.irgn_par["delta"] = np.minimum(self.irgn_par["delta"]*self.irgn_par["delta_inc"],self.irgn_par["delta_max"])
 
     end = time.time()-start
     self.gn_res.append(self.fval)
     print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
     print("-"*80)
-    if (np.abs(self.fval_min-self.fval) < self.irgn_par.lambd*self.irgn_par.tol) and i>0:
-      print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/(self.irgn_par.lambd*self.NSlice)))
+    if (np.abs(self.fval_min-self.fval) < self.irgn_par["lambd"]*self.irgn_par["tol"]) and i>0:
+      print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/(self.irgn_par["lambd"]*self.NSlice)))
       break
     if i==0:
       self.fval_min = self.fval
@@ -1098,10 +1095,10 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     sym_grad.add_event(self.sym_grad(sym_grad,v,wait_for=sym_grad.events+v.events))
     x = x.get()
     self.FT(b,np.require(np.transpose(self.model.execute_forward_3D(x),[1,0,2,3]),requirements='C')[:,:,None,...]*self.C[:,None,...])
-    self.fval= (self.irgn_par.lambd/2*np.linalg.norm(data - b)**2
-            +self.irgn_par.gamma*np.sum(np.abs(grad.get()-self.v))
-            +self.irgn_par.gamma*(2)*np.sum(np.abs(sym_grad.get()))
-            +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2)
+    self.fval= (self.irgn_par["lambd"]/2*np.linalg.norm(data - b)**2
+            +self.irgn_par["gamma"]*np.sum(np.abs(grad.get()-self.v))
+            +self.irgn_par["gamma"]*(2)*np.sum(np.abs(sym_grad.get()))
+            +1/(2*self.irgn_par["delta"])*np.linalg.norm((x-x_old).flatten())**2)
   #       print('Norm M0 grad: %f  norm T1 grad: %f' %(np.linalg.norm(grad.get()[0,...]),np.linalg.norm(grad.get()[1,...])))
     scale = np.linalg.norm(grad.get()[:,0,...])/np.linalg.norm(grad.get()[:,1,...])
     if scale == 0 or not np.isfinite(scale):
@@ -1110,14 +1107,14 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
       self.ratio *= scale
 
     print("-"*80)
-    print ("Function value after GN-Step: %f" %(self.fval/(self.irgn_par.lambd*self.NSlice)))
+    print ("Function value after GN-Step: %f" %(self.fval/(self.irgn_par["lambd"]*self.NSlice)))
 
     return x
 
   def tgv_solve_3D(self, x,res, iters):
 
-    alpha = self.irgn_par.gamma
-    beta = self.irgn_par.gamma*2
+    alpha = self.irgn_par["gamma"]
+    beta = self.irgn_par["gamma"]*2
 
 
     L = np.float32(0.5*(18.0 + np.sqrt(33)))
@@ -1142,7 +1139,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     res = (res).astype(DTYPE)
 
 
-    delta = self.irgn_par.delta
+    delta = self.irgn_par["delta"]
     mu = 1/delta
     theta_line = np.float32(1.0)
     beta_line = np.float32(10)
@@ -1596,7 +1593,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         for i in range(self.num_dev):
           z1_new_part[ i].add_event(self.update_z1(z1_new_part[ i],z1_part[i],gradx_part[i],gradx_xold_part[i],v_new_part[i],v_part[i], beta_line*tau_new, theta_line, alpha,i,0))
           z2_new_part[ i].add_event(self.update_z2(z2_new_part[ i],z2_part[i],symgrad_v_part[i],symgrad_v_vold_part[i],beta_line*tau_new,theta_line,beta,i,0))
-          r_new_part[ i].add_event(self.update_r(r_new_part[i],r_part[i],Ax_part[i],Ax_old_part[i],res_part[i],beta_line*tau_new,theta_line,self.irgn_par.lambd,i,0))
+          r_new_part[ i].add_event(self.update_r(r_new_part[i],r_part[i],Ax_part[i],Ax_old_part[i],res_part[i],beta_line*tau_new,theta_line,self.irgn_par["lambd"],i,0))
           Kyk1_new_part[ i].add_event(self.operator_adjoint_full(Kyk1_new_part[ i],r_new_part[ i],z1_new_part[ i],i,0))
           Kyk2_new_part[ i].add_event(self.update_Kyk2(Kyk2_new_part[ i],z2_new_part[ i],z1_new_part[ i],i,0))
 
@@ -1624,7 +1621,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         for i in range(self.num_dev):
           z1_new_part[i+self.num_dev].add_event(self.update_z1(z1_new_part[i+self.num_dev],z1_part[self.num_dev+i],gradx_part[self.num_dev+i],gradx_xold_part[self.num_dev+i],v_new_part[self.num_dev+i],v_part[self.num_dev+i], beta_line*tau_new, theta_line, alpha,i,1))
           z2_new_part[i+self.num_dev].add_event(self.update_z2(z2_new_part[i+self.num_dev],z2_part[self.num_dev+i],symgrad_v_part[self.num_dev+i],symgrad_v_vold_part[self.num_dev+i],beta_line*tau_new,theta_line,beta,i,1))
-          r_new_part[i+self.num_dev].add_event(self.update_r(r_new_part[i+self.num_dev],r_part[self.num_dev+i],Ax_part[self.num_dev+i],Ax_old_part[self.num_dev+i],res_part[self.num_dev+i],beta_line*tau_new,theta_line,self.irgn_par.lambd,i,1))
+          r_new_part[i+self.num_dev].add_event(self.update_r(r_new_part[i+self.num_dev],r_part[self.num_dev+i],Ax_part[self.num_dev+i],Ax_old_part[self.num_dev+i],res_part[self.num_dev+i],beta_line*tau_new,theta_line,self.irgn_par["lambd"],i,1))
           Kyk1_new_part[i+self.num_dev].add_event(self.operator_adjoint_full(Kyk1_new_part[i+self.num_dev],r_new_part[i+self.num_dev],z1_new_part[i+self.num_dev],i,1))
           Kyk2_new_part[i+self.num_dev].add_event(self.update_Kyk2(Kyk2_new_part[i+self.num_dev],z2_new_part[i+self.num_dev],z1_new_part[i+self.num_dev],i,1))
 
@@ -1680,7 +1677,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           for i in range(self.num_dev):
             z1_new_part[i].add_event(self.update_z1(z1_new_part[i],z1_part[i],gradx_part[i],gradx_xold_part[i],v_new_part[i],v_part[i], beta_line*tau_new, theta_line, alpha,i,0))
             z2_new_part[i].add_event(self.update_z2(z2_new_part[i],z2_part[i],symgrad_v_part[i],symgrad_v_vold_part[i],beta_line*tau_new,theta_line,beta,i,0))
-            r_new_part[i].add_event(self.update_r(r_new_part[i],r_part[i],Ax_part[i],Ax_old_part[i],res_part[i],beta_line*tau_new,theta_line,self.irgn_par.lambd,i,0))
+            r_new_part[i].add_event(self.update_r(r_new_part[i],r_part[i],Ax_part[i],Ax_old_part[i],res_part[i],beta_line*tau_new,theta_line,self.irgn_par["lambd"],i,0))
             Kyk1_new_part[i].add_event(self.operator_adjoint_full(Kyk1_new_part[i],r_new_part[i],z1_new_part[i],i,0))
             Kyk2_new_part[i].add_event(self.update_Kyk2(Kyk2_new_part[i],z2_new_part[i],z1_new_part[i],i,0))
           for i in range(self.num_dev):
@@ -1724,7 +1721,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           for i in range(self.num_dev):
             z1_new_part[i+self.num_dev].add_event(self.update_z1(z1_new_part[i+self.num_dev],z1_part[self.num_dev+i],gradx_part[self.num_dev+i],gradx_xold_part[self.num_dev+i],v_new_part[self.num_dev+i],v_part[self.num_dev+i], beta_line*tau_new, theta_line, alpha,i,1))
             z2_new_part[i+self.num_dev].add_event(self.update_z2(z2_new_part[i+self.num_dev],z2_part[self.num_dev+i],symgrad_v_part[self.num_dev+i],symgrad_v_vold_part[self.num_dev+i],beta_line*tau_new,theta_line,beta,i,1))
-            r_new_part[i+self.num_dev].add_event(self.update_r(r_new_part[i+self.num_dev],r_part[self.num_dev+i],Ax_part[self.num_dev+i],Ax_old_part[self.num_dev+i],res_part[self.num_dev+i],beta_line*tau_new,theta_line,self.irgn_par.lambd,i,1))
+            r_new_part[i+self.num_dev].add_event(self.update_r(r_new_part[i+self.num_dev],r_part[self.num_dev+i],Ax_part[self.num_dev+i],Ax_old_part[self.num_dev+i],res_part[self.num_dev+i],beta_line*tau_new,theta_line,self.irgn_par["lambd"],i,1))
             Kyk1_new_part[i+self.num_dev].add_event(self.operator_adjoint_full(Kyk1_new_part[i+self.num_dev],r_new_part[i+self.num_dev],z1_new_part[i+self.num_dev],i,1))
             Kyk2_new_part[i+self.num_dev].add_event(self.update_Kyk2(Kyk2_new_part[i+self.num_dev],z2_new_part[i+self.num_dev],z1_new_part[i+self.num_dev],i,1))
       #### Collect last block
@@ -1786,39 +1783,39 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
 
       if not np.mod(myit,20):
         self.model.plot_unknowns(np.transpose(x_new,[1,0,2,3]))
-        primal_new= (self.irgn_par.lambd/2*np.vdot(Axold-res,Axold-res)+alpha*np.sum(abs((gradx[:,:self.unknowns_TGV]-v))) +beta*np.sum(abs(symgrad_v)) + 1/(2*delta)*np.vdot(x_new-xk,x_new-xk)).real
+        primal_new= (self.irgn_par["lambd"]/2*np.vdot(Axold-res,Axold-res)+alpha*np.sum(abs((gradx[:,:self.unknowns_TGV]-v))) +beta*np.sum(abs(symgrad_v)) + 1/(2*delta)*np.vdot(x_new-xk,x_new-xk)).real
 
         dual = (-delta/2*np.vdot(-Kyk1,-Kyk1)- np.vdot(xk,(-Kyk1)) + np.sum(Kyk2)
-                  - 1/(2*self.irgn_par.lambd)*np.vdot(r,r) - np.vdot(res,r)).real
+                  - 1/(2*self.irgn_par["lambd"])*np.vdot(r,r) - np.vdot(res,r)).real
 
         gap = np.abs(primal_new - dual)
         if myit==0:
           gap_min = gap
-        if np.abs(primal-primal_new)<(self.irgn_par.lambd*self.NSlice)*self.irgn_par.tol:
-          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(myit,abs(primal-primal_new)/(self.irgn_par.lambd*self.NSlice)))
+        if np.abs(primal-primal_new)<(self.irgn_par["lambd"]*self.NSlice)*self.irgn_par["tol"]:
+          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(myit,abs(primal-primal_new)/(self.irgn_par["lambd"]*self.NSlice)))
           self.v = v_new
           self.r = r
           self.z1 = z1
           self.z2 = z2
           return np.require(np.transpose(x_new,[1,0,2,3]),requirements='C')
-#        if (gap > gap_min*self.irgn_par.stag) and myit>1:
+#        if (gap > gap_min*self.irgn_par["stag"]) and myit>1:
 #          self.v = v_new
 #          self.r = r
 #          self.z1 = z1
 #          self.z2 = z2
 #          print("Terminated at iteration %d because the method stagnated"%(myit))
 #          return x
-        if np.abs(gap - gap_min)<(self.irgn_par.lambd*self.NSlice)*self.irgn_par.tol and myit>1:
+        if np.abs(gap - gap_min)<(self.irgn_par["lambd"]*self.NSlice)*self.irgn_par["tol"] and myit>1:
           self.v = v_new
           self.r = r
           self.z1 = z1
           self.z2 = z2
-          print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(myit,abs(gap - gap_min)/(self.irgn_par.lambd*self.NSlice)))
+          print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(myit,abs(gap - gap_min)/(self.irgn_par["lambd"]*self.NSlice)))
           return np.require(np.transpose(x_new,[1,0,2,3]),requirements='C')
         primal = primal_new
         gap_min = np.minimum(gap,gap_min)
         sys.stdout.write("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f    \r" \
-                       %(myit,primal/(self.irgn_par.lambd*self.NSlice),dual/(self.irgn_par.lambd*self.NSlice),gap/(self.irgn_par.lambd*self.NSlice)))
+                       %(myit,primal/(self.irgn_par["lambd"]*self.NSlice),dual/(self.irgn_par["lambd"]*self.NSlice),gap/(self.irgn_par["lambd"]*self.NSlice)))
         sys.stdout.flush()
 
       (x, x_new) = (x_new, x)

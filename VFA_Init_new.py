@@ -67,12 +67,12 @@ def main(args):
 ################################################################################
 ### Select input file ##########################################################
 ################################################################################
-
-    root = Tk()
-    root.withdraw()
-    root.update()
-    file = filedialog.askopenfilename()
-    root.destroy()
+    if args.file == '':
+      root = Tk()
+      root.withdraw()
+      root.update()
+      file = filedialog.askopenfilename()
+      root.destroy()
 
     name = file.split('/')[-1]
     file = h5py.File(file)
@@ -395,8 +395,8 @@ def main(args):
           irgn_par["gamma"] = 1e0
           irgn_par["delta"] = 1e-1
           irgn_par["display_iterations"] = True
-          irgn_par["gamma_min"] = 0.18
-          irgn_par["delta_max"] = 1e2
+          irgn_par["gamma_min"] = 0.24
+          irgn_par["delta_max"] = 1e1
           irgn_par["tol"] = 5e-3
           irgn_par["stag"] = 1
           irgn_par["delta_inc"] = 2
@@ -566,10 +566,11 @@ if __name__ == '__main__':
     parser.add_argument('--recon_type', default='3D', dest='type',help='Choose reconstruction type (default: 3D)')
     parser.add_argument('--reg_type', default='TGV', dest='reg',help="Choose regularization type (default: TGV)\
                                                                      options are: TGV, TV, all")
-    parser.add_argument('--slices',default=20, dest='slices', type=int, help='Number of reconstructed slices (default=40). Symmetrical around the center slice.')
+    parser.add_argument('--slices',default=4, dest='slices', type=int, help='Number of reconstructed slices (default=40). Symmetrical around the center slice.')
     parser.add_argument('--def_par', default=0, dest='def_par', type=int, help='Run the script with default (0) or specify your own (1) regularization parameters. ')
     parser.add_argument('--trafo', default=1, dest='trafo',  help='Choos between radial (1, default) and Cartesian (0) sampling. ')
-    parser.add_argument('--streamed', default=0, dest='streamed',  help='Enable streaming of large data arrays (>10 slices).')
+    parser.add_argument('--streamed', default=1, dest='streamed',  help='Enable streaming of large data arrays (>10 slices).')
+    parser.add_argument('--data',default='',dest='file',help='Full path to input data. If not provided, a file dialog will open.')
     args = parser.parse_args()
 
     main(args)

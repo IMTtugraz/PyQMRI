@@ -63,12 +63,12 @@ for attributes in test_attributes:
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
 reco_Slices = 2
 
-data = file['real_dat'][::2,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE) +\
-       1j*file['imag_dat'][::2,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE)
+data = file['real_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE) +\
+       1j*file['imag_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE)
 
 
-traj = file['real_traj'][()].astype(DTYPE)[::2] + \
-       1j*file['imag_traj'][()].astype(DTYPE)[::2]
+traj = file['real_traj'][()].astype(DTYPE) + \
+       1j*file['imag_traj'][()].astype(DTYPE)
 
 
 dcf = np.array(goldcomp.cmp(traj),dtype=DTYPE)
@@ -94,7 +94,7 @@ par.fa_corr[par.fa_corr==0] = 1
 ### Set sequence related parameters ############################################
 ################################################################################
 
-par.fa = file.attrs['flip_angle(s)'][::2]*np.pi/180
+par.fa = file.attrs['flip_angle(s)']*np.pi/180
 
 
 par.TR          = file.attrs['TR']
@@ -333,39 +333,28 @@ for device in range(num_dev):
           dev_type=cl.device_type.GPU,
           properties=[(cl.context_properties.PLATFORM, platforms[1])])
   ctx.append(tmp)
-  queue.append(cl.CommandQueue(tmp,platforms[1].get_devices()[0],properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE | cl.command_queue_properties.PROFILING_ENABLE))#))#,  platforms[0].get_devices()[device]))
-  queue.append(cl.CommandQueue(tmp, platforms[1].get_devices()[0],properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE | cl.command_queue_properties.PROFILING_ENABLE))#))#, platforms[0].get_devices()[device]))#properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE))
-  queue.append(cl.CommandQueue(tmp, platforms[1].get_devices()[0],properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE | cl.command_queue_properties.PROFILING_ENABLE))
+  queue.append(cl.CommandQueue(tmp,platforms[1].get_devices()[0]))#))#,  platforms[0].get_devices()[device]))
+  queue.append(cl.CommandQueue(tmp, platforms[1].get_devices()[0]))#))#, platforms[0].get_devices()[device]))#properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE))
+  queue.append(cl.CommandQueue(tmp, platforms[1].get_devices()[0]))
 
 
 
 opt = Model_Reco.Model_Reco(par,ctx,queue,traj,np.sqrt(dcf))
-
-
-
-#test3 = np.zeros_like(test2)
-#test4 = np.zeros_like(test)
+#import Model_Reco_OpenCL as Model_Reco2
+#opt2 = Model_Reco2.Model_Reco(par,ctx,queue,traj,np.sqrt(dcf))
 #
-#opt.FTH_streamed(test,test2)
-#opt.FT_streamed(test3,test)
-#opt.FTH_streamed(test4,test3)
-#
-#
-#test4 = np.transpose(test4,[1,2,0,3,4])
-#
-#images2= (np.sum(test4*(np.conj(par.C)),axis = 1))
 #
 #import pyopencl.array as clarray
-#xx = clarray.to_device(queue[0],np.random.randn(4,2,256,256,4)+1j*np.random.randn(4,2,256,256,4)).astype(DTYPE)
-#yy =clarray.to_device(queue[0],np.random.randn(4,2,256,256,8)+1j*np.random.randn(4,2,256,256,8)).astype(DTYPE)
+#xx = clarray.to_device(queue[0],np.random.randn(4,2,256,256)+1j*np.random.randn(4,2,256,256)).astype(DTYPE)
+#yy =clarray.to_device(queue[0],np.random.randn(4,2,256,256,4)+1j*np.random.randn(4,2,256,256,4)).astype(DTYPE)
 #test1 = clarray.zeros_like(yy)
 #test2 =  clarray.zeros_like(xx)
 ##
 ##
 ###opt.NUFFT[0].fwd_NUFFT(test1,xx)
 ###opt.NUFFT[0].adj_NUFFT(test2,yy)
-#opt.sym_grad(test1,xx)
-#opt.sym_bdiv(test2,yy)
+#opt.f_grad(test1,xx)
+#opt.bdiv(test2,yy)
 #
 ##
 ##opt.f_grad(test1,xx)
@@ -378,11 +367,13 @@ opt = Model_Reco.Model_Reco(par,ctx,queue,traj,np.sqrt(dcf))
 #xx = xx.get()
 ##
 #
-#a = np.sum(np.conj((test1[...,0:3]))*yy[...,0:3]+2*np.conj(test1[...,3:6])*yy[...,3:6])
-##a = np.vdot(test1,yy)
-#b = np.vdot(-xx[...,0:3],test2[...,0:3])
+##a = np.sum(np.conj((test1[...,0:3]))*yy[...,0:3]+2*np.conj(test1[...,3:6])*yy[...,3:6])
+#a = np.vdot(test1,yy)
+#b = np.vdot(-xx[...],test2[...])
+#
+#
 ##
-#print(np.abs(a-b))
+#print(np.abs(a-b)/np.size(xx))
 
 #data =np.fft.fftshift( np.fft.fft(np.fft.fftshift(data,2),axis=2,norm='ortho'),2)
 
@@ -399,15 +390,15 @@ result_tgv = []
 irgn_par = {}
 irgn_par["max_iters"] = 300
 irgn_par["start_iters"] = 100
-irgn_par["max_GN_it"] = 5
+irgn_par["max_GN_it"] = 12
 irgn_par["lambd"] = 1e2
 irgn_par["gamma"] = 1e0
 irgn_par["delta"] = 1e-1
 irgn_par["display_iterations"] = True
-irgn_par["gamma_min"] = 0.23
-irgn_par["delta_max"] = 1e2
+irgn_par["gamma_min"] = 0.24
+irgn_par["delta_max"] = 1e-1*2**7
 irgn_par["tol"] = 5e-3
-irgn_par["stag"] = 1
+irgn_par["stag"] = 1e1
 irgn_par["delta_inc"] = 2
 irgn_par["gamma_dec"] = 0.7
 opt.irgn_par = irgn_par
