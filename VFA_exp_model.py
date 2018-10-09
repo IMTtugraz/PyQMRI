@@ -44,14 +44,14 @@ class VFA_Model:
     self.uk_scale.append(1)
     self.uk_scale.append(1)
 #
-    test_T2 = np.reshape(np.linspace(1,500,dimX*dimY*Nislice),(Nislice,dimX,dimY))
+    test_T2 = 1/np.reshape(np.linspace(1,200,dimX*dimY*Nislice),(Nislice,dimX,dimY))
     test_M0 = 0.1*np.sqrt((dimX*np.pi/2)/Nproj)
     test_T2 = 1/self.uk_scale[1]*test_T2*np.ones((Nislice,dimY,dimX),dtype=DTYPE)
 #
 #
-#    G_x = self.execute_forward_3D(np.array([test_M0/self.uk_scale[1]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),test_T2],dtype=DTYPE))
-#    self.uk_scale[1] = self.uk_scale[1]*np.max(np.abs(images))/np.median(np.abs(G_x))
-#
+    G_x = self.execute_forward_3D(np.array([test_M0/self.uk_scale[1]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),test_T2],dtype=DTYPE))
+    self.uk_scale[0] = self.uk_scale[0]*np.max(np.abs(images))/np.median(np.abs(G_x))
+
     DG_x =  self.execute_gradient_3D(np.array([test_M0*np.ones((Nislice,dimY,dimX),dtype=DTYPE),test_T2],dtype=DTYPE))
     self.uk_scale[1] = self.uk_scale[1]*np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...]))
 
@@ -61,39 +61,39 @@ class VFA_Model:
 
 
 
-    result = np.array([0.1*np.ones((Nislice,dimY,dimX),dtype=DTYPE),(5/self.uk_scale[1]*np.ones((Nislice,dimY,dimX),dtype=DTYPE))],dtype=DTYPE)
+    result = np.array([0.01*np.ones((Nislice,dimY,dimX),dtype=DTYPE),((1/5)/self.uk_scale[1]*np.ones((Nislice,dimY,dimX),dtype=DTYPE))],dtype=DTYPE)
     self.guess = result
 
-    self.constraints.append(constraint(-10,10,False)  )
-    self.constraints.append(constraint((1/self.uk_scale[1]),(500/self.uk_scale[1]),True))
+    self.constraints.append(constraint(-10/self.uk_scale[0],10/self.uk_scale[0],False)  )
+    self.constraints.append(constraint(((1/200)/self.uk_scale[1]),((1)/self.uk_scale[1]),True))
 
   def execute_forward_2D(self,x,islice):
-    T2 = x[1,...]*self.uk_scale[1]
-    S = x[0,...]*np.exp(-self.TE/(T2))
+    R2 = x[1,...]*self.uk_scale[1]
+    S = x[0,...]*self.uk_scale[0]*np.exp(-self.TE*(R2))
     S[~np.isfinite(S)] = 1e-200
     S = np.array(S,dtype=DTYPE)
     return S
   def execute_gradient_2D(self,x,islice):
     M0 = x[0,...]
-    T2 = x[1,...]
-    grad_M0 = np.exp(-self.TE/(T2*self.uk_scale[1]))
-    grad_T2 = M0*self.TE*np.exp(-self.TE/(T2*self.uk_scale[1]))/(T2**2*self.uk_scale[1])
+    R2 = x[1,...]
+    grad_M0 = self.uk_scale[0]*np.exp(-self.TE*(R2*self.uk_scale[1]))
+    grad_T2 = -M0*self.uk_scale[0]*self.TE*self.uk_scale[1]*np.exp(-self.TE*(R2*self.uk_scale[1]))
     grad = np.array([grad_M0,grad_T2],dtype=DTYPE)
     grad[~np.isfinite(grad)] = 1e-20
 #    print('Grad Scaling', np.linalg.norm(np.abs(grad_M0))/np.linalg.norm(np.abs(grad_T2)))
     return grad
 
   def execute_forward_3D(self,x):
-    T2 = x[1,...]*self.uk_scale[1]
-    S = x[0,...]*np.exp(-self.TE/(T2))
-    S[~np.isfinite(S)] = 1e-20
+    R2 = x[1,...]*self.uk_scale[1]
+    S = x[0,...]*self.uk_scale[0]*np.exp(-self.TE*(R2))
+    S[~np.isfinite(S)] = 1e-200
     S = np.array(S,dtype=DTYPE)
     return S
   def execute_gradient_3D(self,x):
     M0 = x[0,...]
-    T2 = x[1,...]
-    grad_M0 = np.exp(-self.TE/(T2*self.uk_scale[1]))
-    grad_T2 = M0*self.TE*np.exp(-self.TE/(T2*self.uk_scale[1]))/(T2**2*self.uk_scale[1])
+    R2 = x[1,...]
+    grad_M0 = np.exp(-self.TE*(R2*self.uk_scale[1]))*self.uk_scale[0]
+    grad_T2 = -M0*self.TE*self.uk_scale[1]*np.exp(-self.TE*(R2*self.uk_scale[1]))*self.uk_scale[0]
     grad = np.array([grad_M0,grad_T2],dtype=DTYPE)
     grad[~np.isfinite(grad)] = 1e-20
     print('Grad Scaling', np.linalg.norm(np.abs(grad_M0))/np.linalg.norm(np.abs(grad_T2)))
@@ -101,8 +101,8 @@ class VFA_Model:
 
 
   def plot_unknowns(self,x,dim_2D=False):
-      M0 = np.abs(x[0,...])
-      T2 = np.abs(x[1,...])*self.uk_scale[1]
+      M0 = np.abs(x[0,...])*self.uk_scale[0]
+      T2 = 1/(np.abs(x[1,...])*self.uk_scale[1])
       M0_min = M0.min()
       M0_max = M0.max()
       T2_min = T2.min()

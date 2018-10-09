@@ -61,7 +61,7 @@ for attributes in test_attributes:
 ### Read Data ##################################################################
 ################################################################################
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
-reco_Slices = 10
+reco_Slices = 1
 
 data = file['real_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE) +\
        1j*file['imag_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE)
@@ -70,6 +70,7 @@ data = file['real_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSl
 traj = file['real_traj'][()].astype(DTYPE) + \
        1j*file['imag_traj'][()].astype(DTYPE)
 
+traj = traj
 
 dcf = np.array(goldcomp.cmp(traj),dtype=DTYPE)
 
@@ -381,11 +382,11 @@ irgn_par["max_iters"] = 300
 irgn_par["start_iters"] = 100
 irgn_par["max_GN_it"] = 12
 irgn_par["lambd"] = 1e2
-irgn_par["gamma"] = 1e0
+irgn_par["gamma"] = 1e1
 irgn_par["delta"] = 1e-3
 irgn_par["display_iterations"] = True
-irgn_par["gamma_min"] = 1e-1
-irgn_par["delta_max"] = 1e2
+irgn_par["gamma_min"] = 5e0
+irgn_par["delta_max"] = 1e-1
 irgn_par["tol"] = 5e-5
 irgn_par["stag"] = 1e1
 irgn_par["delta_inc"] = 2

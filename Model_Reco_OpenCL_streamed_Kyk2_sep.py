@@ -66,7 +66,7 @@ class Model_Reco:
     self.gn_res = []
     self.num_dev = len(ctx)
     self.NUFFT = []
-    self.par_slices = 16
+    self.par_slices = 5
     self.ukscale = []
     self.prg = []
     self.overlap = 1
