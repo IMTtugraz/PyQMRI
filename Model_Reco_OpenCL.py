@@ -54,8 +54,8 @@ class Model_Reco:
     self.ctx = ctx[0]
     self.queue = queue[0]
     self.coil_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.C.data)
-    self.ratio = clarray.to_device(self.queue,(1*np.ones(self.unknowns)).astype(dtype=DTYPE_real))
-#    self.ratio[1] = 1
+    self.ratio = clarray.to_device(self.queue,(100*np.ones(self.unknowns)).astype(dtype=DTYPE_real))
+    self.ratio[1] = 1
     self.ukscale =  clarray.to_device(self.queue,np.ones(self.unknowns,dtype=DTYPE_real))
     self.gn_res = []
     self.N = par.N

@@ -10,7 +10,7 @@ import nlinvns_maier as nlinvns
 
 import Model_Reco_OpenCL as Model_Reco
 
-from pynfft.nfft import NFFT
+#from pynfft.nfft import NFFT
 
 import VFA_model as VFA_model
 import goldcomp
@@ -23,6 +23,25 @@ np.seterr(divide='ignore', invalid='ignore')
 import ipyparallel as ipp
 
 c = ipp.Client()
+
+import pyopencl.array as clarray
+from gridroutines import gridding
+
+DTYPE = np.complex64
+DTYPE_real = np.float32
+
+def NUFFT(N,NScan,NC,NSlice,traj,dcf,trafo=1):
+  platforms = cl.get_platforms()
+  ctx = cl.Context(
+            dev_type=cl.device_type.GPU,
+            properties=[(cl.context_properties.PLATFORM, platforms[1])])
+  queue=[]
+  queue.append(cl.CommandQueue(ctx,platforms[1].get_devices()[0]))
+  if trafo:
+    FFT = gridding(ctx,queue,4,2,N,NScan,(NScan*NC*NSlice,N,N),(1,2),traj.astype(DTYPE),np.require(np.abs(dcf),DTYPE_real,requirements='C'),N,1000,DTYPE,DTYPE_real,radial=trafo)
+  else:
+    FFT = gridding(ctx,queue,4,2,N,NScan,(NScan*NC*NSlice,N,N),(1,2),traj,dcf,N,1000,DTYPE,DTYPE_real,radial=trafo)
+  return (ctx,queue[0],FFT)
 
 ################################################################################
 ### Select input file ##########################################################
@@ -129,13 +148,17 @@ try:
     nlinvRealConstr  = False
 
     traj_coil = np.reshape(traj,(NScan*Nproj,N))
-    coil_plan = NFFT((dimY,dimX),NScan*Nproj*N)
-    coil_plan.x = np.transpose(np.array([np.imag(traj_coil.flatten()),\
-                                         np.real(traj_coil.flatten())]))
-    coil_plan.precompute()
+#    coil_plan = NFFT((dimY,dimX),NScan*Nproj*N)
+#    coil_plan.x = np.transpose(np.array([np.imag(traj_coil.flatten()),\
+#                                         np.real(traj_coil.flatten())]))
+#    coil_plan.precompute()
+    dcf_coil = np.array(goldcomp.cmp(traj_coil),dtype=DTYPE)
 
     par.C = np.zeros((NC,reco_Slices,dimY,dimX), dtype=DTYPE)
     par.phase_map = np.zeros((reco_Slices,dimY,dimX), dtype=DTYPE)
+
+    (ctx,queue,FFT) = NUFFT(N,1,1,1,traj_coil,dcf_coil)
+
     result = []
     for i in range(0,(reco_Slices)):
       sys.stdout.write("Computing coil sensitivity map of slice %i \r" \
@@ -144,11 +167,15 @@ try:
 
       ##### RADIAL PART
       combinedData = np.transpose(data[:,:,i,:,:],(1,0,2,3))
-      combinedData = np.reshape(combinedData,(NC,NScan*Nproj,N))
+      combinedData = np.reshape(combinedData,(1,NC,1,NScan*Nproj,N))
+      tmp_coilData = clarray.zeros(FFT.queue[0],(1,1,1,dimY,dimX),dtype=DTYPE)
       coilData = np.zeros((NC,dimY,dimX),dtype=DTYPE)
       for j in range(NC):
-          coil_plan.f = combinedData[j,:,:]*np.repeat(np.sqrt(dcf),NScan,axis=0)
-          coilData[j,:,:] = coil_plan.adjoint()
+          tmp_combinedData = clarray.to_device(FFT.queue[0],combinedData[None,:,j,...])
+#          coil_plan.f = combinedData[j,:,:]*np.repeat(np.sqrt(dcf),NScan,axis=0)
+#          coilData[j,:,:] = coil_plan.adjoint()
+          FFT.adj_NUFFT(tmp_coilData,tmp_combinedData)
+          coilData[j,...] = tmp_coilData.get()
 
       combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)
 
@@ -175,22 +202,28 @@ try:
     del file['Coils']
     file.create_dataset("Coils",par.C.shape,dtype=par.C.dtype,data=par.C)
     file.flush()
+    del FFT,ctx,queue
   else:
     print("Using precomputed coil sensitivities")
     slices_coils = file['Coils'][()].shape[1]
     par.C = file['Coils'][:,int(slices_coils/2)-int(np.floor((reco_Slices)/2)):int(slices_coils/2)+int(np.ceil(reco_Slices/2)),...]
+
 except:
   nlinvNewtonSteps = 6
   nlinvRealConstr  = False
 
   traj_coil = np.reshape(traj,(NScan*Nproj,N))
-  coil_plan = NFFT((dimY,dimX),NScan*Nproj*N)
-  coil_plan.x = np.transpose(np.array([np.imag(traj_coil.flatten()),\
-                                       np.real(traj_coil.flatten())]))
-  coil_plan.precompute()
+#    coil_plan = NFFT((dimY,dimX),NScan*Nproj*N)
+#    coil_plan.x = np.transpose(np.array([np.imag(traj_coil.flatten()),\
+#                                         np.real(traj_coil.flatten())]))
+#    coil_plan.precompute()
+  dcf_coil = np.array(goldcomp.cmp(traj_coil),dtype=DTYPE)
 
   par.C = np.zeros((NC,reco_Slices,dimY,dimX), dtype=DTYPE)
   par.phase_map = np.zeros((reco_Slices,dimY,dimX), dtype=DTYPE)
+
+  (ctx,queue,FFT) = NUFFT(N,1,1,1,traj_coil,np.ones_like(dcf_coil))
+
   result = []
   for i in range(0,(reco_Slices)):
     sys.stdout.write("Computing coil sensitivity map of slice %i \r" \
@@ -199,11 +232,15 @@ except:
 
     ##### RADIAL PART
     combinedData = np.transpose(data[:,:,i,:,:],(1,0,2,3))
-    combinedData = np.reshape(combinedData,(NC,NScan*Nproj,N))
+    combinedData = np.reshape(combinedData,(1,NC,1,NScan*Nproj,N))
+    tmp_coilData = clarray.zeros(FFT.queue[0],(1,1,1,dimY,dimX),dtype=DTYPE)
     coilData = np.zeros((NC,dimY,dimX),dtype=DTYPE)
     for j in range(NC):
-        coil_plan.f = combinedData[j,:,:]*np.repeat(np.sqrt(dcf),NScan,axis=0)
-        coilData[j,:,:] = coil_plan.adjoint()
+        tmp_combinedData = clarray.to_device(FFT.queue[0],combinedData[None,:,j,...])
+#          coil_plan.f = combinedData[j,:,:]*np.repeat(np.sqrt(dcf),NScan,axis=0)
+#          coilData[j,:,:] = coil_plan.adjoint()
+        FFT.adj_NUFFT(tmp_coilData,tmp_combinedData)
+        coilData[j,...] = tmp_coilData.get()
 
     combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)
 
@@ -229,6 +266,7 @@ except:
     par.C = par.C / np.tile(sumSqrC, (NC,1,1,1))
   file.create_dataset("Coils",par.C.shape,dtype=par.C.dtype,data=par.C)
   file.flush()
+  del FFT,ctx,queue
 #### Close File after everything was read
 file.close()
 [NScan,NC,NSlice,Nproj, N] = data.shape
@@ -245,57 +283,69 @@ par.dscale = dscale
 ### generate nFFT for radial cases #############################################
 ################################################################################
 
-def nfft(NScan,NC,dimX,dimY,N,Nproj,traj):
-  plan = []
-  traj_x = np.imag(traj)
-  traj_y = np.real(traj)
-  for i in range(NScan):
-      plan.append([])
-      points = np.transpose(np.array([traj_x[i,:,:].flatten(),\
-                                      traj_y[i,:,:].flatten()]))
-      for j in range(NC):
-          plan[i].append(NFFT([dimX,dimY],N*Nproj))
-          plan[i][j].x = points
-          plan[i][j].precompute()
+#def nfft(NScan,NC,dimX,dimY,N,Nproj,traj):
+#  plan = []
+#  traj_x = np.imag(traj)
+#  traj_y = np.real(traj)
+#  for i in range(NScan):
+#      plan.append([])
+#      points = np.transpose(np.array([traj_x[i,:,:].flatten(),\
+#                                      traj_y[i,:,:].flatten()]))
+#      for j in range(NC):
+#          plan[i].append(NFFT([dimX,dimY],N*Nproj))
+#          plan[i][j].x = points
+#          plan[i][j].precompute()
 
-  return plan
+#  return plan
 
-def nFT(x,plan,dcf,NScan,NC,NSlice,Nproj,N,dimX):
+(ctx,queue,FFT) = NUFFT(N,NScan,1,1,traj,dcf)
+
+#def nFT(x,plan,dcf,NScan,NC,NSlice,Nproj,N,dimX):
+#  siz = np.shape(x)
+#  result = np.zeros((NScan,NC,NSlice,Nproj*N),dtype=DTYPE)
+#  for i in range(siz[0]):
+#    for j in range(siz[1]):
+#      for k in range(siz[2]):
+#        plan[i][j].f_hat = x[i,j,k,:,:]/dimX
+#        result[i,j,k,:] = plan[i][j].trafo()*np.sqrt(dcf).flatten()
+#
+#  return result
+
+
+def nFTH(x,fft,dcf,NScan,NC,NSlice,dimY,dimX):
   siz = np.shape(x)
-  result = np.zeros((NScan,NC,NSlice,Nproj*N),dtype=DTYPE)
-  for i in range(siz[0]):
-    for j in range(siz[1]):
-      for k in range(siz[2]):
-        plan[i][j].f_hat = x[i,j,k,:,:]/dimX
-        result[i,j,k,:] = plan[i][j].trafo()*np.sqrt(dcf).flatten()
-
-  return result
-
-
-def nFTH(x,plan,dcf,NScan,NC,NSlice,dimY,dimX):
-  siz = np.shape(x)
-  result = np.zeros((NScan,NC,NSlice,dimY,dimX),dtype=DTYPE)
-  for i in range(siz[0]):
-    for j in range(siz[1]):
-      for k in range(siz[2]):
-        plan[i][j].f = x[i,j,k,:,:]*np.sqrt(dcf)
-        result[i,j,k,:,:] = plan[i][j].adjoint()
-
-  return result/dimX
+  result = np.zeros((NC,NSlice,NScan,dimY,dimX),dtype=DTYPE)
+  tmp_result = clarray.zeros(fft.queue[0],(NScan,1,1,dimY,dimX),dtype=DTYPE)
+#  for i in range(siz[0]):
+  for j in range(siz[1]):
+    for k in range(siz[2]):
+#        plan[i][j].f = x[i,j,k,:,:]*np.sqrt(dcf)
+#        result[i,j,k,:,:] = plan[i][j].adjoint()
+      inp = clarray.to_device(fft.queue[0],np.require(x[:,j,k,...][:,None,None,...],requirements='C'))
+      fft.adj_NUFFT(tmp_result,inp)
+#      print(tmp_result.get().shape)
+      result[j,k,...] = np.squeeze(tmp_result.get())
 
 
-plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
+  return np.transpose(result,(2,0,1,3,4))
+
+
+#plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
 
 data = data* dscale
 
 data_save = data
 
-images= (np.sum(nFTH(data_save,plan,dcf,NScan,NC,\
-                     NSlice,dimY,dimX)*(np.conj(par.C)),axis = 1))
+test = nFTH(data_save,FFT,dcf,NScan,NC,\
+                     NSlice,dimY,dimX)
 
+
+images= np.require(np.sum(nFTH(data_save,FFT,dcf,NScan,NC,\
+                     NSlice,dimY,dimX)*(np.conj(par.C)),axis = 1),requirements='C')
+del FFT,ctx,queue
 traj_save = np.copy(traj)
 
-par.C = np.require(np.transpose(par.C,(0,1,3,2)),requirements='C')
+#par.C = np.require(np.transpose(par.C,(0,1,3,2)),requirements='C')
 par.fa_corr = np.require((np.transpose(par.fa_corr,(0,2,1))),requirements='C')
 ################################################################################
 ### Init forward model and initial guess #######################################
@@ -380,7 +430,7 @@ opt = Model_Reco.Model_Reco(par,ctx,queue,traj,np.sqrt(dcf))
 opt.data =  data
 opt.model = model
 opt.images = images
-opt.nfftplan = plan
+#opt.nfftplan = plan
 opt.dcf = np.sqrt(dcf)
 opt.dcf_flat = np.sqrt(dcf).flatten()
 result_tgv = []
