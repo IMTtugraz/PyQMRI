@@ -4,8 +4,8 @@ import pyopencl as cl
 import pyopencl.array as clarray
 
 import reikna.cluda as cluda
-from reikna.fft import  FFTShift
-from gpyfft.fft import FFT
+from reikna.fft import  FFT,FFTShift
+#from gpyfft.fft import FFT
 
 class Program(object):
     def __init__(self, ctx, code):
@@ -43,8 +43,10 @@ class gridding:
         self.thr.append(self.api.Thread(queue[j]))
         fftshift = FFTShift(self.tmp_fft_array,axes=fft_dim)
         self.fftshift.append(fftshift.compile(self.thr[j]))
-        fft = FFT(ctx,queue[j],self.tmp_fft_array[0:int(fft_size[0]/NScan),...],out_array=self.tmp_fft_array[0:int(fft_size[0]/NScan),...],axes=fft_dim)
-        self.fft2.append(fft)
+#        fft = FFT(ctx,queue[j],self.tmp_fft_array[0:int(fft_size[0]/NScan),...],out_array=self.tmp_fft_array[0:int(fft_size[0]/NScan),...],axes=fft_dim)
+        fft = FFT(self.tmp_fft_array[0:int(fft_size[0]/NScan),...], axes=fft_dim)
+#        self.fft2.append(fft)
+        self.fft2.append(fft.compile(self.thr[j]))
       self.gridsize = gridsize
       self.fwd_NUFFT = self.NUFFT
       self.adj_NUFFT = self.NUFFTH
@@ -59,8 +61,10 @@ class gridding:
       self.fft_shape = fft_size
       self.par_fft = int(fft_size[0]/NScan)
       for j in range(len(queue)):
-        fft = FFT(ctx,queue[j],self.tmp_fft_array[0:int(fft_size[0]/NScan),...],out_array=self.tmp_fft_array[0:int(fft_size[0]/NScan),...],axes=fft_dim)
-        self.fft2.append(fft)
+#        fft = FFT(ctx,queue[j],self.tmp_fft_array[0:int(fft_size[0]/NScan),...],out_array=self.tmp_fft_array[0:int(fft_size[0]/NScan),...],axes=fft_dim)
+        fft = FFT(self.tmp_fft_array[0:int(fft_size[0]/NScan),...],  axes=fft_dim)
+#        self.fft2.append(fft)
+        self.fft2.append(fft.compile(self.thr[j]))
       self.fwd_NUFFT = self.FFT
       self.adj_NUFFT = self.FFTH
 
@@ -477,7 +481,8 @@ __kernel void copy(__global float2 *out, __global float2 *in, const float scale)
 
     self.fftshift[idx](self.tmp_fft_array,self.tmp_fft_array)
     for j in range(s.shape[0]):
-      self.tmp_fft_array.add_event(self.fft2[idx].enqueue_arrays(data=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],result=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],forward=False)[0])
+#      self.tmp_fft_array.add_event(self.fft2[idx].enqueue_arrays(data=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],result=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],forward=False)[0])
+      self.tmp_fft_array.add_event(self.fft2[idx](self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],inverse=True)[0])
 #    self.fft2[idx](self.tmp_fft_array,self.tmp_fft_array,inverse=True)
     self.fftshift[idx](self.tmp_fft_array,self.tmp_fft_array)
     ### Deapodization and Scaling
@@ -502,7 +507,8 @@ __kernel void copy(__global float2 *out, __global float2 *in, const float scale)
     ### FFT
     self.fftshift[idx](self.tmp_fft_array,self.tmp_fft_array)
     for j in range(s.shape[0]):
-      self.tmp_fft_array.add_event(self.fft2[idx].enqueue_arrays(data=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],result=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],forward=True)[0])
+#      self.tmp_fft_array.add_event(self.fft2[idx].enqueue_arrays(data=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],result=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],forward=True)[0])
+      self.tmp_fft_array.add_event(self.fft2[idx](self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],inverse=False)[0])
 #    self.fft2[idx](self.tmp_fft_array,self.tmp_fft_array,inverse=False)
     self.fftshift[idx](self.tmp_fft_array,self.tmp_fft_array)
     ### Resample on Spoke
@@ -519,7 +525,8 @@ __kernel void copy(__global float2 *out, __global float2 *in, const float scale)
 
     self.tmp_fft_array.add_event(self.prg.copy(queue,(s.size,),None,self.tmp_fft_array.data,s.data,self.DTYPE_real(1)))
     for j in range(s.shape[0]):
-      self.tmp_fft_array.add_event(self.fft2[idx].enqueue_arrays(data=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],result=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],forward=False)[0])
+#      self.tmp_fft_array.add_event(self.fft2[idx].enqueue_arrays(data=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],result=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],forward=False)[0])
+      self.tmp_fft_array.add_event(self.fft2[idx](self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],inverse=True)[0])
     ### Scaling
     return  (self.prg.copy(queue,(sg.size,),None,sg.data,self.tmp_fft_array.data,self.DTYPE_real(self.fft_scale)))
 
@@ -533,5 +540,6 @@ __kernel void copy(__global float2 *out, __global float2 *in, const float scale)
 
     self.tmp_fft_array.add_event(self.prg.copy(queue,(sg.size,),None,self.tmp_fft_array.data,sg.data,self.DTYPE_real(1/self.fft_scale)))
     for j in range(s.shape[0]):
-      self.tmp_fft_array.add_event(self.fft2[idx].enqueue_arrays(data=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],result=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],forward=True)[0])
+#      self.tmp_fft_array.add_event(self.fft2[idx].enqueue_arrays(data=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],result=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],forward=True)[0])
+      self.tmp_fft_array.add_event(self.fft2[idx](self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],inverse=False)[0])
     return (self.prg.copy(queue,(s.size,),None,s.data,self.tmp_fft_array.data,self.DTYPE_real(1)))
