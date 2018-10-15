@@ -61,11 +61,11 @@ class VFA_Model:
 
 
 
-    result = np.array([0.01*np.ones((Nislice,dimY,dimX),dtype=DTYPE),((1/5)/self.uk_scale[1]*np.ones((Nislice,dimY,dimX),dtype=DTYPE))],dtype=DTYPE)
+    result = np.array([0.01*np.ones((Nislice,dimY,dimX),dtype=DTYPE),((1/10)/self.uk_scale[1]*np.ones((Nislice,dimY,dimX),dtype=DTYPE))],dtype=DTYPE)
     self.guess = result
 
     self.constraints.append(constraint(-10/self.uk_scale[0],10/self.uk_scale[0],False)  )
-    self.constraints.append(constraint(((1/200)/self.uk_scale[1]),((1)/self.uk_scale[1]),True))
+    self.constraints.append(constraint(((1/2000)/self.uk_scale[1]),((1)/self.uk_scale[1]),True))
 
   def execute_forward_2D(self,x,islice):
     R2 = x[1,...]*self.uk_scale[1]
@@ -86,7 +86,7 @@ class VFA_Model:
   def execute_forward_3D(self,x):
     R2 = x[1,...]*self.uk_scale[1]
     S = x[0,...]*self.uk_scale[0]*np.exp(-self.TE*(R2))
-    S[~np.isfinite(S)] = 1e-200
+    S[~np.isfinite(S)] = 1e-20
     S = np.array(S,dtype=DTYPE)
     return S
   def execute_gradient_3D(self,x):

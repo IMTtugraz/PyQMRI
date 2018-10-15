@@ -43,6 +43,7 @@ def NUFFT(N,NScan,NC,NSlice,traj,dcf,trafo=1):
     FFT = gridding(ctx,queue,4,2,N,NScan,(NScan*NC*NSlice,N,N),(1,2),traj,dcf,N,1000,DTYPE,DTYPE_real,radial=trafo)
   return (ctx,queue[0],FFT)
 
+
 ################################################################################
 ### Select input file ##########################################################
 ################################################################################
@@ -80,7 +81,7 @@ for attributes in test_attributes:
 ### Read Data ##################################################################
 ################################################################################
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
-reco_Slices = 2
+reco_Slices = 1
 
 data = file['real_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE) +\
        1j*file['imag_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE)
@@ -140,6 +141,10 @@ else:
 ################################################################################
 ### Estimate coil sensitivities ################################################
 ################################################################################
+
+################################################################################
+### Estimate coil sensitivities ################################################
+################################################################################
 class B(Exception):
   pass
 try:
@@ -152,7 +157,7 @@ try:
 #    coil_plan.x = np.transpose(np.array([np.imag(traj_coil.flatten()),\
 #                                         np.real(traj_coil.flatten())]))
 #    coil_plan.precompute()
-    dcf_coil = np.array(goldcomp.cmp(traj_coil),dtype=DTYPE)
+    dcf_coil = np.repeat(dcf,NScan,0)
 
     par.C = np.zeros((NC,reco_Slices,dimY,dimX), dtype=DTYPE)
     par.phase_map = np.zeros((reco_Slices,dimY,dimX), dtype=DTYPE)
@@ -175,7 +180,7 @@ try:
 #          coil_plan.f = combinedData[j,:,:]*np.repeat(np.sqrt(dcf),NScan,axis=0)
 #          coilData[j,:,:] = coil_plan.adjoint()
           FFT.adj_NUFFT(tmp_coilData,tmp_combinedData)
-          coilData[j,...] = tmp_coilData.get()
+          coilData[j,...] = np.squeeze(tmp_coilData.get())
 
       combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)
 
@@ -240,7 +245,7 @@ except:
 #          coil_plan.f = combinedData[j,:,:]*np.repeat(np.sqrt(dcf),NScan,axis=0)
 #          coilData[j,:,:] = coil_plan.adjoint()
         FFT.adj_NUFFT(tmp_coilData,tmp_combinedData)
-        coilData[j,...] = tmp_coilData.get()
+        coilData[j,...] = np.squeeze(tmp_coilData.get())
 
     combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)
 
@@ -336,8 +341,8 @@ data = data* dscale
 
 data_save = data
 
-test = nFTH(data_save,FFT,dcf,NScan,NC,\
-                     NSlice,dimY,dimX)
+#test = nFTH(data_save,FFT,dcf,NScan,NC,\
+#                     NSlice,dimY,dimX)
 
 
 images= np.require(np.sum(nFTH(data_save,FFT,dcf,NScan,NC,\
@@ -445,7 +450,7 @@ irgn_par["lambd"] = 1e2
 irgn_par["gamma"] = 1e0
 irgn_par["delta"] = 1e-1
 irgn_par["display_iterations"] = True
-irgn_par["gamma_min"] = 0.24
+irgn_par["gamma_min"] = 5e-1
 irgn_par["delta_max"] = 1e-1*2**7
 irgn_par["tol"] = 5e-3
 irgn_par["stag"] = 1e1
@@ -454,7 +459,7 @@ irgn_par["gamma_dec"] = 0.7
 opt.irgn_par = irgn_par
 
 
-opt.execute_3D()
+opt.execute_3D(1)
 
 
 

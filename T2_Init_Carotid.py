@@ -60,7 +60,7 @@ print("Starting computation for "+name)
 ### Check if file contains all necessary information ###########################
 ################################################################################
 test_data = ['imag_dat', 'imag_traj', 'real_dat', 'real_traj']
-test_attributes = ['image_dimensions','TE',\
+test_attributes = ['image_dimensions','T2PREP',\
                    'data_normalized_with_dcf']
 
 
@@ -80,16 +80,15 @@ for attributes in test_attributes:
 ### Read Data ##################################################################
 ################################################################################
 dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
-reco_Slices = 10
+reco_Slices = 5
 
-data = file['real_dat'][:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE) +\
-       1j*file['imag_dat'][:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE)
+data = file['real_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE) +\
+       1j*file['imag_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...].astype(DTYPE)
 
 
 traj = file['real_traj'][()].astype(DTYPE) + \
        1j*file['imag_traj'][()].astype(DTYPE)
-
-traj = np.copy(traj[None,...])
+#traj = np.squeeze(np.stack((traj[None,...],traj[None,...]),0))
 
 dcf = np.array(goldcomp.cmp(traj),dtype=DTYPE)
 
@@ -101,7 +100,7 @@ par = struct()
 ################################################################################
 ### FA correction ##############################################################
 ################################################################################
-data = np.copy(data[None,...])
+#data = np.copy(data[None,...])
 [NScan,NC,reco_Slices,Nproj, N] = data.shape
 ################################################################################
 ### Set sequence related parameters ############################################
@@ -110,7 +109,7 @@ data = np.copy(data[None,...])
 
 
 
-par.TE          = file.attrs['TE']
+par.TE          = file.attrs['T2PREP']
 par.NC          = NC
 par.dimY        = dimY
 par.dimX        = dimX
@@ -146,7 +145,7 @@ try:
 #    coil_plan.x = np.transpose(np.array([np.imag(traj_coil.flatten()),\
 #                                         np.real(traj_coil.flatten())]))
 #    coil_plan.precompute()
-    dcf_coil = np.array(goldcomp.cmp(traj_coil),dtype=DTYPE)
+    dcf_coil = np.repeat(dcf,NScan,0)
 
     par.C = np.zeros((NC,reco_Slices,dimY,dimX), dtype=DTYPE)
     par.phase_map = np.zeros((reco_Slices,dimY,dimX), dtype=DTYPE)
@@ -169,7 +168,7 @@ try:
 #          coil_plan.f = combinedData[j,:,:]*np.repeat(np.sqrt(dcf),NScan,axis=0)
 #          coilData[j,:,:] = coil_plan.adjoint()
           FFT.adj_NUFFT(tmp_coilData,tmp_combinedData)
-          coilData[j,...] = tmp_coilData.get()
+          coilData[j,...] = np.squeeze(tmp_coilData.get())
 
       combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)
 
@@ -211,12 +210,12 @@ except:
 #    coil_plan.x = np.transpose(np.array([np.imag(traj_coil.flatten()),\
 #                                         np.real(traj_coil.flatten())]))
 #    coil_plan.precompute()
-  dcf_coil = np.array(goldcomp.cmp(traj_coil),dtype=DTYPE)
+  dcf_coil = np.repeat(dcf,NScan,0)
 
   par.C = np.zeros((NC,reco_Slices,dimY,dimX), dtype=DTYPE)
   par.phase_map = np.zeros((reco_Slices,dimY,dimX), dtype=DTYPE)
 
-  (ctx,queue,FFT) = NUFFT(N,1,1,1,traj_coil,np.ones_like(dcf_coil))
+  (ctx,queue,FFT) = NUFFT(N,1,1,1,traj_coil,np.sqrt(dcf_coil))
 
   result = []
   for i in range(0,(reco_Slices)):
@@ -234,7 +233,7 @@ except:
 #          coil_plan.f = combinedData[j,:,:]*np.repeat(np.sqrt(dcf),NScan,axis=0)
 #          coilData[j,:,:] = coil_plan.adjoint()
         FFT.adj_NUFFT(tmp_coilData,tmp_combinedData)
-        coilData[j,...] = tmp_coilData.get()
+        coilData[j,...] = np.squeeze(tmp_coilData.get())
 
     combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)
 
@@ -292,7 +291,7 @@ par.dscale = dscale
 
 #  return plan
 
-(ctx,queue,FFT) = NUFFT(N,NScan,1,1,traj,dcf)
+(ctx,queue,FFT) = NUFFT(N,NScan,1,1,traj,np.sqrt(dcf))
 
 #def nFT(x,plan,dcf,NScan,NC,NSlice,Nproj,N,dimX):
 #  siz = np.shape(x)
@@ -447,7 +446,7 @@ irgn_par["gamma_dec"] = 0.7
 opt.irgn_par = irgn_par
 
 
-opt.execute_3D()
+opt.execute_3D(1)
 
 
 
