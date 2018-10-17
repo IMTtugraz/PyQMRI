@@ -94,19 +94,17 @@ traj = file['real_traj'][()].astype(DTYPE) + \
 dcf = np.array(goldcomp.cmp(traj),dtype=DTYPE)
 
 #Create par struct to store everyting
-class struct:
-    pass
-par = struct()
+par={}
 
 ################################################################################
 ### FA correction ##############################################################
 ################################################################################
 
-par.fa_corr = np.flip(file['fa_corr'][()].astype(DTYPE),0)[int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...]
-par.fa_corr[par.fa_corr==0] = 1
+par["fa_corr"] = np.flip(file['fa_corr'][()].astype(DTYPE),0)[int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...]
+par["fa_corr"][par["fa_corr"]==0] = 1
 
-#par.fa_corr =file['interpol_fa'][()].astype(DTYPE)[int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...]
-#par.fa_corr[par.fa_corr==0] = 1
+#par["fa_corr"] =file['interpol_fa'][()].astype(DTYPE)[int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...]
+#par["fa_corr"][par["fa_corr"]==0] = 1
 
 
 [NScan,NC,reco_Slices,Nproj, N] = data.shape
@@ -114,22 +112,20 @@ par.fa_corr[par.fa_corr==0] = 1
 ### Set sequence related parameters ############################################
 ################################################################################
 
-par.fa = file.attrs['flip_angle(s)']*np.pi/180
-
-
-par.TR          = file.attrs['TR']
-par.NC          = NC
-par.dimY        = dimY
-par.dimX        = dimX
-par.NSlice      = reco_Slices
-par.NScan       = NScan
-par.N = N
-par.Nproj = Nproj
+for att in file.attrs:
+  par[att] = file.attrs[att]
+par["dimY"]        = dimY
+par["dimX"]        = dimX
+par["NC"]          = NC
+par["NSlice"]      = reco_Slices
+par["NScan"]       = NScan
+par["N"] = N
+par["Nproj"] = Nproj
 
 #### TEST
-par.unknowns_TGV = 2
-par.unknowns_H1 = 0
-par.unknowns = 2
+par["unknowns_TGV"] = 2
+par["unknowns_H1"] = 0
+par["unknowns"] = 2
 
 
 
@@ -157,10 +153,10 @@ try:
 #    coil_plan.x = np.transpose(np.array([np.imag(traj_coil.flatten()),\
 #                                         np.real(traj_coil.flatten())]))
 #    coil_plan.precompute()
-    dcf_coil = np.repeat(dcf,NScan,0)
+    dcf_coil = np.ones_like(np.repeat(dcf,NScan,0))
 
-    par.C = np.zeros((NC,reco_Slices,dimY,dimX), dtype=DTYPE)
-    par.phase_map = np.zeros((reco_Slices,dimY,dimX), dtype=DTYPE)
+    par["C"] = np.zeros((NC,reco_Slices,dimY,dimX), dtype=DTYPE)
+    par["phase_map"] = np.zeros((reco_Slices,dimY,dimX), dtype=DTYPE)
 
     (ctx,queue,FFT) = NUFFT(N,1,1,1,traj_coil,dcf_coil)
 
@@ -189,29 +185,29 @@ try:
                                       nlinvNewtonSteps, True, nlinvRealConstr))
 
     for i in range(reco_Slices):
-      par.C[:,i,:,:] = result[i].get()[2:,-1,:,:]
+      par["C"][:,i,:,:] = result[i].get()[2:,-1,:,:]
       sys.stdout.write("slice %i done \r" \
                      %(i))
       sys.stdout.flush()
       if not nlinvRealConstr:
-        par.phase_map[i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
-        par.C[:,i,:,:] = par.C[:,i,:,:]* np.exp(1j *\
+        par["phase_map"][i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
+        par["C"][:,i,:,:] = par["C"][:,i,:,:]* np.exp(1j *\
              np.angle( result[i].get()[1,-1,:,:]))
 
         # standardize coil sensitivity profiles
-    sumSqrC = np.sqrt(np.sum((par.C * np.conj(par.C)),0)) #4, 9, 128, 128
+    sumSqrC = np.sqrt(np.sum((par["C"] * np.conj(par["C"])),0)) #4, 9, 128, 128
     if NC == 1:
-      par.C = sumSqrC
+      par["C"] = sumSqrC
     else:
-      par.C = par.C / np.tile(sumSqrC, (NC,1,1,1))
+      par["C"] = par["C"] / np.tile(sumSqrC, (NC,1,1,1))
     del file['Coils']
-    file.create_dataset("Coils",par.C.shape,dtype=par.C.dtype,data=par.C)
+    file.create_dataset("Coils",par["C"].shape,dtype=par["C"].dtype,data=par["C"])
     file.flush()
     del FFT,ctx,queue
   else:
     print("Using precomputed coil sensitivities")
     slices_coils = file['Coils'][()].shape[1]
-    par.C = file['Coils'][:,int(slices_coils/2)-int(np.floor((reco_Slices)/2)):int(slices_coils/2)+int(np.ceil(reco_Slices/2)),...]
+    par["C"] = file['Coils'][:,int(slices_coils/2)-int(np.floor((reco_Slices)/2)):int(slices_coils/2)+int(np.ceil(reco_Slices/2)),...]
 
 except:
   nlinvNewtonSteps = 6
@@ -224,8 +220,8 @@ except:
 #    coil_plan.precompute()
   dcf_coil = np.array(goldcomp.cmp(traj_coil),dtype=DTYPE)
 
-  par.C = np.zeros((NC,reco_Slices,dimY,dimX), dtype=DTYPE)
-  par.phase_map = np.zeros((reco_Slices,dimY,dimX), dtype=DTYPE)
+  par["C"] = np.zeros((NC,reco_Slices,dimY,dimX), dtype=DTYPE)
+  par["phase_map"] = np.zeros((reco_Slices,dimY,dimX), dtype=DTYPE)
 
   (ctx,queue,FFT) = NUFFT(N,1,1,1,traj_coil,np.ones_like(dcf_coil))
 
@@ -254,22 +250,22 @@ except:
                                     nlinvNewtonSteps, True, nlinvRealConstr))
 
   for i in range(reco_Slices):
-    par.C[:,i,:,:] = result[i].get()[2:,-1,:,:]
+    par["C"][:,i,:,:] = result[i].get()[2:,-1,:,:]
     sys.stdout.write("slice %i done \r" \
                    %(i))
     sys.stdout.flush()
     if not nlinvRealConstr:
-      par.phase_map[i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
-      par.C[:,i,:,:] = par.C[:,i,:,:]* np.exp(1j *\
+      par["phase_map"][i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
+      par["C"][:,i,:,:] = par["C"][:,i,:,:]* np.exp(1j *\
            np.angle( result[i].get()[1,-1,:,:]))
 
       # standardize coil sensitivity profiles
-  sumSqrC = np.sqrt(np.sum((par.C * np.conj(par.C)),0)) #4, 9, 128, 128
+  sumSqrC = np.sqrt(np.sum((par["C"] * np.conj(par["C"])),0)) #4, 9, 128, 128
   if NC == 1:
-    par.C = sumSqrC
+    par["C"] = sumSqrC
   else:
-    par.C = par.C / np.tile(sumSqrC, (NC,1,1,1))
-  file.create_dataset("Coils",par.C.shape,dtype=par.C.dtype,data=par.C)
+    par["C"] = par["C"] / np.tile(sumSqrC, (NC,1,1,1))
+  file.create_dataset("Coils",par["C"].shape,dtype=par["C"].dtype,data=par["C"])
   file.flush()
   del FFT,ctx,queue
 #### Close File after everything was read
@@ -282,7 +278,7 @@ file.close()
 #data = data*(10/NScan)
 #data = data/(NC*NScan*Nproj*NSlice)
 dscale = np.sqrt(NSlice)*np.sqrt(2*1e3)/(np.linalg.norm(data.flatten()))
-par.dscale = dscale
+par["dscale"] = dscale
 
 ################################################################################
 ### generate nFFT for radial cases #############################################
@@ -303,7 +299,7 @@ par.dscale = dscale
 
 #  return plan
 
-(ctx,queue,FFT) = NUFFT(N,NScan,1,1,traj,dcf)
+(ctx,queue,FFT) = NUFFT(N,NScan,1,1,traj,np.sqrt(dcf))
 
 #def nFT(x,plan,dcf,NScan,NC,NSlice,Nproj,N,dimX):
 #  siz = np.shape(x)
@@ -346,16 +342,16 @@ data_save = data
 
 
 images= np.require(np.sum(nFTH(data_save,FFT,dcf,NScan,NC,\
-                     NSlice,dimY,dimX)*(np.conj(par.C)),axis = 1),requirements='C')
+                     NSlice,dimY,dimX)*(np.conj(par["C"])),axis = 1),requirements='C')
 del FFT,ctx,queue
 traj_save = np.copy(traj)
 
-#par.C = np.require(np.transpose(par.C,(0,1,3,2)),requirements='C')
-par.fa_corr = np.require((np.transpose(par.fa_corr,(0,2,1))),requirements='C')
+#par["C"] = np.require(np.transpose(par["C"],(0,1,3,2)),requirements='C')
+par["fa_corr"] = np.require((np.transpose(par["fa_corr"],(0,2,1))),requirements='C')
 ################################################################################
 ### Init forward model and initial guess #######################################
 ################################################################################
-model = VFA_model.VFA_Model(par.fa,par.fa_corr,par.TR,images,NSlice,Nproj)
+model = VFA_model.Model(par,images,NSlice,Nproj)
 
 
 ################################################################################
@@ -447,10 +443,10 @@ irgn_par["max_iters"] = 300
 irgn_par["start_iters"] = 100
 irgn_par["max_GN_it"] = 12
 irgn_par["lambd"] = 1e2
-irgn_par["gamma"] = 1e0
+irgn_par["gamma"] = 2e-3
 irgn_par["delta"] = 1e-1
 irgn_par["display_iterations"] = True
-irgn_par["gamma_min"] = 5e-1
+irgn_par["gamma_min"] = 1e-3
 irgn_par["delta_max"] = 1e-1*2**7
 irgn_par["tol"] = 5e-3
 irgn_par["stag"] = 1e1
@@ -459,7 +455,7 @@ irgn_par["gamma_dec"] = 0.7
 opt.irgn_par = irgn_par
 
 
-opt.execute_3D(1)
+opt.execute_3D(0)
 
 
 

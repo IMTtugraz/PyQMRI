@@ -39,6 +39,8 @@ class gridding:
       self.fftshift = []
       self.thr = []
       self.par_fft = int(fft_size[0]/NScan)
+#      import ipdb
+#      ipdb.set_trace()
       for j in range(len(queue)):
         self.thr.append(self.api.Thread(queue[j]))
         fftshift = FFTShift(self.tmp_fft_array,axes=fft_dim)

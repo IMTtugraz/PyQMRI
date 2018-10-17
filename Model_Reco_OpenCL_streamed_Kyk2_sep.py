@@ -45,19 +45,19 @@ class Model_Reco:
   def __init__(self,par,ctx,queue,traj,dcf,angles=None):
 
     self.par = par
-    self.C = np.require(np.transpose(par.C,[1,0,2,3]),requirements='C')
+    self.C = np.require(np.transpose(par["C"],[1,0,2,3]),requirements='C')
     self.traj = traj
-    self.unknowns_TGV = par.unknowns_TGV
-    self.unknowns_H1 = par.unknowns_H1
-    self.unknowns = par.unknowns
-    self.NSlice = par.NSlice
-    self.NScan = par.NScan
-    self.dimX = par.dimX
-    self.dimY = par.dimY
+    self.unknowns_TGV = par["unknowns_TGV"]
+    self.unknowns_H1 = par["unknowns_H1"]
+    self.unknowns = par["unknowns"]
+    self.NSlice = par["NSlice"]
+    self.NScan = par["NScan"]
+    self.dimX = par["dimX"]
+    self.dimY = par["dimY"]
     self.scale = 1
-    self.NC = par.NC
-    self.N = par.N
-    self.Nproj = par.Nproj
+    self.NC = par["NC"]
+    self.N = par["N"]
+    self.Nproj = par["Nproj"]
     self.dz = 1
     self.fval_min = 0
     self.fval = 0
@@ -74,9 +74,8 @@ class Model_Reco:
     self.ratio = []
     for j in range(self.num_dev):
       self.alloc.append(MyAllocator(ctx[j]))
-      self.ratio.append(clarray.to_device(self.queue[3*j],(100*np.ones(self.unknowns)).astype(dtype=DTYPE_real)))
-      self.ratio[j][1] = 1
-      self.NUFFT.append(NUFFT.gridding(ctx[j],self.queue[3*j:3*(j+1)-1],4,2,par.N,par.NScan, (par.NScan*par.NC*(self.par_slices+self.overlap),par.N,par.N),(1,2),traj.astype(DTYPE),np.require(np.abs(dcf),DTYPE_real,requirements='C'),par.N,10000,DTYPE,DTYPE_real))
+      self.ratio.append(clarray.to_device(self.queue[3*j],(1*np.ones(self.unknowns)).astype(dtype=DTYPE_real)))
+      self.NUFFT.append(NUFFT.gridding(ctx[j],self.queue[3*j:3*(j+1)-1],4,2,par["N"],par["NScan"], (par["NScan"]*par["NC"]*(self.par_slices+self.overlap),par["N"],par["N"]),(1,2),traj.astype(DTYPE),np.require(np.abs(dcf),DTYPE_real,requirements='C'),par["N"],10000,DTYPE,DTYPE_real))
       self.ukscale.append(clarray.to_device(self.queue[3*j],np.ones(self.unknowns,dtype=DTYPE_real)))
 
       self.prg.append(Program(self.ctx[j], r"""
@@ -252,10 +251,7 @@ __kernel void gradient(__global float8 *grad, __global float2 *u, const int NUk,
      else
      { grad[i].s45 = 0.0f;}
      // scale gradients
-     if (uk>0)
-     {grad[i]*=maxscal/(ratio[uk]*scale[uk]);}
-     else
-     {grad[i]*=(maxscal/(ratio[uk]*scale[uk]));}
+     {grad[i]*=(maxscal/(scale[uk]))*ratio[uk];}
      i+=Nx*Ny;
   }
 }
@@ -352,10 +348,7 @@ __kernel void divergence(__global float2 *div, __global float8 *p, const int NUk
      }
      div[i] = val.s01+val.s23+val.s45;
      // scale gradients
-     if (ukn>0)
-     {div[i]*=maxscal/(ratio[ukn]*scale[ukn]);}
-     else
-     {div[i]*=(maxscal/(ratio[ukn]*scale[ukn]));}
+     {div[i]*=(maxscal/(scale[ukn]))*ratio[ukn];}
      i+=Nx*Ny;
   }
 
@@ -670,10 +663,7 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
        val.s5 -= p[i-X*Y*Nuk].s5;
    }
    // scale gradients
-   if (uk>0)
-   {val*=maxscal/(ratio[uk]*scale[uk]);}
-   else
-   {val*=(maxscal/(ratio[uk]*scale[uk]));}
+   {val*=(maxscal/(scale[uk]))*ratio[uk];}
 
   out[i] = sum - (val.s01+val.s23+val.s45);
   i+=X*Y;
@@ -844,6 +834,8 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     for i in range(self.num_dev):
       for j in range(self.unknowns):
         self.ukscale[i][j] = np.linalg.norm(x[:,j,...])
+        if j>0:
+          self.ratio[i][j] = self.ukscale[i][j]/self.ukscale[i][0]
 
 ################################################################################
 ### Start a 3D Reconstruction, set TV to True to perform TV instead of TGV######
@@ -859,17 +851,17 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
 
    self.r = np.zeros_like(self.data,dtype=DTYPE)
    self.r = np.require(np.transpose(self.r,[2,0,1,3,4]),requirements='C')
-   self.z1 = np.zeros(([self.NSlice,self.unknowns,self.par.dimX,self.par.dimY,4]),dtype=DTYPE)
+   self.z1 = np.zeros(([self.NSlice,self.unknowns,self.par["dimX"],self.par["dimY"],4]),dtype=DTYPE)
 
 
-   self.result = np.zeros((self.irgn_par["max_GN_it"]+1,self.unknowns,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
+   self.result = np.zeros((self.irgn_par["max_gn_it"]+1,self.unknowns,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
    self.result[0,:,:,:,:] = np.copy(self.model.guess)
 
    result = np.copy(self.model.guess)
 
-   self.v = np.zeros(([self.NSlice,self.unknowns,self.par.dimX,self.par.dimY,4]),dtype=DTYPE)
-   self.z2 = np.zeros(([self.NSlice,self.unknowns,self.par.dimX,self.par.dimY,8]),dtype=DTYPE)
-   for i in range(self.irgn_par["max_GN_it"]):
+   self.v = np.zeros(([self.NSlice,self.unknowns,self.par["dimX"],self.par["dimY"],4]),dtype=DTYPE)
+   self.z2 = np.zeros(([self.NSlice,self.unknowns,self.par["dimX"],self.par["dimY"],8]),dtype=DTYPE)
+   for i in range(self.irgn_par["max_gn_it"]):
     start = time.time()
     self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
 
@@ -886,8 +878,8 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     self.grad_x = np.require(np.transpose(self.grad_x,[2,0,1,3,4]),requirements='C')
 
     result = self.irgn_solve_3D(result, iters, self.data,TV)
-    for uk in range(self.unknowns):
-      self.result[i+1,uk,...] = result[uk,...]*self.model.uk_scale[uk]
+    self.result[i+1,...] = self.model.rescale(result)
+
 
     iters = np.fmin(iters*2,self.irgn_par["max_iters"])
     self.irgn_par["gamma"] = np.maximum(self.irgn_par["gamma"]*self.irgn_par["gamma_dec"],self.irgn_par["gamma_min"])
@@ -939,15 +931,15 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             +self.irgn_par["gamma"]*(2)*np.sum(np.abs(sym_grad.get()))
             +1/(2*self.irgn_par["delta"])*np.linalg.norm((x-x_old).flatten())**2)
   #       print('Norm M0 grad: %f  norm T1 grad: %f' %(np.linalg.norm(grad.get()[0,...]),np.linalg.norm(grad.get()[1,...])))
-    for knt in range(self.unknowns):
-      print('Norm M0 grad: %f  norm T1 grad: %f' %(np.linalg.norm(grad.get()[0,...]),np.linalg.norm(grad.get()[knt,...])))
-      scale = np.linalg.norm(grad.get()[knt,...])/np.linalg.norm(grad.get()[1,...])
-      if scale == 0 or not np.isfinite(scale):
-        pass
-      else:
-        print("Scale: %f" %scale)
-        for i in range(self.num_dev):
-          self.ratio[i][knt] *= scale
+#    for knt in range(self.unknowns):
+#      print('Norm M0 grad: %f  norm T1 grad: %f' %(np.linalg.norm(grad.get()[0,...]),np.linalg.norm(grad.get()[knt,...])))
+#      scale = np.linalg.norm(grad.get()[knt,...])/np.linalg.norm(grad.get()[1,...])
+#      if scale == 0 or not np.isfinite(scale):
+#        pass
+#      else:
+#        print("Scale: %f" %scale)
+#        for i in range(self.num_dev):
+#          self.ratio[i][knt] *= scale
 
     print("-"*80)
     print ("Function value after GN-Step: %f" %(self.fval/(self.irgn_par["lambd"]*self.NSlice)))
@@ -973,11 +965,11 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
 
     r = self.r#np.zeros_like(res,dtype=DTYPE)
     r_new = np.zeros_like(r)
-    z1 = self.z1#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-    z1_new =  np.zeros_like(z1)#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-    z2 = self.z2#np.zeros(([self.unknowns,3,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+    z1 = self.z1#np.zeros(([self.unknowns,2,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
+    z1_new =  np.zeros_like(z1)#np.zeros(([self.unknowns,2,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
+    z2 = self.z2#np.zeros(([self.unknowns,3,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
     z2_new =  np.zeros_like(z2)
-    v = self.v#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+    v = self.v#np.zeros(([self.unknowns,2,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
     v_new =  np.zeros_like(v)
     res = (res).astype(DTYPE)
 
@@ -2325,8 +2317,8 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
 
     r = self.r#np.zeros_like(res,dtype=DTYPE)
     r_new = np.zeros_like(r)
-    z1 = self.z1#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-    z1_new =  np.zeros_like(z1)#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+    z1 = self.z1#np.zeros(([self.unknowns,2,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
+    z1_new =  np.zeros_like(z1)#np.zeros(([self.unknowns,2,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
     res = (res).astype(DTYPE)
 
 

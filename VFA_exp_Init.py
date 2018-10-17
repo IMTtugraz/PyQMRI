@@ -10,7 +10,7 @@ import nlinvns_maier as nlinvns
 
 import Model_Reco_OpenCL as Model_Reco
 
-from pynfft.nfft import NFFT
+#from pynfft.nfft import NFFT
 
 import VFA_exp_model as VFA_model
 import goldcomp
@@ -24,6 +24,25 @@ import ipyparallel as ipp
 
 c = ipp.Client()
 
+import pyopencl.array as clarray
+from gridroutines import gridding
+
+DTYPE = np.complex64
+DTYPE_real = np.float32
+
+def NUFFT(N,NScan,NC,NSlice,traj,dcf,trafo=1):
+  platforms = cl.get_platforms()
+  ctx = cl.Context(
+            dev_type=cl.device_type.GPU,
+            properties=[(cl.context_properties.PLATFORM, platforms[1])])
+  queue=[]
+  queue.append(cl.CommandQueue(ctx,platforms[1].get_devices()[0]))
+  if trafo:
+    FFT = gridding(ctx,queue,4,2,N,NScan,(NScan*NC*NSlice,N,N),(1,2),traj.astype(DTYPE),np.require(np.abs(dcf),DTYPE_real,requirements='C'),N,1000,DTYPE,DTYPE_real,radial=trafo)
+  else:
+    FFT = gridding(ctx,queue,4,2,N,NScan,(NScan*NC*NSlice,N,N),(1,2),traj,dcf,N,1000,DTYPE,DTYPE_real,radial=trafo)
+  return (ctx,queue[0],FFT)
+
 ################################################################################
 ### Select input file ##########################################################
 ################################################################################
@@ -34,13 +53,13 @@ root.update()
 file = filedialog.askopenfilename()
 root.destroy()
 
-name = file.split('/')[-1][:-3] + "_5_angle.h5"
+name = file.split('/')[-1][:-3] + ".h5"
 file = h5py.File(file)
 print("Starting computation for "+name)
 ################################################################################
 ### Check if file contains all necessary information ###########################
 ################################################################################
-test_data = ['dcf', 'imag_dat', 'imag_traj', 'real_dat', 'real_traj']
+test_data = ['imag_dat', 'imag_traj', 'real_dat', 'real_traj']
 test_attributes = ['image_dimensions','TE',\
                    'data_normalized_with_dcf']
 
@@ -69,9 +88,8 @@ data = file['real_dat'][:,:,int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSl
 
 traj = file['real_traj'][()].astype(DTYPE) + \
        1j*file['imag_traj'][()].astype(DTYPE)
-
-traj = traj
-
+#traj = np.squeeze(np.stack((traj[None,...],traj[None,...]),0))
+#traj = traj[:8,...]
 dcf = np.array(goldcomp.cmp(traj),dtype=DTYPE)
 
 #Create par struct to store everyting
@@ -79,11 +97,16 @@ class struct:
     pass
 par = struct()
 
-
+################################################################################
+### FA correction ##############################################################
+################################################################################
+#data = np.copy(data[None,...])
 [NScan,NC,reco_Slices,Nproj, N] = data.shape
 ################################################################################
 ### Set sequence related parameters ############################################
 ################################################################################
+
+
 
 
 par.TE          = file.attrs['TE']
@@ -118,13 +141,17 @@ try:
     nlinvRealConstr  = False
 
     traj_coil = np.reshape(traj,(NScan*Nproj,N))
-    coil_plan = NFFT((dimY,dimX),NScan*Nproj*N)
-    coil_plan.x = np.transpose(np.array([np.imag(traj_coil.flatten()),\
-                                         np.real(traj_coil.flatten())]))
-    coil_plan.precompute()
+#    coil_plan = NFFT((dimY,dimX),NScan*Nproj*N)
+#    coil_plan.x = np.transpose(np.array([np.imag(traj_coil.flatten()),\
+#                                         np.real(traj_coil.flatten())]))
+#    coil_plan.precompute()
+    dcf_coil = np.repeat(dcf,NScan,0)
 
     par.C = np.zeros((NC,reco_Slices,dimY,dimX), dtype=DTYPE)
     par.phase_map = np.zeros((reco_Slices,dimY,dimX), dtype=DTYPE)
+
+    (ctx,queue,FFT) = NUFFT(N,1,1,1,traj_coil,dcf_coil)
+
     result = []
     for i in range(0,(reco_Slices)):
       sys.stdout.write("Computing coil sensitivity map of slice %i \r" \
@@ -133,11 +160,15 @@ try:
 
       ##### RADIAL PART
       combinedData = np.transpose(data[:,:,i,:,:],(1,0,2,3))
-      combinedData = np.reshape(combinedData,(NC,NScan*Nproj,N))
+      combinedData = np.reshape(combinedData,(1,NC,1,NScan*Nproj,N))
+      tmp_coilData = clarray.zeros(FFT.queue[0],(1,1,1,dimY,dimX),dtype=DTYPE)
       coilData = np.zeros((NC,dimY,dimX),dtype=DTYPE)
       for j in range(NC):
-          coil_plan.f = combinedData[j,:,:]*np.repeat(np.sqrt(dcf),NScan,axis=0)
-          coilData[j,:,:] = coil_plan.adjoint()
+          tmp_combinedData = clarray.to_device(FFT.queue[0],combinedData[None,:,j,...])
+#          coil_plan.f = combinedData[j,:,:]*np.repeat(np.sqrt(dcf),NScan,axis=0)
+#          coilData[j,:,:] = coil_plan.adjoint()
+          FFT.adj_NUFFT(tmp_coilData,tmp_combinedData)
+          coilData[j,...] = np.squeeze(tmp_coilData.get())
 
       combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)
 
@@ -164,22 +195,28 @@ try:
     del file['Coils']
     file.create_dataset("Coils",par.C.shape,dtype=par.C.dtype,data=par.C)
     file.flush()
+    del FFT,ctx,queue
   else:
     print("Using precomputed coil sensitivities")
     slices_coils = file['Coils'][()].shape[1]
     par.C = file['Coils'][:,int(slices_coils/2)-int(np.floor((reco_Slices)/2)):int(slices_coils/2)+int(np.ceil(reco_Slices/2)),...]
+
 except:
   nlinvNewtonSteps = 6
   nlinvRealConstr  = False
 
   traj_coil = np.reshape(traj,(NScan*Nproj,N))
-  coil_plan = NFFT((dimY,dimX),NScan*Nproj*N)
-  coil_plan.x = np.transpose(np.array([np.imag(traj_coil.flatten()),\
-                                       np.real(traj_coil.flatten())]))
-  coil_plan.precompute()
+#    coil_plan = NFFT((dimY,dimX),NScan*Nproj*N)
+#    coil_plan.x = np.transpose(np.array([np.imag(traj_coil.flatten()),\
+#                                         np.real(traj_coil.flatten())]))
+#    coil_plan.precompute()
+  dcf_coil = np.repeat(dcf,NScan,0)
 
   par.C = np.zeros((NC,reco_Slices,dimY,dimX), dtype=DTYPE)
   par.phase_map = np.zeros((reco_Slices,dimY,dimX), dtype=DTYPE)
+
+  (ctx,queue,FFT) = NUFFT(N,1,1,1,traj_coil,np.sqrt(dcf_coil))
+
   result = []
   for i in range(0,(reco_Slices)):
     sys.stdout.write("Computing coil sensitivity map of slice %i \r" \
@@ -188,11 +225,15 @@ except:
 
     ##### RADIAL PART
     combinedData = np.transpose(data[:,:,i,:,:],(1,0,2,3))
-    combinedData = np.reshape(combinedData,(NC,NScan*Nproj,N))
+    combinedData = np.reshape(combinedData,(1,NC,1,NScan*Nproj,N))
+    tmp_coilData = clarray.zeros(FFT.queue[0],(1,1,1,dimY,dimX),dtype=DTYPE)
     coilData = np.zeros((NC,dimY,dimX),dtype=DTYPE)
     for j in range(NC):
-        coil_plan.f = combinedData[j,:,:]*np.repeat(np.sqrt(dcf),NScan,axis=0)
-        coilData[j,:,:] = coil_plan.adjoint()
+        tmp_combinedData = clarray.to_device(FFT.queue[0],combinedData[None,:,j,...])
+#          coil_plan.f = combinedData[j,:,:]*np.repeat(np.sqrt(dcf),NScan,axis=0)
+#          coilData[j,:,:] = coil_plan.adjoint()
+        FFT.adj_NUFFT(tmp_coilData,tmp_combinedData)
+        coilData[j,...] = np.squeeze(tmp_coilData.get())
 
     combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)
 
@@ -218,10 +259,8 @@ except:
     par.C = par.C / np.tile(sumSqrC, (NC,1,1,1))
   file.create_dataset("Coils",par.C.shape,dtype=par.C.dtype,data=par.C)
   file.flush()
+  del FFT,ctx,queue
 #### Close File after everything was read
-
-#M0 = file['M0_ref'][()]
-#T2 = file['T2_ref'][()]
 file.close()
 [NScan,NC,NSlice,Nproj, N] = data.shape
 ################################################################################
@@ -230,98 +269,81 @@ file.close()
 
 #data = data*(10/NScan)
 #data = data/(NC*NScan*Nproj*NSlice)
-
+dscale = np.sqrt(NSlice)*np.sqrt(2*1e3)/(np.linalg.norm(data.flatten()))
+par.dscale = dscale
 
 ################################################################################
 ### generate nFFT for radial cases #############################################
 ################################################################################
 
-def nfft(NScan,NC,dimX,dimY,N,Nproj,traj):
-  plan = []
-  traj_x = np.imag(traj)
-  traj_y = np.real(traj)
-  for i in range(NScan):
-      plan.append([])
-      points = np.transpose(np.array([traj_x[i,:,:].flatten(),\
-                                      traj_y[i,:,:].flatten()]))
-      for j in range(NC):
-          plan[i].append(NFFT([dimX,dimY],N*Nproj))
-          plan[i][j].x = points
-          plan[i][j].precompute()
+#def nfft(NScan,NC,dimX,dimY,N,Nproj,traj):
+#  plan = []
+#  traj_x = np.imag(traj)
+#  traj_y = np.real(traj)
+#  for i in range(NScan):
+#      plan.append([])
+#      points = np.transpose(np.array([traj_x[i,:,:].flatten(),\
+#                                      traj_y[i,:,:].flatten()]))
+#      for j in range(NC):
+#          plan[i].append(NFFT([dimX,dimY],N*Nproj))
+#          plan[i][j].x = points
+#          plan[i][j].precompute()
 
-  return plan
+#  return plan
 
-def nFT(x,plan,dcf,NScan,NC,NSlice,Nproj,N,dimX):
-  siz = np.shape(x)
-  result = np.zeros((NScan,NC,NSlice,Nproj*N),dtype=DTYPE)
-  for i in range(siz[0]):
-    for j in range(siz[1]):
-      for k in range(siz[2]):
-        plan[i][j].f_hat = x[i,j,k,:,:]/dimX
-        result[i,j,k,:] = plan[i][j].trafo()*np.sqrt(dcf).flatten()
+(ctx,queue,FFT) = NUFFT(N,NScan,1,1,traj,np.sqrt(dcf))
 
-  return result
-
-
-def nFTH(x,plan,dcf,NScan,NC,NSlice,dimY,dimX):
-  siz = np.shape(x)
-  result = np.zeros((NScan,NC,NSlice,dimY,dimX),dtype=DTYPE)
-  for i in range(siz[0]):
-    for j in range(siz[1]):
-      for k in range(siz[2]):
-        plan[i][j].f = x[i,j,k,:,:]*np.sqrt(dcf)
-        result[i,j,k,:,:] = plan[i][j].adjoint()
-
-  return result/dimX
-
-
-plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
-
+#def nFT(x,plan,dcf,NScan,NC,NSlice,Nproj,N,dimX):
+#  siz = np.shape(x)
+#  result = np.zeros((NScan,NC,NSlice,Nproj*N),dtype=DTYPE)
+#  for i in range(siz[0]):
+#    for j in range(siz[1]):
+#      for k in range(siz[2]):
+#        plan[i][j].f_hat = x[i,j,k,:,:]/dimX
+#        result[i,j,k,:] = plan[i][j].trafo()*np.sqrt(dcf).flatten()
 #
-dscale = np.sqrt(NSlice)*np.sqrt(2*1e3)/(np.linalg.norm(data.flatten()))
-par.dscale = dscale
-data*=dscale
+#  return result
+
+
+def nFTH(x,fft,dcf,NScan,NC,NSlice,dimY,dimX):
+  siz = np.shape(x)
+  result = np.zeros((NC,NSlice,NScan,dimY,dimX),dtype=DTYPE)
+  tmp_result = clarray.zeros(fft.queue[0],(NScan,1,1,dimY,dimX),dtype=DTYPE)
+#  for i in range(siz[0]):
+  for j in range(siz[1]):
+    for k in range(siz[2]):
+#        plan[i][j].f = x[i,j,k,:,:]*np.sqrt(dcf)
+#        result[i,j,k,:,:] = plan[i][j].adjoint()
+      inp = clarray.to_device(fft.queue[0],np.require(x[:,j,k,...][:,None,None,...],requirements='C'))
+      fft.adj_NUFFT(tmp_result,inp)
+#      print(tmp_result.get().shape)
+      result[j,k,...] = np.squeeze(tmp_result.get())
+
+
+  return np.transpose(result,(2,0,1,3,4))
+
+
+#plan = nfft(NScan,NC,dimX,dimY,N,Nproj,traj)
+
+data = data* dscale
+
 data_save = data
 
-images= (np.sum(nFTH(data,plan,dcf,NScan,NC,\
-                     NSlice,dimY,dimX)*(np.conj(par.C)),axis = 1))
-
-#tmp = np.max(np.abs(images))
-#images /=tmp
-#data /=tmp
+test = nFTH(data_save,FFT,dcf,NScan,NC,\
+                     NSlice,dimY,dimX)
 
 
-par.C = np.require(np.transpose(par.C,(0,1,3,2)),requirements='C')
+images= np.require(np.sum(nFTH(data_save,FFT,dcf,NScan,NC,\
+                     NSlice,dimY,dimX)*(np.conj(par.C)),axis = 1),requirements='C')
+del FFT,ctx,queue
+traj_save = np.copy(traj)
 
-#M0 = M0[5,...]
-#T2 = T2[5,...]
-#M0 = M0.T
-#T2 = T2.T
-#
-#mask = (np.zeros_like(M0)).astype(int)
-#mask[M0>0] = True
 ################################################################################
 ### Init forward model and initial guess #######################################
 ################################################################################
-#images/=np.max(images)
-#data/=np.max(images)
-
 
 model = VFA_model.VFA_Model(par.TE,images,NSlice,Nproj)
 
-#def residual(x,TE,data):
-#  M0 = x[0]
-#  T2 = x[1]
-#  model = np.squeeze(M0*np.exp(-TE/T2))
-#  tmp =  np.squeeze(np.squeeze(data)-model)
-#  return tmp
-#
-#from scipy.optimize import least_squares
-#x = model.guess
-#out = np.zeros_like(model.guess)
-#for i in range(dimY):
-#  for j in range(dimX):
-#    out[:,0,i,j] = least_squares(residual,np.squeeze(np.abs(x[:,:,i,j])),args=(par.TE,np.squeeze(np.abs(images[:,:,i,j])))).x
 
 ################################################################################
 ### IRGN - TGV Reco ############################################################
@@ -360,17 +382,47 @@ for device in range(num_dev):
 
 
 opt = Model_Reco.Model_Reco(par,ctx,queue,traj,np.sqrt(dcf))
-
+#import Model_Reco_OpenCL as Model_Reco2
+#opt2 = Model_Reco2.Model_Reco(par,ctx,queue,traj,np.sqrt(dcf))
+#
+#
 #import pyopencl.array as clarray
-#test = clarray.to_device(queue[0],data_save)
-#test2 = clarray.zeros(queue[0],(par.NScan,par.NC,par.NSlice,par.dimY,par.dimX),dtype=DTYPE)
-#opt.NUFFT.adj_NUFFT(test2,test)
-#test3 = np.sum(test2.get()*np.conj(par.C),axis=1)
+#xx = clarray.to_device(queue[0],np.random.randn(4,2,256,256)+1j*np.random.randn(4,2,256,256)).astype(DTYPE)
+#yy =clarray.to_device(queue[0],np.random.randn(4,2,256,256,4)+1j*np.random.randn(4,2,256,256,4)).astype(DTYPE)
+#test1 = clarray.zeros_like(yy)
+#test2 =  clarray.zeros_like(xx)
+##
+##
+###opt.NUFFT[0].fwd_NUFFT(test1,xx)
+###opt.NUFFT[0].adj_NUFFT(test2,yy)
+#opt.f_grad(test1,xx)
+#opt.bdiv(test2,yy)
+#
+##
+##opt.f_grad(test1,xx)
+##opt.bdiv(test2,yy)
+##
+##
+#test1 = test1.get()
+#test2 = test2.get()
+#yy = yy.get()
+#xx = xx.get()
+##
+#
+##a = np.sum(np.conj((test1[...,0:3]))*yy[...,0:3]+2*np.conj(test1[...,3:6])*yy[...,3:6])
+#a = np.vdot(test1,yy)
+#b = np.vdot(-xx[...],test2[...])
+#
+#
+##
+#print(np.abs(a-b)/np.size(xx))
+
+#data =np.fft.fftshift( np.fft.fft(np.fft.fftshift(data,2),axis=2,norm='ortho'),2)
 
 opt.data =  data
 opt.model = model
 opt.images = images
-opt.nfftplan = plan
+#opt.nfftplan = plan
 opt.dcf = np.sqrt(dcf)
 opt.dcf_flat = np.sqrt(dcf).flatten()
 result_tgv = []
@@ -378,15 +430,15 @@ result_tgv = []
 ################################################################################
 #IRGN Params
 irgn_par = {}
-irgn_par["max_iters"] = 300
-irgn_par["start_iters"] = 100
+irgn_par["max_iters"] = 500
+irgn_par["start_iters"] = 300
 irgn_par["max_GN_it"] = 12
 irgn_par["lambd"] = 1e2
-irgn_par["gamma"] = 1e1
-irgn_par["delta"] = 1e-3
+irgn_par["gamma"] = 5e0
+irgn_par["delta"] = 1e-1
 irgn_par["display_iterations"] = True
-irgn_par["gamma_min"] = 5e0
-irgn_par["delta_max"] = 1e-1
+irgn_par["gamma_min"] =5e-1
+irgn_par["delta_max"] = 1e-1*2**6
 irgn_par["tol"] = 5e-5
 irgn_par["stag"] = 1e1
 irgn_par["delta_inc"] = 2
@@ -399,6 +451,13 @@ opt.execute_3D()
 
 
 
+
+
+#import cProfile
+#import pstats
+#cProfile.run('opt.execute_3D()','profile_stats')
+#p = pstats.Stats('profile_stats')
+#p.sort_stats('cumulative').print_stats(20)
 
 result_tgv.append(opt.result)
 res = opt.gn_res

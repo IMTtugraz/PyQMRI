@@ -26,26 +26,30 @@ class constraint:
     self.max = self.max/scale
 
 
-class VFA_Model:
-  def __init__(self,TE,images,Nislice,Nproj):
+class Model:
+  def __init__(self,par,images):
     self.constraints = []
 
     self.images = images
-    self.Nislice = Nislice
+    self.NSlice = par['NSlice']
     self.figure = None
 
     (NScan,Nislice,dimX,dimY) = images.shape
     self.TE = np.ones((NScan,1,1,1))
-    self.NScan = TE.size
-    for i in range(self.NScan):
-      self.TE[i,...] = TE[i]*np.ones((1,1,1))
-#
+    try:
+      self.NScan = par["T2PREP"].size
+      for i in range(self.NScan):
+        self.TE[i,...] = par["T2PREP"][i]*np.ones((1,1,1))
+    except:
+      self.NScan = par["TE"].size
+      for i in range(self.NScan):
+        self.TE[i,...] = par["TE"][i]*np.ones((1,1,1))
     self.uk_scale=[]
     self.uk_scale.append(1)
     self.uk_scale.append(1)
 #
-    test_T2 = 1/np.reshape(np.linspace(1,200,dimX*dimY*Nislice),(Nislice,dimX,dimY))
-    test_M0 = 0.1*np.sqrt((dimX*np.pi/2)/Nproj)
+    test_T2 = 1/np.reshape(np.linspace(1,2000,dimX*dimY*Nislice),(Nislice,dimX,dimY))
+    test_M0 = 1*np.sqrt((dimX*np.pi/2)/par['Nproj'])
     test_T2 = 1/self.uk_scale[1]*test_T2*np.ones((Nislice,dimY,dimX),dtype=DTYPE)
 #
 #
@@ -61,11 +65,15 @@ class VFA_Model:
 
 
 
-    result = np.array([0.01*np.ones((Nislice,dimY,dimX),dtype=DTYPE),((1/10)/self.uk_scale[1]*np.ones((Nislice,dimY,dimX),dtype=DTYPE))],dtype=DTYPE)
+    result = np.array([0.1/self.uk_scale[0]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),((1/10)/self.uk_scale[1]*np.ones((Nislice,dimY,dimX),dtype=DTYPE))],dtype=DTYPE)
     self.guess = result
 
-    self.constraints.append(constraint(-10/self.uk_scale[0],10/self.uk_scale[0],False)  )
-    self.constraints.append(constraint(((1/2000)/self.uk_scale[1]),((1)/self.uk_scale[1]),True))
+    self.constraints.append(constraint(-10000/self.uk_scale[0],10000/self.uk_scale[0],False)  )
+    self.constraints.append(constraint(((1/800)/self.uk_scale[1]),((1/5)/self.uk_scale[1]),True))
+  def rescale(self,x):
+    M0 = x[0,...]*self.uk_scale[0]
+    T1 = 1/(x[1,...]*self.uk_scale[1])
+    return np.array((M0,T1))
 
   def execute_forward_2D(self,x,islice):
     R2 = x[1,...]*self.uk_scale[1]
@@ -144,7 +152,7 @@ class VFA_Model:
              self.ax.append(plt.subplot(grid))
              self.ax[-1].axis('off')
 
-           self.M0_plot=self.ax[1].imshow((M0[int(self.Nislice/2),...]))
+           self.M0_plot=self.ax[1].imshow((M0[int(self.NSlice/2),...]))
            self.M0_plot_cor=self.ax[7].imshow((M0[:,int(M0.shape[1]/2),...]))
            self.M0_plot_sag=self.ax[2].imshow(np.flip((M0[:,:,int(M0.shape[-1]/2)]).T,1))
            self.ax[1].set_title('Proton Density in a.u.',color='white')
@@ -158,7 +166,7 @@ class VFA_Model:
            for spine in cbar.ax.spines:
             cbar.ax.spines[spine].set_color('white')
 
-           self.T2_plot=self.ax[3].imshow((T2[int(self.Nislice/2),...]))
+           self.T2_plot=self.ax[3].imshow((T2[int(self.NSlice/2),...]))
            self.T2_plot_cor=self.ax[9].imshow((T2[:,int(T2.shape[1]/2),...]))
            self.T2_plot_sag=self.ax[4].imshow(np.flip((T2[:,:,int(T2.shape[-1]/2)]).T,1))
            self.ax[3].set_title('T2 in  ms',color='white')
@@ -173,13 +181,13 @@ class VFA_Model:
            plt.draw()
            plt.pause(1e-10)
          else:
-           self.M0_plot.set_data((M0[int(self.Nislice/2),...]))
+           self.M0_plot.set_data((M0[int(self.NSlice/2),...]))
            self.M0_plot_cor.set_data((M0[:,int(M0.shape[1]/2),...]))
            self.M0_plot_sag.set_data(np.flip((M0[:,:,int(M0.shape[-1]/2)]).T,1))
            self.M0_plot.set_clim([M0_min,M0_max])
            self.M0_plot_cor.set_clim([M0_min,M0_max])
            self.M0_plot_sag.set_clim([M0_min,M0_max])
-           self.T2_plot.set_data((T2[int(self.Nislice/2),...]))
+           self.T2_plot.set_data((T2[int(self.NSlice/2),...]))
            self.T2_plot_cor.set_data((T2[:,int(T2.shape[1]/2),...]))
            self.T2_plot_sag.set_data(np.flip((T2[:,:,int(T2.shape[-1]/2)]).T,1))
            self.T2_plot.set_clim([T2_min,T2_max])

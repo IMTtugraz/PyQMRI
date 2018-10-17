@@ -17,8 +17,26 @@ import goldcomp as goldcomp
 import matplotlib.pyplot as plt
 import ipyparallel as ipp
 
-from pynfft.nfft import NFFT
+import gridroutines as gridding
 import pyopencl as cl
+
+
+DTYPE = np.complex64
+DTYPE_real = np.float32
+
+def NUFFT(N,NScan,NC,NSlice,traj,dcf,trafo=1):
+  platforms = cl.get_platforms()
+  ctx = cl.Context(
+            dev_type=cl.device_type.GPU,
+            properties=[(cl.context_properties.PLATFORM, platforms[1])])
+  queue=[]
+  queue.append(cl.CommandQueue(ctx,platforms[1].get_devices()[0]))
+  if trafo:
+    FFT = gridding(ctx,queue,4,2,N,NScan,(NScan*NC*NSlice,N,N),(1,2),traj.astype(DTYPE),np.require(np.abs(dcf),DTYPE_real,requirements='C'),N,1000,DTYPE,DTYPE_real,radial=trafo)
+  else:
+    FFT = gridding(ctx,queue,4,2,N,NScan,(NScan*NC*NSlice,N,N),(1,2),traj,dcf,N,1000,DTYPE,DTYPE_real,radial=trafo)
+  return (ctx,queue[0],FFT)
+
 
 def user_input():
   input_dict = {}

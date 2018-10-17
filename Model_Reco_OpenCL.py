@@ -39,31 +39,30 @@ class Model_Reco:
 
 
     self.par = par
-    self.C = par.C
+    self.C = par["C"]
     self.traj = traj
-    self.unknowns_TGV = par.unknowns_TGV
-    self.unknowns_H1 = par.unknowns_H1
-    self.unknowns = par.unknowns
-    self.NSlice = par.NSlice
-    self.NScan = par.NScan
-    self.dimX = par.dimX
-    self.dimY = par.dimY
-    self.NC = par.NC
+    self.unknowns_TGV = par["unknowns_TGV"]
+    self.unknowns_H1 = par["unknowns_H1"]
+    self.unknowns = par["unknowns"]
+    self.NSlice = par["NSlice"]
+    self.NScan = par["NScan"]
+    self.dimX = par["dimX"]
+    self.dimY = par["dimY"]
+    self.NC = par["NC"]
     self.fval_min = 0
     self.fval = 0
     self.ctx = ctx[0]
     self.queue = queue[0]
     self.coil_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.C.data)
-    self.ratio = clarray.to_device(self.queue,(100*np.ones(self.unknowns)).astype(dtype=DTYPE_real))
-    self.ratio[1] = 1
+    self.ratio = clarray.to_device(self.queue,(1*np.ones(self.unknowns)).astype(dtype=DTYPE_real))
     self.ukscale =  clarray.to_device(self.queue,np.ones(self.unknowns,dtype=DTYPE_real))
     self.gn_res = []
-    self.N = par.N
-    self.Nproj = par.Nproj
+    self.N = par["N"]
+    self.Nproj = par["Nproj"]
     if trafo:
-      self.NUFFT = NUFFT.gridding(self.ctx,queue,4,2,par.N,par.NScan,(par.NScan*par.NC*par.NSlice,par.N,par.N),(1,2),traj.astype(DTYPE),np.require(np.abs(dcf),DTYPE_real,requirements='C'),par.N,1000,DTYPE,DTYPE_real,radial=trafo)
+      self.NUFFT = NUFFT.gridding(self.ctx,queue,4,2,par["N"],par["NScan"],(par["NScan"]*par["NC"]*par["NSlice"],par["N"],par["N"]),(1,2),traj.astype(DTYPE),np.require(np.abs(dcf),DTYPE_real,requirements='C'),par["N"],1000,DTYPE,DTYPE_real,radial=trafo)
     else:
-      self.NUFFT = NUFFT.gridding(self.ctx,queue,4,2,par.N,par.NScan,(par.NScan*par.NC*par.NSlice,par.N,par.N),(1,2),traj,dcf,par.N,1000,DTYPE,DTYPE_real,radial=trafo)
+      self.NUFFT = NUFFT.gridding(self.ctx,queue,4,2,par["N"],par["NScan"],(par["NScan"]*par["NC"]*par["NSlice"],par["N"],par["N"]),(1,2),traj,dcf,par["N"],1000,DTYPE,DTYPE_real,radial=trafo)
 
     self.prg = Program(self.ctx, r"""
 __kernel void update_v(__global float8 *v,__global float8 *v_, __global float8 *Kyk2, const float tau) {
@@ -240,10 +239,7 @@ __kernel void gradient(__global float8 *grad, __global float2 *u, const int NUk,
      else
      { grad[i].s45 = 0.0f;}
      // scale gradients
-     if (uk>0)
-     {grad[i]*=maxscal/(ratio[uk]*scale[uk]);}
-     else
-     {grad[i]*=(maxscal/(ratio[uk]*scale[uk]));}
+     {grad[i]*=(maxscal/(scale[uk]))*ratio[uk];}
      i += NSl*Nx*Ny;
   }
 }
@@ -340,10 +336,7 @@ __kernel void divergence(__global float2 *div, __global float8 *p, const int NUk
      }
      div[i] = val.s01+val.s23+val.s45;
      // scale gradients
-     if (ukn>0)
-     {div[i]*=maxscal/(ratio[ukn]*scale[ukn]);}
-     else
-     {div[i]*=(maxscal/(ratio[ukn]*scale[ukn]));}
+     {div[i]*=(maxscal/(scale[ukn]))*ratio[ukn];}
      i += NSl*Nx*Ny;
   }
 
@@ -734,10 +727,7 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
    }
 
    // scale gradients
-   if (uk>0)
-   {val*=maxscal/(ratio[uk]*scale[uk]);}
-   else
-   {val*=(maxscal/(ratio[uk]*scale[uk]));}
+   {val*=(maxscal/(scale[uk]))*ratio[uk];}
 
   out[uk*NSl*X*Y+k*X*Y+y*X+x] = sum - (val.s01+val.s23+val.s45);
   i += NSl*X*Y;
@@ -846,31 +836,29 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
       gamma = self.irgn_par["gamma"]
       delta = self.irgn_par["delta"]
 
-      self.result = np.zeros((self.irgn_par["max_GN_it"],self.unknowns_TGV+self.unknowns_H1,self.par.NSlice,self.par.dimY,self.par.dimX),dtype=DTYPE)
+      self.result = np.zeros((self.irgn_par["max_gn_it"],self.unknowns_TGV+self.unknowns_H1,self.par["NSlice"],self.par["dimY"],self.par["dimX"]),dtype=DTYPE)
       result = np.copy(self.model.guess)
-      for islice in range(self.par.NSlice):
+      for islice in range(self.par["NSlice"]):
         self.irgn_par["gamma"] = gamma
         self.irgn_par["delta"] = delta
-        self.Coils = np.array(np.squeeze(self.par.C[:,islice,:,:]),order='C')[:,None,...]
+        self.Coils = np.array(np.squeeze(self.par["C"][:,islice,:,:]),order='C')[:,None,...]
         self.coil_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.Coils.data)
         self.conjCoils = np.conj(self.Coils)
-        self.v = np.zeros(([self.unknowns_TGV,self.NSlice,self.par.dimX,self.par.dimY,4]),dtype=DTYPE)
+        self.v = np.zeros(([self.unknowns_TGV,self.NSlice,self.par["dimX"],self.par["dimY"],4]),dtype=DTYPE)
         self.r = np.zeros(([self.NScan,self.NC,self.NSlice,self.Nproj,self.N]),dtype=DTYPE)
-        self.z1 = np.zeros(([self.unknowns_TGV,self.NSlice,self.par.dimX,self.par.dimY,4]),dtype=DTYPE)
-        self.z2 = np.zeros(([self.unknowns_TGV,self.NSlice,self.par.dimX,self.par.dimY,8]),dtype=DTYPE)
+        self.z1 = np.zeros(([self.unknowns_TGV,self.NSlice,self.par["dimX"],self.par["dimY"],4]),dtype=DTYPE)
+        self.z2 = np.zeros(([self.unknowns_TGV,self.NSlice,self.par["dimX"],self.par["dimY"],8]),dtype=DTYPE)
         iters = self.irgn_par["start_iters"]
-        for i in range(self.irgn_par["max_GN_it"]):
+        for i in range(self.irgn_par["max_gn_it"]):
           start = time.time()
           self.grad_x_2D = np.nan_to_num(self.model.execute_gradient_2D(result[:,islice,:,:],islice))
+        for uk in range(self.unknowns-1):
+          scale = np.linalg.norm(np.abs(self.grad_x_2D[0,...]))/np.linalg.norm(np.abs(self.grad_x_2D[uk+1,...]))
+          self.model.constraints[uk+1].update(scale)
+          result[uk+1,...] = result[uk+1,...]*self.model.uk_scale[uk+1]
+          self.model.uk_scale[uk+1] = self.model.uk_scale[uk+1]*scale
+          result[uk+1,...] = result[uk+1,...]/self.model.uk_scale[uk+1]
 
-          scale = np.linalg.norm(np.abs(self.grad_x_2D[0,...]))/np.linalg.norm(np.abs(self.grad_x_2D[1,...]))
-
-          for j in range(len(self.model.constraints)-1):
-            self.model.constraints[j+1].update(scale)
-
-          result[1,islice,:,:] = result[1,islice,:,:]*self.model.T1_sc
-          self.model.T1_sc = self.model.T1_sc*(scale)
-          result[1,islice,:,:] = result[1,islice,:,:]/self.model.T1_sc
           self.step_val = self.model.execute_forward_2D(result[:,islice,:,:],islice)[:,None,...]
           self.grad_x_2D = np.nan_to_num(self.model.execute_gradient_2D(result[:,islice,:,:],islice).astype(DTYPE))[:,:,None,...]
           self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x_2D.data)
@@ -975,11 +963,11 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     x_new = clarray.zeros_like(x)
 
     r = clarray.to_device(self.queue,self.r)#np.zeros_like(res,dtype=DTYPE)
-    z1 = clarray.to_device(self.queue,self.z1)#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-    z1_new = clarray.zeros_like(z1)#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-    z2 = clarray.to_device(self.queue,self.z2)#np.zeros(([self.unknowns,3,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+    z1 = clarray.to_device(self.queue,self.z1)#np.zeros(([self.unknowns,2,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
+    z1_new = clarray.zeros_like(z1)#np.zeros(([self.unknowns,2,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
+    z2 = clarray.to_device(self.queue,self.z2)#np.zeros(([self.unknowns,3,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
     z2_new = clarray.zeros_like(z2)
-    v = clarray.to_device(self.queue,self.v)#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+    v = clarray.to_device(self.queue,self.v)#np.zeros(([self.unknowns,2,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
     res = clarray.to_device(self.queue, res)
 
 
@@ -1185,6 +1173,8 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     for j in range(x.shape[0]):
       self.ukscale[j] = np.linalg.norm(x[j,...])
       print('scale %f at uk %i' %(self.ukscale[j].get(),j))
+      if j>0:
+        self.ratio[j] = self.ukscale[j]/self.ukscale[0]
 
 
 ################################################################################
@@ -1201,18 +1191,18 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
 
 
    self.r = np.zeros_like(self.data,dtype=DTYPE)
-   self.z1 = np.zeros(([self.unknowns,self.NSlice,self.par.dimX,self.par.dimY,4]),dtype=DTYPE)
+   self.z1 = np.zeros(([self.unknowns,self.NSlice,self.par["dimX"],self.par["dimY"],4]),dtype=DTYPE)
 
 
-   self.result = np.zeros((self.irgn_par["max_GN_it"]+1,self.unknowns,self.par.NSlice,self.par.dimY,self.par.dimX),dtype=DTYPE)
+   self.result = np.zeros((self.irgn_par["max_gn_it"]+1,self.unknowns,self.par["NSlice"],self.par["dimY"],self.par["dimX"]),dtype=DTYPE)
    self.result[0,:,:,:,:] = np.copy(self.model.guess)
 
-   self.Coils3D = (self.par.C)
+   self.Coils3D = (self.par["C"])
    self.conjCoils3D = np.conj(self.Coils3D)
    result = np.copy(self.model.guess)
 
    if TV==1:
-      for i in range(self.irgn_par["max_GN_it"]):
+      for i in range(self.irgn_par["max_gn_it"]):
         start = time.time()
         self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
 
@@ -1229,8 +1219,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         self.conj_grad_x = np.nan_to_num(np.conj(self.grad_x))
 
         result = self.irgn_solve_3D(result, iters, self.data,TV)
-        for uk in range(self.unknowns):
-          self.result[i+1,uk,...] = result[uk,...]*self.model.uk_scale[uk]
+        self.result[i+1,...] = self.model.rescale(result)
 
         iters = np.fmin(iters*2,self.irgn_par["max_iters"])
         self.irgn_par["gamma"] = np.maximum(self.irgn_par["gamma"]*self.irgn_par["gamma_dec"],self.irgn_par["gamma_min"])
@@ -1248,9 +1237,9 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         self.fval_min = np.minimum(self.fval,self.fval_min)
 
    elif TV==0:
-      self.v = np.zeros(([self.unknowns,self.NSlice,self.par.dimX,self.par.dimY,4]),dtype=DTYPE)
-      self.z2 = np.zeros(([self.unknowns,self.NSlice,self.par.dimX,self.par.dimY,8]),dtype=DTYPE)
-      for i in range(self.irgn_par["max_GN_it"]):
+      self.v = np.zeros(([self.unknowns,self.NSlice,self.par["dimX"],self.par["dimY"],4]),dtype=DTYPE)
+      self.z2 = np.zeros(([self.unknowns,self.NSlice,self.par["dimX"],self.par["dimY"],8]),dtype=DTYPE)
+      for i in range(self.irgn_par["max_gn_it"]):
         start = time.time()
         self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
 
@@ -1267,8 +1256,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         self.conj_grad_x = np.nan_to_num(np.conj(self.grad_x))
 
         result = self.irgn_solve_3D(result, iters, self.data,TV)
-        for uk in range(self.unknowns):
-          self.result[i+1,uk,...] = result[uk,...]*self.model.uk_scale[uk]
+        self.result[i+1,...] = self.model.rescale(result)
 
 
         iters = np.fmin(iters*2,self.irgn_par["max_iters"])
@@ -1286,9 +1274,9 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           self.fval_min = self.fval
         self.fval_min = np.minimum(self.fval,self.fval_min)
    else:
-      self.v = np.zeros(([self.unknowns,self.NSlice,self.par.dimX,self.par.dimY,4]),dtype=DTYPE)
-      self.z2 = np.zeros(([self.unknowns,self.NSlice,self.par.dimX,self.par.dimY,8]),dtype=DTYPE)
-      for i in range(self.irgn_par["max_GN_it"]):
+      self.v = np.zeros(([self.unknowns,self.NSlice,self.par["dimX"],self.par["dimY"],4]),dtype=DTYPE)
+      self.z2 = np.zeros(([self.unknowns,self.NSlice,self.par["dimX"],self.par["dimY"],8]),dtype=DTYPE)
+      for i in range(self.irgn_par["max_gn_it"]):
         start = time.time()
         self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
 
@@ -1306,8 +1294,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         self.conj_grad_x = np.nan_to_num(np.conj(self.grad_x))
 
         result = self.irgn_solve_3D(result, iters, self.data,TV)
-        for uk in range(self.unknowns):
-          self.result[i+1,uk,...] = result[uk,...]*self.model.uk_scale[uk]
+        self.result[i+1,...] = self.model.rescale(result)
 
         iters = np.fmin(iters*2,self.irgn_par["max_iters"])
         self.irgn_par["gamma"] = np.maximum(self.irgn_par["gamma"]*self.irgn_par["gamma_dec"],self.irgn_par["gamma_min"])
@@ -1351,14 +1338,6 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
       self.fval= (self.irgn_par["lambd"]/2*np.linalg.norm(data - b.get())**2
               +self.irgn_par["gamma"]*np.sum(np.abs(grad.get()))
               +1/(2*self.irgn_par["delta"])*np.linalg.norm((x-x_old).flatten())**2)
-      for knt in range(self.unknowns):
-         print('Norm uk%i grad: %f' %(knt,np.linalg.norm(grad.get()[knt,...])))
-         scale = np.linalg.norm(grad.get()[knt,...])/np.linalg.norm(grad.get()[1,...])
-         if scale == 0 or not np.isfinite(scale):
-           pass
-         else:
-           print("Scale: %f" %scale)
-           self.ratio[knt] *= scale
     elif TV==0:
        x = self.tgv_solve_3D(x.get(),res,iters)
        x = clarray.to_device(self.queue,x)
@@ -1373,14 +1352,6 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
               +self.irgn_par["gamma"]*np.sum(np.abs(grad.get()-self.v))
               +self.irgn_par["gamma"]*(2)*np.sum(np.abs(sym_grad.get()))
               +1/(2*self.irgn_par["delta"])*np.linalg.norm((x-x_old).flatten())**2)
-       for knt in range(self.unknowns):
-         print('Norm uk%i grad: %f' %(knt,np.linalg.norm(grad.get()[knt,...])))
-         scale = np.linalg.norm(grad.get()[knt,...])/np.linalg.norm(grad.get()[1,...])
-         if scale == 0 or not np.isfinite(scale):
-           pass
-         else:
-           print("Scale: %f" %scale)
-           self.ratio[knt] *= scale
     else:
        x = self.tgv_solve_3D_explicit(x.get(),res,iters)
        x = clarray.to_device(self.queue,x)
@@ -1395,14 +1366,6 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
               +self.irgn_par["gamma"]*np.sum(np.abs(grad.get()-self.v))
               +self.irgn_par["gamma"]*(2)*np.sum(np.abs(sym_grad.get()))
               +1/(2*self.irgn_par["delta"])*np.linalg.norm((x-x_old).flatten())**2)
-       for knt in range(self.unknowns):
-         print('Norm uk%i grad: %f' %(knt,np.linalg.norm(grad.get()[knt,...])))
-         scale = np.linalg.norm(grad.get()[knt,...])/np.linalg.norm(grad.get()[1,...])
-         if scale == 0 or not np.isfinite(scale):
-           pass
-         else:
-           print("Scale: %f" %scale)
-           self.ratio[knt] *= scale
 
     print("-"*80)
     print ("Function value after GN-Step: %f" %(self.fval/(self.irgn_par["lambd"]*self.NSlice)))
@@ -1417,22 +1380,22 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     print('L: %f'%(L))
 
 
-    tau = np.float32(1/np.sqrt(L))
+    tau = 1e-10#np.float32(1/np.sqrt(L))
     tau_new =np.float32(0)
 
     self.set_scale(x)
     x = clarray.to_device(self.queue,x)
     xk = x.copy()
-    x_new = clarray.zeros_like(x)
+    x_new = x.copy()
 
     r = clarray.to_device(self.queue,self.r)#np.zeros_like(res,dtype=DTYPE)
-    r_new = clarray.zeros_like(r)
-    z1 = clarray.to_device(self.queue,self.z1)#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-    z1_new = clarray.zeros_like(z1)#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-    z2 = clarray.to_device(self.queue,self.z2)#np.zeros(([self.unknowns,3,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-    z2_new = clarray.zeros_like(z2)
-    v = clarray.to_device(self.queue,self.v)#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-    v_new = clarray.zeros_like(v)
+    r_new = r.copy()#clarray.zeros_like(r)
+    z1 = clarray.to_device(self.queue,self.z1)#np.zeros(([self.unknowns,2,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
+    z1_new = z1.copy()#clarray.zeros_like(z1)#np.zeros(([self.unknowns,2,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
+    z2 = clarray.to_device(self.queue,self.z2)#np.zeros(([self.unknowns,3,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
+    z2_new = z2.copy()#clarray.zeros_like(z2)
+    v = clarray.to_device(self.queue,self.v)#np.zeros(([self.unknowns,2,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
+    v_new = v.copy()#clarray.zeros_like(v)
     res = clarray.to_device(self.queue, res.astype(DTYPE))
 
 
@@ -1515,7 +1478,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
       tau =  (tau_new)
 
 
-      if not np.mod(i,10):
+      if not np.mod(i,50):
 
         self.model.plot_unknowns(x_new.get())
         primal_new= (self.irgn_par["lambd"]/2*clarray.vdot(Axold-res,Axold-res)+alpha*clarray.sum(abs((gradx[:self.unknowns_TGV]-v))) +beta*clarray.sum(abs(symgrad_v)) + 1/(2*delta)*clarray.vdot(x_new-xk,x_new-xk)).real
@@ -1578,8 +1541,8 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
 
     r = clarray.to_device(self.queue,self.r)#np.zeros_like(res,dtype=DTYPE)
     r_new  = clarray.zeros_like(r)
-    z1 = clarray.to_device(self.queue,self.z1)#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-    z1_new = clarray.zeros_like(z1)#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+    z1 = clarray.to_device(self.queue,self.z1)#np.zeros(([self.unknowns,2,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
+    z1_new = clarray.zeros_like(z1)#np.zeros(([self.unknowns,2,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
     res = clarray.to_device(self.queue, res.astype(DTYPE))
 
 
@@ -1656,7 +1619,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
       tau =  (tau_new)
 
 
-      if not np.mod(i,10):
+      if not np.mod(i,50):
         self.model.plot_unknowns(x_new.get())
         primal_new= (self.irgn_par["lambd"]/2*clarray.vdot(Axold-res,Axold-res)+alpha*clarray.sum(abs((gradx[:self.unknowns_TGV]))) + 1/(2*delta)*clarray.vdot(x_new-xk,x_new-xk)).real
 
@@ -1710,11 +1673,11 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     x_new = clarray.zeros_like(x)
     ATd = clarray.zeros_like(x)
 
-    z1 = clarray.to_device(self.queue,self.z1)#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-    z1_new = clarray.zeros_like(z1)#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-    z2 = clarray.to_device(self.queue,self.z2)#np.zeros(([self.unknowns,3,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+    z1 = clarray.to_device(self.queue,self.z1)#np.zeros(([self.unknowns,2,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
+    z1_new = clarray.zeros_like(z1)#np.zeros(([self.unknowns,2,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
+    z2 = clarray.to_device(self.queue,self.z2)#np.zeros(([self.unknowns,3,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
     z2_new = clarray.zeros_like(z2)
-    v = clarray.to_device(self.queue,self.v)#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
+    v = clarray.to_device(self.queue,self.v)#np.zeros(([self.unknowns,2,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
     v_new = clarray.zeros_like(v)
     res = clarray.to_device(self.queue, res.astype(DTYPE))
 

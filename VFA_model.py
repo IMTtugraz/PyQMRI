@@ -26,21 +26,21 @@ class constraint:
     self.max = self.max/scale
 
 
-class VFA_Model:
-  def __init__(self,fa,fa_corr,TR,images,Nislice,Nproj):
+class Model:
+  def __init__(self,par,images):
     self.constraints = []
-    self.TR = TR
+    self.TR = par["TR"]
     self.images = images
-    self.fa = fa
-    self.fa_corr = fa_corr
-    self.Nislice = Nislice
+    self.fa = par["flip_angle(s)"]
+    self.fa_corr = par["fa_corr"]
+    self.NSlice = par["NSlice"]
     self.figure = None
 
-    (NScan,Nislice,dimX,dimY) = images.shape
+    (NScan,NSlice,dimX,dimY) = images.shape
 
     phi_corr = np.zeros_like(images,dtype=DTYPE)
-    for i in range(np.size(fa)):
-      phi_corr[i,:,:,:] = fa[i]*fa_corr
+    for i in range(np.size(par["flip_angle(s)"])):
+      phi_corr[i,:,:,:] = par["flip_angle(s)"][i]*np.pi/180*par["fa_corr"]
 
     self.sin_phi = np.sin(phi_corr)
     self.cos_phi = np.cos(phi_corr)
@@ -49,28 +49,33 @@ class VFA_Model:
     self.uk_scale.append(1)
     self.uk_scale.append(1)
 
-    test_T1 = np.reshape(np.linspace(10,5500,dimX*dimY*Nislice),(Nislice,dimX,dimY))
-    test_M0 = 0.1*np.sqrt((dimX*np.pi/2)/Nproj)
-    test_T1 = 1/self.uk_scale[1]*np.exp(-self.TR/(test_T1*np.ones((Nislice,dimY,dimX),dtype=DTYPE)))
+    test_T1 = np.reshape(np.linspace(10,5500,dimX*dimY*NSlice),(NSlice,dimX,dimY))
+    test_M0 = 0.1*np.sqrt((dimX*np.pi/2)/par["Nproj"])
+    test_T1 = 1/self.uk_scale[1]*np.exp(-self.TR/(test_T1*np.ones((NSlice,dimY,dimX),dtype=DTYPE)))
 
 
-    G_x = self.execute_forward_3D(np.array([test_M0/self.uk_scale[0]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),test_T1],dtype=DTYPE))
+    G_x = self.execute_forward_3D(np.array([test_M0/self.uk_scale[0]*np.ones((NSlice,dimY,dimX),dtype=DTYPE),test_T1],dtype=DTYPE))
     self.uk_scale[0] = self.uk_scale[0]*np.median(np.abs(images))/np.median(np.abs(G_x))
 
-    DG_x =  self.execute_gradient_3D(np.array([test_M0/self.uk_scale[0]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),test_T1],dtype=DTYPE))
+    DG_x =  self.execute_gradient_3D(np.array([test_M0/self.uk_scale[0]*np.ones((NSlice,dimY,dimX),dtype=DTYPE),test_T1],dtype=DTYPE))
     self.uk_scale[1] = self.uk_scale[1]*np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...]))
 
     self.uk_scale[1] = self.uk_scale[1]/np.sqrt(self.uk_scale[0])
-    DG_x =  self.execute_gradient_3D(np.array([test_M0/self.uk_scale[0]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),test_T1],dtype=DTYPE))
+    DG_x =  self.execute_gradient_3D(np.array([test_M0/self.uk_scale[0]*np.ones((NSlice,dimY,dimX),dtype=DTYPE),test_T1],dtype=DTYPE))
 #    print('Grad Scaling init', np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...])))
 #    print('T1 scale: ',self.uk_scale[1],
 #                              '/ uk_scale[0]ale: ',self.uk_scale[0])
 
 
-    result = np.array([1/self.uk_scale[0]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),1/self.uk_scale[1]*np.exp(-self.TR/(800*np.ones((Nislice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE)
+    result = np.array([1/self.uk_scale[0]*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1/self.uk_scale[1]*np.exp(-self.TR/(800*np.ones((NSlice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE)
     self.guess = result
     self.constraints.append(constraint(-20/self.uk_scale[0],20/self.uk_scale[0],False)  )
     self.constraints.append(constraint(np.exp(-self.TR/(50))/self.uk_scale[1],np.exp(-self.TR/(5500))/self.uk_scale[1],True))
+
+  def rescale(self,x):
+    M0 = x[0,...]*self.uk_scale[0]
+    T1 = -self.TR/np.log(x[1,...]*self.uk_scale[1])
+    return np.array((M0,T1))
 
   def execute_forward_2D(self,x,islice):
     print('uk_scale[1]: ',self.uk_scale[1])
@@ -155,7 +160,7 @@ class VFA_Model:
              self.ax.append(plt.subplot(grid))
              self.ax[-1].axis('off')
 
-           self.M0_plot=self.ax[1].imshow((M0[int(self.Nislice/2),...]))
+           self.M0_plot=self.ax[1].imshow((M0[int(self.NSlice/2),...]))
            self.M0_plot_cor=self.ax[7].imshow((M0[:,int(M0.shape[1]/2),...]))
            self.M0_plot_sag=self.ax[2].imshow(np.flip((M0[:,:,int(M0.shape[-1]/2)]).T,1))
            self.ax[1].set_title('Proton Density in a.u.',color='white')
@@ -169,7 +174,7 @@ class VFA_Model:
            for spine in cbar.ax.spines:
             cbar.ax.spines[spine].set_color('white')
 
-           self.T1_plot=self.ax[3].imshow((T1[int(self.Nislice/2),...]))
+           self.T1_plot=self.ax[3].imshow((T1[int(self.NSlice/2),...]))
            self.T1_plot_cor=self.ax[9].imshow((T1[:,int(T1.shape[1]/2),...]))
            self.T1_plot_sag=self.ax[4].imshow(np.flip((T1[:,:,int(T1.shape[-1]/2)]).T,1))
            self.ax[3].set_title('T1 in  ms',color='white')
@@ -184,13 +189,13 @@ class VFA_Model:
            plt.draw()
            plt.pause(1e-10)
          else:
-           self.M0_plot.set_data((M0[int(self.Nislice/2),...]))
+           self.M0_plot.set_data((M0[int(self.NSlice/2),...]))
            self.M0_plot_cor.set_data((M0[:,int(M0.shape[1]/2),...]))
            self.M0_plot_sag.set_data(np.flip((M0[:,:,int(M0.shape[-1]/2)]).T,1))
            self.M0_plot.set_clim([M0_min,M0_max])
            self.M0_plot_cor.set_clim([M0_min,M0_max])
            self.M0_plot_sag.set_clim([M0_min,M0_max])
-           self.T1_plot.set_data((T1[int(self.Nislice/2),...]))
+           self.T1_plot.set_data((T1[int(self.NSlice/2),...]))
            self.T1_plot_cor.set_data((T1[:,int(T1.shape[1]/2),...]))
            self.T1_plot_sag.set_data(np.flip((T1[:,:,int(T1.shape[-1]/2)]).T,1))
            self.T1_plot.set_clim([T1_min,T1_max])
