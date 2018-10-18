@@ -10,8 +10,6 @@ from tkinter import Tk
 import nlinvns_maier as nlinvns
 
 
-
-#import VFA_model as sig_model
 import goldcomp as goldcomp
 
 import matplotlib.pyplot as plt
@@ -39,8 +37,7 @@ def prime_factors(n):
         factors.append(n)
     return factors
 
-def NUFFT(N,NScan,NC,NSlice,traj,dcf,trafo=1):
-  N=512
+def NUFFT(N,NScan,NC,NSlice,traj,dcf,trafo=1,mask=None):
   platforms = cl.get_platforms()
   ctx = cl.Context(
             dev_type=cl.device_type.GPU,
@@ -50,7 +47,7 @@ def NUFFT(N,NScan,NC,NSlice,traj,dcf,trafo=1):
   if trafo:
     FFT = gridding(ctx,queue,4,2,N,NScan,(NScan*NC*NSlice,N,N),(1,2),traj.astype(DTYPE),np.require(np.abs(dcf),DTYPE_real,requirements='C'),N,1000,DTYPE,DTYPE_real,radial=trafo)
   else:
-    FFT = gridding(ctx,queue,4,2,N,NScan,(NScan*NC*NSlice,N,N),(1,2),traj,dcf,N,1000,DTYPE,DTYPE_real,radial=trafo)
+    FFT = gridding(ctx,queue,4,2,N,NScan,(NScan*NC*NSlice,N,N),(1,2),traj,dcf,N,1000,DTYPE,DTYPE_real,radial=trafo,mask=mask)
   return (ctx,queue[0],FFT)
 
 def gen_default_config():
@@ -148,7 +145,15 @@ def main(args):
       file = args.file
 
     name = file.split('/')[-1]
+
+#    if os.path.isfile(file[:-3]+"_sense.h5"):
+#      coil_file = h5py.File(file[:-3]+"_sense.h5")
+#      coils = coil_file['real_dat'][()]+1j*coil_file['imag_dat'][()]
+#      coils = np.transpose(coils,(0,3,1,2))
+
     file = h5py.File(file)
+#    file['Coils'][...] = coils.astype(DTYPE)
+
 
 ################################################################################
 ### Check if file contains all necessary information ###########################
@@ -180,15 +185,22 @@ def main(args):
 ################################################################################
     reco_Slices = args.slices
     dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
+    dimX-=3
+    dimY-=3
     off = 0
 
-    data = file['real_dat'][...,int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:int(NSlice/2)+int(np.ceil(reco_Slices/2))+off,:,:].astype(DTYPE)\
-       +1j*file['imag_dat'][...,int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:int(NSlice/2)+int(np.ceil(reco_Slices/2))+off,:,:].astype(DTYPE)
+    data = file['real_dat'][...,int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:int(NSlice/2)+int(np.ceil(reco_Slices/2))+off,:,3:-3].astype(DTYPE)\
+       +1j*file['imag_dat'][...,int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:int(NSlice/2)+int(np.ceil(reco_Slices/2))+off,:,3:-3].astype(DTYPE)
+
+#    data = np.require(np.transpose(data,(0,1,4,3,2)),requirements='C')
+#    data = data[:,0,...]
+#    data = np.repeat(data[:,None,...],2,1)
 
 
     if args.trafo:
       traj = file['real_traj'][()].astype(DTYPE) + \
              1j*file['imag_traj'][()].astype(DTYPE)
+      traj = traj[...,3:-3]
       dcf = np.array(goldcomp.cmp(traj),dtype=DTYPE)
     else:
       traj=None
@@ -196,13 +208,7 @@ def main(args):
 
 
     if np.max(prime_factors(data.shape[-1]))>13:
-#      raise ValueError('Samples along the spoke need to have their largest prime factor to be 13 or lower.')
-      data = data[...,2:-2]
-      traj = traj[...,2:-2]
-      dcf = np.array(goldcomp.cmp(traj),dtype=DTYPE)
-      dimX = int(data.shape[-1]/2)
-      dimY = dimX
-
+      raise ValueError('Samples along the spoke need to have their largest prime factor to be 13 or lower.')
 
     #Create par struct to store everyting
     par={}
@@ -225,8 +231,6 @@ def main(args):
       NScan = np.floor_divide(Nproj,Nproj_new)
       par["Nproj_measured"] = Nproj
       Nproj = Nproj_new
-
-
       data = np.require(np.transpose(np.reshape(data[...,:Nproj*NScan,:],\
                                      (NC,reco_Slices,NScan,Nproj,N)),(2,0,1,3,4)),requirements='C')
       traj =np.require(np.reshape(traj[:Nproj*NScan,:],(NScan,Nproj,N)),requirements='C')
@@ -252,6 +256,10 @@ def main(args):
     par["unknowns_TGV"] = 2
     par["unknowns_H1"] = 0
     par["unknowns"] = 2
+    if not args.trafo:
+      par['mask'] = np.ones_like(np.abs(data)).astype(int)
+      (par['mask'])[np.abs(data)==0] = 0
+      par['mask'] = np.reshape(par['mask'],(NScan*NC*reco_Slices,dimY,dimX))
 
 
 
@@ -265,14 +273,111 @@ def main(args):
       pass
     try:
       if not file['Coils'][()].shape[1] >= reco_Slices:
+        if args.trafo:
+          nlinvNewtonSteps = 6
+          nlinvRealConstr  = False
+
+          traj_coil = np.reshape(traj,(NScan*Nproj,N))
+          dcf_coil = np.repeat(dcf,NScan,0)
+
+          par["C"] = np.zeros((NC,reco_Slices,dimY,dimX), dtype=DTYPE)
+          par["phase_map"] = np.zeros((reco_Slices,dimY,dimX), dtype=DTYPE)
+
+          (ctx,queue,FFT) = NUFFT(N,1,1,1,traj_coil,dcf_coil)
+
+          result = []
+          for i in range(0,(reco_Slices)):
+            sys.stdout.write("Computing coil sensitivity map of slice %i \r" \
+                           %(i))
+            sys.stdout.flush()
+
+            ##### RADIAL PART
+            combinedData = np.transpose(data[:,:,i,:,:],(1,0,2,3))
+            combinedData = np.reshape(combinedData,(1,NC,1,NScan*Nproj,N))
+            tmp_coilData = clarray.zeros(FFT.queue[0],(1,1,1,dimY,dimX),dtype=DTYPE)
+            coilData = np.zeros((NC,dimY,dimX),dtype=DTYPE)
+            for j in range(NC):
+                tmp_combinedData = clarray.to_device(FFT.queue[0],combinedData[None,:,j,...])
+                FFT.adj_NUFFT(tmp_coilData,tmp_combinedData)
+                coilData[j,...] = np.squeeze(tmp_coilData.get())
+
+            combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)
+
+            dview = c[int(np.floor(i*len(c)/NSlice))]
+            result.append(dview.apply_async(nlinvns.nlinvns, combinedData,
+                                            nlinvNewtonSteps, True, nlinvRealConstr))
+
+          for i in range(reco_Slices):
+            par["C"][:,i,:,:] = result[i].get()[2:,-1,:,:]
+            sys.stdout.write("slice %i done \r" \
+                           %(i))
+            sys.stdout.flush()
+            if not nlinvRealConstr:
+              par["phase_map"][i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
+              par["C"][:,i,:,:] = par["C"][:,i,:,:]* np.exp(1j *\
+                   np.angle( result[i].get()[1,-1,:,:]))
+
+              # standardize coil sensitivity profiles
+          sumSqrC = np.sqrt(np.sum((par["C"] * np.conj(par["C"])),0)) #4, 9, 128, 128
+          if NC == 1:
+            par["C"] = sumSqrC
+          else:
+            par["C"] = par["C"] / np.tile(sumSqrC, (NC,1,1,1))
+          del file['Coils']
+          del FFT,ctx,queue
+        else:
+          nlinvNewtonSteps = 6
+          nlinvRealConstr  = False
+
+          par["C"] = np.zeros((NC,reco_Slices,dimY,dimX), dtype=DTYPE)
+          par["phase_map"] = np.zeros((reco_Slices,dimY,dimX), dtype=DTYPE)
+
+          result = []
+          tmp =  np.transpose(np.fft.ifft(np.fft.fft(np.mean(data,0),axis=-3),axis=-1),(0,3,1,2))
+          for i in range(0,(reco_Slices)):
+            sys.stdout.write("Computing coil sensitivity map of slice %i \r" \
+                           %(i))
+            sys.stdout.flush()
+
+            ##### RADIAL PART
+            combinedData = tmp[:,i,...]
+
+            dview = c[int(np.floor(i*len(c)/NSlice))]
+            result.append(dview.apply_async(nlinvns.nlinvns, combinedData,
+                                            nlinvNewtonSteps, True, nlinvRealConstr))
+
+          for i in range(reco_Slices):
+            par["C"][:,i,:,:] = result[i].get()[2:,-1,:,:]
+            sys.stdout.write("slice %i done \r" \
+                           %(i))
+            sys.stdout.flush()
+            if not nlinvRealConstr:
+              par["phase_map"][i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
+              par["C"][:,i,:,:] = par["C"][:,i,:,:]* np.exp(1j *\
+                   np.angle( result[i].get()[1,-1,:,:]))
+
+              # standardize coil sensitivity profiles
+          sumSqrC = np.sqrt(np.sum((par["C"] * np.conj(par["C"])),0)) #4, 9, 128, 128
+          if NC == 1:
+            par["C"] = sumSqrC
+          else:
+            par["C"] = par["C"] / np.tile(sumSqrC, (NC,1,1,1))
+          del file['Coils']
+
+        file.create_dataset("Coils",par["C"].shape,dtype=par["C"].dtype,data=par["C"])
+        file.flush()
+
+      else:
+        print("Using precomputed coil sensitivities")
+        slices_coils = file['Coils'][()].shape[1]
+        par["C"] = file['Coils'][:,int(slices_coils/2)-int(np.floor((reco_Slices)/2)):int(slices_coils/2)+int(np.ceil(reco_Slices/2)),...]
+
+    except:
+      if args.trafo:
         nlinvNewtonSteps = 6
         nlinvRealConstr  = False
 
         traj_coil = np.reshape(traj,(NScan*Nproj,N))
-    #    coil_plan = NFFT((dimY,dimX),NScan*Nproj*N)
-    #    coil_plan.x = np.transpose(np.array([np.imag(traj_coil.flatten()),\
-    #                                         np.real(traj_coil.flatten())]))
-    #    coil_plan.precompute()
         dcf_coil = np.repeat(dcf,NScan,0)
 
         par["C"] = np.zeros((NC,reco_Slices,dimY,dimX), dtype=DTYPE)
@@ -293,8 +398,6 @@ def main(args):
           coilData = np.zeros((NC,dimY,dimX),dtype=DTYPE)
           for j in range(NC):
               tmp_combinedData = clarray.to_device(FFT.queue[0],combinedData[None,:,j,...])
-    #          coil_plan.f = combinedData[j,:,:]*np.repeat(np.sqrt(dcf),NScan,axis=0)
-    #          coilData[j,:,:] = coil_plan.adjoint()
               FFT.adj_NUFFT(tmp_coilData,tmp_combinedData)
               coilData[j,...] = np.squeeze(tmp_coilData.get())
 
@@ -320,74 +423,52 @@ def main(args):
           par["C"] = sumSqrC
         else:
           par["C"] = par["C"] / np.tile(sumSqrC, (NC,1,1,1))
-        del file['Coils']
-        file.create_dataset("Coils",par["C"].shape,dtype=par["C"].dtype,data=par["C"])
-        file.flush()
         del FFT,ctx,queue
       else:
-        print("Using precomputed coil sensitivities")
-        slices_coils = file['Coils'][()].shape[1]
-        par["C"] = file['Coils'][:,int(slices_coils/2)-int(np.floor((reco_Slices)/2)):int(slices_coils/2)+int(np.ceil(reco_Slices/2)),...]
+        nlinvNewtonSteps = 6
+        nlinvRealConstr  = False
 
-    except:
-      nlinvNewtonSteps = 6
-      nlinvRealConstr  = False
+        par["C"] = np.zeros((NC,reco_Slices,dimY,dimX), dtype=DTYPE)
+        par["phase_map"] = np.zeros((reco_Slices,dimY,dimX), dtype=DTYPE)
 
-      traj_coil = np.reshape(traj,(NScan*Nproj,N))
-    #    coil_plan = NFFT((dimY,dimX),NScan*Nproj*N)
-    #    coil_plan.x = np.transpose(np.array([np.imag(traj_coil.flatten()),\
-    #                                         np.real(traj_coil.flatten())]))
-    #    coil_plan.precompute()
-      dcf_coil = np.ones_like(np.repeat(dcf,NScan,0))
+        result = []
+        for i in range(0,(reco_Slices)):
+          sys.stdout.write("Computing coil sensitivity map of slice %i \r" \
+                         %(i))
+          sys.stdout.flush()
 
-      par["C"] = np.zeros((NC,reco_Slices,dimY,dimX), dtype=DTYPE)
-      par["phase_map"] = np.zeros((reco_Slices,dimY,dimX), dtype=DTYPE)
+          ##### RADIAL PART
+          combinedData =  np.fft.fftshift(np.mean(data[:,:,i,:,:],0),(-1,-2))
+#          combinedData = np.mean(combinedData,0)
 
-      (ctx,queue,FFT) = NUFFT(N,1,1,1,traj_coil,np.sqrt(dcf_coil))
+          dview = c[int(np.floor(i*len(c)/NSlice))]
+          result.append(dview.apply_async(nlinvns.nlinvns, combinedData,
+                                          nlinvNewtonSteps, True, nlinvRealConstr))
 
-      result = []
-      for i in range(0,(reco_Slices)):
-        sys.stdout.write("Computing coil sensitivity map of slice %i \r" \
-                       %(i))
-        sys.stdout.flush()
+        for i in range(reco_Slices):
+          par["C"][:,i,:,:] = result[i].get()[2:,-1,:,:]
+          sys.stdout.write("slice %i done \r" \
+                         %(i))
+          sys.stdout.flush()
+          if not nlinvRealConstr:
+            par["phase_map"][i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
+            par["C"][:,i,:,:] = par["C"][:,i,:,:]* np.exp(1j *\
+                 np.angle( result[i].get()[1,-1,:,:]))
 
-        ##### RADIAL PART
-        combinedData = np.transpose(data[:,:,i,:,:],(1,0,2,3))
-        combinedData = np.reshape(combinedData,(1,NC,1,NScan*Nproj,N))
-        tmp_coilData = clarray.zeros(FFT.queue[0],(1,1,1,dimY,dimX),dtype=DTYPE)
-        coilData = np.zeros((NC,dimY,dimX),dtype=DTYPE)
-        for j in range(NC):
-            tmp_combinedData = clarray.to_device(FFT.queue[0],combinedData[None,:,j,...])
-    #          coil_plan.f = combinedData[j,:,:]*np.repeat(np.sqrt(dcf),NScan,axis=0)
-    #          coilData[j,:,:] = coil_plan.adjoint()
-            FFT.adj_NUFFT(tmp_coilData,tmp_combinedData)
-            coilData[j,...] = np.squeeze(tmp_coilData.get())
-
-        combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)
-
-        dview = c[int(np.floor(i*len(c)/NSlice))]
-        result.append(dview.apply_async(nlinvns.nlinvns, combinedData,
-                                        nlinvNewtonSteps, True, nlinvRealConstr))
-
-      for i in range(reco_Slices):
-        par["C"][:,i,:,:] = result[i].get()[2:,-1,:,:]
-        sys.stdout.write("slice %i done \r" \
-                       %(i))
-        sys.stdout.flush()
-        if not nlinvRealConstr:
-          par["phase_map"][i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
-          par["C"][:,i,:,:] = par["C"][:,i,:,:]* np.exp(1j *\
-               np.angle( result[i].get()[1,-1,:,:]))
-
-          # standardize coil sensitivity profiles
-      sumSqrC = np.sqrt(np.sum((par["C"] * np.conj(par["C"])),0)) #4, 9, 128, 128
-      if NC == 1:
-        par["C"] = sumSqrC
-      else:
-        par["C"] = par["C"] / np.tile(sumSqrC, (NC,1,1,1))
+            # standardize coil sensitivity profiles
+        sumSqrC = np.sqrt(np.sum((par["C"] * np.conj(par["C"])),0)) #4, 9, 128, 128
+        if NC == 1:
+          par["C"] = sumSqrC
+        else:
+          par["C"] = par["C"] / np.tile(sumSqrC, (NC,1,1,1))
       file.create_dataset("Coils",par["C"].shape,dtype=par["C"].dtype,data=par["C"])
       file.flush()
-      del FFT,ctx,queue
+
+
+##################
+#    par["C"] = np.repeat(0.5*np.ones_like(par["C"][0,...])[None,...],2,0)
+################
+
 ################################################################################
 ### Standardize data norm ######################################################
 ################################################################################
@@ -428,9 +509,10 @@ def main(args):
       except:
         pass
     else:
+#      (ctx,queue,FFT) = NUFFT(N,NScan,NC,NSlice,traj,dcf,trafo=0,mask=par['mask'])
       images= (np.sum(np.fft.ifft2(data,norm='ortho')*(np.conj(par["C"])),axis = 1))
 
-
+    par['C'] = par['C'].astype(DTYPE)
 
 
 ################################################################################

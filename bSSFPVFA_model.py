@@ -25,38 +25,34 @@ class constraint:
     self.max = self.max/scale
 
 
-class bSSFP_Model:
-  def __init__(self,fa_fl,fa_bl,fa_corr,TR,images,Nislice,Nproj=0):
+class Model:
+  def __init__(self,par,images):
     self.constraints = []
-    if len(TR)>1:
-      self.TR = TR[0]
+    if len(par['TR'])>1:
+      self.par['TR'] = par['TR'][0]
     else:
-      self.TR = TR
+      self.TR = par['TR']
     self.images = images
-    self.fa_fl = fa_fl
-    self.fa_bl = fa_bl
-    self.fa_corr = fa_corr
-    self.Nislice = Nislice
+    self.fa_fl = par['flip_angle(s)'][:int(par['NScan']/2)]*np.pi/180
+    self.fa_bl = par['flip_angle(s)'][int(par['NScan']/2):]*np.pi/180
+    self.fa_corr = par['fa_corr']
+    self.NSlice = par['NSlice']
     self.figure = None
 
-    (NScan,Nislice,dimY,dimX) = images.shape
-
-    if Nproj == dimY:
-      Nproj=dimX*np.pi/2
-
+    (NScan,NSlice,dimY,dimX) = images.shape
 
     phi_corr = np.zeros_like(images,dtype=DTYPE)
-    for i in range(np.size(fa_fl)):
-      phi_corr[i,:,:,:] = fa_fl[i]*fa_corr
+    for i in range(np.size(self.fa_fl)):
+      phi_corr[i,:,:,:] = self.fa_fl[i]*self.fa_corr
 
-    for i in range(np.size(fa_fl),np.size(fa_bl)+np.size(fa_fl)):
-      phi_corr[i,:,:,:] = fa_bl[i-np.size(fa_fl)]*fa_corr
+    for i in range(np.size(self.fa_fl),np.size(self.fa_bl)+np.size(self.fa_fl)):
+      phi_corr[i,:,:,:] = self.fa_bl[i-np.size(self.fa_fl)]*self.fa_corr
 
-    self.sin_phi_fl = np.sin(phi_corr[:10])
-    self.cos_phi_fl = np.cos(phi_corr[:10])
+    self.sin_phi_fl = np.sin(phi_corr[:int(par['NScan']/2)])
+    self.cos_phi_fl = np.cos(phi_corr[:int(par['NScan']/2)])
 
-    self.sin_phi_bl = np.sin(phi_corr[10:])
-    self.cos_phi_bl = np.cos(phi_corr[10:])
+    self.sin_phi_bl = np.sin(phi_corr[int(par['NScan']/2):])
+    self.cos_phi_bl = np.cos(phi_corr[int(par['NScan']/2):])
 
 
     self.uk_scale = []
@@ -69,19 +65,19 @@ class bSSFP_Model:
 #    self.uk_scale[3] = 1
 #    self.E1 = np.exp(-TR/T1_ref)
 
-    test_T1 = np.reshape(np.linspace(10,5500,dimX*dimY*Nislice),(Nislice,dimX,dimY))
-    test_T2 = np.reshape(np.linspace(10,150,dimX*dimY*Nislice),(Nislice,dimX,dimY))
-    test_M0 = 0.1*np.sqrt((dimX*np.pi/2)/Nproj)
-    test_T1 = 1/self.uk_scale[1]*np.exp(-self.TR/(test_T1*np.ones((Nislice,dimY,dimX),dtype=DTYPE)))
-    test_T2 = 1/self.uk_scale[2]*np.exp(-self.TR/(test_T2*np.ones((Nislice,dimY,dimX),dtype=DTYPE)))
+    test_T1 = np.reshape(np.linspace(10,5500,dimX*dimY*NSlice),(NSlice,dimX,dimY))
+    test_T2 = np.reshape(np.linspace(10,2500,dimX*dimY*NSlice),(NSlice,dimX,dimY))
+    test_M0 = 0.1*np.sqrt((dimX*np.pi/2)/par['Nproj'])
+    test_T1 = 1/self.uk_scale[1]*np.exp(-self.TR/(test_T1*np.ones((NSlice,dimY,dimX),dtype=DTYPE)))
+    test_T2 = 1/self.uk_scale[2]*np.exp(-self.TR/(test_T2*np.ones((NSlice,dimY,dimX),dtype=DTYPE)))
     test_k = 1/self.uk_scale[3]*np.ones_like(test_T1)
 
 
-    G_x = self.execute_forward_3D(np.array([test_M0/self.uk_scale[0]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),test_T1,test_T2,test_k],dtype=DTYPE))
+    G_x = self.execute_forward_3D(np.array([test_M0/self.uk_scale[0]*np.ones((NSlice,dimY,dimX),dtype=DTYPE),test_T1,test_T2,test_k],dtype=DTYPE))
     self.uk_scale[0] = self.uk_scale[0]*np.median(np.abs(images))/np.median(np.abs(G_x))
 
 
-    DG_x =  self.execute_gradient_3D(np.array([test_M0/self.uk_scale[0]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),test_T1/self.uk_scale[1],test_T2/self.uk_scale[2],test_k/self.uk_scale[3]],dtype=DTYPE))
+    DG_x =  self.execute_gradient_3D(np.array([test_M0/self.uk_scale[0]*np.ones((NSlice,dimY,dimX),dtype=DTYPE),test_T1/self.uk_scale[1],test_T2/self.uk_scale[2],test_k/self.uk_scale[3]],dtype=DTYPE))
     self.uk_scale[1] = self.uk_scale[1]*np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...]))
     self.uk_scale[2] = self.uk_scale[2]*np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[2,...]))
     self.uk_scale[3] = self.uk_scale[3]*np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[3,...]))
@@ -89,19 +85,26 @@ class bSSFP_Model:
     self.uk_scale[1] /= np.sqrt(self.uk_scale[0])
     self.uk_scale[2] /= np.sqrt(self.uk_scale[0])#self.uk_scale[2]/np.sqrt(self.uk_scale[2])
     self.uk_scale[3] /= np.sqrt(self.uk_scale[0])
-    DG_x =  self.execute_gradient_3D(np.array([test_M0/self.uk_scale[0]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),test_T1/self.uk_scale[1],test_T2/self.uk_scale[2],test_k/self.uk_scale[3]],dtype=DTYPE))
+    DG_x =  self.execute_gradient_3D(np.array([test_M0/self.uk_scale[0]*np.ones((NSlice,dimY,dimX),dtype=DTYPE),test_T1/self.uk_scale[1],test_T2/self.uk_scale[2],test_k/self.uk_scale[3]],dtype=DTYPE))
     print('Grad Scaling init M0/T1: %f,  M0/T2: %f,  M0/k: %f'%(np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...])),np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[2,...])),np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[3,...]))))
     print('T1 scale: ',self.uk_scale[1],'/ T2_scale: ',self.uk_scale[2],
                               '/ M0_scale: ',self.uk_scale[0],'/ k_scale: ',self.uk_scale[3])
 
 
-    result = np.array([1/self.uk_scale[0]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),1/self.uk_scale[1]*np.exp(-self.TR/(1600*np.ones((Nislice,dimY,dimX),dtype=DTYPE))),1/self.uk_scale[2]*np.exp(-self.TR/(80*np.ones((Nislice,dimY,dimX),dtype=DTYPE)))
-    ,1/self.uk_scale[3]*np.ones((Nislice,dimY,dimX),dtype=DTYPE)]).astype(DTYPE)
+    result = np.array([1/self.uk_scale[0]*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1/self.uk_scale[1]*np.exp(-self.TR/(800*np.ones((NSlice,dimY,dimX),dtype=DTYPE))),1/self.uk_scale[2]*np.exp(-self.TR/(80*np.ones((NSlice,dimY,dimX),dtype=DTYPE)))
+    ,1/self.uk_scale[3]*np.ones((NSlice,dimY,dimX),dtype=DTYPE)]).astype(DTYPE)
     self.guess = result
-    self.constraints.append(constraint(-10/self.uk_scale[0],10/self.uk_scale[0],False)  )
+    self.constraints.append(constraint(-1000/self.uk_scale[0],1000/self.uk_scale[0],False)  )
     self.constraints.append(constraint(np.exp(-self.TR/(10))/self.uk_scale[1],np.exp(-self.TR/(5500))/self.uk_scale[1],True))
-    self.constraints.append(constraint(np.exp(-self.TR/(0))/self.uk_scale[2],np.exp(-self.TR/(2500))/self.uk_scale[2],True))
+    self.constraints.append(constraint(np.exp(-self.TR/(1))/self.uk_scale[2],np.exp(-self.TR/(2500))/self.uk_scale[2],True))
     self.constraints.append(constraint(0/self.uk_scale[3],10/self.uk_scale[3],True)  )
+
+  def rescale(self,x):
+    M0 = x[0,...]*self.uk_scale[0]
+    T1 = -self.TR/np.log(x[1,...]*self.uk_scale[1])
+    T2 = -self.TR/np.log(x[2,...]*self.uk_scale[2])
+    k = x[3,...]*self.uk_scale[3]
+    return np.array((M0,T1,T2,k))
 
   def execute_forward_3D(self,x):
     M0 = x[0,...]
@@ -197,7 +200,7 @@ class bSSFP_Model:
              self.ax.append(plt.subplot(grid))
              self.ax[-1].axis('off')
 
-           self.M0_plot=self.ax[1].imshow((M0[int(self.Nislice/2),...]))
+           self.M0_plot=self.ax[1].imshow((M0[int(self.NSlice/2),...]))
            self.M0_plot_cor=self.ax[15].imshow((M0[:,int(M0.shape[1]/2),...]))
            self.M0_plot_sag=self.ax[2].imshow(np.flip((M0[:,:,int(M0.shape[-1]/2)]).T,1))
            self.ax[1].set_title('Proton Density in a.u.',color='white')
@@ -210,7 +213,7 @@ class bSSFP_Model:
            cax.yaxis.set_ticks_position('left')
            for spine in cbar.ax.spines:
             cbar.ax.spines[spine].set_color('white')
-           self.T1_plot=self.ax[3].imshow((T1[int(self.Nislice/2),...]))
+           self.T1_plot=self.ax[3].imshow((T1[int(self.NSlice/2),...]))
            self.T1_plot_cor=self.ax[17].imshow((T1[:,int(T1.shape[1]/2),...]))
            self.T1_plot_sag=self.ax[4].imshow(np.flip((T1[:,:,int(T1.shape[-1]/2)]).T,1))
            self.ax[3].set_title('T1 in  ms',color='white')
@@ -223,7 +226,7 @@ class bSSFP_Model:
            for spine in cbar.ax.spines:
             cbar.ax.spines[spine].set_color('white')
 
-           self.T2_plot=self.ax[7].imshow((T2[int(self.Nislice/2),...]))
+           self.T2_plot=self.ax[7].imshow((T2[int(self.NSlice/2),...]))
            self.T2_plot_cor=self.ax[21].imshow((T2[:,int(T2.shape[1]/2),...]))
            self.T2_plot_sag=self.ax[8].imshow(np.flip((T2[:,:,int(T2.shape[-1]/2)]).T,1))
            self.ax[7].set_title('T2 in  ms',color='white')
@@ -236,7 +239,7 @@ class bSSFP_Model:
            for spine in cbar.ax.spines:
             cbar.ax.spines[spine].set_color('white')
 
-           self.k=self.ax[11].imshow((k[int(self.Nislice/2),...]))
+           self.k=self.ax[11].imshow((k[int(self.NSlice/2),...]))
            self.k_cor=self.ax[25].imshow((k[:,int(T2.shape[1]/2),...]))
            self.k_sag=self.ax[12].imshow(np.flip((k[:,:,int(T2.shape[-1]/2)]).T,1))
            self.ax[11].set_title('k in  a.u.',color='white')
@@ -252,26 +255,26 @@ class bSSFP_Model:
            plt.draw()
            plt.pause(1e-10)
          else:
-           self.M0_plot.set_data((M0[int(self.Nislice/2),...]))
+           self.M0_plot.set_data((M0[int(self.NSlice/2),...]))
            self.M0_plot_cor.set_data((M0[:,int(M0.shape[1]/2),...]))
            self.M0_plot_sag.set_data(np.flip((M0[:,:,int(M0.shape[-1]/2)]).T,1))
            self.M0_plot.set_clim([M0_min,M0_max])
            self.M0_plot_cor.set_clim([M0_min,M0_max])
            self.M0_plot_sag.set_clim([M0_min,M0_max])
-           self.T1_plot.set_data((T1[int(self.Nislice/2),...]))
+           self.T1_plot.set_data((T1[int(self.NSlice/2),...]))
            self.T1_plot_cor.set_data((T1[:,int(T1.shape[1]/2),...]))
            self.T1_plot_sag.set_data(np.flip((T1[:,:,int(T1.shape[-1]/2)]).T,1))
            self.T1_plot.set_clim([T1_min,T1_max])
            self.T1_plot_sag.set_clim([T1_min,T1_max])
            self.T1_plot_cor.set_clim([T1_min,T1_max])
-           self.T2_plot.set_data((T2[int(self.Nislice/2),...]))
+           self.T2_plot.set_data((T2[int(self.NSlice/2),...]))
            self.T2_plot_cor.set_data((T2[:,int(T2.shape[1]/2),...]))
            self.T2_plot_sag.set_data(np.flip((T2[:,:,int(T2.shape[-1]/2)]).T,1))
            self.T2_plot.set_clim([T2_min,T2_max])
            self.T2_plot_sag.set_clim([T2_min,T2_max])
            self.T2_plot_cor.set_clim([T2_min,T2_max])
 
-           self.k.set_data((k[int(self.Nislice/2),...]))
+           self.k.set_data((k[int(self.NSlice/2),...]))
            self.k_cor.set_data((k[:,int(k.shape[1]/2),...]))
            self.k_sag.set_data(np.flip((k[:,:,int(k.shape[-1]/2)]).T,1))
            self.k.set_clim([k_min,k_max])

@@ -19,3 +19,4 @@ outfile*
 *.gif
 T2/
 Compute_*.py
+diffusion/

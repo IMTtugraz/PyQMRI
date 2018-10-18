@@ -48,74 +48,75 @@ class Model:
     self.uk_scale.append(1)
     self.uk_scale.append(1)
 #
-    test_T2 = 1/np.reshape(np.linspace(1,2000,dimX*dimY*Nislice),(Nislice,dimX,dimY))
-    test_M0 = 1*np.sqrt((dimX*np.pi/2)/par['Nproj'])
-    test_T2 = 1/self.uk_scale[1]*test_T2*np.ones((Nislice,dimY,dimX),dtype=DTYPE)
+    ADC = np.reshape(np.linspace(1e-6,1e-2,dimX*dimY*Nislice),(Nislice,dimX,dimY))
+    test_M0 = 1#1*np.sqrt((dimX*np.pi/2)/par['Nproj'])
+    ADC = 1/self.uk_scale[1]*ADC*np.ones((Nislice,dimY,dimX),dtype=DTYPE)
 #
 #
-    G_x = self.execute_forward_3D(np.array([test_M0/self.uk_scale[1]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),test_T2],dtype=DTYPE))
+    G_x = self.execute_forward_3D(np.array([test_M0/self.uk_scale[1]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),ADC],dtype=DTYPE))
     self.uk_scale[0] = self.uk_scale[0]*np.max(np.abs(images))/np.median(np.abs(G_x))
 
-    DG_x =  self.execute_gradient_3D(np.array([test_M0*np.ones((Nislice,dimY,dimX),dtype=DTYPE),test_T2],dtype=DTYPE))
+    DG_x =  self.execute_gradient_3D(np.array([test_M0*np.ones((Nislice,dimY,dimX),dtype=DTYPE),ADC],dtype=DTYPE))
     self.uk_scale[1] = self.uk_scale[1]*np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...]))
 
-    DG_x =  self.execute_gradient_3D(np.array([test_M0*np.ones((Nislice,dimY,dimX),dtype=DTYPE),test_T2/self.uk_scale[1]],dtype=DTYPE))
+    DG_x =  self.execute_gradient_3D(np.array([test_M0*np.ones((Nislice,dimY,dimX),dtype=DTYPE),ADC/self.uk_scale[1]],dtype=DTYPE))
     print('Grad Scaling init', np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...])))
-    print('T2 scale: ',self.uk_scale[1])
+    print('ADC scale: ',self.uk_scale[1])
+    print('M0 scale: ',self.uk_scale[0])
 
 
 
-    result = np.array([0.1/self.uk_scale[0]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),((1/10)/self.uk_scale[1]*np.ones((Nislice,dimY,dimX),dtype=DTYPE))],dtype=DTYPE)
+    result = np.array([0.1/self.uk_scale[0]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),(1e-3/self.uk_scale[1]*np.ones((Nislice,dimY,dimX),dtype=DTYPE))],dtype=DTYPE)
     self.guess = result
 
     self.constraints.append(constraint(-10000/self.uk_scale[0],10000/self.uk_scale[0],False)  )
-    self.constraints.append(constraint(((1/200)/self.uk_scale[1]),((1e4)/self.uk_scale[1]),True))
+    self.constraints.append(constraint((1e-8/self.uk_scale[1]),(1e-2/self.uk_scale[1]),True))
   def rescale(self,x):
     M0 = x[0,...]*self.uk_scale[0]
-    T2 = 1/(x[1,...]*self.uk_scale[1])
-    return np.array((M0,T2))
+    ADC = (x[1,...]*self.uk_scale[1])
+    return np.array((M0,ADC))
 
   def execute_forward_2D(self,x,islice):
-    R2 = x[1,...]*self.uk_scale[1]
-    S = x[0,...]*self.uk_scale[0]*np.exp(-self.TE*(R2))
+    ADC = x[1,...]*self.uk_scale[1]
+    S = x[0,...]*self.uk_scale[0]*np.exp(-self.TE*(ADC))
     S[~np.isfinite(S)] = 1e-200
     S = np.array(S,dtype=DTYPE)
     return S
   def execute_gradient_2D(self,x,islice):
     M0 = x[0,...]
-    R2 = x[1,...]
-    grad_M0 = self.uk_scale[0]*np.exp(-self.TE*(R2*self.uk_scale[1]))
-    grad_T2 = -M0*self.uk_scale[0]*self.TE*self.uk_scale[1]*np.exp(-self.TE*(R2*self.uk_scale[1]))
-    grad = np.array([grad_M0,grad_T2],dtype=DTYPE)
+    ADC = x[1,...]
+    grad_M0 = self.uk_scale[0]*np.exp(-self.TE*(ADC*self.uk_scale[1]))
+    grad_ADC = -M0*self.uk_scale[0]*self.TE*self.uk_scale[1]*np.exp(-self.TE*(ADC*self.uk_scale[1]))
+    grad = np.array([grad_M0,grad_ADC],dtype=DTYPE)
     grad[~np.isfinite(grad)] = 1e-20
 #    print('Grad Scaling', np.linalg.norm(np.abs(grad_M0))/np.linalg.norm(np.abs(grad_T2)))
     return grad
 
   def execute_forward_3D(self,x):
-    R2 = x[1,...]*self.uk_scale[1]
-    S = x[0,...]*self.uk_scale[0]*np.exp(-self.TE*(R2))
+    ADC = x[1,...]*self.uk_scale[1]
+    S = x[0,...]*self.uk_scale[0]*np.exp(-self.TE*(ADC))
     S[~np.isfinite(S)] = 1e-20
     S = np.array(S,dtype=DTYPE)
     return S
 
   def execute_gradient_3D(self,x):
     M0 = x[0,...]
-    R2 = x[1,...]
-    grad_M0 = np.exp(-self.TE*(R2*self.uk_scale[1]))*self.uk_scale[0]
-    grad_T2 = -M0*self.TE*self.uk_scale[1]*np.exp(-self.TE*(R2*self.uk_scale[1]))*self.uk_scale[0]
-    grad = np.array([grad_M0,grad_T2],dtype=DTYPE)
+    ADC = x[1,...]
+    grad_M0 = np.exp(-self.TE*(ADC*self.uk_scale[1]))*self.uk_scale[0]
+    grad_ADC = -M0*self.TE*self.uk_scale[1]*np.exp(-self.TE*(ADC*self.uk_scale[1]))*self.uk_scale[0]
+    grad = np.array([grad_M0,grad_ADC],dtype=DTYPE)
     grad[~np.isfinite(grad)] = 1e-20
-    print('Grad Scaling', np.linalg.norm(np.abs(grad_M0))/np.linalg.norm(np.abs(grad_T2)))
+    print('Grad Scaling', np.linalg.norm(np.abs(grad_M0))/np.linalg.norm(np.abs(grad_ADC)))
     return grad
 
 
   def plot_unknowns(self,x,dim_2D=False):
       M0 = np.abs(x[0,...])*self.uk_scale[0]
-      T2 = 1/(np.abs(x[1,...])*self.uk_scale[1])
+      ADC = (np.abs(x[1,...])*self.uk_scale[1])
       M0_min = M0.min()
       M0_max = M0.max()
-      T2_min = T2.min()
-      T2_max = T2.max()
+      ADC_min = ADC.min()
+      ADC_max = ADC.max()
 
       if dim_2D:
          if not self.figure:
@@ -125,18 +126,18 @@ class Model:
            self.ax[0].set_title('Proton Density in a.u.')
            self.ax[0].axis('off')
            self.figure.colorbar(self.M0_plot,ax=self.ax[0])
-           self.T2_plot = self.ax[1].imshow((T2))
-           self.ax[1].set_title('T2 in  ms')
+           self.ADC_plot = self.ax[1].imshow((ADC))
+           self.ax[1].set_title('ADC in  ms')
            self.ax[1].axis('off')
-           self.figure.colorbar(self.T2_plot,ax=self.ax[1])
+           self.figure.colorbar(self.ADC_plot,ax=self.ax[1])
            self.figure.tight_layout()
            plt.draw()
            plt.pause(1e-10)
          else:
            self.M0_plot.set_data((M0))
            self.M0_plot.set_clim([M0_min,M0_max])
-           self.T2_plot.set_data((T2))
-           self.T2_plot.set_clim([T2_min,T2_max])
+           self.ADC_plot.set_data((ADC))
+           self.ADC_plot.set_clim([ADC_min,ADC_max])
            plt.draw()
            plt.pause(1e-10)
       else:
@@ -167,15 +168,15 @@ class Model:
            for spine in cbar.ax.spines:
             cbar.ax.spines[spine].set_color('white')
 
-           self.T2_plot=self.ax[3].imshow((T2[int(self.NSlice/2),...]))
-           self.T2_plot_cor=self.ax[9].imshow((T2[:,int(T2.shape[1]/2),...]))
-           self.T2_plot_sag=self.ax[4].imshow(np.flip((T2[:,:,int(T2.shape[-1]/2)]).T,1))
-           self.ax[3].set_title('T2 in  ms',color='white')
+           self.ADC_plot=self.ax[3].imshow((ADC[int(self.NSlice/2),...]))
+           self.ADC_plot_cor=self.ax[9].imshow((ADC[:,int(ADC.shape[1]/2),...]))
+           self.ADC_plot_sag=self.ax[4].imshow(np.flip((ADC[:,:,int(ADC.shape[-1]/2)]).T,1))
+           self.ax[3].set_title('ADC in  ms',color='white')
            self.ax[3].set_anchor('SE')
            self.ax[4].set_anchor('SW')
            self.ax[9].set_anchor('NW')
            cax = plt.subplot(self.gs[:,5])
-           cbar = self.figure.colorbar(self.T2_plot, cax=cax)
+           cbar = self.figure.colorbar(self.ADC_plot, cax=cax)
            cbar.ax.tick_params(labelsize=12,colors='white')
            for spine in cbar.ax.spines:
             cbar.ax.spines[spine].set_color('white')
@@ -188,11 +189,11 @@ class Model:
            self.M0_plot.set_clim([M0_min,M0_max])
            self.M0_plot_cor.set_clim([M0_min,M0_max])
            self.M0_plot_sag.set_clim([M0_min,M0_max])
-           self.T2_plot.set_data((T2[int(self.NSlice/2),...]))
-           self.T2_plot_cor.set_data((T2[:,int(T2.shape[1]/2),...]))
-           self.T2_plot_sag.set_data(np.flip((T2[:,:,int(T2.shape[-1]/2)]).T,1))
-           self.T2_plot.set_clim([T2_min,T2_max])
-           self.T2_plot_sag.set_clim([T2_min,T2_max])
-           self.T2_plot_cor.set_clim([T2_min,T2_max])
+           self.ADC_plot.set_data((ADC[int(self.NSlice/2),...]))
+           self.ADC_plot_cor.set_data((ADC[:,int(ADC.shape[1]/2),...]))
+           self.ADC_plot_sag.set_data(np.flip((ADC[:,:,int(ADC.shape[-1]/2)]).T,1))
+           self.ADC_plot.set_clim([ADC_min,ADC_max])
+           self.ADC_plot_sag.set_clim([ADC_min,ADC_max])
+           self.ADC_plot_cor.set_clim([ADC_min,ADC_max])
            plt.draw()
            plt.pause(1e-10)

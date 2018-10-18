@@ -42,7 +42,7 @@ class Program(object):
 
 
 class Model_Reco:
-  def __init__(self,par,ctx,queue,traj,dcf,angles=None):
+  def __init__(self,par,ctx,queue,traj,dcf,trafo=1):
 
     self.par = par
     self.C = np.require(np.transpose(par["C"],[1,0,2,3]),requirements='C')
@@ -75,7 +75,11 @@ class Model_Reco:
     for j in range(self.num_dev):
       self.alloc.append(MyAllocator(ctx[j]))
       self.ratio.append(clarray.to_device(self.queue[3*j],(1*np.ones(self.unknowns)).astype(dtype=DTYPE_real)))
-      self.NUFFT.append(NUFFT.gridding(ctx[j],self.queue[3*j:3*(j+1)-1],4,2,par["N"],par["NScan"], (par["NScan"]*par["NC"]*(self.par_slices+self.overlap),par["N"],par["N"]),(1,2),traj.astype(DTYPE),np.require(np.abs(dcf),DTYPE_real,requirements='C'),par["N"],10000,DTYPE,DTYPE_real))
+      if trafo:
+        self.NUFFT.append(NUFFT.gridding(ctx[j],self.queue[3*j:3*(j+1)-1],4,2,par["N"],par["NScan"], (par["NScan"]*par["NC"]*(self.par_slices+self.overlap),par["N"],par["N"]),(1,2),traj.astype(DTYPE),np.require(np.abs(dcf),DTYPE_real,requirements='C'),par["N"],1000,DTYPE,DTYPE_real))
+      else:
+        self.NUFFT.append(NUFFT.gridding(ctx[j],self.queue[3*j:3*(j+1)-1],4,2,par["N"],par["NScan"], (par["NScan"]*par["NC"]*(self.par_slices+self.overlap),par["N"],par["N"]),(1,2),traj,dcf,par["N"],1000,DTYPE,DTYPE_real,
+                                       radial=trafo,mask=par['mask']))
       self.ukscale.append(clarray.to_device(self.queue[3*j],np.ones(self.unknowns,dtype=DTYPE_real)))
 
       self.prg.append(Program(self.ctx[j], r"""

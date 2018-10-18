@@ -62,7 +62,7 @@ class Model_Reco:
     if trafo:
       self.NUFFT = NUFFT.gridding(self.ctx,queue,4,2,par["N"],par["NScan"],(par["NScan"]*par["NC"]*par["NSlice"],par["N"],par["N"]),(1,2),traj.astype(DTYPE),np.require(np.abs(dcf),DTYPE_real,requirements='C'),par["N"],1000,DTYPE,DTYPE_real,radial=trafo)
     else:
-      self.NUFFT = NUFFT.gridding(self.ctx,queue,4,2,par["N"],par["NScan"],(par["NScan"]*par["NC"]*par["NSlice"],par["N"],par["N"]),(1,2),traj,dcf,par["N"],1000,DTYPE,DTYPE_real,radial=trafo)
+      self.NUFFT = NUFFT.gridding(self.ctx,queue,4,2,par["N"],par["NScan"],(par["NScan"]*par["NC"]*par["NSlice"],par["N"],par["N"]),(1,2),traj,dcf,par["N"],1000,DTYPE,DTYPE_real,radial=trafo,mask=par['mask'])
 
     self.prg = Program(self.ctx, r"""
 __kernel void update_v(__global float8 *v,__global float8 *v_, __global float8 *Kyk2, const float tau) {
