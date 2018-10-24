@@ -10,18 +10,18 @@ import numpy as np
 
 ################################################################################
 ### 3D viewer  ##########s######################################################
-################################################################################              
+################################################################################
 def imshow(volume):
 
-  if volume.ndim<=3: 
+  if volume.ndim<=3:
     fig, ax = plt.subplots()
     ax.volume = volume
     ax.index = volume.shape[0] // 2
     ax.imshow(volume[ax.index])
   elif volume.ndim==4:
-    fig, ax = plt.subplots(int(np.ceil(np.sqrt(volume.shape[0]))),int(np.ceil(np.sqrt(volume.shape[0]))))
+    fig, ax = plt.subplots(int(np.floor(np.sqrt(volume.shape[0]))),int(np.ceil(np.sqrt(volume.shape[0]))))
     ax = ax.flatten()
-    ni = int(np.ceil(np.sqrt(volume.shape[0])))
+    ni = int(np.floor(np.sqrt(volume.shape[0])))
     nj = int(np.ceil(np.sqrt(volume.shape[0])))
     for j in range(nj):
       for i in range(ni):
@@ -43,7 +43,7 @@ def process_scroll(event):
   ax = fig.axes
   for i in range(len(ax)):
     volume = ax[i].volume
-    if (int((ax[i].index - event.step) >= volume.shape[0]) or 
+    if (int((ax[i].index - event.step) >= volume.shape[0]) or
            int((ax[i].index - event.step) < 0)):
            pass
     else:

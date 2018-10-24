@@ -30,7 +30,7 @@ file = h5py.File(file)
 
 
 data = file['tgv_full_result_0'][()]
-data = 1/data[-1,1,...]
+data = data[-1,...]
 
 [z,y,x] = data.shape
 

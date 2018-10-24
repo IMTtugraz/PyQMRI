@@ -1380,7 +1380,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     print('L: %f'%(L))
 
 
-    tau = 1e-10#np.float32(1/np.sqrt(L))
+    tau = np.float32(1/np.sqrt(L))
     tau_new =np.float32(0)
 
     self.set_scale(x)
@@ -1478,7 +1478,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
       tau =  (tau_new)
 
 
-      if not np.mod(i,50):
+      if not np.mod(i,10):
 
         self.model.plot_unknowns(x_new.get())
         primal_new= (self.irgn_par["lambd"]/2*clarray.vdot(Axold-res,Axold-res)+alpha*clarray.sum(abs((gradx[:self.unknowns_TGV]-v))) +beta*clarray.sum(abs(symgrad_v)) + 1/(2*delta)*clarray.vdot(x_new-xk,x_new-xk)).real
@@ -1793,7 +1793,9 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           return x_new.get()
         primal = primal_new
         gap_min = np.minimum(gap,gap_min)
-        print("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f "%(i,primal.get()/(self.irgn_par["lambd"]*self.NSlice),dual.get()/(self.irgn_par["lambd"]*self.NSlice),gap.get()/(self.irgn_par["lambd"]*self.NSlice)))
+        sys.stdout.write("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f \r"%(i,primal.get()/(self.irgn_par["lambd"]*self.NSlice),dual.get()/(self.irgn_par["lambd"]*self.NSlice),gap.get()/(self.irgn_par["lambd"]*self.NSlice)))
+        sys.stdout.flush()
+
 
       (x, x_new) = (x_new, x)
       (v, v_new) = (v_new, v)

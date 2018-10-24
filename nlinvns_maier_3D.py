@@ -22,7 +22,7 @@ from gridroutines import gridding
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
-def NUFFT(N,NScan,NC,NSlice,traj,dcf,trafo=1):
+def NUFFT(N,NScan,NC,NSlice,traj,dcf,trafo=1,mask=None):
   platforms = cl.get_platforms()
   ctx = cl.Context(
             dev_type=cl.device_type.GPU,
@@ -32,14 +32,13 @@ def NUFFT(N,NScan,NC,NSlice,traj,dcf,trafo=1):
   if trafo:
     FFT = gridding(ctx,queue,4,2,N,NScan,(NScan*NC,NSlice,N,N),(1,2,3),traj.astype(DTYPE),np.require(np.abs(dcf),DTYPE_real,requirements='C'),N,1000,DTYPE,DTYPE_real,radial=trafo)
   else:
-    FFT = gridding(ctx,queue,4,2,N,NScan,(NScan*NC,NSlice,N,N),(1,2,3),traj,dcf,N,1000,DTYPE,DTYPE_real,radial=trafo)
+    FFT = gridding(ctx,queue,4,2,N,NScan,(NScan*NC*NSlice,N,N),(1,2),traj,dcf,N,1000,DTYPE,DTYPE_real,radial=trafo,mask=mask)
   return (ctx,queue[0],FFT)
 
 
 
 
-def nlinvns(Y, n, traj,dcf, trafo=1, *arg):  #*returnProfiles,**realConstr):
-
+def nlinvns(Y, n, traj,dcf, trafo=1,*arg):  #*returnProfiles,**realConstr):
     (NC,NSlice,Nproj,N) = Y.shape
     nrarg = len(arg)
     if nrarg == 2:
@@ -49,8 +48,11 @@ def nlinvns(Y, n, traj,dcf, trafo=1, *arg):  #*returnProfiles,**realConstr):
         realConstr = False
         if nrarg < 1:
             returnProfiles = 0
-
-    (ctx,queue,fft) = NUFFT(N,1,NC,NSlice,traj,dcf,trafo)
+    if not trafo:
+      mask = np.ones_like(np.abs(Y)).astype(int)
+      mask[Y==0] = 0
+      mask = np.reshape(mask,(NC*NSlice,Nproj,N))
+    (ctx,queue,fft) = NUFFT(N,1,NC,NSlice,traj,dcf,trafo,mask)
     print('Start...')
 
     alpha = 1e-2
@@ -58,8 +60,12 @@ def nlinvns(Y, n, traj,dcf, trafo=1, *arg):  #*returnProfiles,**realConstr):
     ksp_shape = Y[None,...].shape
 
     [c, sl] = Y.shape[0:2]
-    y = int(N/2)
-    x = int(N/2)
+    if trafo:
+      y = int(N/2)
+      x = int(N/2)
+    else:
+      y = int(Nproj)
+      x = int(N)
 
     img_shape = (1,c,sl,y,x)
 

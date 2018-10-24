@@ -48,7 +48,7 @@ class Model:
     self.uk_scale.append(1)
     self.uk_scale.append(1)
 #
-    ADC = np.reshape(np.linspace(1e-6,1e-2,dimX*dimY*Nislice),(Nislice,dimX,dimY))
+    ADC = np.reshape(np.linspace(0,1e-2,dimX*dimY*Nislice),(Nislice,dimX,dimY))
     test_M0 = 1#1*np.sqrt((dimX*np.pi/2)/par['Nproj'])
     ADC = 1/self.uk_scale[1]*ADC*np.ones((Nislice,dimY,dimX),dtype=DTYPE)
 #
@@ -69,8 +69,8 @@ class Model:
     result = np.array([0.1/self.uk_scale[0]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),(1e-3/self.uk_scale[1]*np.ones((Nislice,dimY,dimX),dtype=DTYPE))],dtype=DTYPE)
     self.guess = result
 
-    self.constraints.append(constraint(-10000/self.uk_scale[0],10000/self.uk_scale[0],False)  )
-    self.constraints.append(constraint((1e-8/self.uk_scale[1]),(1e-2/self.uk_scale[1]),True))
+    self.constraints.append(constraint(-1/self.uk_scale[0],1/self.uk_scale[0],False)  )
+    self.constraints.append(constraint((5e-4/self.uk_scale[1]),(1/self.uk_scale[1]),True))
   def rescale(self,x):
     M0 = x[0,...]*self.uk_scale[0]
     ADC = (x[1,...]*self.uk_scale[1])

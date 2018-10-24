@@ -72,6 +72,7 @@ class Model_Reco:
     self.overlap = 1
     self.alloc=[]
     self.ratio = []
+#    print("Streaming")
     for j in range(self.num_dev):
       self.alloc.append(MyAllocator(ctx[j]))
       self.ratio.append(clarray.to_device(self.queue[3*j],(1*np.ones(self.unknowns)).astype(dtype=DTYPE_real)))

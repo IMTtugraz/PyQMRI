@@ -122,9 +122,10 @@ def read_config(conf_file,reg_type="DEFAULT"):
 
 def main(args):
     sig_model = importlib.import_module(str(args.sig_model)+"_model")
-    if args.streamed:
+    if int(args.streamed)==1:
       import Model_Reco_OpenCL_streamed_Kyk2_sep as Model_Reco
     else:
+      pass
       import Model_Reco_OpenCL as Model_Reco
     DTYPE = np.complex64
     np.seterr(divide='ignore', invalid='ignore')
@@ -153,7 +154,7 @@ def main(args):
 
     file = h5py.File(file)
 #    file['Coils'][...] = coils.astype(DTYPE)
-
+#    del file['Coils']
 
 ################################################################################
 ### Check if file contains all necessary information ###########################
@@ -184,31 +185,38 @@ def main(args):
 ### Read Data ##################################################################
 ################################################################################
     reco_Slices = args.slices
-    dimX, dimY, NSlice = (file.attrs['image_dimensions']).astype(int)
-    dimX-=3
-    dimY-=3
+    dimX, dimY, NSlice = ((file.attrs['image_dimensions']).astype(int))
     off = 0
 
-    data = file['real_dat'][...,int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:int(NSlice/2)+int(np.ceil(reco_Slices/2))+off,:,3:-3].astype(DTYPE)\
-       +1j*file['imag_dat'][...,int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:int(NSlice/2)+int(np.ceil(reco_Slices/2))+off,:,3:-3].astype(DTYPE)
+    data = file['real_dat'][...,int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:int(NSlice/2)+int(np.ceil(reco_Slices/2))+off,:,:].astype(DTYPE)\
+       +1j*file['imag_dat'][...,int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:int(NSlice/2)+int(np.ceil(reco_Slices/2))+off,:,:].astype(DTYPE)
 
-#    data = np.require(np.transpose(data,(0,1,4,3,2)),requirements='C')
-#    data = data[:,0,...]
+#    check = np.outer((-1)**(np.linspace(1,64,64)),(-1)**(np.linspace(1,64,64)))
+#    data = np.fft.ifft(np.fft.fft(data,axis=-1)*check,axis=2)
+#    data = np.require(np.fft.fft2(np.fft.ifftshift(np.fft.ifft2(data),(-1,-2))),dtype=DTYPE,requirements='C')
+
+#    data = np.require(np.transpose(data,(0,1,4,3,2)),requirements='C')[:,:8,...]
+#    data = data[:,0,...][:,None,...]
 #    data = np.repeat(data[:,None,...],2,1)
 
 
     if args.trafo:
       traj = file['real_traj'][()].astype(DTYPE) + \
              1j*file['imag_traj'][()].astype(DTYPE)
-      traj = traj[...,3:-3]
       dcf = np.array(goldcomp.cmp(traj),dtype=DTYPE)
     else:
+#      [NScan,NC,NSlice,dimY,dimX] = data.shape
       traj=None
       dcf = None
 
 
     if np.max(prime_factors(data.shape[-1]))>13:
-      raise ValueError('Samples along the spoke need to have their largest prime factor to be 13 or lower.')
+      data = data[...,3:-3]
+      dimX -=3
+      dimY -=3
+      traj = traj[...,3:-3]
+      dcf = dcf[...,3:-3]
+#      raise ValueError('Samples along the spoke need to have their largest prime factor to be 13 or lower.')
 
     #Create par struct to store everyting
     par={}
@@ -255,7 +263,7 @@ def main(args):
     #### TEST
     par["unknowns_TGV"] = 2
     par["unknowns_H1"] = 0
-    par["unknowns"] = 2
+    par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
     if not args.trafo:
       par['mask'] = np.ones_like(np.abs(data)).astype(int)
       (par['mask'])[np.abs(data)==0] = 0
@@ -274,11 +282,11 @@ def main(args):
     try:
       if not file['Coils'][()].shape[1] >= reco_Slices:
         if args.trafo:
-          nlinvNewtonSteps = 6
+          nlinvNewtonSteps = 7
           nlinvRealConstr  = False
 
           traj_coil = np.reshape(traj,(NScan*Nproj,N))
-          dcf_coil = np.repeat(dcf,NScan,0)
+          dcf_coil = np.ones_like(np.repeat(dcf,NScan,0))
 
           par["C"] = np.zeros((NC,reco_Slices,dimY,dimX), dtype=DTYPE)
           par["phase_map"] = np.zeros((reco_Slices,dimY,dimX), dtype=DTYPE)
@@ -326,14 +334,17 @@ def main(args):
           del file['Coils']
           del FFT,ctx,queue
         else:
-          nlinvNewtonSteps = 6
+          nlinvNewtonSteps = 7
           nlinvRealConstr  = False
 
           par["C"] = np.zeros((NC,reco_Slices,dimY,dimX), dtype=DTYPE)
           par["phase_map"] = np.zeros((reco_Slices,dimY,dimX), dtype=DTYPE)
 
           result = []
-          tmp =  np.transpose(np.fft.ifft(np.fft.fft(np.mean(data,0),axis=-3),axis=-1),(0,3,1,2))
+          tmp =  np.mean(data,0)
+#          tmp = np.fft.ifft2(tmp,norm='ortho')
+#          tmp = np.transpose(tmp,(0,3,1,2))
+#          tmp = np.fft.fft2(tmp,norm='ortho')
           for i in range(0,(reco_Slices)):
             sys.stdout.write("Computing coil sensitivity map of slice %i \r" \
                            %(i))
@@ -341,6 +352,7 @@ def main(args):
 
             ##### RADIAL PART
             combinedData = tmp[:,i,...]
+#            combinedData =  np.fft.fftshift(np.mean(data[:,:,i,:,:],0),(-1,-2))
 
             dview = c[int(np.floor(i*len(c)/NSlice))]
             result.append(dview.apply_async(nlinvns.nlinvns, combinedData,
@@ -363,7 +375,7 @@ def main(args):
           else:
             par["C"] = par["C"] / np.tile(sumSqrC, (NC,1,1,1))
           del file['Coils']
-
+#        par["C"] = np.transpose(par["C"],(0,2,3,1))
         file.create_dataset("Coils",par["C"].shape,dtype=par["C"].dtype,data=par["C"])
         file.flush()
 
@@ -374,11 +386,11 @@ def main(args):
 
     except:
       if args.trafo:
-        nlinvNewtonSteps = 6
+        nlinvNewtonSteps = 7
         nlinvRealConstr  = False
 
         traj_coil = np.reshape(traj,(NScan*Nproj,N))
-        dcf_coil = np.repeat(dcf,NScan,0)
+        dcf_coil = np.ones_like(np.repeat(dcf,NScan,0))
 
         par["C"] = np.zeros((NC,reco_Slices,dimY,dimX), dtype=DTYPE)
         par["phase_map"] = np.zeros((reco_Slices,dimY,dimX), dtype=DTYPE)
@@ -432,13 +444,17 @@ def main(args):
         par["phase_map"] = np.zeros((reco_Slices,dimY,dimX), dtype=DTYPE)
 
         result = []
+        tmp =  np.mean(data,0)
+#        tmp = np.fft.ifft2(tmp,norm='ortho')
+#        tmp = np.transpose(tmp,(0,3,1,2))
+#        tmp = np.fft.fft2(tmp,norm='ortho')
         for i in range(0,(reco_Slices)):
           sys.stdout.write("Computing coil sensitivity map of slice %i \r" \
                          %(i))
           sys.stdout.flush()
 
           ##### RADIAL PART
-          combinedData =  np.fft.fftshift(np.mean(data[:,:,i,:,:],0),(-1,-2))
+          combinedData =  tmp[:,i,...]#np.fft.fftshift(np.mean(data[:,:,i,:,:],0),(-1,-2))
 #          combinedData = np.mean(combinedData,0)
 
           dview = c[int(np.floor(i*len(c)/NSlice))]
@@ -461,12 +477,15 @@ def main(args):
           par["C"] = sumSqrC
         else:
           par["C"] = par["C"] / np.tile(sumSqrC, (NC,1,1,1))
+#        par["C"] = np.transpose(par["C"],(0,2,3,1))
       file.create_dataset("Coils",par["C"].shape,dtype=par["C"].dtype,data=par["C"])
       file.flush()
 
 
 ##################
-#    par["C"] = np.repeat(0.5*np.ones_like(par["C"][0,...])[None,...],2,0)
+#    par["C"] = np.ones_like(par["C"])
+#    sumSqrC = np.sqrt(np.sum((par["C"] * np.conj(par["C"])),0)) #4, 9, 128, 128
+#    par["C"] = par["C"] / np.tile(sumSqrC, (NC,1,1,1))
 ################
 
 ################################################################################
@@ -480,9 +499,19 @@ def main(args):
           data = data*np.sqrt(dcf)
 #### Close File after everything was read
     file.close()
+#    dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2*1e3))/(np.linalg.norm(data[:10].flatten()))
+#    par["dscale"] = dscale
+#    data[:10] = data[:10]* dscale
+#    dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2*1e3))/(np.linalg.norm(data[10:].flatten()))
+#    par["dscale"] = dscale
+#    data[10:] = data[10:]* dscale
+
     dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2*1e3))/(np.linalg.norm(data.flatten()))
     par["dscale"] = dscale
     data = data* dscale
+#    dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2*1e3))/(np.linalg.norm(data[10:].flatten()))
+#    par["dscale"] = dscale
+#    data[10:] = data[10:]* dscale
 ################################################################################
 ### generate nFFT  #############################################################
 ################################################################################
@@ -514,7 +543,7 @@ def main(args):
 
     par['C'] = par['C'].astype(DTYPE)
 
-
+#    print("got before init")
 ################################################################################
 ### Create OpenCL Context and Queues ###########################################
 ################################################################################
@@ -537,7 +566,8 @@ def main(args):
     else:
       opt = Model_Reco.Model_Reco(par,ctx,queue,None,None,args.trafo)
       opt.data =  data
-
+#    print("got here")
+#    print(Model_Reco)
     if args.type=='3D':
 ################################################################################
 ### IRGN - TGV Reco ############################################################
@@ -686,12 +716,13 @@ def main(args):
     os.chdir("output/"+ outdir)
     f = h5py.File("output_"+name,"w")
 
-    for i in range(len(result_tgv)):
-      if "TGV" in args.reg or args.reg=='all':
+    if "TGV" in args.reg or args.reg=='all':
+      for i in range(len(result_tgv)):
         f.create_dataset("tgv_full_result_"+str(i),result_tgv[i].shape,\
                                      dtype=DTYPE,data=result_tgv[i])
         f.attrs['res_tgv'] = res_tgv
-      if "TV" in args.reg or args.reg=='all':
+    if "TV" in args.reg or args.reg=='all':
+      for i in range(len(result_tv)):
         f.create_dataset("tv_full_result_"+str(i),result_tv[i].shape,\
                                          dtype=DTYPE,data=result_tv[i])
         f.attrs['res_tv'] = res_tv
@@ -707,11 +738,11 @@ if __name__ == '__main__':
     parser.add_argument('--recon_type', default='3D', dest='type',help='Choose reconstruction type (currently only 3D)')
     parser.add_argument('--reg_type', default='TGV', dest='reg',help="Choose regularization type (default: TGV)\
                                                                      options are: TGV, TV, all")
-    parser.add_argument('--slices',default=1, dest='slices', type=int, help='Number of reconstructed slices (default=40). Symmetrical around the center slice.')
-    parser.add_argument('--trafo', default=1, dest='trafo',  help='Choos between radial (1, default) and Cartesian (0) sampling. ')
-    parser.add_argument('--streamed', default=0, dest='streamed',  help='Enable streaming of large data arrays (>10 slices).')
+    parser.add_argument('--slices',default=10, dest='slices', type=int, help='Number of reconstructed slices (default=40). Symmetrical around the center slice.')
+    parser.add_argument('--trafo', default=1, dest='trafo', type=int, help='Choos between radial (1, default) and Cartesian (0) sampling. ')
+    parser.add_argument('--streamed', default=0, dest='streamed', type=int, help='Enable streaming of large data arrays (>10 slices).')
     parser.add_argument('--data',default='',dest='file',help='Full path to input data. If not provided, a file dialog will open.')
-    parser.add_argument('--model',default='VFA_exp',dest='sig_model',help='Name of the signal model to use. Defaults to VFA. Please name your signal model file MODEL_model.')
+    parser.add_argument('--model',default='VFA',dest='sig_model',help='Name of the signal model to use. Defaults to VFA. Please name your signal model file MODEL_model.')
     parser.add_argument('--config',default='default',dest='config',help='Name of config file to use (assumed to be in the same folder). If not specified, use default parameters.')
     args = parser.parse_args()
 
