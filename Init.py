@@ -506,12 +506,9 @@ def main(args):
 #    par["dscale"] = dscale
 #    data[10:] = data[10:]* dscale
 
-    dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2*1e3))/(np.linalg.norm(data.flatten()))
+    dscale = (NSlice)*DTYPE(np.sqrt(2*1e3))/(np.linalg.norm(data.flatten()))
     par["dscale"] = dscale
     data = data* dscale
-#    dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2*1e3))/(np.linalg.norm(data[10:].flatten()))
-#    par["dscale"] = dscale
-#    data[10:] = data[10:]* dscale
 ################################################################################
 ### generate nFFT  #############################################################
 ################################################################################
@@ -589,12 +586,10 @@ def main(args):
           print("Config file not readable or not found. Falling back to default.")
           gen_default_config()
           opt.irgn_par = read_config("default","3D_TGV")
-
+        opt.irgn_par["lambd"] /= (NSlice)
         opt.execute_3D()
         result_tgv.append(opt.result)
         plt.close('all')
-
-
         res_tgv = opt.gn_res
         res_tgv = np.array(res_tgv)/(opt.irgn_par["lambd"]*NSlice)
   ################################################################################
@@ -616,13 +611,12 @@ def main(args):
           print("Config file not readable or not found. Falling back to default.")
           gen_default_config()
           opt.irgn_par = read_config("default","3D_TV")
+        opt.irgn_par["lambd"] /= (NSlice)
         opt.execute_3D(1)
         result_tv.append(opt.result)
         plt.close('all')
-
         res_tv = opt.gn_res
         res_tv = np.array(res_tv)/(opt.irgn_par["lambd"]*NSlice)
-
       del opt
 #    else:
 #################################################################################
