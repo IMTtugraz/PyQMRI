@@ -895,7 +895,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
     print("-"*80)
     if (np.abs(self.fval_min-self.fval) < self.irgn_par["lambd"]*self.irgn_par["tol"]) and i>0:
-      print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/(self.irgn_par["lambd"]*self.NSlice)))
+      print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/(self.irgn_par["lambd"]*self.NSlice**2)))
       break
     if i==0:
       self.fval_min = self.fval
@@ -947,7 +947,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
 #          self.ratio[i][knt] *= scale
 
     print("-"*80)
-    print ("Function value after GN-Step: %f" %(self.fval/(self.irgn_par["lambd"]*self.NSlice)))
+    print ("Function value after GN-Step: %f" %(self.fval/(self.irgn_par["lambd"]*self.NSlice**2)))
 
     return x
 
@@ -1864,8 +1864,8 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         gap = np.abs(primal_new - dual)
         if myit==0:
           gap_min = gap
-        if np.abs(primal-primal_new)<(self.irgn_par["lambd"]*self.NSlice)*self.irgn_par["tol"]:
-          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(myit,abs(primal-primal_new)/(self.irgn_par["lambd"]*self.NSlice)))
+        if np.abs(primal-primal_new)<(self.irgn_par["lambd"]*self.NSlice**2)*self.irgn_par["tol"]:
+          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(myit,abs(primal-primal_new)/(self.irgn_par["lambd"]*self.NSlice**2)))
           self.v = v_new
           self.r = r
           self.z1 = z1
@@ -1878,17 +1878,17 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           self.z2 = z2
           print("Terminated at iteration %d because the method stagnated"%(myit))
           return x_new
-        if np.abs(gap - gap_min)<(self.irgn_par["lambd"]*self.NSlice)*self.irgn_par["tol"] and myit>1:
+        if np.abs(gap - gap_min)<(self.irgn_par["lambd"]*self.NSlice**2)*self.irgn_par["tol"] and myit>1:
           self.v = v_new
           self.r = r
           self.z1 = z1
           self.z2 = z2
-          print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(myit,abs(gap - gap_min)/(self.irgn_par["lambd"]*self.NSlice)))
+          print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(myit,abs(gap - gap_min)/(self.irgn_par["lambd"]*self.NSlice**2)))
           return x_new
         primal = primal_new
         gap_min = np.minimum(gap,gap_min)
         sys.stdout.write("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f    \r" \
-                       %(myit,primal/(self.irgn_par["lambd"]*self.NSlice),dual/(self.irgn_par["lambd"]*self.NSlice),gap/(self.irgn_par["lambd"]*self.NSlice)))
+                       %(myit,primal/(self.irgn_par["lambd"]*self.NSlice**2),dual/(self.irgn_par["lambd"]*self.NSlice**2),gap/(self.irgn_par["lambd"]*self.NSlice**2)))
         sys.stdout.flush()
 
       (x, x_new) = (x_new, x)
@@ -2892,8 +2892,8 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         gap = np.abs(primal_new - dual)
         if myit==0:
           gap_min = gap
-        if np.abs(primal-primal_new)<(self.irgn_par["lambd"]*self.NSlice)*self.irgn_par["tol"]:
-          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(myit,abs(primal-primal_new)/(self.irgn_par["lambd"]*self.NSlice)))
+        if np.abs(primal-primal_new)<(self.irgn_par["lambd"]*self.NSlice**2)*self.irgn_par["tol"]:
+          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(myit,abs(primal-primal_new)/(self.irgn_par["lambd"]*self.NSlice**2)))
           self.r = r
           self.z1 = z1
           return x_new
@@ -2904,15 +2904,15 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
 #          self.z2 = z2
 #          print("Terminated at iteration %d because the method stagnated"%(myit))
 #          return x
-        if np.abs(gap - gap_min)<(self.irgn_par["lambd"]*self.NSlice)*self.irgn_par["tol"] and myit>1:
+        if np.abs(gap - gap_min)<(self.irgn_par["lambd"]*self.NSlice**2)*self.irgn_par["tol"] and myit>1:
           self.r = r
           self.z1 = z1
-          print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(myit,abs(gap - gap_min)/(self.irgn_par["lambd"]*self.NSlice)))
+          print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(myit,abs(gap - gap_min)/(self.irgn_par["lambd"]*self.NSlice**2)))
           return x_new
         primal = primal_new
         gap_min = np.minimum(gap,gap_min)
         sys.stdout.write("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f    \r" \
-                       %(myit,primal/(self.irgn_par["lambd"]*self.NSlice),dual/(self.irgn_par["lambd"]*self.NSlice),gap/(self.irgn_par["lambd"]*self.NSlice)))
+                       %(myit,primal/(self.irgn_par["lambd"]*self.NSlice**2),dual/(self.irgn_par["lambd"]*self.NSlice**2),gap/(self.irgn_par["lambd"]*self.NSlice**2)))
         sys.stdout.flush()
 
       (x, x_new) = (x_new, x)
