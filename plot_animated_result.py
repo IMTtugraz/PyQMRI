@@ -12,7 +12,7 @@ import matplotlib.gridspec as gridspec
 import h5py
 from tkinter import filedialog
 from tkinter import Tk
-#import Compute_mask as masking
+import Compute_mask as masking
 ################################################################################
 ### Select input file ##########################################################
 ################################################################################
@@ -24,7 +24,7 @@ file = filedialog.askopenfilename()
 root.destroy()
 
 file = h5py.File(file)
-
+#
 #root = Tk()
 #root.withdraw()
 #root.update()
@@ -36,26 +36,26 @@ data = file['tgv_full_result_0'][()]
 data = data[-1,...]
 
 #data[:,:5]=0
-#
+##
 #data2 = file2['tgv_full_result_0'][()]
 #data2 = data2[-1,:,:]
 
 #data2[:,:5]=0
 
 [z,y,x] = data[0].shape
-#M0 = np.abs(data2[0])
-#mask = np.ones_like(M0)
-#mask[M0<0.2] = 0
-#mask = masking.compute(M0*mask)
+M0 = np.abs(data[0])
+mask = np.ones_like(M0)
+mask[M0<0.2] = 0
+mask = masking.compute(M0*mask)
 
 #M0 = np.abs(data[0])
 #mask[M0<0.5] = 0
-M0 = np.abs(data[0])#*mask
-T1 = np.abs(data[1])#*mask
+M0 = (np.abs(data[0]))*mask#-np.abs(data2[0]))/np.abs(data[0])#*mask
+T1 = (np.abs(data[1]))*mask#-np.abs(data2[1]))/np.abs(data[1])#*mask
 M0_min = M0.min()
 M0_max = M0.max()#*0.5
 T1_min = T1.min()#10
-T1_max = T1.max()#130
+T1_max = 3000#T1.max()#130
 def update_img(num):
   if num >=x:
     num=x-num-1
@@ -141,4 +141,4 @@ ax = np.array(ax)
 # Creating the Animation object
 
 line_ani = animation.FuncAnimation(figure, update_img, 2*x-1, interval=100, blit=False)
-#line_ani.save("3D_reco.gif",writer="imagemagick",dpi=30,fps=30,savefig_kwargs={'facecolor':plt.cm.viridis.colors[0]})
+line_ani.save("3D_reco.gif",writer="imagemagick",dpi=30,fps=30,savefig_kwargs={'facecolor':plt.cm.viridis.colors[0]})

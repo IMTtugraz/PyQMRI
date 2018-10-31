@@ -66,7 +66,7 @@ class Model_Reco:
     self.gn_res = []
     self.num_dev = len(ctx)
     self.NUFFT = []
-    self.par_slices = 5
+    self.par_slices = 10
     self.ukscale = []
     self.prg = []
     self.overlap = 1
@@ -338,11 +338,11 @@ __kernel void divergence(__global float2 *div, __global float8 *p, const int NUk
          val.s3 -= p[i-Nx].s3;
      }
     if (last == 1)
-     {
+     { if (k == NSl-1){
          //real
          val.s4 = 0.0f;
          //imag
-         val.s5 = 0.0f;
+         val.s5 = 0.0f;}
      }
      if (k > 0)
      {
@@ -407,11 +407,13 @@ __kernel void sym_divergence(__global float8 *w, __global float16 *q,
          val_imag.s345 += (float3)(q[i+Nx].s7, q[i+Nx].s3, q[i+Nx].sb);
      }
      if (first == 1)
+     {if (k == 0)
      {
          //real
          val_real.s678 = 0.0f;
          //imag
          val_imag.s678 = 0.0f;
+         }
      }
      if (k < NSl-1)
      {
@@ -478,10 +480,13 @@ __kernel void update_Kyk2(__global float8 *w, __global float16 *q, __global floa
      }
      if (first == 1)
      {
+          if (k == NSl-1)
+          {
          //real
          val_real.s678 = 0.0f;
          //imag
          val_imag.s678 = 0.0f;
+         }
      }
      if (k < NSl-1)
      {
@@ -655,10 +660,12 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
    }
    if (last == 1)
    {
-       //real
+    if (k==0)
+    {  //real
        val.s4 = 0.0f;
        //imag
        val.s5 = 0.0f;
+    }
    }
    if (k > 0)
    {
@@ -895,7 +902,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
     print("-"*80)
     if (np.abs(self.fval_min-self.fval) < self.irgn_par["lambd"]*self.irgn_par["tol"]) and i>0:
-      print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/(self.irgn_par["lambd"]*self.NSlice**2)))
+      print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/(self.irgn_par["lambd"]*self.NSlice)))
       break
     if i==0:
       self.fval_min = self.fval
@@ -947,7 +954,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
 #          self.ratio[i][knt] *= scale
 
     print("-"*80)
-    print ("Function value after GN-Step: %f" %(self.fval/(self.irgn_par["lambd"]*self.NSlice**2)))
+    print ("Function value after GN-Step: %f" %(self.fval/(self.irgn_par["lambd"]*self.NSlice)))
 
     return x
 
@@ -1056,13 +1063,17 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
       z1_part.append(clarray.to_device(self.queue[3*i+1], z1[idx_start:idx_stop,...],allocator=self.alloc[i]))# ))
       self.coil_buf_part.append(clarray.to_device(self.queue[3*i+1], self.C[idx_start:idx_stop,...],allocator=self.alloc[i]))
       self.grad_buf_part.append(clarray.to_device(self.queue[3*i+1], self.grad_x[idx_start:idx_stop,...],allocator=self.alloc[i]))
-      if idx_stop == self.NSlice:
-        last=1
+
     for i in range(self.num_dev):
+      if idx_stop==self.NSlice and i==self.num_dev-1:
+        last=1
       Axold_part[i+self.num_dev].add_event(self.operator_forward_full(Axold_part[i+self.num_dev],x_part[self.num_dev+i],i,1))
       Kyk1_part[i+self.num_dev].add_event(self.operator_adjoint_full(Kyk1_part[i+self.num_dev],r_part[self.num_dev+i],z1_part[self.num_dev+i],i,1,last))
+
+
 #### Stream
     for j in range(2*self.num_dev,int(self.NSlice/(2*self.par_slices*self.num_dev)+(2*self.num_dev-1))):
+        last = 0
         for i in range(self.num_dev):
           ### Get Data
           self.queue[3*i].finish()
@@ -1085,8 +1096,6 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           z1_part[i].set( z1[idx_start:idx_stop,...],self.queue[3*i])# ))
           self.coil_buf_part[i].set(self.C[idx_start:idx_stop,...],self.queue[3*i])
           self.grad_buf_part[i].set( self.grad_x[idx_start:idx_stop,...],self.queue[3*i])
-          if idx_stop == self.NSlice:
-            last=1
         for i in range(self.num_dev):
           Axold_part[i].add_event(self.operator_forward_full(Axold_part[i],x_part[i],i,0))
           Kyk1_part[i].add_event(self.operator_adjoint_full(Kyk1_part[i],r_part[i],z1_part[i],i,0,last))
@@ -1106,9 +1115,9 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           z1_part[self.num_dev+i].set( z1[idx_start:idx_stop,...] ,self.queue[3*i+1])# ))
           self.coil_buf_part[self.num_dev+i].set( self.C[idx_start:idx_stop,...] ,self.queue[3*i+1])
           self.grad_buf_part[self.num_dev+i].set( self.grad_x[idx_start:idx_stop,...] ,self.queue[3*i+1])
-          if idx_stop == self.NSlice:
-            last=1
         for i in range(self.num_dev):
+          if idx_stop == self.NSlice and i==self.num_dev-1:
+            last=1
           Axold_part[i+self.num_dev].add_event(self.operator_forward_full(Axold_part[i+self.num_dev],x_part[self.num_dev+i],i,1))
           Kyk1_part[i+self.num_dev].add_event(self.operator_adjoint_full(Kyk1_part[i+self.num_dev],r_part[self.num_dev+i],z1_part[self.num_dev+i],i,1,last))
 #### Collect last block
@@ -1148,11 +1157,11 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
 
       z1_part[i].set(z1[idx_start:idx_stop,...],self.queue[3*i])# ))
       z2_part.append(clarray.to_device(self.queue[3*i], z2[idx_start:idx_stop,...],allocator=self.alloc[i]))# ))
-      if idx_start == 0:
+    for i in range(self.num_dev):
+      if i == 0:
         first=1
       else:
         first=0
-    for i in range(self.num_dev):
       Kyk2_part[i].add_event((self.update_Kyk2(Kyk2_part[i],z2_part[i],z1_part[i],i,0,first)))
     first = 0
     for i in range(self.num_dev):
@@ -1564,8 +1573,6 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           Kyk1_part[i].set( Kyk1[idx_start:idx_stop,...] ,self.queue[3*i])
           self.coil_buf_part[i].set(self.C[idx_start:idx_stop,...] ,self.queue[3*i])
           self.grad_buf_part[i].set(self.grad_x[idx_start:idx_stop,...],self.queue[3*i])
-          if idx_stop == self.NSlice:
-            last=1
         for i in range(self.num_dev):
           z1_new_part[ i].add_event(self.update_z1(z1_new_part[ i],z1_part[i],gradx_part[i],gradx_xold_part[i],v_new_part[i],v_part[i], beta_line*tau_new, theta_line, alpha,i,0))
           r_new_part[i].add_event(self.update_r(r_new_part[i],r_part[i],Ax_part[i],Ax_old_part[i],res_part[i],beta_line*tau_new,theta_line,self.irgn_par["lambd"],i,0))
@@ -1587,9 +1594,9 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           Kyk1_part[i+self.num_dev].set( Kyk1[idx_start:idx_stop,...] ,self.queue[3*i+1])
           self.coil_buf_part[i+self.num_dev].set(self.C[idx_start:idx_stop,...] ,self.queue[3*i+1])
           self.grad_buf_part[i+self.num_dev].set(self.grad_x[idx_start:idx_stop,...] ,self.queue[3*i+1])
-          if idx_stop == self.NSlice:
-            last=1
         for i in range(self.num_dev):
+          if idx_stop == self.NSlice and i==self.num_dev-1:
+            last=1
           z1_new_part[i+self.num_dev].add_event(self.update_z1(z1_new_part[i+self.num_dev],z1_part[self.num_dev+i],gradx_part[self.num_dev+i],gradx_xold_part[self.num_dev+i],v_new_part[self.num_dev+i],v_part[self.num_dev+i], beta_line*tau_new, theta_line, alpha,i,1))
           r_new_part[i+self.num_dev].add_event(self.update_r(r_new_part[i+self.num_dev],r_part[self.num_dev+i],Ax_part[self.num_dev+i],Ax_old_part[self.num_dev+i],res_part[self.num_dev+i],beta_line*tau_new,theta_line,self.irgn_par["lambd"],i,1))
           Kyk1_new_part[i+self.num_dev].add_event(self.operator_adjoint_full(Kyk1_new_part[i+self.num_dev],r_new_part[i+self.num_dev],z1_new_part[i+self.num_dev],i,1,last))
@@ -1597,6 +1604,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
       #### Stream
         for j in range(2*self.num_dev,int(self.NSlice/(2*self.par_slices*self.num_dev)+(2*self.num_dev-1))):
 #          tic = time.time()
+          last = 0
           for i in range(self.num_dev):
             ### Get Data
             self.queue[3*i].finish()
@@ -1633,8 +1641,6 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             Kyk1_part[i].set( Kyk1[idx_start:idx_stop,...] ,self.queue[3*i])
             self.coil_buf_part[i].set(self.C[idx_start:idx_stop,...] ,self.queue[3*i])
             self.grad_buf_part[i].set(self.grad_x[idx_start:idx_stop,...],self.queue[3*i])
-            if idx_stop == self.NSlice:
-              last=1
           for i in range(self.num_dev):
             z1_new_part[ i].add_event(self.update_z1(z1_new_part[ i],z1_part[i],gradx_part[i],gradx_xold_part[i],v_new_part[i],v_part[i], beta_line*tau_new, theta_line, alpha,i,0))
             r_new_part[i].add_event(self.update_r(r_new_part[i],r_part[i],Ax_part[i],Ax_old_part[i],res_part[i],beta_line*tau_new,theta_line,self.irgn_par["lambd"],i,0))
@@ -1668,9 +1674,9 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             Kyk1_part[i+self.num_dev].set( Kyk1[idx_start:idx_stop,...] ,self.queue[3*i+1])
             self.coil_buf_part[i+self.num_dev].set(self.C[idx_start:idx_stop,...] ,self.queue[3*i+1])
             self.grad_buf_part[i+self.num_dev].set(self.grad_x[idx_start:idx_stop,...] ,self.queue[3*i+1])
-            if idx_stop == self.NSlice:
-              last=1
           for i in range(self.num_dev):
+            if idx_stop == self.NSlice and i==self.num_dev-1:
+              last=1
             z1_new_part[i+self.num_dev].add_event(self.update_z1(z1_new_part[i+self.num_dev],z1_part[self.num_dev+i],gradx_part[self.num_dev+i],gradx_xold_part[self.num_dev+i],v_new_part[self.num_dev+i],v_part[self.num_dev+i], beta_line*tau_new, theta_line, alpha,i,1))
             r_new_part[i+self.num_dev].add_event(self.update_r(r_new_part[i+self.num_dev],r_part[self.num_dev+i],Ax_part[self.num_dev+i],Ax_old_part[self.num_dev+i],res_part[self.num_dev+i],beta_line*tau_new,theta_line,self.irgn_par["lambd"],i,1))
             Kyk1_new_part[i+self.num_dev].add_event(self.operator_adjoint_full(Kyk1_new_part[i+self.num_dev],r_new_part[i+self.num_dev],z1_new_part[i+self.num_dev],i,1,last))
@@ -1724,11 +1730,12 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           symgrad_v_vold_part[i].set( symgrad_v_vold[idx_start:idx_stop,...] ,self.queue[3*i])
           Kyk2_part[i].set( Kyk2[idx_start:idx_stop,...] ,self.queue[3*i])
           z1_new_part[i].set( z1_new[idx_start:idx_stop,...] ,self.queue[3*i])
-          if idx_start==0:
+
+        for i in range(self.num_dev):
+          if i==0:
             first=1
           else:
             first=0
-        for i in range(self.num_dev):
           z2_new_part[ i].add_event(self.update_z2(z2_new_part[ i],z2_part[i],symgrad_v_part[i],symgrad_v_vold_part[i],beta_line*tau_new,theta_line,beta,i,0))
           Kyk2_new_part[ i].add_event(self.update_Kyk2(Kyk2_new_part[ i],z2_new_part[ i],z1_new_part[ i],i,0,first))
 
@@ -1864,8 +1871,8 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         gap = np.abs(primal_new - dual)
         if myit==0:
           gap_min = gap
-        if np.abs(primal-primal_new)<(self.irgn_par["lambd"]*self.NSlice**2)*self.irgn_par["tol"]:
-          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(myit,abs(primal-primal_new)/(self.irgn_par["lambd"]*self.NSlice**2)))
+        if np.abs(primal-primal_new)<(self.irgn_par["lambd"]*self.NSlice)*self.irgn_par["tol"]:
+          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(myit,abs(primal-primal_new)/(self.irgn_par["lambd"]*self.NSlice)))
           self.v = v_new
           self.r = r
           self.z1 = z1
@@ -1878,17 +1885,17 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           self.z2 = z2
           print("Terminated at iteration %d because the method stagnated"%(myit))
           return x_new
-        if np.abs(gap - gap_min)<(self.irgn_par["lambd"]*self.NSlice**2)*self.irgn_par["tol"] and myit>1:
+        if np.abs(gap - gap_min)<(self.irgn_par["lambd"]*self.NSlice)*self.irgn_par["tol"] and myit>1:
           self.v = v_new
           self.r = r
           self.z1 = z1
           self.z2 = z2
-          print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(myit,abs(gap - gap_min)/(self.irgn_par["lambd"]*self.NSlice**2)))
+          print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(myit,abs(gap - gap_min)/(self.irgn_par["lambd"]*self.NSlice)))
           return x_new
         primal = primal_new
         gap_min = np.minimum(gap,gap_min)
         sys.stdout.write("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f    \r" \
-                       %(myit,primal/(self.irgn_par["lambd"]*self.NSlice**2),dual/(self.irgn_par["lambd"]*self.NSlice**2),gap/(self.irgn_par["lambd"]*self.NSlice**2)))
+                       %(myit,primal/(self.irgn_par["lambd"]*self.NSlice),dual/(self.irgn_par["lambd"]*self.NSlice),gap/(self.irgn_par["lambd"]*self.NSlice)))
         sys.stdout.flush()
 
       (x, x_new) = (x_new, x)
@@ -2819,8 +2826,6 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             Kyk1_part[i+self.num_dev].set( Kyk1[idx_start:idx_stop,...] ,self.queue[3*i+1])
             self.coil_buf_part[i+self.num_dev].set(self.C[idx_start:idx_stop,...] ,self.queue[3*i+1])
             self.grad_buf_part[i+self.num_dev].set(self.grad_x[idx_start:idx_stop,...] ,self.queue[3*i+1])
-            if idx_start==self.NSlice:
-              last=1
           for i in range(self.num_dev):
             z1_new_part[i+self.num_dev].add_event(self.update_z1_tv(z1_new_part[i+self.num_dev],z1_part[self.num_dev+i],gradx_part[self.num_dev+i],gradx_xold_part[self.num_dev+i], beta_line*tau_new, theta_line, alpha,i,1))
             r_new_part[i+self.num_dev].add_event(self.update_r(r_new_part[i+self.num_dev],r_part[self.num_dev+i],Ax_part[self.num_dev+i],Ax_old_part[self.num_dev+i],res_part[self.num_dev+i],beta_line*tau_new,theta_line,self.irgn_par["lambd"],i,1))
@@ -2892,8 +2897,8 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         gap = np.abs(primal_new - dual)
         if myit==0:
           gap_min = gap
-        if np.abs(primal-primal_new)<(self.irgn_par["lambd"]*self.NSlice**2)*self.irgn_par["tol"]:
-          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(myit,abs(primal-primal_new)/(self.irgn_par["lambd"]*self.NSlice**2)))
+        if np.abs(primal-primal_new)<(self.irgn_par["lambd"]*self.NSlice)*self.irgn_par["tol"]:
+          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(myit,abs(primal-primal_new)/(self.irgn_par["lambd"]*self.NSlice)))
           self.r = r
           self.z1 = z1
           return x_new
@@ -2904,15 +2909,15 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
 #          self.z2 = z2
 #          print("Terminated at iteration %d because the method stagnated"%(myit))
 #          return x
-        if np.abs(gap - gap_min)<(self.irgn_par["lambd"]*self.NSlice**2)*self.irgn_par["tol"] and myit>1:
+        if np.abs(gap - gap_min)<(self.irgn_par["lambd"]*self.NSlice)*self.irgn_par["tol"] and myit>1:
           self.r = r
           self.z1 = z1
-          print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(myit,abs(gap - gap_min)/(self.irgn_par["lambd"]*self.NSlice**2)))
+          print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(myit,abs(gap - gap_min)/(self.irgn_par["lambd"]*self.NSlice)))
           return x_new
         primal = primal_new
         gap_min = np.minimum(gap,gap_min)
         sys.stdout.write("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f    \r" \
-                       %(myit,primal/(self.irgn_par["lambd"]*self.NSlice**2),dual/(self.irgn_par["lambd"]*self.NSlice**2),gap/(self.irgn_par["lambd"]*self.NSlice**2)))
+                       %(myit,primal/(self.irgn_par["lambd"]*self.NSlice),dual/(self.irgn_par["lambd"]*self.NSlice),gap/(self.irgn_par["lambd"]*self.NSlice)))
         sys.stdout.flush()
 
       (x, x_new) = (x_new, x)
