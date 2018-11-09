@@ -10,7 +10,7 @@ from sympy import *
 
 
 
-M0, M0_sc, T1, fa,fa_corr,TR,T1_sc,T2,T2_sc,n,TE = symbols('M0,M0_sc,T1,fa,fa_corr,TR,T1_sc,T2,T2_sc,n,TE')
+M0, M0_sc, E1, fa,fa_corr,TR,T1_sc,E2,T2_sc,n,TE = symbols('M0,M0_sc,E1,fa,fa_corr,TR,T1_sc,E2,T2_sc,n,TE')
 init_printing(use_unicode=True)
 
 
@@ -38,12 +38,12 @@ init_printing(use_unicode=True)
 
 #S = M0*M0_sc*sin(fa*fa_corr)*(1-E1)/(1-E1*cos(fa*fa_corr))*exp(-TE/(T2*T2_sc))
 
-#S = (M0*M0_sc*sin(fa*fa_corr)*(1-E1*T1_sc))/(1-(E1*T1_sc-E2*T2_sc)*cos(fa*fa_corr)-(E1*T1_sc*E2*T2_sc));
+S = (M0*M0_sc*sin(fa*fa_corr)*(1-E1*T1_sc))/(1-(E1*T1_sc-E2*T2_sc)*cos(fa*fa_corr)-(E1*T1_sc*E2*T2_sc));
 
 #S = bSSFP*(1-INV*exp(-n*TR/T1_star))
 
-S = M0*M0_sc*exp(-TE/(T2*T2_sc))
+#S = M0*M0_sc*exp(-TE/(T2*T2_sc))
 
 M0_grad = str((diff(S,M0)))
-#E1_grad = str((diff(S,T1)))
-E2_grad = str((diff(S,T2)))
+E1_grad = str((diff(S,E1)))
+E2_grad = str((diff(S,E2)))

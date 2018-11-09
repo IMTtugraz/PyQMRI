@@ -14,7 +14,8 @@ import matplotlib.gridspec as gridspec
 plt.ion()
 DTYPE = np.complex64
 
-
+unknowns_TGV = 2
+unknowns_H1 = 0
 
 class constraint:
   def __init__(self, min_val=-np.inf, max_val=np.inf, real_const=False):
@@ -49,8 +50,8 @@ class Model:
     self.uk_scale.append(1)
     self.uk_scale.append(1)
 
-    test_T1 = np.reshape(np.linspace(10,5500,dimX*dimY*NSlice),(NSlice,dimX,dimY))
-    test_M0 = 0.1*np.sqrt((dimX*np.pi/2)/par["Nproj"])
+    test_T1 = np.reshape(np.linspace(50,5500,dimX*dimY*NSlice),(NSlice,dimX,dimY))
+    test_M0 = np.mean(images,0)#np.sqrt((dimX*np.pi/2)/par["Nproj"])#np.sqrt(89/par["Nproj"])#
     test_T1 = 1/self.uk_scale[1]*np.exp(-self.TR/(test_T1*np.ones((NSlice,dimY,dimX),dtype=DTYPE)))
 
 
@@ -63,8 +64,8 @@ class Model:
     self.uk_scale[1] = self.uk_scale[1]/np.sqrt(self.uk_scale[0])
     DG_x =  self.execute_gradient_3D(np.array([test_M0/self.uk_scale[0]*np.ones((NSlice,dimY,dimX),dtype=DTYPE),test_T1],dtype=DTYPE))
 #    print('Grad Scaling init', np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...])))
-#    print('T1 scale: ',self.uk_scale[1],
-#                              '/ uk_scale[0]ale: ',self.uk_scale[0])
+    print('T1 scale: ',self.uk_scale[1],
+                              '/ M0_scale: ',self.uk_scale[0])
 
 
     result = np.array([1/self.uk_scale[0]*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1/self.uk_scale[1]*np.exp(-self.TR/(800*np.ones((NSlice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE)

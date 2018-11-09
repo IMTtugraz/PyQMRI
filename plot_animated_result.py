@@ -33,7 +33,7 @@ file = h5py.File(file)
 #file2 = h5py.File(file2)
 
 data = file['tgv_full_result_0'][()]
-data = data[-1,...]
+data = data[5,:,:]
 
 #data[:,:5]=0
 ##
@@ -50,12 +50,16 @@ mask = masking.compute(M0*mask)
 
 #M0 = np.abs(data[0])
 #mask[M0<0.5] = 0
-M0 = (np.abs(data[0]))*mask#-np.abs(data2[0]))/np.abs(data[0])#*mask
-T1 = (np.abs(data[1]))*mask#-np.abs(data2[1]))/np.abs(data[1])#*mask
-M0_min = M0.min()
-M0_max = M0.max()#*0.5
-T1_min = T1.min()#10
-T1_max = 3000#T1.max()#130
+M0 = (np.abs(data[0]))#*mask
+T1 = (np.abs(data[1]))#*mask
+#M0 = (np.abs(data[0])-np.abs(data2[0]))/np.abs(data[0])*mask
+#T1 = (np.abs(data[1])-np.abs(data2[1]))/np.abs(data[1])*mask
+#M0 = np.sqrt((np.abs(np.abs(data[0])**2-np.abs(data2[0])**2))/np.abs(data[0])**2*mask)
+#T1 = np.sqrt((np.abs(np.abs(data[1])**2-np.abs(data2[1])**2))/np.abs(data[1])**2*mask)
+M0_min = M0.min()#-1e-2#
+M0_max = M0.max()#*0.51e-2#
+T1_min = T1.min()#10-1e-2#
+T1_max = 100#T1.max()#1301e-2#
 def update_img(num):
   if num >=x:
     num=x-num-1
@@ -88,7 +92,7 @@ ax[2].volume=np.flip(np.transpose(M0,(2,1,0)),-1)
 ax[7].volume=np.transpose(M0,(1,0,2))
 M0_plot=ax[1].imshow((M0[int(z/2),...]))
 M0_plot_cor=ax[7].imshow((M0[:,int(M0.shape[1]/2),...]))
-M0_plot_sag=ax[2].imshow(np.flip((M0[:,:,int(M0.shape[-1]/2)]).T,1))
+M0_plot_sag=ax[2].imshow(np.flip((M0[:,:,int(M0.shape[-1]/2+3)]).T,1))
 ax[1].set_title('Proton Density in a.u.',color='white')
 ax[1].set_anchor('SE')
 ax[2].set_anchor('SW')
@@ -108,7 +112,7 @@ ax[4].volume=np.flip(np.transpose(T1,(2,1,0)),-1)
 ax[9].volume=np.transpose(T1,(1,0,2))
 T1_plot=ax[3].imshow((T1[int(z/2),...]))
 T1_plot_cor=ax[9].imshow((T1[:,int(T1.shape[1]/2),...]))
-T1_plot_sag=ax[4].imshow(np.flip((T1[:,:,int(T1.shape[-1]/2)]).T,1))
+T1_plot_sag=ax[4].imshow(np.flip((T1[:,:,int(T1.shape[-1]/2+3)]).T,1))
 ax[3].set_title('T1 in  ms',color='white')
 ax[3].set_anchor('SE')
 ax[4].set_anchor('SW')
@@ -124,6 +128,8 @@ T1_plot.set_clim([T1_min,T1_max])
 T1_plot_sag.set_clim([T1_min,T1_max])
 T1_plot_cor.set_clim([T1_min,T1_max])
 ax = np.array(ax)
+
+#plt.savefig("full_gpu.svg",facecolor=plt.cm.viridis.colors[0])
 #ax_trans.volume = np.abs(data[-1,1])
 #ax_trans.index = 0
 #ax_trans.imshow(ax_trans.volume[ax_trans.index],animated=True)
@@ -140,5 +146,5 @@ ax = np.array(ax)
 #ax.set_title('3D Encoding')
 # Creating the Animation object
 
-line_ani = animation.FuncAnimation(figure, update_img, 2*x-1, interval=100, blit=False)
-line_ani.save("3D_reco.gif",writer="imagemagick",dpi=30,fps=30,savefig_kwargs={'facecolor':plt.cm.viridis.colors[0]})
+line_ani = animation.FuncAnimation(figure, update_img, x, interval=100, blit=False)
+#line_ani.save("3D_reco.gif",writer="imagemagick",dpi=100,fps=20,savefig_kwargs={'facecolor':plt.cm.viridis.colors[0]})

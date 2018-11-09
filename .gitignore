@@ -20,3 +20,5 @@ outfile*
 T2/
 Compute_*.py
 diffusion/
+*.svg
+*.ini

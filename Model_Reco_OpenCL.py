@@ -60,7 +60,7 @@ class Model_Reco:
     self.N = par["N"]
     self.Nproj = par["Nproj"]
     if trafo:
-      self.NUFFT = NUFFT.gridding(self.ctx,queue,4,2,par["N"],par["NScan"],(par["NScan"]*par["NC"]*par["NSlice"],par["N"],par["N"]),(1,2),traj.astype(DTYPE),np.require(np.abs(dcf),DTYPE_real,requirements='C'),par["N"],1000,DTYPE,DTYPE_real,radial=trafo)
+      self.NUFFT = NUFFT.gridding(self.ctx,queue,4,2,par["N"],par["NScan"],(par["NScan"]*par["NC"]*par["NSlice"],par["N"],par["N"]),(1,2),traj.astype(DTYPE),np.require(np.abs(dcf),DTYPE_real,requirements='C'),par["N"],10000,DTYPE,DTYPE_real,radial=trafo)
     else:
       self.NUFFT = NUFFT.gridding(self.ctx,queue,4,2,par["N"],par["NScan"],(par["NScan"]*par["NC"]*par["NSlice"],par["N"],par["N"]),(1,2),traj,dcf,par["N"],1000,DTYPE,DTYPE_real,radial=trafo,mask=par['mask'])
 
@@ -482,83 +482,6 @@ __kernel void update_Kyk2(__global float8 *w, __global float16 *q, __global floa
   }
 }
 
-__kernel void radon(__global float2 *sino, __global float2 *img,
-                    __constant float4 *ofs, const int X,
-                    const int Y, const int CS, const float scale)
-{
-  size_t I = get_global_size(2);
-  size_t J = get_global_size(1);
-  size_t i = get_global_id(2);
-  size_t j = get_global_id(1);
-  size_t k = get_global_id(0);
-
-  size_t scan = k/CS;
-
-  img += k*X*Y;
-  int ii = i;
-
-  float4 o = ofs[j+scan*J];
-  float2 acc = 0.0f;
-
-  for(int y = 0; y < Y; y++) {
-    int x_low, x_high;
-    float d = y*o.y + o.z;
-
-    // compute bounds
-    if (o.x == 0) {
-      if ((d > ii-1) && (d < ii+1)) {
-        x_low = 0; x_high = X-1;
-      } else {
-        img += X; continue;
-      }
-    } else if (o.x > 0) {
-      x_low = (int)((ii-1 - d)*o.w);
-      x_high = (int)((ii+1 - d)*o.w);
-    } else {
-      x_low = (int)((ii+1 - d)*o.w);
-      x_high = (int)((ii-1 - d)*o.w);
-    }
-    x_low = max(x_low, 0);
-    x_high = min(x_high, X-1);
-
-    // integrate
-    for(int x = x_low; x <= x_high; x++) {
-      float weight = 1.0 - fabs(x*o.x + d - ii);
-      if (weight > 0.0f) acc += weight*img[x];
-    }
-    img += X;
-  }
-  sino[k*I*J+j*I + ii] = acc/scale;
-}
-
-__kernel void radon_ad(__global float2 *img, __global float2 *sino,
-                       __constant float4 *ofs, const int I,
-                       const int J, const int CS, const float scale)
-{
-  size_t X = get_global_size(2);
-  size_t Y = get_global_size(1);
-  size_t x = get_global_id(2);
-  size_t y = get_global_id(1);
-  size_t k = get_global_id(0);
-
-  size_t scan = k/CS;
-
-  sino += k*I*J;
-
-  float4 c = (float4)(x,y,1,0);
-  float2 acc = 0.0f;
-  for (int j=0; j < J; j++) {
-    float i = dot(c, ofs[j+J*scan]);
-    if ((i > -1) && (i < I)) {
-      float i_floor;
-      float2 w = fract(i, &i_floor);
-      if (i_floor >= 0)   acc += (1.0f - w)*sino[(int)i_floor];
-      if (i_floor <= I-2) acc += w*sino[(int)(i_floor+1)];
-    }
-    sino += I;
-  }
-  img[k*X*Y+y*X + x] = acc/scale;
-}
 __kernel void operator_fwd(__global float2 *out, __global float2 *in,
                        __global float2 *coils, __global float2 *grad, const int NCo,
                        const int NSl, const int NScan, const int Nuk)
@@ -876,7 +799,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
           print("-"*80)
           if np.abs(self.fval_min-self.fval) < self.irgn_par["lambd"]*self.irgn_par["tol"]:
-            print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-       self.fval)/self.irgn_par["lambd"]))
+            print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/self.irgn_par["lambd"]))
             return
           self.fval_min = np.minimum(self.fval,self.fval_min)
 
@@ -1386,15 +1309,15 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     self.set_scale(x)
     x = clarray.to_device(self.queue,x)
     xk = x.copy()
-    x_new = x.copy()
+    x_new = clarray.zeros_like(x)#x.copy()
 
-    r = clarray.to_device(self.queue,self.r)#np.zeros_like(res,dtype=DTYPE)
+    r = clarray.to_device(self.queue,np.zeros_like(self.r))#np.zeros_like(res,dtype=DTYPE)
     r_new = r.copy()#clarray.zeros_like(r)
-    z1 = clarray.to_device(self.queue,self.z1)#np.zeros(([self.unknowns,2,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
+    z1 = clarray.to_device(self.queue,np.zeros_like(self.z1))#np.zeros(([self.unknowns,2,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
     z1_new = z1.copy()#clarray.zeros_like(z1)#np.zeros(([self.unknowns,2,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
-    z2 = clarray.to_device(self.queue,self.z2)#np.zeros(([self.unknowns,3,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
+    z2 = clarray.to_device(self.queue,np.zeros_like(self.z2))#np.zeros(([self.unknowns,3,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
     z2_new = z2.copy()#clarray.zeros_like(z2)
-    v = clarray.to_device(self.queue,self.v)#np.zeros(([self.unknowns,2,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
+    v = clarray.to_device(self.queue,np.zeros_like(self.v))#np.zeros(([self.unknowns,2,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
     v_new = v.copy()#clarray.zeros_like(v)
     res = clarray.to_device(self.queue, res.astype(DTYPE))
 
@@ -1405,7 +1328,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     theta_line = np.float32(1.0)
 
 
-    beta_line = np.float32(10)
+    beta_line = np.float32(400)
     beta_new = np.float32(0)
 
     mu_line =np.float32( 0.5)
@@ -1539,9 +1462,9 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     xk = x.copy()
     x_new = clarray.zeros_like(x)
 
-    r = clarray.to_device(self.queue,self.r)#np.zeros_like(res,dtype=DTYPE)
+    r = clarray.to_device(self.queue,np.zeros_like(self.r))#np.zeros_like(res,dtype=DTYPE)
     r_new  = clarray.zeros_like(r)
-    z1 = clarray.to_device(self.queue,self.z1)#np.zeros(([self.unknowns,2,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
+    z1 = clarray.to_device(self.queue,np.zeros_like(self.z1))#np.zeros(([self.unknowns,2,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
     z1_new = clarray.zeros_like(z1)#np.zeros(([self.unknowns,2,self.par["dimX"],self.par["dimY"]]),dtype=DTYPE)
     res = clarray.to_device(self.queue, res.astype(DTYPE))
 
@@ -1552,7 +1475,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     theta_line = np.float32(1.0)
 
 
-    beta_line = np.float32(10)
+    beta_line = np.float32(400)
     beta_new = np.float32(0)
 
     mu_line =np.float32( 0.5)

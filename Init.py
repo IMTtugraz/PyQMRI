@@ -190,12 +190,12 @@ def main(args):
 
     data = file['real_dat'][...,int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:int(NSlice/2)+int(np.ceil(reco_Slices/2))+off,:,:].astype(DTYPE)\
        +1j*file['imag_dat'][...,int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:int(NSlice/2)+int(np.ceil(reco_Slices/2))+off,:,:].astype(DTYPE)
-
+#
 #    check = np.outer((-1)**(np.linspace(1,64,64)),(-1)**(np.linspace(1,64,64)))
 #    data = np.fft.ifft(np.fft.fft(data,axis=-1)*check,axis=2)
 #    data = np.require(np.fft.fft2(np.fft.ifftshift(np.fft.ifft2(data),(-1,-2))),dtype=DTYPE,requirements='C')
 
-#    data = np.require(np.transpose(data,(0,1,4,3,2)),requirements='C')[:,:8,...]
+#    data = np.require(np.transpose(data,(0,1,4,3,2)),requirements='C')
 #    data = data[:,0,...][:,None,...]
 #    data = np.repeat(data[:,None,...],2,1)
 
@@ -209,9 +209,12 @@ def main(args):
       traj=None
       dcf = None
 
-
+#    print(data.shape[-1])
+#    dimX = int(424/2)
+#    dimY = int(424/2)
     if np.max(prime_factors(data.shape[-1]))>13:
-      data = data[...,3:-3]
+      print(data.shape[-1])
+      data = np.require(data[...,3:-3],requirements='C')
       dimX -=3
       dimY -=3
       traj = traj[...,3:-3]
@@ -234,7 +237,7 @@ def main(args):
       [NScan,NC,reco_Slices,Nproj, N] = data.shape
     except:
       [NC,reco_Slices,Nproj, N] = data.shape
-      Nproj_new = 13
+      Nproj_new = 2
 
       NScan = np.floor_divide(Nproj,Nproj_new)
       par["Nproj_measured"] = Nproj
@@ -261,8 +264,8 @@ def main(args):
     par["Nproj"] = Nproj
 
     #### TEST
-    par["unknowns_TGV"] = 2
-    par["unknowns_H1"] = 0
+    par["unknowns_TGV"] = sig_model.unknowns_TGV
+    par["unknowns_H1"] = sig_model.unknowns_H1
     par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
     if not args.trafo:
       par['mask'] = np.ones_like(np.abs(data)).astype(int)
@@ -282,16 +285,16 @@ def main(args):
     try:
       if not file['Coils'][()].shape[1] >= reco_Slices:
         if args.trafo:
-          nlinvNewtonSteps = 7
+          nlinvNewtonSteps = 8
           nlinvRealConstr  = False
 
           traj_coil = np.reshape(traj,(NScan*Nproj,N))
-          dcf_coil = np.ones_like(np.repeat(dcf,NScan,0))
+          dcf_coil = (np.array(goldcomp.cmp(traj_coil),dtype=DTYPE))
 
           par["C"] = np.zeros((NC,reco_Slices,dimY,dimX), dtype=DTYPE)
           par["phase_map"] = np.zeros((reco_Slices,dimY,dimX), dtype=DTYPE)
 
-          (ctx,queue,FFT) = NUFFT(N,1,1,1,traj_coil,dcf_coil)
+          (ctx,queue,FFT) = NUFFT(N,1,1,1,traj_coil,np.sqrt(dcf_coil))
 
           result = []
           for i in range(0,(reco_Slices)):
@@ -301,7 +304,7 @@ def main(args):
 
             ##### RADIAL PART
             combinedData = np.transpose(data[:,:,i,:,:],(1,0,2,3))
-            combinedData = np.reshape(combinedData,(1,NC,1,NScan*Nproj,N))
+            combinedData = np.require(np.reshape(combinedData,(1,NC,1,NScan*Nproj,N))/np.sqrt(dcf_coil),requirements='C')
             tmp_coilData = clarray.zeros(FFT.queue[0],(1,1,1,dimY,dimX),dtype=DTYPE)
             coilData = np.zeros((NC,dimY,dimX),dtype=DTYPE)
             for j in range(NC):
@@ -309,12 +312,13 @@ def main(args):
                 FFT.adj_NUFFT(tmp_coilData,tmp_combinedData)
                 coilData[j,...] = np.squeeze(tmp_coilData.get())
 
-            combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)
+            combinedData = np.require(np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY),dtype=DTYPE,requirements='C')
 
             dview = c[int(np.floor(i*len(c)/NSlice))]
             result.append(dview.apply_async(nlinvns.nlinvns, combinedData,
                                             nlinvNewtonSteps, True, nlinvRealConstr))
-
+#            nlinvns.nlinvns(combinedData, nlinvNewtonSteps,True,nlinvRealConstr)
+#
           for i in range(reco_Slices):
             par["C"][:,i,:,:] = result[i].get()[2:,-1,:,:]
             sys.stdout.write("slice %i done \r" \
@@ -334,14 +338,14 @@ def main(args):
           del file['Coils']
           del FFT,ctx,queue
         else:
-          nlinvNewtonSteps = 7
+          nlinvNewtonSteps = 8
           nlinvRealConstr  = False
 
           par["C"] = np.zeros((NC,reco_Slices,dimY,dimX), dtype=DTYPE)
           par["phase_map"] = np.zeros((reco_Slices,dimY,dimX), dtype=DTYPE)
 
           result = []
-          tmp =  np.mean(data,0)
+          tmp =  np.sum(data,0)
 #          tmp = np.fft.ifft2(tmp,norm='ortho')
 #          tmp = np.transpose(tmp,(0,3,1,2))
 #          tmp = np.fft.fft2(tmp,norm='ortho')
@@ -386,16 +390,16 @@ def main(args):
 
     except:
       if args.trafo:
-        nlinvNewtonSteps = 7
+        nlinvNewtonSteps = 8
         nlinvRealConstr  = False
 
         traj_coil = np.reshape(traj,(NScan*Nproj,N))
-        dcf_coil = np.ones_like(np.repeat(dcf,NScan,0))
+        dcf_coil = np.repeat(dcf,NScan,0)
 
         par["C"] = np.zeros((NC,reco_Slices,dimY,dimX), dtype=DTYPE)
         par["phase_map"] = np.zeros((reco_Slices,dimY,dimX), dtype=DTYPE)
 
-        (ctx,queue,FFT) = NUFFT(N,1,1,1,traj_coil,dcf_coil)
+        (ctx,queue,FFT) = NUFFT(N,1,1,1,traj_coil,np.sqrt(dcf_coil))
 
         result = []
         for i in range(0,(reco_Slices)):
@@ -403,21 +407,22 @@ def main(args):
                          %(i))
           sys.stdout.flush()
 
-          ##### RADIAL PART
           combinedData = np.transpose(data[:,:,i,:,:],(1,0,2,3))
-          combinedData = np.reshape(combinedData,(1,NC,1,NScan*Nproj,N))
+          combinedData = np.require(np.reshape(combinedData,(1,NC,1,NScan*Nproj,N)),requirements='C')
           tmp_coilData = clarray.zeros(FFT.queue[0],(1,1,1,dimY,dimX),dtype=DTYPE)
           coilData = np.zeros((NC,dimY,dimX),dtype=DTYPE)
           for j in range(NC):
               tmp_combinedData = clarray.to_device(FFT.queue[0],combinedData[None,:,j,...])
               FFT.adj_NUFFT(tmp_coilData,tmp_combinedData)
               coilData[j,...] = np.squeeze(tmp_coilData.get())
-
-          combinedData = np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY)
+#
+          combinedData = np.require(np.fft.fft2(coilData,norm=None)/np.sqrt(dimX*dimY),dtype=DTYPE,requirements='C')
 
           dview = c[int(np.floor(i*len(c)/NSlice))]
           result.append(dview.apply_async(nlinvns.nlinvns, combinedData,
-                                          nlinvNewtonSteps, True, nlinvRealConstr))
+                                            nlinvNewtonSteps, True, nlinvRealConstr))
+#          nlinvns.nlinvns(combinedData, nlinvNewtonSteps,True,nlinvRealConstr)
+
 
         for i in range(reco_Slices):
           par["C"][:,i,:,:] = result[i].get()[2:,-1,:,:]
@@ -437,14 +442,14 @@ def main(args):
           par["C"] = par["C"] / np.tile(sumSqrC, (NC,1,1,1))
         del FFT,ctx,queue
       else:
-        nlinvNewtonSteps = 6
+        nlinvNewtonSteps = 8
         nlinvRealConstr  = False
 
         par["C"] = np.zeros((NC,reco_Slices,dimY,dimX), dtype=DTYPE)
         par["phase_map"] = np.zeros((reco_Slices,dimY,dimX), dtype=DTYPE)
 
         result = []
-        tmp =  np.mean(data,0)
+        tmp =  np.sum(data,0)
 #        tmp = np.fft.ifft2(tmp,norm='ortho')
 #        tmp = np.transpose(tmp,(0,3,1,2))
 #        tmp = np.fft.fft2(tmp,norm='ortho')
@@ -499,13 +504,14 @@ def main(args):
           data = data*np.sqrt(dcf)
 #### Close File after everything was read
     file.close()
-#    dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2*1e3))/(np.linalg.norm(data[:10].flatten()))
+#    dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2*1e3))/(np.linalg.norm(data[:int(NScan/2)].flatten()))
 #    par["dscale"] = dscale
-#    data[:10] = data[:10]* dscale
-#    dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2*1e3))/(np.linalg.norm(data[10:].flatten()))
+#    data[:int(NScan/2)] = data[:int(NScan/2)]* dscale
+#    dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2*1e3))/(np.linalg.norm(data[int(NScan/2):].flatten()))
 #    par["dscale"] = dscale
-#    data[10:] = data[10:]* dscale
+#    data[int(NScan/2):] = data[int(NScan/2):]* dscale
 
+#    data *= np.sqrt((dimX*np.pi/2)/par["Nproj"])
     dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2*1e3))/(np.linalg.norm(data.flatten()))
     par["dscale"] = dscale
     data = data* dscale
@@ -730,7 +736,7 @@ if __name__ == '__main__':
     parser.add_argument('--recon_type', default='3D', dest='type',help='Choose reconstruction type (currently only 3D)')
     parser.add_argument('--reg_type', default='TGV', dest='reg',help="Choose regularization type (default: TGV)\
                                                                      options are: TGV, TV, all")
-    parser.add_argument('--slices',default=10, dest='slices', type=int, help='Number of reconstructed slices (default=40). Symmetrical around the center slice.')
+    parser.add_argument('--slices',default=1, dest='slices', type=int, help='Number of reconstructed slices (default=40). Symmetrical around the center slice.')
     parser.add_argument('--trafo', default=1, dest='trafo', type=int, help='Choos between radial (1, default) and Cartesian (0) sampling. ')
     parser.add_argument('--streamed', default=0, dest='streamed', type=int, help='Enable streaming of large data arrays (>10 slices).')
     parser.add_argument('--data',default='',dest='file',help='Full path to input data. If not provided, a file dialog will open.')
