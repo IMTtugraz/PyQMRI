@@ -33,7 +33,7 @@ file = h5py.File(file)
 #file2 = h5py.File(file2)
 
 data = file['tgv_full_result_0'][()]
-data = data[5,:,:]
+data = data[3,:,:]
 
 #data[:,:5]=0
 ##
@@ -43,10 +43,10 @@ data = data[5,:,:]
 #data2[:,:5]=0
 
 [z,y,x] = data[0].shape
-M0 = np.abs(data[0])
-mask = np.ones_like(M0)
-mask[M0<0.2] = 0
-mask = masking.compute(M0*mask)
+#M0 = np.abs(data[0])
+#mask = np.ones_like(M0)
+#mask[M0<0.2] = 0
+#mask = masking.compute(M0*mask)
 
 #M0 = np.abs(data[0])
 #mask[M0<0.5] = 0
@@ -59,7 +59,7 @@ T1 = (np.abs(data[1]))#*mask
 M0_min = M0.min()#-1e-2#
 M0_max = M0.max()#*0.51e-2#
 T1_min = T1.min()#10-1e-2#
-T1_max = 100#T1.max()#1301e-2#
+T1_max = T1.max()#3000#T1.max()#1301e-2#
 def update_img(num):
   if num >=x:
     num=x-num-1

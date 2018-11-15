@@ -46,9 +46,7 @@ class gridding:
         fftshift = FFTShift(self.tmp_fft_array,axes=fft_dim)
         self.fftshift.append(fftshift.compile(self.thr[j]))
         fft = FFT(ctx,queue[j],self.tmp_fft_array[0:int(fft_size[0]/NScan),...],out_array=self.tmp_fft_array[0:int(fft_size[0]/NScan),...],axes=fft_dim)
-#        fft = FFT(self.tmp_fft_array[0:int(fft_size[0]/NScan),...], axes=fft_dim)
         self.fft2.append(fft)
-#        self.fft2.append(fft.compile(self.thr[j]))
       self.gridsize = gridsize
       self.fwd_NUFFT = self.NUFFT
       self.adj_NUFFT = self.NUFFTH
@@ -65,9 +63,7 @@ class gridding:
       self.mask = clarray.to_device(self.queue[0],mask)
       for j in range(len(queue)):
         fft = FFT(ctx,queue[j],self.tmp_fft_array[0:int(fft_size[0]/NScan),...],out_array=self.tmp_fft_array[0:int(fft_size[0]/NScan),...],axes=fft_dim)
-#        fft = FFT(self.tmp_fft_array[0:int(fft_size[0]/NScan),...],  axes=fft_dim)
         self.fft2.append(fft)
-#        self.fft2.append(fft.compile(self.thr[j]))
       self.fwd_NUFFT = self.FFT
       self.adj_NUFFT = self.FFTH
 
@@ -265,6 +261,13 @@ __kernel void copy(__global double2 *out, __global double2 *in, const double sca
     out[x] = in[x]*scale;
 
   }
+  __kernel void masking(__global double2 *ksp, __global double *mask)
+  {
+    size_t x = get_global_id(0);
+    ksp[x] = ksp[x]*mask[x];
+
+
+  }
                          """)
     else:
       print('Using single precission')
@@ -459,6 +462,13 @@ __kernel void copy(__global float2 *out, __global float2 *in, const float scale)
     out[x] = in[x]*scale;
 
   }
+__kernel void masking(__global float2 *ksp, __global float *mask)
+  {
+    size_t x = get_global_id(0);
+    ksp[x] = ksp[x]*mask[x];
+
+
+  }
                          """)
   def __del__(self):
       if self.radial:
@@ -532,8 +542,10 @@ __kernel void copy(__global float2 *out, __global float2 *in, const float scale)
     else:
       queue=self.queue[idx]
 
-    self.tmp_fft_array.add_event(self.prg.copy(queue,(s.size,),None,self.tmp_fft_array.data,(s).data,self.DTYPE_real(1)))
-    self.tmp_fft_array *= self.mask
+    s.add_event(self.prg.masking(queue,(s.size,),None,s.data,self.mask.data,wait_for=s.events))
+    self.tmp_fft_array.add_event(self.prg.copy(queue,(s.size,),None,self.tmp_fft_array.data,(s).data,self.DTYPE_real(1),wait_for=s.events))
+
+
     for j in range(s.shape[0]):
       self.tmp_fft_array.add_event(self.fft2[idx].enqueue_arrays(data=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],result=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],forward=False)[0])
     return  (self.prg.copy(queue,(sg.size,),None,sg.data,self.tmp_fft_array.data,self.DTYPE_real(self.fft_scale)))
@@ -547,7 +559,9 @@ __kernel void copy(__global float2 *out, __global float2 *in, const float scale)
       queue=self.queue[idx]
 
     self.tmp_fft_array.add_event(self.prg.copy(queue,(sg.size,),None,self.tmp_fft_array.data,sg.data,self.DTYPE_real(1/self.fft_scale)))
+
     for j in range(s.shape[0]):
       self.tmp_fft_array.add_event(self.fft2[idx].enqueue_arrays(data=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],result=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],forward=True)[0])
-    self.tmp_fft_array *= self.mask
-    return (self.prg.copy(queue,(s.size,),None,s.data,self.tmp_fft_array.data,self.DTYPE_real(1)))
+
+    s.add_event(self.prg.copy(queue,(s.size,),None,s.data,self.tmp_fft_array.data,self.DTYPE_real(1),wait_for=self.tmp_fft_array.events))
+    return (self.prg.masking(queue,(s.size,),None,s.data,self.mask.data,wait_for=s.events))

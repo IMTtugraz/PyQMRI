@@ -37,8 +37,8 @@ for device in platforms[1].get_devices():
   queue.append(cl.CommandQueue(tmp, device))
   queue.append(cl.CommandQueue(tmp, device))
 
-DTYPE = np.complex64
-DTYPE_real = np.float32
+DTYPE = np.complex128
+DTYPE_real = np.float64
 
 [NScan,NC,NSlice,Nproj, N] = data.shape
 G = data.shape[-1]

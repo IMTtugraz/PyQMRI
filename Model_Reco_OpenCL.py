@@ -103,10 +103,10 @@ __kernel void update_z2(__global float16 *z_new, __global float16 *z, __global f
      // reproject
      fac = hypot(fac,hypot(
      hypot(hypot(hypot(z_new[i].s0,z_new[i].s1), hypot(z_new[i].s2,z_new[i].s3)),hypot(z_new[i].s4,z_new[i].s5)),
-     hypot(hypot(2.0f*hypot(z_new[i].s6,z_new[i].s7),2.0f*hypot(z_new[i].s8,z_new[i].s9)),2.0f*hypot(z_new[i].sa,z_new[i].sb)))*alphainv);
+     hypot(hypot(2.0f*hypot(z_new[i].s6,z_new[i].s7),2.0f*hypot(z_new[i].s8,z_new[i].s9)),2.0f*hypot(z_new[i].sa,z_new[i].sb))));
      i += NSl*Nx*Ny;
    }
-
+  fac *= alphainv;
   i = k*Nx*Ny+Nx*y + x;
   for (int uk=0; uk<NUk; uk++)
   {
@@ -130,9 +130,10 @@ __kernel void update_z1(__global float8 *z_new, __global float8 *z, __global flo
      z_new[i] = z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]-(1+theta)*vx[i]+theta*vx_[i]);
 
      // reproject
-     fac = hypot(fac,hypot(hypot(z_new[i].s0,z_new[i].s1), hypot(hypot(z_new[i].s2,z_new[i].s3),hypot(z_new[i].s4,z_new[i].s5)))*alphainv);
+     fac = hypot(fac,hypot(hypot(z_new[i].s0,z_new[i].s1), hypot(hypot(z_new[i].s2,z_new[i].s3),hypot(z_new[i].s4,z_new[i].s5))));
      i += NSl*Nx*Ny;
   }
+  fac *= alphainv;
   i = k*Nx*Ny+Nx*y + x;
   for (int uk=0; uk<NUk; uk++)
   {
@@ -156,9 +157,10 @@ __kernel void update_z1(__global float8 *z_new, __global float8 *z, __global flo
      z_new[i] = z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]);
 
      // reproject
-     fac = hypot(fac,hypot(hypot(z_new[i].s0,z_new[i].s1), hypot(hypot(z_new[i].s2,z_new[i].s3),hypot(z_new[i].s4,z_new[i].s5)))*alphainv);
+     fac = hypot(fac,hypot(hypot(z_new[i].s0,z_new[i].s1), hypot(hypot(z_new[i].s2,z_new[i].s3),hypot(z_new[i].s4,z_new[i].s5))));
      i += NSl*Nx*Ny;
   }
+  fac *= alphainv;
   i = k*Nx*Ny+Nx*y + x;
   for (int uk=0; uk<NUk; uk++)
   {
@@ -172,6 +174,7 @@ __kernel void update_primal(__global float2 *u_new, __global float2 *u, __global
   size_t x = get_global_id(2), y = get_global_id(1);
   size_t k = get_global_id(0);
   size_t i = k*Nx*Ny+Nx*y + x;
+  float norm = 0;
 
 
   for (int uk=0; uk<NUk; uk++)
@@ -180,7 +183,7 @@ __kernel void update_primal(__global float2 *u_new, __global float2 *u, __global
 
      if(real[uk]>0)
      {
-         u_new[i].s1 = 0;
+         u_new[i].s1 = 0.0f;
          if (u_new[i].s0<min[uk])
          {
              u_new[i].s0 = min[uk];
@@ -192,22 +195,18 @@ __kernel void update_primal(__global float2 *u_new, __global float2 *u, __global
      }
      else
      {
-         if (u_new[i].s0<min[uk])
+         norm =  sqrt(u_new[i].s0*u_new[i].s0+u_new[i].s1*u_new[i].s1);
+         if (norm<min[uk])
          {
-             u_new[i].s0 = min[uk];
+             u_new[i].s0 = (u_new[i].s0/norm)*min[uk];
+             u_new[i].s1 = (u_new[i].s1/norm)*min[uk];
          }
-         if(u_new[i].s0>max[uk])
+         if(norm>max[uk])
          {
-             u_new[i].s0 = max[uk];
+            u_new[i].s0 = (u_new[i].s0/norm)*max[uk];
+            u_new[i].s1 = (u_new[i].s1/norm)*max[uk];
          }
-         if (u_new[i].s1<min[uk])
-         {
-             u_new[i].s1 = min[uk];
-         }
-         if(u_new[i].s1>max[uk])
-         {
-             u_new[i].s1 = max[uk];
-         }
+
      }
      i += NSl*Nx*Ny;
   }
@@ -239,7 +238,8 @@ __kernel void gradient(__global float8 *grad, __global float2 *u, const int NUk,
      else
      { grad[i].s45 = 0.0f;}
      // scale gradients
-     {grad[i]*=(maxscal/(scale[uk]))*ratio[uk];}
+     //{grad[i]*=(maxscal/(scale[uk]))*ratio[uk];}
+     {grad[i]/=ratio[uk];}
      i += NSl*Nx*Ny;
   }
 }
@@ -336,7 +336,8 @@ __kernel void divergence(__global float2 *div, __global float8 *p, const int NUk
      }
      div[i] = val.s01+val.s23+val.s45;
      // scale gradients
-     {div[i]*=(maxscal/(scale[ukn]))*ratio[ukn];}
+     //{div[i]*=(maxscal/(scale[ukn]))*ratio[ukn];}
+     {div[i]/=ratio[ukn];}
      i += NSl*Nx*Ny;
   }
 
@@ -650,7 +651,8 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
    }
 
    // scale gradients
-   {val*=(maxscal/(scale[uk]))*ratio[uk];}
+   //{val*=(maxscal/(scale[uk]))*ratio[uk];}
+   {val/=ratio[uk];}
 
   out[uk*NSl*X*Y+k*X*Y+y*X+x] = sum - (val.s01+val.s23+val.s45);
   i += NSl*X*Y;
@@ -1037,6 +1039,17 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
                 np.int32(self.unknowns),
                 self.ukscale.data, np.float32(np.amax(self.ukscale.get())),self.ratio.data,
                 wait_for=div.events + u.events + wait_for)
+#  def f_grad(self,grad, u, wait_for=[]):
+#    return self.prg.gradient(self.queue, u.shape[1:], None, grad.data, u.data,
+#                np.int32(self.unknowns),
+#                self.ukscale.data,  np.float32(1e3),self.ratio.data,
+#                wait_for=grad.events + u.events + wait_for)
+#
+#  def bdiv(self,div, u, wait_for=[]):
+#    return self.prg.divergence(div.queue, u.shape[1:-1], None, div.data, u.data,
+#                np.int32(self.unknowns),
+#                self.ukscale.data, np.float32(1e3),self.ratio.data,
+#                wait_for=div.events + u.events + wait_for)
 
   def sym_grad(self,sym, w, wait_for=[]):
     return self.prg.sym_grad(self.queue, w.shape[1:-1], None, sym.data, w.data,
@@ -1096,8 +1109,20 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     for j in range(x.shape[0]):
       self.ukscale[j] = np.linalg.norm(x[j,...])
       print('scale %f at uk %i' %(self.ukscale[j].get(),j))
-      if j>0:
-        self.ratio[j] = self.ukscale[j]/self.ukscale[0]
+
+    grad = clarray.to_device(self.queue,np.zeros_like(self.z1))
+    x = clarray.to_device(self.queue,x)
+    grad.add_event(self.f_grad(grad,x,wait_for=grad.events+x.events))
+
+    for j in range(x.shape[0]):
+      scale = np.linalg.norm(grad[j,...].get())/np.linalg.norm(grad[0,...].get())
+#      print(scale)
+      if np.isfinite(scale):
+        self.ratio[j] = scale
+      print('ratio %f at uk %i' %(self.ratio[j].get(),j))
+#    for j in range(x.shape[0]):
+#        self.ratio[j] = self.ukscale[j]/np.amax(self.ukscale.get())
+#        print('ratio %f at uk %i' %( self.ratio[j].get(),j))
 
 
 ################################################################################
@@ -1177,6 +1202,8 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
         self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x.data)
         self.conj_grad_x = np.nan_to_num(np.conj(self.grad_x))
+
+        self.set_scale(result)
 
         result = self.irgn_solve_3D(result, iters, self.data,TV)
         self.result[i+1,...] = self.model.rescale(result)
@@ -1306,7 +1333,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     tau = np.float32(1/np.sqrt(L))
     tau_new =np.float32(0)
 
-    self.set_scale(x)
+
     x = clarray.to_device(self.queue,x)
     xk = x.copy()
     x_new = clarray.zeros_like(x)#x.copy()

@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 plt.ion()
 DTYPE = np.complex64
+DTYPE_real = np.float32
 
 unknowns_TGV = 2
 unknowns_H1 = 0
@@ -51,7 +52,7 @@ class Model:
     self.uk_scale.append(1)
 
     test_T1 = np.reshape(np.linspace(50,5500,dimX*dimY*NSlice),(NSlice,dimX,dimY))
-    test_M0 = np.mean(images,0)#np.sqrt((dimX*np.pi/2)/par["Nproj"])#np.sqrt(89/par["Nproj"])#
+    test_M0 = 10*np.mean(images,0)#np.sqrt((dimX*np.pi/2)/par["Nproj"])#np.sqrt(89/par["Nproj"])#
     test_T1 = 1/self.uk_scale[1]*np.exp(-self.TR/(test_T1*np.ones((NSlice,dimY,dimX),dtype=DTYPE)))
 
 
@@ -70,7 +71,7 @@ class Model:
 
     result = np.array([1/self.uk_scale[0]*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1/self.uk_scale[1]*np.exp(-self.TR/(800*np.ones((NSlice,dimY,dimX),dtype=DTYPE)))],dtype=DTYPE)
     self.guess = result
-    self.constraints.append(constraint(-20/self.uk_scale[0],20/self.uk_scale[0],False)  )
+    self.constraints.append(constraint(1e-4/self.uk_scale[0],20/self.uk_scale[0],False)  )
     self.constraints.append(constraint(np.exp(-self.TR/(50))/self.uk_scale[1],np.exp(-self.TR/(5500))/self.uk_scale[1],True))
 
   def rescale(self,x):
