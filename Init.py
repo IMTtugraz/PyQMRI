@@ -147,13 +147,7 @@ def main(args):
 
     name = file.split('/')[-1]
 
-#    if os.path.isfile(file[:-3]+"_sense.h5"):
-#      coil_file = h5py.File(file[:-3]+"_sense.h5")
-#      coils = coil_file['real_dat'][()]+1j*coil_file['imag_dat'][()]
-#      coils = np.transpose(coils,(0,3,1,2))
-
     file = h5py.File(file)
-#    file['Coils'][...] = coils.astype(DTYPE)
 #    del file['Coils']
 
 ################################################################################
@@ -191,6 +185,7 @@ def main(args):
     data = file['real_dat'][...,int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:int(NSlice/2)+int(np.ceil(reco_Slices/2))+off,:,:].astype(DTYPE)\
        +1j*file['imag_dat'][...,int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:int(NSlice/2)+int(np.ceil(reco_Slices/2))+off,:,:].astype(DTYPE)
 
+#    print(data.shape)
 
 #    check = np.outer((-1)**(np.linspace(1,100,100)),(-1)**(np.linspace(1,100,100)))
 #    data = np.fft.ifft(np.fft.fft(data,axis=-1)*check,axis=2)
@@ -512,10 +507,10 @@ def main(args):
 #    dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2*1e3))/(np.linalg.norm(data[int(NScan/2):].flatten()))
 #    par["dscale"] = dscale
 #    data[int(NScan/2):] = data[int(NScan/2):]* dscale
-
     dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2*1e3))/(np.linalg.norm(data.flatten()))
     par["dscale"] = dscale
-    data = data* dscale
+    data*=dscale
+
 ################################################################################
 ### generate nFFT  #############################################################
 ################################################################################
@@ -560,16 +555,11 @@ def main(args):
         return np.transpose(result,(2,0,1,3,4))
       images= np.require(np.sum(nFTH(data,FFT,dcf,NScan,NC,\
                      NSlice,dimY,dimX)*(np.conj(par["C"])),axis = 1),requirements='C')
+      del FFT,ctx,queue
 #      images= (np.sum(np.fft.ifft2(data,norm='ortho')*(np.conj(par["C"])),axis = 1)).astype(DTYPE)
 
 
-#    if not args.trafo:
-#      tmp = np.ones_like(np.abs(data))
-#      tmp[np.abs(data)==0] = 0
-#      par['mask'] = np.reshape(tmp,(NScan,NC,reco_Slices,dimY,dimX)).astype(DTYPE_real)
-#      par["mask"][:,:,:,::2,::2] = 0
-#      data = data*par["mask"]
-#      del tmp
+
 
 ################################################################################
 ### Create OpenCL Context and Queues ###########################################
@@ -761,10 +751,10 @@ if __name__ == '__main__':
     parser.add_argument('--reg_type', default='TGV', dest='reg',help="Choose regularization type (default: TGV)\
                                                                      options are: TGV, TV, all")
     parser.add_argument('--slices',default=1, dest='slices', type=int, help='Number of reconstructed slices (default=40). Symmetrical around the center slice.')
-    parser.add_argument('--trafo', default=0, dest='trafo', type=int, help='Choos between radial (1, default) and Cartesian (0) sampling. ')
+    parser.add_argument('--trafo', default=1, dest='trafo', type=int, help='Choos between radial (1, default) and Cartesian (0) sampling. ')
     parser.add_argument('--streamed', default=0, dest='streamed', type=int, help='Enable streaming of large data arrays (>10 slices).')
     parser.add_argument('--data',default='',dest='file',help='Full path to input data. If not provided, a file dialog will open.')
-    parser.add_argument('--model',default='Diff',dest='sig_model',help='Name of the signal model to use. Defaults to VFA. Please name your signal model file MODEL_model.')
+    parser.add_argument('--model',default='VFA',dest='sig_model',help='Name of the signal model to use. Defaults to VFA. Please name your signal model file MODEL_model.')
     parser.add_argument('--config',default='test',dest='config',help='Name of config file to use (assumed to be in the same folder). If not specified, use default parameters.')
     args = parser.parse_args()
 

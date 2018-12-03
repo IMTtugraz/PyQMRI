@@ -30,11 +30,11 @@ data = data = file['real_dat'][()]+1j*file['imag_dat'][()]
 print('performing coil compression ...')
 [nscan,ncoils,rNz,rNy,rNx] = data.shape
 svdcoil_fac = 0.1
-data_svd = np.reshape(np.transpose(data,[1,0,2,3,4]),(ncoils,rNy*rNx*rNz*nscan))
+data_svd = np.reshape(np.transpose(data.T,[0,1,2,4,3]),(rNy*rNx*rNz*nscan,ncoils))
 [U,S,V] = svd(data_svd,full_matrices=False)
 ncoils_svd = np.sum((S)/S[0]>svdcoil_fac)
 print('using '+str(ncoils_svd)+' virtual channels ...')
-data = np.transpose(np.reshape(U[:ncoils_svd]@data_svd,(ncoils_svd,nscan,rNz,rNy,rNx)),[1,0,2,3,4])
+data = np.transpose(np.reshape(data_svd@V.T[:,:ncoils_svd],(rNx,rNy,rNz,nscan,ncoils_svd)),[0,1,2,4,3]).T
 del U, S, V, ncoils_svd, data_svd
 print(' done \n');
 

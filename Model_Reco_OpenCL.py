@@ -168,7 +168,7 @@ __kernel void update_z1(__global float8 *z_new, __global float8 *z, __global flo
     i += NSl*Nx*Ny;
   }
 }
-__kernel void update_primal(__global float2 *u_new, __global float2 *u, __global float2 *Kyk,__global float2 *u_k, const float tau, const float tauinv, float div, __global float* min, __global float* max, __global int* real, const int NUk) {
+__kernel void update_primal(__global float2 *u_new, __global float2 *u, __global float2 *Kyk,__global float2 *u_k, const float tau, const float tauinv, float div, __global float* min, __global float* max, __global int* real, __global int* pos_real, const int NUk) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
   size_t x = get_global_id(2), y = get_global_id(1);
@@ -181,7 +181,7 @@ __kernel void update_primal(__global float2 *u_new, __global float2 *u, __global
   {
      u_new[i] = (u[i]-tau*Kyk[i]+tauinv*u_k[i])*div;
 
-     if(real[uk]>0)
+     if(real[uk]>=1)
      {
          u_new[i].s1 = 0.0f;
          if (u_new[i].s0<min[uk])
@@ -195,17 +195,19 @@ __kernel void update_primal(__global float2 *u_new, __global float2 *u, __global
      }
      else
      {
-         norm =  sqrt(u_new[i].s0*u_new[i].s0+u_new[i].s1*u_new[i].s1);
+         norm =  sqrt(pow((float)(u_new[i].s0),(float)(2.0))+pow((float)(u_new[i].s1),(float)(2.0)));
          if (norm<min[uk])
          {
-             u_new[i].s0 = (u_new[i].s0/norm)*min[uk];
-             u_new[i].s1 = (u_new[i].s1/norm)*min[uk];
+             u_new[i].s0 *= 1/norm*min[uk];
+             u_new[i].s1 *= 1/norm*min[uk];
          }
          if(norm>max[uk])
          {
-            u_new[i].s0 = (u_new[i].s0/norm)*max[uk];
-            u_new[i].s1 = (u_new[i].s1/norm)*max[uk];
+            u_new[i].s0 *= 1/norm*max[uk];
+            u_new[i].s1 *= 1/norm*max[uk];
          }
+         if(u_new[i].s0 < 0 && pos_real[uk])
+           u_new[i].s0 = -u_new[i].s0;
 
      }
      i += NSl*Nx*Ny;
@@ -856,13 +858,16 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     self.min_const = np.zeros((num_const),dtype=np.float32)
     self.max_const = np.zeros((num_const),dtype=np.float32)
     self.real_const = np.zeros((num_const),dtype=np.int32)
+    self.pos_real = np.zeros((num_const),dtype=np.int32)
     for j in range(num_const):
         self.min_const[j] = np.float32(self.model.constraints[j].min)
         self.max_const[j] = np.float32(self.model.constraints[j].max)
         self.real_const[j] = np.int32(self.model.constraints[j].real)
+        self.pos_real[j] = np.int32(self.model.constraints[j].pos_real)
     self.min_const = clarray.to_device(self.queue, self.min_const)
     self.max_const = clarray.to_device(self.queue, self.max_const)
     self.real_const = clarray.to_device(self.queue, self.real_const)
+    self.pos_real = clarray.to_device(self.queue, self.pos_real)
 #    print(x.shape[-3:])
 
 #    x.add_event(self.prg.box_con(x.queue, x.shape[-2:],None,
@@ -1068,7 +1073,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
   def update_primal(self, x_new, x, Kyk, xk, tau, delta, wait_for=[]):
     return self.prg.update_primal(self.queue, x.shape[1:], None, x_new.data, x.data, Kyk.data, xk.data, np.float32(tau),
                                   np.float32(tau/delta), np.float32(1/(1+tau/delta)), self.min_const.data, self.max_const.data,
-                                  self.real_const.data, np.int32(self.unknowns),
+                                  self.real_const.data, self.pos_real.data, np.int32(self.unknowns),
                                   wait_for=x_new.events + x.events + Kyk.events+ xk.events+wait_for
                                   )
   def update_z1(self, z_new, z, gx, gx_, vx, vx_, sigma, theta, alpha, wait_for=[]):
@@ -1109,6 +1114,10 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     for j in range(x.shape[0]):
       self.ukscale[j] = np.linalg.norm(x[j,...])
       print('scale %f at uk %i' %(self.ukscale[j].get(),j))
+#    for j in range(x.shape[0]):
+#        self.ratio[j] = self.ukscale[j]/np.amax(self.ukscale.get())
+#        print('ratio %f at uk %i' %( self.ratio[j].get(),j))
+
 
     grad = clarray.to_device(self.queue,np.zeros_like(self.z1))
     x = clarray.to_device(self.queue,x)
@@ -1117,12 +1126,9 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     for j in range(x.shape[0]):
       scale = np.linalg.norm(grad[j,...].get())/np.linalg.norm(grad[0,...].get())
 #      print(scale)
-      if np.isfinite(scale):
+      if np.isfinite(scale) and scale>1e-4:
         self.ratio[j] = scale
       print('ratio %f at uk %i' %(self.ratio[j].get(),j))
-#    for j in range(x.shape[0]):
-#        self.ratio[j] = self.ukscale[j]/np.amax(self.ukscale.get())
-#        print('ratio %f at uk %i' %( self.ratio[j].get(),j))
 
 
 ################################################################################
@@ -1189,19 +1195,21 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
       self.z2 = np.zeros(([self.unknowns,self.NSlice,self.par["dimX"],self.par["dimY"],8]),dtype=DTYPE)
       for i in range(self.irgn_par["max_gn_it"]):
         start = time.time()
+
+
         self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
 
         for uk in range(self.unknowns-1):
-          scale = np.linalg.norm(np.abs(self.grad_x[0,...]))/np.linalg.norm(np.abs(self.grad_x[uk+1,...]))
+          scale = np.linalg.norm(np.abs(self.grad_x[0,...].flatten()))/np.linalg.norm(np.abs(self.grad_x[uk+1,...].flatten()))
+
           self.model.constraints[uk+1].update(scale)
-          result[uk+1,...] = result[uk+1,...]*self.model.uk_scale[uk+1]
-          self.model.uk_scale[uk+1] = self.model.uk_scale[uk+1]*scale
-          result[uk+1,...] = result[uk+1,...]/self.model.uk_scale[uk+1]
+          result[uk+1,...] *= self.model.uk_scale[uk+1]
+          self.model.uk_scale[uk+1]*=scale
+          result[uk+1,...] /= self.model.uk_scale[uk+1]
 
         self.step_val = np.nan_to_num(self.model.execute_forward_3D(result))
         self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
         self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x.data)
-        self.conj_grad_x = np.nan_to_num(np.conj(self.grad_x))
 
         self.set_scale(result)
 
@@ -1290,6 +1298,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
               +1/(2*self.irgn_par["delta"])*np.linalg.norm((x-x_old).flatten())**2)
     elif TV==0:
        x = self.tgv_solve_3D(x.get(),res,iters)
+
        x = clarray.to_device(self.queue,x)
        v = clarray.to_device(self.queue,self.v)
        grad = clarray.to_device(self.queue,np.zeros_like(self.z1))
@@ -1297,7 +1306,9 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
        grad.add_event(self.f_grad(grad,x,wait_for=grad.events+x.events))
        sym_grad.add_event(self.sym_grad(sym_grad,v,wait_for=sym_grad.events+v.events))
        x = x.get()
-       self.FT(b,clarray.to_device(self.queue,self.model.execute_forward_3D(x)[:,None,...]*self.Coils3D)).wait()
+       test = self.model.execute_forward_3D(x)[:,None,...]
+       print(np.linalg.norm(test))
+       self.FT(b,clarray.to_device(self.queue,test*self.Coils3D)).wait()
        self.fval= (self.irgn_par["lambd"]/2*np.linalg.norm(data - b.get())**2
               +self.irgn_par["gamma"]*np.sum(np.abs(grad.get()-self.v))
               +self.irgn_par["gamma"]*(2)*np.sum(np.abs(sym_grad.get()))
@@ -1390,6 +1401,11 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     for i in range(iters):
       x_new.add_event(self.update_primal(x_new,x,Kyk1,xk,tau,delta)) ### Q2
 #      x_new = x_new.get()
+#      if np.sum(np.abs(x_new[3,...]<self.model.constraints[3].min)) or np.sum(np.abs(x_new[3,...]>self.model.constraints[3].max)):
+#        import ipdb
+#        import multislice_viewer as msv
+#        import matplotlib.pyplot as plt
+#        ipdb.set_trace()
 #      x_new[-1,...] = np.median(x_new[-1,...])*np.ones_like(x_new[-1,...])
 #      x_new = clarray.to_device(self.queue,x_new)
       v_new.add_event(self.update_v(v_new,v,Kyk2,tau)) ### Q1
@@ -1452,7 +1468,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           self.z1 = z1.get()
           self.z2 = z2.get()
           print("Terminated at iteration %d because the method stagnated"%(i))
-          return x.get()
+          return x_new.get()
         if np.abs(gap - gap_min)<(self.irgn_par["lambd"]*self.NSlice)*self.irgn_par["tol"] and i>1:
           self.v = v_new.get()
           self.r = r.get()

@@ -33,7 +33,8 @@ file = h5py.File(file)
 #file2 = h5py.File(file2)
 
 data = file['tgv_full_result_0'][()]
-data = data[3,:,:]
+file.close()
+data = data[-1,:,:]
 
 #data[:,:5]=0
 ##
@@ -147,4 +148,4 @@ ax = np.array(ax)
 # Creating the Animation object
 
 line_ani = animation.FuncAnimation(figure, update_img, x, interval=100, blit=False)
-#line_ani.save("3D_reco.gif",writer="imagemagick",dpi=100,fps=20,savefig_kwargs={'facecolor':plt.cm.viridis.colors[0]})
+#line_ani.save("3D_reco.gif",writer="imagemagick",dpi=70,fps=20,savefig_kwargs={'facecolor':plt.cm.viridis.colors[0]})

@@ -66,7 +66,7 @@ class Model_Reco:
     self.gn_res = []
     self.num_dev = len(ctx)
     self.NUFFT = []
-    self.par_slices = 10
+    self.par_slices = 5
     self.ukscale = []
     self.prg = []
     self.overlap = 1
@@ -256,7 +256,8 @@ __kernel void gradient(__global float8 *grad, __global float2 *u, const int NUk,
      else
      { grad[i].s45 = 0.0f;}
      // scale gradients
-     {grad[i]*=(maxscal/(scale[uk]))*ratio[uk];}
+     //{grad[i]*=(maxscal/(scale[uk]))*ratio[uk];}
+     {grad[i]/=ratio[uk];}
      i+=Nx*Ny;
   }
 }
@@ -353,7 +354,8 @@ __kernel void divergence(__global float2 *div, __global float8 *p, const int NUk
      }
      div[i] = val.s01+val.s23+val.s45;
      // scale gradients
-     {div[i]*=(maxscal/(scale[ukn]))*ratio[ukn];}
+     //{div[i]*=(maxscal/(scale[ukn]))*ratio[ukn];}
+     {div[i]/=ratio[ukn];}
      i+=Nx*Ny;
   }
 
@@ -675,7 +677,8 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
        val.s5 -= p[i-X*Y*Nuk].s5;
    }
    // scale gradients
-   {val*=(maxscal/(scale[uk]))*ratio[uk];}
+   //{val*=(maxscal/(scale[uk]))*ratio[uk];}
+   {val/=ratio[uk];}
 
   out[i] = sum - (val.s01+val.s23+val.s45);
   i+=X*Y;
@@ -846,8 +849,29 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     for i in range(self.num_dev):
       for j in range(self.unknowns):
         self.ukscale[i][j] = np.linalg.norm(x[:,j,...])
-        if j>0:
-          self.ratio[i][j] = self.ukscale[i][j]/self.ukscale[i][0]
+        print('scale %f at uk %i' %(self.ukscale[i][j].get(),j))
+
+#      grad = clarray.to_device(self.queue[0],np.zeros_like(self.z1))
+#      x = clarray.to_device(self.queue[0],x)
+#      grad.add_event(self.f_grad(grad,x,wait_for=grad.events+x.events))
+#      grad = grad.get()
+#      for j in range(self.unknowns):
+#        scale = np.linalg.norm(grad[:,j,...])/np.linalg.norm(grad[:,0,...])
+#  #      print(scale)
+#        if np.isfinite(scale):
+#          self.ratio[i][j] = scale
+#        print('ratio %f at uk %i' %(self.ratio[i][j].get(),j))
+  #    for j in range(x.shape[0]):
+  #        self.ratio[j] = self.ukscale[j]/np.amax(self.ukscale.get())
+  #        print('ratio %f at uk %i' %( self.ratio[j].get(),j))
+
+#  def set_scale(self,x):
+#    for i in range(self.num_dev):
+#      for j in range(self.unknowns):
+#        self.ukscale[i][j] = np.linalg.norm(x[:,j,...])
+#        if j>0:
+#          self.ratio[i][j] = self.ukscale[i][j]/self.ukscale[i][0]
+
 
 ################################################################################
 ### Start a 3D Reconstruction, set TV to True to perform TV instead of TGV######
