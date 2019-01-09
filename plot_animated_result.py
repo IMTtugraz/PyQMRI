@@ -43,6 +43,24 @@ data = data[-1,:,:]
 
 #data2[:,:5]=0
 
+Diff = data[1:7]
+
+DT = np.zeros((data.shape[-3],96,96,3,3),dtype=np.float32)
+DT[...,0,0] = Diff[0,...].real
+DT[...,0,1] = Diff[1,...].real
+DT[...,0,2] = Diff[3,...].real
+DT[...,1,0] = Diff[1,...].real
+DT[...,1,1] = Diff[2,...].real
+DT[...,1,2] = Diff[5,...].real
+DT[...,2,0] = Diff[3,...].real
+DT[...,2,1] = Diff[5,...].real
+DT[...,2,2] = Diff[4,...].real
+
+DT_eig = np.linalg.eigh(DT)[0]
+
+FA = np.sqrt(((DT_eig[...,0]-DT_eig[...,1])**2+(DT_eig[...,1]-DT_eig[...,2])**2+(DT_eig[...,0]-DT_eig[...,2])**2)/2*(DT_eig[...,0]**2+DT_eig[...,1]**2+DT_eig[...,2]**2))
+
+
 [z,y,x] = data[0].shape
 #M0 = np.abs(data[0])
 #mask = np.ones_like(M0)
@@ -51,8 +69,9 @@ data = data[-1,:,:]
 
 #M0 = np.abs(data[0])
 #mask[M0<0.5] = 0
-M0 = (np.abs(data[0]))#*mask
-T1 = (np.abs(data[1]))#*mask
+M0 = (np.abs(data[-15:]))#*mask
+M0 = 1/3*(M0[0]+M0[1]+M0[2])
+T1 = (np.abs(FA))#*mask
 #M0 = (np.abs(data[0])-np.abs(data2[0]))/np.abs(data[0])*mask
 #T1 = (np.abs(data[1])-np.abs(data2[1]))/np.abs(data[1])*mask
 #M0 = np.sqrt((np.abs(np.abs(data[0])**2-np.abs(data2[0])**2))/np.abs(data[0])**2*mask)
@@ -61,6 +80,9 @@ M0_min = M0.min()#-1e-2#
 M0_max = M0.max()#*0.51e-2#
 T1_min = T1.min()#10-1e-2#
 T1_max = T1.max()#3000#T1.max()#1301e-2#
+
+
+
 def update_img(num):
   if num >=x:
     num=x-num-1

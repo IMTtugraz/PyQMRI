@@ -59,6 +59,7 @@ class Model_Reco:
     self.gn_res = []
     self.N = par["N"]
     self.Nproj = par["Nproj"]
+    self.dz = 1
     if trafo:
       self.NUFFT = NUFFT.gridding(self.ctx,queue,4,2,par["N"],par["NScan"],(par["NScan"]*par["NC"]*par["NSlice"],par["N"],par["N"]),(1,2),traj.astype(DTYPE),np.require(np.abs(dcf),DTYPE_real,requirements='C'),par["N"],10000,DTYPE,DTYPE_real,radial=trafo)
     else:
@@ -207,14 +208,14 @@ __kernel void update_primal(__global float2 *u_new, __global float2 *u, __global
             u_new[i].s1 *= 1/norm*max[uk];
          }
          if(u_new[i].s0 < 0 && pos_real[uk])
-           u_new[i].s0 = -u_new[i].s0;
+           u_new[i] = -u_new[i];
 
      }
      i += NSl*Nx*Ny;
   }
 }
 
-__kernel void gradient(__global float8 *grad, __global float2 *u, const int NUk, __global float* scale, const float maxscal, __global float* ratio) {
+__kernel void gradient(__global float8 *grad, __global float2 *u, const int NUk, __global float* scale, const float maxscal, __global float* ratio, const float dz) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
   size_t x = get_global_id(2), y = get_global_id(1);
@@ -225,7 +226,7 @@ __kernel void gradient(__global float8 *grad, __global float2 *u, const int NUk,
   for (int uk=0; uk<NUk; uk++)
   {
      // gradient
-     grad[i] = (float8)(-u[i],-u[i],-u[i],0.0f,0.0f);
+     grad[i] = (float8)(-u[i],-u[i],-u[i]/dz,0.0f,0.0f);
      if (x < Nx-1)
      { grad[i].s01 += u[i+1].s01;}
      else
@@ -236,7 +237,7 @@ __kernel void gradient(__global float8 *grad, __global float2 *u, const int NUk,
      else
      { grad[i].s23 = 0.0f;}
      if (k < NSl-1)
-     { grad[i].s45 += u[i+Nx*Ny].s01;}
+     { grad[i].s45 += u[i+Nx*Ny].s01/dz;}
      else
      { grad[i].s45 = 0.0f;}
      // scale gradients
@@ -246,7 +247,7 @@ __kernel void gradient(__global float8 *grad, __global float2 *u, const int NUk,
   }
 }
 
-__kernel void sym_grad(__global float16 *sym, __global float8 *w, const int NUk) {
+__kernel void sym_grad(__global float16 *sym, __global float8 *w, const int NUk, const float dz) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
   size_t x = get_global_id(2), y = get_global_id(1);
@@ -274,16 +275,16 @@ __kernel void sym_grad(__global float16 *sym, __global float8 *w, const int NUk)
      else
      {val_real.s678 = (float3) 0.0f; val_imag.s678 = (float3) 0.0f;  }
 
-     sym[i] = (float16)(val_real.s0, val_imag.s0, val_real.s4,val_imag.s4,val_real.s8,val_imag.s8,
+     sym[i] = (float16)(val_real.s0, val_imag.s0, val_real.s4,val_imag.s4,val_real.s8/dz,val_imag.s8/dz,
                         0.5f*(val_real.s1 + val_real.s3), 0.5f*(val_imag.s1 + val_imag.s3),
-                        0.5f*(val_real.s2 + val_real.s6), 0.5f*(val_imag.s2 + val_imag.s6),
-                        0.5f*(val_real.s5 + val_real.s7), 0.5f*(val_imag.s5 + val_imag.s7),
+                        0.5f*(val_real.s2 + val_real.s6/dz), 0.5f*(val_imag.s2 + val_imag.s6/dz),
+                        0.5f*(val_real.s5 + val_real.s7/dz), 0.5f*(val_imag.s5 + val_imag.s7/dz),
                         0.0f,0.0f,0.0f,0.0f);
      i += NSl*Nx*Ny;
    }
 }
 __kernel void divergence(__global float2 *div, __global float8 *p, const int NUk,
-                         __global float* scale, const float maxscal, __global float* ratio) {
+                         __global float* scale, const float maxscal, __global float* ratio, const float dz) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
   size_t x = get_global_id(2), y = get_global_id(1);
@@ -336,7 +337,7 @@ __kernel void divergence(__global float2 *div, __global float8 *p, const int NUk
          //imag
          val.s5 -= p[i-Nx*Ny].s5;
      }
-     div[i] = val.s01+val.s23+val.s45;
+     div[i] = val.s01+val.s23+val.s45/dz;
      // scale gradients
      //{div[i]*=(maxscal/(scale[ukn]))*ratio[ukn];}
      {div[i]/=ratio[ukn];}
@@ -345,7 +346,7 @@ __kernel void divergence(__global float2 *div, __global float8 *p, const int NUk
 
 }
 __kernel void sym_divergence(__global float8 *w, __global float16 *q,
-                       const int NUk) {
+                       const int NUk, const float dz) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
   size_t x = get_global_id(2), y = get_global_id(1);
@@ -408,14 +409,15 @@ __kernel void sym_divergence(__global float8 *w, __global float16 *q,
      }
      // linear step
      //real
-     w[i].s024 = val_real.s012 + val_real.s345 + val_real.s678;
+     w[i].s024 = val_real.s012 + val_real.s345 + val_real.s678/dz;
      //imag
-     w[i].s135 = val_imag.s012 + val_imag.s345 + val_imag.s678;
+     w[i].s135 = val_imag.s012 + val_imag.s345 + val_imag.s678/dz;
+
      i += NSl*Nx*Ny;
   }
 }
 __kernel void update_Kyk2(__global float8 *w, __global float16 *q, __global float8 *z,
-                       const int NUk) {
+                       const int NUk, const float dz) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
   size_t x = get_global_id(2), y = get_global_id(1);
@@ -478,9 +480,9 @@ __kernel void update_Kyk2(__global float8 *w, __global float16 *q, __global floa
      }
      // linear step
      //real
-     w[i].s024 = -val_real.s012 - val_real.s345 - val_real.s678 -z[i].s024;
+     w[i].s024 = -val_real.s012 - val_real.s345 - val_real.s678/dz -z[i].s024;
      //imag
-     w[i].s135 = -val_imag.s012 - val_imag.s345 - val_imag.s678 -z[i].s135;
+     w[i].s135 = -val_imag.s012 - val_imag.s345 - val_imag.s678/dz -z[i].s135;
      i += NSl*Nx*Ny;
   }
 }
@@ -570,7 +572,7 @@ __kernel void operator_ad(__global float2 *out, __global float2 *in,
 
 __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
                        __global float2 *coils, __global float2 *grad, __global float8 *p, const int NCo,
-                       const int NSl, const int NScan, __global float* scale, const float maxscal, __global float* ratio, const int Nuk)
+                       const int NSl, const int NScan, __global float* scale, const float maxscal, __global float* ratio, const int Nuk, const float dz)
 {
   size_t X = get_global_size(2);
   size_t Y = get_global_size(1);
@@ -656,7 +658,7 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
    //{val*=(maxscal/(scale[uk]))*ratio[uk];}
    {val/=ratio[uk];}
 
-  out[uk*NSl*X*Y+k*X*Y+y*X+x] = sum - (val.s01+val.s23+val.s45);
+  out[uk*NSl*X*Y+k*X*Y+y*X+x] = sum - (val.s01+val.s23+val.s45/dz);
   i += NSl*X*Y;
   }
 
@@ -832,6 +834,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
                                  out.data, self.tmp_img.data, self.coil_buf, self.grad_buf, z.data, np.int32(self.NC),
                                  np.int32(self.NSlice),  np.int32(self.NScan), self.ukscale.data,
                                  np.float32(np.amax(self.ukscale.get())),self.ratio.data, np.int32(self.unknowns),
+                                 np.float32(self.dz),
                                  wait_for=self.tmp_img.events+out.events+z.events+wait_for)
 
   def operator_adjoint(self, out, x, wait_for=[]):
@@ -849,6 +852,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     return self.prg.operator_ad(x.queue, (self.NSlice,self.dimY,self.dimX), None,
                                  x.data, y.data, self.coil_buf, self.grad_buf,np.int32(self.NC),
                                  np.int32(self.NSlice),  np.int32(self.NScan), np.int32(self.unknowns),
+                                 np.float32(self.dz),
                                  wait_for=wait_for)
 
 
@@ -903,24 +907,20 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
 
     delta = self.irgn_par["delta"]
     mu = 1/delta
-
     theta_line = np.float32(1.0)
-
-
     beta_line = np.float32(10)
     beta_new = np.float32(0)
-
     mu_line =np.float32( 0.5)
     delta_line = np.float32(1)
-
     ynorm = np.float32(0.0)
     lhs = np.float32(0.0)
-
     primal = np.float32(0.0)
     primal_new = np.float32(0)
     dual = np.float32(0.0)
     gap_min = np.float32(0.0)
     gap = np.float32(0.0)
+
+
     self.eval_const()
 
     Kyk1 = clarray.zeros_like(x)
@@ -1037,12 +1037,14 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     return self.prg.gradient(self.queue, u.shape[1:], None, grad.data, u.data,
                 np.int32(self.unknowns),
                 self.ukscale.data,  np.float32(np.amax(self.ukscale.get())),self.ratio.data,
+                np.float32(self.dz),
                 wait_for=grad.events + u.events + wait_for)
 
   def bdiv(self,div, u, wait_for=[]):
     return self.prg.divergence(div.queue, u.shape[1:-1], None, div.data, u.data,
                 np.int32(self.unknowns),
                 self.ukscale.data, np.float32(np.amax(self.ukscale.get())),self.ratio.data,
+                np.float32(self.dz),
                 wait_for=div.events + u.events + wait_for)
 #  def f_grad(self,grad, u, wait_for=[]):
 #    return self.prg.gradient(self.queue, u.shape[1:], None, grad.data, u.data,
@@ -1058,16 +1060,16 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
 
   def sym_grad(self,sym, w, wait_for=[]):
     return self.prg.sym_grad(self.queue, w.shape[1:-1], None, sym.data, w.data,
-                np.int32(self.unknowns),
+                np.int32(self.unknowns),np.float32(self.dz),
                 wait_for=sym.events + w.events + wait_for)
 
   def sym_bdiv(self,div, u, wait_for=[]):
     return self.prg.sym_divergence(self.queue, u.shape[1:-1], None, div.data, u.data,
-                np.int32(self.unknowns),
+                np.int32(self.unknowns),np.float32(self.dz),
                 wait_for=div.events + u.events + wait_for)
   def update_Kyk2(self,div, u, z, wait_for=[]):
     return self.prg.update_Kyk2(self.queue, u.shape[1:-1], None, div.data, u.data, z.data,
-                np.int32(self.unknowns),
+                np.int32(self.unknowns),np.float32(self.dz),
                 wait_for=div.events + u.events + z.events+wait_for)
 
   def update_primal(self, x_new, x, Kyk, xk, tau, delta, wait_for=[]):
@@ -1201,7 +1203,6 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
 
         for uk in range(self.unknowns-1):
           scale = np.linalg.norm(np.abs(self.grad_x[0,...].flatten()))/np.linalg.norm(np.abs(self.grad_x[uk+1,...].flatten()))
-
           self.model.constraints[uk+1].update(scale)
           result[uk+1,...] *= self.model.uk_scale[uk+1]
           self.model.uk_scale[uk+1]*=scale
@@ -1281,7 +1282,9 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     x_old = x
     x = clarray.to_device(self.queue,np.require(x,requirements="C"))
     b = clarray.zeros(self.queue, data.shape,dtype=DTYPE)
+
     self.FT(b,clarray.to_device(self.queue,self.step_val[:,None,...]*self.Coils3D)).wait()
+
 
     res = data - b.get() + self.operator_forward(x).get()
 
@@ -1301,13 +1304,19 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
 
        x = clarray.to_device(self.queue,x)
        v = clarray.to_device(self.queue,self.v)
+
        grad = clarray.to_device(self.queue,np.zeros_like(self.z1))
+
+
        sym_grad = clarray.to_device(self.queue,np.zeros_like(self.z2))
+
+
        grad.add_event(self.f_grad(grad,x,wait_for=grad.events+x.events))
+
+
        sym_grad.add_event(self.sym_grad(sym_grad,v,wait_for=sym_grad.events+v.events))
        x = x.get()
        test = self.model.execute_forward_3D(x)[:,None,...]
-       print(np.linalg.norm(test))
        self.FT(b,clarray.to_device(self.queue,test*self.Coils3D)).wait()
        self.fval= (self.irgn_par["lambd"]/2*np.linalg.norm(data - b.get())**2
               +self.irgn_par["gamma"]*np.sum(np.abs(grad.get()-self.v))
@@ -1364,17 +1373,12 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     mu = 1/delta
 
     theta_line = np.float32(1.0)
-
-
     beta_line = np.float32(400)
     beta_new = np.float32(0)
-
     mu_line =np.float32( 0.5)
     delta_line = np.float32(1)
-
     ynorm = np.float32(0.0)
     lhs = np.float32(0.0)
-
     primal = np.float32(0.0)
     primal_new = np.float32(0)
     dual = np.float32(0.0)
@@ -1422,6 +1426,8 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
       symgrad_v_vold.add_event(self.sym_grad(symgrad_v_vold,v))  ### Q2
       Ax.add_event(self.operator_forward_full(Ax,x_new))  ### Q1
 
+
+
       while True:
 
         theta_line = tau_new/tau
@@ -1434,6 +1440,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
 
         ynorm = ((clarray.vdot(r_new-r,r_new-r)+clarray.vdot(z1_new-z1,z1_new-z1)+clarray.vdot(z2_new-z2,z2_new-z2))**(1/2)).real
         lhs = np.sqrt(beta_line)*tau_new*((clarray.vdot(Kyk1_new-Kyk1,Kyk1_new-Kyk1)+clarray.vdot(Kyk2_new-Kyk2,Kyk2_new-Kyk2))**(1/2)).real
+
         if lhs <= ynorm*delta_line:
             break
         else:
@@ -1444,7 +1451,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
       tau =  (tau_new)
 
 
-      if not np.mod(i,10):
+      if not np.mod(i,50):
 
         self.model.plot_unknowns(x_new.get())
         primal_new= (self.irgn_par["lambd"]/2*clarray.vdot(Axold-res,Axold-res)+alpha*clarray.sum(abs((gradx[:self.unknowns_TGV]-v))) +beta*clarray.sum(abs(symgrad_v)) + 1/(2*delta)*clarray.vdot(x_new-xk,x_new-xk)).real
@@ -1516,17 +1523,12 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     mu = 1/delta
 
     theta_line = np.float32(1.0)
-
-
     beta_line = np.float32(400)
     beta_new = np.float32(0)
-
     mu_line =np.float32( 0.5)
     delta_line = np.float32(1)
-
     ynorm = np.float32(0.0)
     lhs = np.float32(0.0)
-
     primal = np.float32(0.0)
     primal_new = np.float32(0)
     dual = np.float32(0.0)
@@ -1536,34 +1538,26 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
 
     Kyk1 = clarray.zeros_like(x)
     Kyk1_new = clarray.zeros_like(x)
-
-
     gradx = clarray.zeros_like(z1)
     gradx_xold = clarray.zeros_like(z1)
-
     Axold = clarray.zeros_like(res)
     Ax = clarray.zeros_like(res)
 
+
+
     Axold.add_event(self.operator_forward_full(Axold,x))
     Kyk1.add_event(self.operator_adjoint_full(Kyk1,r,z1))
-
-
     for i in range(iters):
 
       x_new.add_event(self.update_primal(x_new,x,Kyk1,xk,tau,delta))
-
 
       beta_new = beta_line*(1+mu*tau)
       tau_new = tau*np.sqrt(beta_line/beta_new*(1+theta_line))
       beta_line = beta_new
 
-
       gradx.add_event(self.f_grad(gradx,x_new,wait_for=gradx.events+x_new.events))
       gradx_xold.add_event(self.f_grad(gradx_xold,x,wait_for=gradx_xold.events+x.events))
-
-
       Ax.add_event(self.operator_forward_full(Ax,x_new))
-
 
       while True:
 

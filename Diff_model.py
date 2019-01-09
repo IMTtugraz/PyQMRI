@@ -18,10 +18,11 @@ unknowns_TGV = 2
 unknowns_H1 = 0
 
 class constraint:
-  def __init__(self, min_val=-np.inf, max_val=np.inf, real_const=False):
+  def __init__(self, min_val=-np.inf, max_val=np.inf, real_const=False, pos_real=False):
     self.min = min_val
     self.max = max_val
     self.real = real_const
+    self.pos_real = pos_real
   def update(self,scale):
     self.min = self.min/scale
     self.max = self.max/scale
@@ -50,33 +51,32 @@ class Model:
     self.uk_scale.append(1)
 #
     ADC = np.reshape(np.linspace(1e-4,1e-2,dimX*dimY*Nislice),(Nislice,dimX,dimY))
-    test_M0 = 1#1*np.sqrt((dimX*np.pi/2)/par['Nproj'])
+    test_M0 = np.ones((Nislice,dimY,dimX),dtype=DTYPE)#1*np.sqrt((dimX*np.pi/2)/par['Nproj'])
 #    print(test_M0)
     ADC = 1/self.uk_scale[1]*ADC*np.ones((Nislice,dimY,dimX),dtype=DTYPE)
 #
 #
-    G_x = self.execute_forward_3D(np.array([test_M0/self.uk_scale[0]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),ADC],dtype=DTYPE))
+    G_x = self.execute_forward_3D(np.array([test_M0/self.uk_scale[0],ADC],dtype=DTYPE))
 #    print(np.max(np.abs(G_x))/np.max(np.abs(images)))
     self.uk_scale[0] *= 1/np.max(np.abs(G_x))
 #
 #    test_M0*=self.uk_scale[0]
 #    self.uk_scale[0] = 2
 
-    DG_x =  self.execute_gradient_3D(np.array([test_M0/self.uk_scale[0]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),ADC],dtype=DTYPE))
+    DG_x =  self.execute_gradient_3D(np.array([test_M0/self.uk_scale[0],ADC],dtype=DTYPE))
     self.uk_scale[1] = self.uk_scale[1]*np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...]))
 
-    DG_x =  self.execute_gradient_3D(np.array([test_M0/self.uk_scale[0]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),ADC/self.uk_scale[1]],dtype=DTYPE))
+    DG_x =  self.execute_gradient_3D(np.array([test_M0/self.uk_scale[0],ADC/self.uk_scale[1]],dtype=DTYPE))
     print('Grad Scaling init', np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...])))
     print('ADC scale: ',self.uk_scale[1])
     print('M0 scale: ',self.uk_scale[0])
 
 
 
-    result = np.array([0.1/self.uk_scale[0]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),(1e-3/self.uk_scale[1]*np.ones((Nislice,dimY,dimX),dtype=DTYPE))],dtype=DTYPE)
+    result = np.array([np.mean(test_M0)*np.ones_like(test_M0)/self.uk_scale[0],np.mean(ADC)*np.ones_like(ADC)/self.uk_scale[1]],dtype=DTYPE)
     self.guess = result
-
     self.constraints.append(constraint(1e-5/self.uk_scale[0],100/self.uk_scale[0],False)  )
-    self.constraints.append(constraint((1e-4/self.uk_scale[1]),(1e-2/self.uk_scale[1]),False))
+    self.constraints.append(constraint((1e-4/self.uk_scale[1]),(1e-1/self.uk_scale[1]),True))
   def rescale(self,x):
     M0 = x[0,...]*self.uk_scale[0]
     ADC = (x[1,...]*self.uk_scale[1])

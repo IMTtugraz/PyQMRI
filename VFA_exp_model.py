@@ -77,7 +77,7 @@ class Model:
     self.guess = result
 
     self.constraints.append(constraint(1e-4/self.uk_scale[0],10/self.uk_scale[0],False)  )
-    self.constraints.append(constraint(((1/150)/self.uk_scale[1]),((1/5)/self.uk_scale[1]),True,False))
+    self.constraints.append(constraint(((1/150)/self.uk_scale[1]),((1/5)/self.uk_scale[1]),True))
   def rescale(self,x):
     M0 = x[0,...]*self.uk_scale[0]
     T2 = 1/(x[1,...]*self.uk_scale[1])

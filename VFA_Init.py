@@ -8,7 +8,6 @@ from tkinter import filedialog
 from tkinter import Tk
 import nlinvns_maier as nlinvns
 
-import Model_Reco_OpenCL as Model_Reco
 
 #from pynfft.nfft import NFFT
 
@@ -351,7 +350,7 @@ par["fa_corr"] = np.require((np.transpose(par["fa_corr"],(0,2,1))),requirements=
 ################################################################################
 ### Init forward model and initial guess #######################################
 ################################################################################
-model = VFA_model.Model(par,images,NSlice,Nproj)
+model = VFA_model.Model(par,images)
 
 
 ################################################################################
@@ -390,9 +389,10 @@ for device in range(num_dev):
 
 
 
+import Model_Reco_OpenCL_streamed_Kyk2_sep as Model_Reco
 opt = Model_Reco.Model_Reco(par,ctx,queue,traj,np.sqrt(dcf))
-#import Model_Reco_OpenCL as Model_Reco2
-#opt2 = Model_Reco2.Model_Reco(par,ctx,queue,traj,np.sqrt(dcf))
+import Model_Reco_OpenCL as Model_Reco2
+opt2 = Model_Reco2.Model_Reco(par,ctx,queue,traj,np.sqrt(dcf))
 #
 #
 #import pyopencl.array as clarray

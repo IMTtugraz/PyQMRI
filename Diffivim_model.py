@@ -42,7 +42,7 @@ class Model:
     try:
       self.NScan = par["b_value"].size
       for i in range(self.NScan):
-        self.b[i,...] = par["b_value"][i]*np.ones((1,1,1))
+        self.b[i,...] = par["b_value"][i]*np.ones((1,1,1))/1000
     except:
       self.NScan = par["TE"].size
       for i in range(self.NScan):
@@ -76,13 +76,13 @@ class Model:
     print('ADC2 scale: ',self.uk_scale[3])
 
 
-    result = np.array([1/self.uk_scale[0]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),0.1/self.uk_scale[1]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),(1e-3/self.uk_scale[2]*np.ones((Nislice,dimY,dimX),dtype=DTYPE)),(5e-2/self.uk_scale[3]*np.ones((Nislice,dimY,dimX),dtype=DTYPE))],dtype=DTYPE)
+    result = np.array([1/self.uk_scale[0]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),0.02/self.uk_scale[1]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),(1e-3/self.uk_scale[2]*np.ones((Nislice,dimY,dimX),dtype=DTYPE)),(5e-2/self.uk_scale[3]*np.ones((Nislice,dimY,dimX),dtype=DTYPE))],dtype=DTYPE)
     self.guess = result
 
     self.constraints.append(constraint(1e-4/self.uk_scale[0],100/self.uk_scale[0],False)  )
     self.constraints.append(constraint(0/self.uk_scale[1],1/self.uk_scale[1],True)  )
     self.constraints.append(constraint((5e-6/self.uk_scale[2]),((1e-2)/self.uk_scale[2]),False))
-    self.constraints.append(constraint((1e-3/self.uk_scale[3]),((1e1)/self.uk_scale[3]),True))
+    self.constraints.append(constraint((1e-3/self.uk_scale[3]),((1e1)/self.uk_scale[3]),False))
   def rescale(self,x):
     M0 = x[0,...]*self.uk_scale[0]
     f = x[1,...]*self.uk_scale[1]

@@ -19,9 +19,10 @@ unknowns_TGV = 4
 unknowns_H1 = 0
 
 class constraint:
-  def __init__(self, min_val=-np.inf, max_val=np.inf, pos_real=False):
+  def __init__(self, min_val=-np.inf, max_val=np.inf, real_const=False, pos_real=False):
     self.min = min_val
     self.max = max_val
+    self.real = real_const
     self.pos_real = pos_real
   def update(self,scale):
     self.min = self.min/scale
@@ -41,7 +42,7 @@ class Model:
     try:
       self.NScan = par["b_value"].size
       for i in range(self.NScan):
-        self.TE[i,...] = par["b_value"][i]*np.ones((1,1,1))
+        self.TE[i,...] = par["b_value"][i]*np.ones((1,1,1))/1000
     except:
       self.NScan = par["TE"].size
       for i in range(self.NScan):
@@ -53,10 +54,10 @@ class Model:
     self.uk_scale.append(1)
 
     test_M0 = 1#*np.sqrt((dimX*np.pi/2)/par['Nproj'])
-    ADC1 = np.reshape(np.linspace(1e-5,1e-3,dimX*dimY*Nislice),(Nislice,dimX,dimY))
-    f = 0.5#np.mean(images,0)
+    ADC1 = np.reshape(np.linspace(1e-5,1e-1,dimX*dimY*Nislice),(Nislice,dimX,dimY))
+    f = 0.1#np.mean(images,0)
     ADC1 = 1/self.uk_scale[2]*ADC1
-    ADC2 = np.reshape(np.linspace(1e-3,1e-1,dimX*dimY*Nislice),(Nislice,dimX,dimY))
+    ADC2 = np.reshape(np.linspace(1e-2,1e0,dimX*dimY*Nislice),(Nislice,dimX,dimY))
     ADC2 = 1/self.uk_scale[3]*ADC2
 #
     G_x = self.execute_forward_3D(np.array([test_M0/self.uk_scale[0]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),f/self.uk_scale[1]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),ADC1,ADC2],dtype=DTYPE))
@@ -74,13 +75,13 @@ class Model:
     print('ADC2 scale: ',self.uk_scale[3])
 
 
-    result = np.array([1/self.uk_scale[0]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),0.5/self.uk_scale[1]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),(1e-3/self.uk_scale[2]*np.ones((Nislice,dimY,dimX),dtype=DTYPE)),(1e-2/self.uk_scale[3]*np.ones((Nislice,dimY,dimX),dtype=DTYPE))],dtype=DTYPE)
+    result = np.array([1/self.uk_scale[0]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),0.1/self.uk_scale[1]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),(1e-3/self.uk_scale[2]*np.ones((Nislice,dimY,dimX),dtype=DTYPE)),(1e-1/self.uk_scale[3]*np.ones((Nislice,dimY,dimX),dtype=DTYPE))],dtype=DTYPE)
     self.guess = result
 
     self.constraints.append(constraint(-100/self.uk_scale[0],100/self.uk_scale[0],False)  )
     self.constraints.append(constraint(1e-8/self.uk_scale[1],1/self.uk_scale[1],True)  )
-    self.constraints.append(constraint((1e-5/self.uk_scale[2]),((1e-2)/self.uk_scale[2]),False))
-    self.constraints.append(constraint((1e-2/self.uk_scale[3]),((1e-1)/self.uk_scale[3]),False))
+    self.constraints.append(constraint((1e-5/self.uk_scale[2]),((1e-1)/self.uk_scale[2]),False))
+    self.constraints.append(constraint((1e-2/self.uk_scale[3]),((1e1)/self.uk_scale[3]),False))
   def rescale(self,x):
     M0 = x[0,...]*self.uk_scale[0]
     M01 = x[1,...]*self.uk_scale[1]

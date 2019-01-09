@@ -66,7 +66,7 @@ class Model_Reco:
     self.gn_res = []
     self.num_dev = len(ctx)
     self.NUFFT = []
-    self.par_slices = 5
+    self.par_slices = 1
     self.ukscale = []
     self.prg = []
     self.overlap = 1
@@ -79,7 +79,7 @@ class Model_Reco:
       if trafo:
         self.NUFFT.append(NUFFT.gridding(ctx[j],self.queue[3*j:3*(j+1)-1],4,2,par["N"],par["NScan"], (par["NScan"]*par["NC"]*(self.par_slices+self.overlap),par["N"],par["N"]),(1,2),traj.astype(DTYPE),np.require(np.abs(dcf),DTYPE_real,requirements='C'),par["N"],1000,DTYPE,DTYPE_real))
       else:
-        self.NUFFT.append(NUFFT.gridding(ctx[j],self.queue[3*j:3*(j+1)-1],4,2,par["N"],par["NScan"], (par["NScan"]*par["NC"]*(self.par_slices+self.overlap),par["N"],par["N"]),(1,2),traj,dcf,par["N"],1000,DTYPE,DTYPE_real,
+        self.NUFFT.append(NUFFT.gridding(ctx[j],self.queue[3*j:3*(j+1)-1],4,2,par["N"],par["NScan"]*par["NC"], (par["NScan"]*par["NC"]*(self.par_slices+self.overlap),par["N"],par["N"]),(1,2),traj,dcf,par["N"],1000,DTYPE,DTYPE_real,
                                        radial=trafo,mask=par['mask']))
       self.ukscale.append(clarray.to_device(self.queue[3*j],np.ones(self.unknowns,dtype=DTYPE_real)))
 
@@ -746,11 +746,11 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
 
 
   def operator_forward_full(self, out, x, idx=0,idxq=0,wait_for=[]):
-    (self.eval_fwd_streamed(self.tmp_img[idx],x,idx,idxq,wait_for=self.tmp_img[idx].events+x.events)).wait()
+    self.tmp_img[idx].add_event(self.eval_fwd_streamed(self.tmp_img[idx],x,idx,idxq,wait_for=self.tmp_img[idx].events+x.events))
     return  self.NUFFT[idx].fwd_NUFFT(out,self.tmp_img[idx],idxq,wait_for=out.events+wait_for+self.tmp_img[idx].events)
 
   def operator_adjoint_full(self, out, x,z,idx=0,idxq=0, last=0,wait_for=[]):
-    (self.NUFFT[idx].adj_NUFFT(self.tmp_img[idx],x,idxq,wait_for=wait_for+x.events+self.tmp_img[idx].events)).wait()
+    self.tmp_img[idx].add_event(self.NUFFT[idx].adj_NUFFT(self.tmp_img[idx],x,idxq,wait_for=wait_for+x.events+self.tmp_img[idx].events))
 #    print(out.shape)
     return self.prg[idx].update_Kyk1(self.queue[3*idx+idxq], (self.par_slices+self.overlap,self.dimY,self.dimX), None,
                                  out.data, self.tmp_img[idx].data, self.coil_buf_part[idx+idxq*self.num_dev].data, self.grad_buf_part[idx+idxq*self.num_dev].data, z.data, np.int32(self.NC),
@@ -851,19 +851,19 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         self.ukscale[i][j] = np.linalg.norm(x[:,j,...])
         print('scale %f at uk %i' %(self.ukscale[i][j].get(),j))
 
-#      grad = clarray.to_device(self.queue[0],np.zeros_like(self.z1))
-#      x = clarray.to_device(self.queue[0],x)
-#      grad.add_event(self.f_grad(grad,x,wait_for=grad.events+x.events))
-#      grad = grad.get()
-#      for j in range(self.unknowns):
-#        scale = np.linalg.norm(grad[:,j,...])/np.linalg.norm(grad[:,0,...])
-#  #      print(scale)
-#        if np.isfinite(scale):
-#          self.ratio[i][j] = scale
-#        print('ratio %f at uk %i' %(self.ratio[i][j].get(),j))
-  #    for j in range(x.shape[0]):
-  #        self.ratio[j] = self.ukscale[j]/np.amax(self.ukscale.get())
-  #        print('ratio %f at uk %i' %( self.ratio[j].get(),j))
+      grad = clarray.to_device(self.queue[3*i],np.zeros_like(self.z1))
+      x = clarray.to_device(self.queue[3*i],x)
+      grad.add_event(self.f_grad(grad,x,wait_for=grad.events+x.events))
+      grad = grad.get()
+      for j in range(self.unknowns):
+        scale = np.linalg.norm(grad[:,j,...])/np.linalg.norm(grad[:,0,...])
+  #      print(scale)
+        if np.isfinite(scale):
+          self.ratio[i][j] = scale
+        print('ratio %f at uk %i' %(self.ratio[i][j].get(),j))
+#      for j in range(x.shape[0]):
+#          self.ratio[j] = self.ukscale[j]/np.amax(self.ukscale.get())
+#          print('ratio %f at uk %i' %( self.ratio[j].get(),j))
 
 #  def set_scale(self,x):
 #    for i in range(self.num_dev):
@@ -1023,7 +1023,6 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     primal_new = np.float32(0)
     dual = np.float32(0.0)
     gap_min = np.float32(0.0)
-    gap = np.float32(0.0)
 
 
 
@@ -1059,8 +1058,8 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
     x_part = []
     r_part = []
     z1_part = []
-    self.coil_buf_part = []
-    self.grad_buf_part = []
+#    self.coil_buf_part = []
+#    self.grad_buf_part = []
     j=0
     last=0
     for i in range(self.num_dev):
@@ -1073,9 +1072,9 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
       x_part.append(clarray.to_device(self.queue[3*i], x[idx_start:idx_stop,...],allocator=self.alloc[i]))# ))
       r_part.append(clarray.to_device(self.queue[3*i], r[idx_start:idx_stop,...],allocator=self.alloc[i]))# ))
       z1_part.append(clarray.to_device(self.queue[3*i], z1[idx_start:idx_stop,...],allocator=self.alloc[i]))# ))
-      self.coil_buf_part.append(clarray.to_device(self.queue[3*i], self.C[idx_start:idx_stop,...],allocator=self.alloc[i]))
-      self.grad_buf_part.append(clarray.to_device(self.queue[3*i], self.grad_x[idx_start:idx_stop,...],allocator=self.alloc[i]))
-    for i in range(self.num_dev):
+      self.coil_buf_part[i].set(self.C[idx_start:idx_stop,...],self.queue[3*i])
+      self.grad_buf_part[i].set( self.grad_x[idx_start:idx_stop,...],self.queue[3*i])
+#    for i in range(self.num_dev):
       Axold_part[i].add_event(self.operator_forward_full(Axold_part[i],x_part[i],i,0))
       Kyk1_part[i].add_event(self.operator_adjoint_full(Kyk1_part[i],r_part[i],z1_part[i],i,0,last))
 
@@ -1085,12 +1084,14 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
       x_part.append(clarray.to_device(self.queue[3*i+1], x[idx_start:idx_stop,...],allocator=self.alloc[i]))# ))
       r_part.append(clarray.to_device(self.queue[3*i+1], r[idx_start:idx_stop,...],allocator=self.alloc[i]))# ))
       z1_part.append(clarray.to_device(self.queue[3*i+1], z1[idx_start:idx_stop,...],allocator=self.alloc[i]))# ))
-      self.coil_buf_part.append(clarray.to_device(self.queue[3*i+1], self.C[idx_start:idx_stop,...],allocator=self.alloc[i]))
-      self.grad_buf_part.append(clarray.to_device(self.queue[3*i+1], self.grad_x[idx_start:idx_stop,...],allocator=self.alloc[i]))
+      self.coil_buf_part[self.num_dev+i].set( self.C[idx_start:idx_stop,...] ,self.queue[3*i+1])
+      self.grad_buf_part[self.num_dev+i].set( self.grad_x[idx_start:idx_stop,...] ,self.queue[3*i+1])
 
-    for i in range(self.num_dev):
-      if idx_stop==self.NSlice and i==self.num_dev-1:
+#    for i in range(self.num_dev):
+      if idx_stop==self.NSlice:
         last=1
+      else:
+        last=0
       Axold_part[i+self.num_dev].add_event(self.operator_forward_full(Axold_part[i+self.num_dev],x_part[self.num_dev+i],i,1))
       Kyk1_part[i+self.num_dev].add_event(self.operator_adjoint_full(Kyk1_part[i+self.num_dev],r_part[self.num_dev+i],z1_part[self.num_dev+i],i,1,last))
 
@@ -1105,7 +1106,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
           Axold_part[i].get(queue=self.queue[3*i+2],ary=Axold_tmp)
           Kyk1_part[i].get(queue=self.queue[3*i+2],ary=Kyk1_tmp)
-          self.queue[3*i+2].finish()
+#          self.queue[3*i+2].finish()
           if idx_start==0:
             Axold[idx_start:idx_stop,...] = Axold_tmp[:self.par_slices,...]
             Kyk1[idx_start:idx_stop,...] = Kyk1_tmp[:self.par_slices,...]
@@ -1120,7 +1121,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           z1_part[i].set( z1[idx_start:idx_stop,...],self.queue[3*i])# ))
           self.coil_buf_part[i].set(self.C[idx_start:idx_stop,...],self.queue[3*i])
           self.grad_buf_part[i].set( self.grad_x[idx_start:idx_stop,...],self.queue[3*i])
-        for i in range(self.num_dev):
+#        for i in range(self.num_dev):
           Axold_part[i].add_event(self.operator_forward_full(Axold_part[i],x_part[i],i,0))
           Kyk1_part[i].add_event(self.operator_adjoint_full(Kyk1_part[i],r_part[i],z1_part[i],i,0,last))
         for i in range(self.num_dev):
@@ -1129,7 +1130,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
           Axold_part[i+self.num_dev].get(queue=self.queue[3*i+1],ary=Axold_tmp)
           Kyk1_part[i+self.num_dev].get(queue=self.queue[3*i+1],ary=Kyk1_tmp)
-          self.queue[3*i+2].finish()
+#          self.queue[3*i+2].finish()
           Axold[idx_start:idx_stop,...] = Axold_tmp[self.overlap:,...]
           Kyk1[idx_start:idx_stop,...] = Kyk1_tmp[self.overlap:,...]
           idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices-self.overlap
@@ -1139,9 +1140,11 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           z1_part[self.num_dev+i].set( z1[idx_start:idx_stop,...] ,self.queue[3*i+1])# ))
           self.coil_buf_part[self.num_dev+i].set( self.C[idx_start:idx_stop,...] ,self.queue[3*i+1])
           self.grad_buf_part[self.num_dev+i].set( self.grad_x[idx_start:idx_stop,...] ,self.queue[3*i+1])
-        for i in range(self.num_dev):
-          if idx_stop == self.NSlice and i==self.num_dev-1:
+#        for i in range(self.num_dev):
+          if idx_stop == self.NSlice:# and i==self.num_dev-1:
             last=1
+          else:
+            last=0
           Axold_part[i+self.num_dev].add_event(self.operator_forward_full(Axold_part[i+self.num_dev],x_part[self.num_dev+i],i,1))
           Kyk1_part[i+self.num_dev].add_event(self.operator_adjoint_full(Kyk1_part[i+self.num_dev],r_part[self.num_dev+i],z1_part[self.num_dev+i],i,1,last))
 #### Collect last block
@@ -1155,7 +1158,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
       idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
       Axold_part[i].get(queue=self.queue[3*i+2],ary=Axold_tmp)
       Kyk1_part[i].get(queue=self.queue[3*i+2],ary=Kyk1_tmp)
-      self.queue[3*i+2].finish()
+#      self.queue[3*i+2].finish()
       if idx_start==0:
         Axold[idx_start:idx_stop,...] = Axold_tmp[:self.par_slices,...]
         Kyk1[idx_start:idx_stop,...] = Kyk1_tmp[:self.par_slices,...]
@@ -1167,7 +1170,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
       idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
       Axold_part[i+self.num_dev].get(queue=self.queue[3*i+1],ary=Axold_tmp)
       Kyk1_part[i+self.num_dev].get(queue=self.queue[3*i+1],ary=Kyk1_tmp)
-      self.queue[3*i+2].finish()
+#      self.queue[3*i+2].finish()
       Axold[idx_start:idx_stop,...] = Axold_tmp[self.overlap:,...]
       Kyk1[idx_start:idx_stop,...] = Kyk1_tmp[self.overlap:,...]
 
@@ -1181,7 +1184,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
 
       z1_part[i].set(z1[idx_start:idx_stop,...],self.queue[3*i])# ))
       z2_part.append(clarray.to_device(self.queue[3*i], z2[idx_start:idx_stop,...],allocator=self.alloc[i]))# ))
-    for i in range(self.num_dev):
+#    for i in range(self.num_dev):
       if i == 0:
         first=1
       else:
@@ -1198,7 +1201,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
 
       z1_part[i+self.num_dev].set(z1[idx_start:idx_stop,...],self.queue[3*i+1])# ))
       z2_part.append(clarray.to_device(self.queue[3*i+1], z2[idx_start:idx_stop,...],allocator=self.alloc[i]))# ))
-    for i in range(self.num_dev):
+#    for i in range(self.num_dev):
       Kyk2_part[i+self.num_dev].add_event(self.update_Kyk2(Kyk2_part[i+self.num_dev],z2_part[self.num_dev+i],z1_part[self.num_dev+i],i,1,first))
 #### Stream
     for j in range(2*self.num_dev,int(self.NSlice/(2*self.par_slices*self.num_dev)+(2*self.num_dev-1))):
@@ -1208,7 +1211,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
           idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
           Kyk2_part[i].get(queue=self.queue[3*i+2],ary=Kyk2_tmp)
-          self.queue[3*i+2].finish()
+#          self.queue[3*i+2].finish()
           Kyk2[idx_start:idx_stop,...] = Kyk2_tmp[:self.par_slices,...]
 
           ### Put Data
@@ -1216,14 +1219,14 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1))*self.par_slices+self.overlap
           z1_part[i].set(z1[idx_start:idx_stop,...],self.queue[3*i])# ))
           z2_part[i].set(z2[idx_start:idx_stop,...],self.queue[3*i])# ))
-        for i in range(self.num_dev):
+#        for i in range(self.num_dev):
           Kyk2_part[i].add_event(self.update_Kyk2(Kyk2_part[i],z2_part[i],z1_part[i],i,0,first))
         for i in range(self.num_dev):
           self.queue[3*i+1].finish()
           idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
           idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
           Kyk2_part[i+self.num_dev].get(queue=self.queue[3*i+1],ary=Kyk2_tmp)
-          self.queue[3*i+2].finish()
+#          self.queue[3*i+2].finish()
           Kyk2[idx_start:idx_stop,...] = Kyk2_tmp[:self.par_slices,...]
           idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices
           idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices
@@ -1233,7 +1236,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             idx_stop +=self.overlap
           z1_part[self.num_dev+i].set( z1[idx_start:idx_stop,...],self.queue[3*i+1])# ))
           z2_part[self.num_dev+i].set( z2[idx_start:idx_stop,...],self.queue[3*i+1])# ))
-        for i in range(self.num_dev):
+#        for i in range(self.num_dev):
           Kyk2_part[i+self.num_dev].add_event(self.update_Kyk2(Kyk2_part[i+self.num_dev],z2_part[i],z1_part[self.num_dev+i],i,1,first))
 #### Collect last block
     if j<2*self.num_dev:
@@ -1245,14 +1248,14 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
       idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
       idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
       Kyk2_part[i].get(queue=self.queue[3*i+2],ary=Kyk2_tmp)
-      self.queue[3*i+2].finish()
+#      self.queue[3*i+2].finish()
       Kyk2[idx_start:idx_stop,...] = Kyk2_tmp[:self.par_slices,...]
 
       self.queue[3*i+1].finish()
       idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
       idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
       Kyk2_part[i+self.num_dev].get(queue=self.queue[3*i+1],ary=Kyk2_tmp)
-      self.queue[3*i+2].finish()
+#      self.queue[3*i+2].finish()
       if idx_stop == self.NSlice:
         Kyk2[idx_start:idx_stop,...] = Kyk2_tmp[self.overlap:,...]
       else:
@@ -1286,9 +1289,9 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
       v_part.append(clarray.to_device(self.queue[3*i+1], v[idx_start:idx_stop,...] ,allocator=self.alloc[i]))
       Ax_old_part.append(clarray.to_device(self.queue[3*i+1], Axold[idx_start:idx_stop,...],allocator=self.alloc[i] ))
       res_part.append(clarray.to_device(self.queue[3*i+1], res[idx_start:idx_stop,...],allocator=self.alloc[i]  ))
-    for i in range(self.num_dev):
-      self.queue[3*i].finish()
-      self.queue[3*i+1].finish()
+#    for i in range(self.num_dev):
+#      self.queue[3*i].finish()
+#      self.queue[3*i+1].finish()
     for myit in range(iters):
   #### Allocate temporary Arrays
       if myit == 0:
@@ -1323,7 +1326,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         xk_part[i].set(xk[idx_start:idx_stop,...],self.queue[3*i])
         self.coil_buf_part[i].set(self.C[idx_start:idx_stop,...],self.queue[3*i])
         self.grad_buf_part[i].set(self.grad_x[idx_start:idx_stop,...],self.queue[3*i])
-      for i in range(self.num_dev):
+#      for i in range(self.num_dev):
         x_new_part[i].add_event(self.update_primal(x_new_part[i],x_part[i],Kyk1_part[i],xk_part[i],tau,delta,i,0))
         gradx_part[i].add_event(self.f_grad(gradx_part[i],x_new_part[i],i,0))
         gradx_xold_part[i].add_event(self.f_grad(gradx_xold_part[i],x_part[i],i,0))
@@ -1340,7 +1343,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         xk_part[i+self.num_dev].set(xk[idx_start:idx_stop,...],self.queue[3*i+1])
         self.coil_buf_part[i+self.num_dev].set(self.C[idx_start:idx_stop,...],self.queue[3*i+1])
         self.grad_buf_part[i+self.num_dev].set(self.grad_x[idx_start:idx_stop,...],self.queue[3*i+1])
-      for i in range(self.num_dev):
+#      for i in range(self.num_dev):
         x_new_part[i+self.num_dev].add_event(self.update_primal(x_new_part[i+self.num_dev],x_part[self.num_dev+i],Kyk1_part[self.num_dev+i],xk_part[self.num_dev+i],tau,delta,i,1))
         gradx_part[i+self.num_dev].add_event(self.f_grad(gradx_part[i+self.num_dev],x_new_part[i+self.num_dev],i,1))
         gradx_xold_part[i+self.num_dev].add_event(self.f_grad(gradx_xold_part[i+self.num_dev],x_part[self.num_dev+i],i,1))
@@ -1357,7 +1360,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             gradx_part[i].get(queue=self.queue[3*i+2],ary=gradx_tmp)
             gradx_xold_part[i].get(queue=self.queue[3*i+2],ary=gradx_xold_tmp)
             Ax_part[i].get(queue=self.queue[3*i+2],ary=Ax_tmp)
-            self.queue[3*i+2].finish()
+#            self.queue[3*i+2].finish()
             x_new[idx_start:idx_stop,...]=x_new_tmp[:self.par_slices,...]
             gradx[idx_start:idx_stop,...] = gradx_tmp[:self.par_slices,...]
             gradx_xold[idx_start:idx_stop,...] = gradx_xold_tmp[:self.par_slices,...]
@@ -1370,7 +1373,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             xk_part[i].set(xk[idx_start:idx_stop,...],self.queue[3*i])
             self.coil_buf_part[i].set(self.C[idx_start:idx_stop,...],self.queue[3*i])
             self.grad_buf_part[i].set(self.grad_x[idx_start:idx_stop,...],self.queue[3*i])
-          for i in range(self.num_dev):
+#          for i in range(self.num_dev):
             x_new_part[i].add_event(self.update_primal(x_new_part[i],x_part[i],Kyk1_part[i],xk_part[i],tau,delta,i,0))
             gradx_part[i].add_event(self.f_grad(gradx_part[i],x_new_part[i],i,0))
             gradx_xold_part[i].add_event(self.f_grad(gradx_xold_part[i],x_part[i],i,0))
@@ -1383,7 +1386,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             gradx_part[i+self.num_dev].get(queue=self.queue[3*i+1],ary=gradx_tmp)
             gradx_xold_part[i+self.num_dev].get(queue=self.queue[3*i+1],ary=gradx_xold_tmp)
             Ax_part[i+self.num_dev].get(queue=self.queue[3*i+1],ary=Ax_tmp)
-            self.queue[3*i+2].finish()
+#            self.queue[3*i+2].finish()
             x_new[idx_start:idx_stop,...]=x_new_tmp[:self.par_slices,...]
             gradx[idx_start:idx_stop,...] = gradx_tmp[:self.par_slices,...]
             gradx_xold[idx_start:idx_stop,...] = gradx_xold_tmp[:self.par_slices,...]
@@ -1399,7 +1402,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             xk_part[i+self.num_dev].set(xk[idx_start:idx_stop,...],self.queue[3*i+1])
             self.coil_buf_part[i+self.num_dev].set(self.C[idx_start:idx_stop,...],self.queue[3*i+1])
             self.grad_buf_part[i+self.num_dev].set(self.grad_x[idx_start:idx_stop,...],self.queue[3*i+1])
-          for i in range(self.num_dev):
+#          for i in range(self.num_dev):
             x_new_part[i+self.num_dev].add_event(self.update_primal(x_new_part[i+self.num_dev],x_part[self.num_dev+i],Kyk1_part[self.num_dev+i],xk_part[self.num_dev+i],tau,delta,i,1))
             gradx_part[i+self.num_dev].add_event(self.f_grad(gradx_part[i+self.num_dev],x_new_part[i+self.num_dev],i,1))
             gradx_xold_part[i+self.num_dev].add_event(self.f_grad(gradx_xold_part[i+self.num_dev],x_part[self.num_dev+i],i,1))
@@ -1417,7 +1420,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         gradx_part[i].get(queue=self.queue[3*i+2],ary=gradx_tmp)
         gradx_xold_part[i].get(queue=self.queue[3*i+2],ary=gradx_xold_tmp)
         Ax_part[i].get(queue=self.queue[3*i+2],ary=Ax_tmp)
-        self.queue[3*i+2].finish()
+#        self.queue[3*i+2].finish()
         x_new[idx_start:idx_stop,...]=x_new_tmp[:self.par_slices,...]
         gradx[idx_start:idx_stop,...] = gradx_tmp[:self.par_slices,...]
         gradx_xold[idx_start:idx_stop,...] = gradx_xold_tmp[:self.par_slices,...]
@@ -1429,7 +1432,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         gradx_part[i+self.num_dev].get(queue=self.queue[3*i+1],ary=gradx_tmp)
         gradx_xold_part[i+self.num_dev].get(queue=self.queue[3*i+1],ary=gradx_xold_tmp)
         Ax_part[i+self.num_dev].get(queue=self.queue[3*i+1],ary=Ax_tmp)
-        self.queue[3*i+2].finish()
+#        self.queue[3*i+2].finish()
         if idx_stop == self.NSlice:
           x_new[idx_start:idx_stop,...]=x_new_tmp[self.overlap:,...]
           gradx[idx_start:idx_stop,...] = gradx_tmp[self.overlap:,...]
@@ -1452,7 +1455,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           idx_start-=self.overlap
         v_part[i].set(v[idx_start:idx_stop,...], self.queue[3*i])
         Kyk2_part[i].set(Kyk2[idx_start:idx_stop,...],self.queue[3*i])
-      for i in range(self.num_dev):
+#      for i in range(self.num_dev):
         v_new_part[i].add_event(self.update_v(v_new_part[i],v_part[i],Kyk2_part[i],tau,i,0))
         symgrad_v_part[i].add_event(self.sym_grad(symgrad_v_part[i],v_new_part[i],i,0))
         symgrad_v_vold_part[i].add_event(self.sym_grad(symgrad_v_vold_part[i],v_part[i],i,0))
@@ -1461,7 +1464,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         idx_stop = (i+2+self.num_dev-1)*self.par_slices
         v_part[i+self.num_dev].set(v[idx_start:idx_stop,...], self.queue[3*i+1])
         Kyk2_part[i+self.num_dev].set(Kyk2[idx_start:idx_stop,...],self.queue[3*i+1])
-      for i in range(self.num_dev):
+#      for i in range(self.num_dev):
         v_new_part[i+self.num_dev].add_event(self.update_v(v_new_part[i+self.num_dev],v_part[self.num_dev+i],Kyk2_part[self.num_dev+i],tau,i,1))
         symgrad_v_part[i+self.num_dev].add_event(self.sym_grad(symgrad_v_part[i+self.num_dev],v_new_part[i+self.num_dev],i,1))
         symgrad_v_vold_part[i+self.num_dev].add_event(self.sym_grad(symgrad_v_vold_part[i+self.num_dev],v_part[self.num_dev+i],i,1))
@@ -1476,7 +1479,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             v_new_part[i].get(queue=self.queue[3*i+2],ary=v_new_tmp)
             symgrad_v_part[i].get(queue=self.queue[3*i+2],ary=symgrad_v_tmp)
             symgrad_v_vold_part[i].get(queue=self.queue[3*i+2],ary=symgrad_v_vold_tmp)
-            self.queue[3*i+2].finish()
+#            self.queue[3*i+2].finish()
             if idx_start==0:
               v_new[idx_start:idx_stop,...]=v_new_tmp[:self.par_slices,...]
               symgrad_v[idx_start:idx_stop,...] = symgrad_v_tmp[:self.par_slices,...]
@@ -1490,7 +1493,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1))*self.par_slices
             v_part[i].set(v[idx_start:idx_stop,...], self.queue[3*i])
             Kyk2_part[i].set(Kyk2[idx_start:idx_stop,...],self.queue[3*i])
-          for i in range(self.num_dev):
+#          for i in range(self.num_dev):
             v_new_part[i].add_event(self.update_v(v_new_part[i],v_part[i],Kyk2_part[i],tau,i,0))
             symgrad_v_part[i].add_event(self.sym_grad(symgrad_v_part[i],v_new_part[i],i,0))
             symgrad_v_vold_part[i].add_event(self.sym_grad(symgrad_v_vold_part[i],v_part[i],i,0))
@@ -1501,7 +1504,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             v_new_part[i+self.num_dev].get(queue=self.queue[3*i+1],ary=v_new_tmp)
             symgrad_v_part[i+self.num_dev].get(queue=self.queue[3*i+1],ary=symgrad_v_tmp)
             symgrad_v_vold_part[i+self.num_dev].get(queue=self.queue[3*i+1],ary=symgrad_v_vold_tmp)
-            self.queue[3*i+2].finish()
+#            self.queue[3*i+2].finish()
             v_new[idx_start:idx_stop,...]=v_new_tmp[self.overlap:,...]
             symgrad_v[idx_start:idx_stop,...] = symgrad_v_tmp[self.overlap:,...]
             symgrad_v_vold[idx_start:idx_stop,...] = symgrad_v_vold_tmp[self.overlap:,...]
@@ -1510,7 +1513,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices
             v_part[i+self.num_dev].set(v[idx_start:idx_stop,...], self.queue[3*i+1])
             Kyk2_part[i+self.num_dev].set(Kyk2[idx_start:idx_stop,...],self.queue[3*i+1])
-          for i in range(self.num_dev):
+#          for i in range(self.num_dev):
             v_new_part[i+self.num_dev].add_event(self.update_v(v_new_part[i+self.num_dev],v_part[self.num_dev+i],Kyk2_part[self.num_dev+i],tau,i,1))
             symgrad_v_part[i+self.num_dev].add_event(self.sym_grad(symgrad_v_part[i+self.num_dev],v_new_part[i+self.num_dev],i,1))
             symgrad_v_vold_part[i+self.num_dev].add_event(self.sym_grad(symgrad_v_vold_part[i+self.num_dev],v_part[self.num_dev+i],i,1))
@@ -1526,7 +1529,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         v_new_part[i].get(queue=self.queue[3*i+2],ary=v_new_tmp)
         symgrad_v_part[i].get(queue=self.queue[3*i+2],ary=symgrad_v_tmp)
         symgrad_v_vold_part[i].get(queue=self.queue[3*i+2],ary=symgrad_v_vold_tmp)
-        self.queue[3*i+2].finish()
+#        self.queue[3*i+2].finish()
         if idx_start==0:
           v_new[idx_start:idx_stop,...]=v_new_tmp[:self.par_slices,...]
           symgrad_v[idx_start:idx_stop,...] = symgrad_v_tmp[:self.par_slices,...]
@@ -1541,7 +1544,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         v_new_part[i+self.num_dev].get(queue=self.queue[3*i+1],ary=v_new_tmp)
         symgrad_v_part[i+self.num_dev].get(queue=self.queue[3*i+1],ary=symgrad_v_tmp)
         symgrad_v_vold_part[i+self.num_dev].get(queue=self.queue[3*i+1],ary=symgrad_v_vold_tmp)
-        self.queue[3*i+2].finish()
+#        self.queue[3*i+2].finish()
         v_new[idx_start:idx_stop,...]=v_new_tmp[self.overlap:,...]
         symgrad_v[idx_start:idx_stop,...] = symgrad_v_tmp[self.overlap:,...]
         symgrad_v_vold[idx_start:idx_stop,...] = symgrad_v_vold_tmp[self.overlap:,...]
@@ -1597,7 +1600,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           Kyk1_part[i].set( Kyk1[idx_start:idx_stop,...] ,self.queue[3*i])
           self.coil_buf_part[i].set(self.C[idx_start:idx_stop,...] ,self.queue[3*i])
           self.grad_buf_part[i].set(self.grad_x[idx_start:idx_stop,...],self.queue[3*i])
-        for i in range(self.num_dev):
+#        for i in range(self.num_dev):
           z1_new_part[ i].add_event(self.update_z1(z1_new_part[ i],z1_part[i],gradx_part[i],gradx_xold_part[i],v_new_part[i],v_part[i], beta_line*tau_new, theta_line, alpha,i,0))
           r_new_part[i].add_event(self.update_r(r_new_part[i],r_part[i],Ax_part[i],Ax_old_part[i],res_part[i],beta_line*tau_new,theta_line,self.irgn_par["lambd"],i,0))
           Kyk1_new_part[ i].add_event(self.operator_adjoint_full(Kyk1_new_part[ i],r_new_part[ i],z1_new_part[ i],i,0,last))
@@ -1618,9 +1621,11 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           Kyk1_part[i+self.num_dev].set( Kyk1[idx_start:idx_stop,...] ,self.queue[3*i+1])
           self.coil_buf_part[i+self.num_dev].set(self.C[idx_start:idx_stop,...] ,self.queue[3*i+1])
           self.grad_buf_part[i+self.num_dev].set(self.grad_x[idx_start:idx_stop,...] ,self.queue[3*i+1])
-        for i in range(self.num_dev):
-          if idx_stop == self.NSlice and i==self.num_dev-1:
+#        for i in range(self.num_dev):
+          if idx_stop == self.NSlice:
             last=1
+          else:
+            last=0
           z1_new_part[i+self.num_dev].add_event(self.update_z1(z1_new_part[i+self.num_dev],z1_part[self.num_dev+i],gradx_part[self.num_dev+i],gradx_xold_part[self.num_dev+i],v_new_part[self.num_dev+i],v_part[self.num_dev+i], beta_line*tau_new, theta_line, alpha,i,1))
           r_new_part[i+self.num_dev].add_event(self.update_r(r_new_part[i+self.num_dev],r_part[self.num_dev+i],Ax_part[self.num_dev+i],Ax_old_part[self.num_dev+i],res_part[self.num_dev+i],beta_line*tau_new,theta_line,self.irgn_par["lambd"],i,1))
           Kyk1_new_part[i+self.num_dev].add_event(self.operator_adjoint_full(Kyk1_new_part[i+self.num_dev],r_new_part[i+self.num_dev],z1_new_part[i+self.num_dev],i,1,last))
@@ -1637,7 +1642,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             z1_new_part[i].get(queue=self.queue[3*i+2],ary=z1_new_tmp)
             r_new_part[i].get(queue=self.queue[3*i+2],ary=r_new_tmp)
             Kyk1_new_part[i].get(queue=self.queue[3*i+2],ary=Kyk1_new_tmp)
-            self.queue[3*i+2].finish()
+#            self.queue[3*i+2].finish()
             if idx_start == 0:
               z1_new[idx_start:idx_stop,...] = z1_new_tmp[:self.par_slices,...]
               r_new[idx_start:idx_stop,...] = r_new_tmp[:self.par_slices,...]
@@ -1665,7 +1670,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             Kyk1_part[i].set( Kyk1[idx_start:idx_stop,...] ,self.queue[3*i])
             self.coil_buf_part[i].set(self.C[idx_start:idx_stop,...] ,self.queue[3*i])
             self.grad_buf_part[i].set(self.grad_x[idx_start:idx_stop,...],self.queue[3*i])
-          for i in range(self.num_dev):
+#          for i in range(self.num_dev):
             z1_new_part[ i].add_event(self.update_z1(z1_new_part[ i],z1_part[i],gradx_part[i],gradx_xold_part[i],v_new_part[i],v_part[i], beta_line*tau_new, theta_line, alpha,i,0))
             r_new_part[i].add_event(self.update_r(r_new_part[i],r_part[i],Ax_part[i],Ax_old_part[i],res_part[i],beta_line*tau_new,theta_line,self.irgn_par["lambd"],i,0))
             Kyk1_new_part[ i].add_event(self.operator_adjoint_full(Kyk1_new_part[ i],r_new_part[ i],z1_new_part[ i],i,0,last))
@@ -1677,7 +1682,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             z1_new_part[i+self.num_dev].get(queue=self.queue[3*i+2],ary=z1_new_tmp)
             r_new_part[i+self.num_dev].get(queue=self.queue[3*i+2],ary=r_new_tmp)
             Kyk1_new_part[i+self.num_dev].get(queue=self.queue[3*i+2],ary=Kyk1_new_tmp)
-            self.queue[3*i+2].finish()
+#            self.queue[3*i+2].finish()
             z1_new[idx_start:idx_stop,...] = z1_new_tmp[self.overlap:,...]
             r_new[idx_start:idx_stop,...] = r_new_tmp[self.overlap:,...]
             Kyk1_new[idx_start:idx_stop,...] = Kyk1_new_tmp[self.overlap:,...]
@@ -1698,9 +1703,11 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             Kyk1_part[i+self.num_dev].set( Kyk1[idx_start:idx_stop,...] ,self.queue[3*i+1])
             self.coil_buf_part[i+self.num_dev].set(self.C[idx_start:idx_stop,...] ,self.queue[3*i+1])
             self.grad_buf_part[i+self.num_dev].set(self.grad_x[idx_start:idx_stop,...] ,self.queue[3*i+1])
-          for i in range(self.num_dev):
-            if idx_stop == self.NSlice and i==self.num_dev-1:
+#          for i in range(self.num_dev):
+            if idx_stop == self.NSlice:# and i==self.num_dev-1:
               last=1
+            else:
+              last=0
             z1_new_part[i+self.num_dev].add_event(self.update_z1(z1_new_part[i+self.num_dev],z1_part[self.num_dev+i],gradx_part[self.num_dev+i],gradx_xold_part[self.num_dev+i],v_new_part[self.num_dev+i],v_part[self.num_dev+i], beta_line*tau_new, theta_line, alpha,i,1))
             r_new_part[i+self.num_dev].add_event(self.update_r(r_new_part[i+self.num_dev],r_part[self.num_dev+i],Ax_part[self.num_dev+i],Ax_old_part[self.num_dev+i],res_part[self.num_dev+i],beta_line*tau_new,theta_line,self.irgn_par["lambd"],i,1))
             Kyk1_new_part[i+self.num_dev].add_event(self.operator_adjoint_full(Kyk1_new_part[i+self.num_dev],r_new_part[i+self.num_dev],z1_new_part[i+self.num_dev],i,1,last))
@@ -1716,7 +1723,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           z1_new_part[i].get(queue=self.queue[3*i+2],ary=z1_new_tmp)
           r_new_part[i].get(queue=self.queue[3*i+2],ary=r_new_tmp)
           Kyk1_new_part[i].get(queue=self.queue[3*i+2],ary=Kyk1_new_tmp)
-          self.queue[3*i+2].finish()
+#          self.queue[3*i+2].finish()
           if idx_start == 0:
             z1_new[idx_start:idx_stop,...] = z1_new_tmp[:self.par_slices,...]
             r_new[idx_start:idx_stop,...] = r_new_tmp[:self.par_slices,...]
@@ -1735,7 +1742,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           z1_new_part[i+self.num_dev].get(queue=self.queue[3*i+2],ary=z1_new_tmp)
           r_new_part[i+self.num_dev].get(queue=self.queue[3*i+2],ary=r_new_tmp)
           Kyk1_new_part[i+self.num_dev].get(queue=self.queue[3*i+2],ary=Kyk1_new_tmp)
-          self.queue[3*i+2].finish()
+#          self.queue[3*i+2].finish()
           z1_new[idx_start:idx_stop,...] = z1_new_tmp[self.overlap:,...]
           r_new[idx_start:idx_stop,...] = r_new_tmp[self.overlap:,...]
           Kyk1_new[idx_start:idx_stop,...] = Kyk1_new_tmp[self.overlap:,...]
@@ -1755,7 +1762,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           Kyk2_part[i].set( Kyk2[idx_start:idx_stop,...] ,self.queue[3*i])
           z1_new_part[i].set( z1_new[idx_start:idx_stop,...] ,self.queue[3*i])
 
-        for i in range(self.num_dev):
+#        for i in range(self.num_dev):
           if i==0:
             first=1
           else:
@@ -1776,7 +1783,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           symgrad_v_vold_part[i+self.num_dev].set(symgrad_v_vold[idx_start:idx_stop,...] ,self.queue[3*i+1])
           Kyk2_part[i+self.num_dev].set( Kyk2[idx_start:idx_stop,...] ,self.queue[3*i+1])
           z1_new_part[i+self.num_dev].set( z1_new[idx_start:idx_stop,...] ,self.queue[3*i+1])
-        for i in range(self.num_dev):
+#        for i in range(self.num_dev):
           z2_new_part[i+self.num_dev].add_event(self.update_z2(z2_new_part[i+self.num_dev],z2_part[self.num_dev+i],symgrad_v_part[self.num_dev+i],symgrad_v_vold_part[self.num_dev+i],beta_line*tau_new,theta_line,beta,i,1))
           Kyk2_new_part[i+self.num_dev].add_event(self.update_Kyk2(Kyk2_new_part[i+self.num_dev],z2_new_part[i+self.num_dev],z1_new_part[i+self.num_dev],i,1,first))
 
@@ -1786,12 +1793,12 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           for i in range(self.num_dev):
             self.queue[3*i].finish()
             ### Get Data
-            self.queue[3*i].finish()
+#            self.queue[3*i].finish()
             idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
             idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
             z2_new_part[i].get(queue=self.queue[3*i+2],ary=z2_new_tmp)
             Kyk2_new_part[i].get(queue=self.queue[3*i+2],ary=Kyk2_new_tmp)
-            self.queue[3*i+2].finish()
+#            self.queue[3*i+2].finish()
 
             z2_new[idx_start:idx_stop,...] = z2_new_tmp[:self.par_slices,...]
             Kyk2_new[idx_start:idx_stop,...] = Kyk2_new_tmp[:self.par_slices,...]
@@ -1806,7 +1813,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             symgrad_v_vold_part[i].set( symgrad_v_vold[idx_start:idx_stop,...] ,self.queue[3*i])
             Kyk2_part[i].set( Kyk2[idx_start:idx_stop,...] ,self.queue[3*i])
             z1_new_part[i].set( z1_new[idx_start:idx_stop,...] ,self.queue[3*i])
-          for i in range(self.num_dev):
+#          for i in range(self.num_dev):
             z2_new_part[ i].add_event(self.update_z2(z2_new_part[ i],z2_part[i],symgrad_v_part[i],symgrad_v_vold_part[i],beta_line*tau_new,theta_line,beta,i,0))
             Kyk2_new_part[ i].add_event(self.update_Kyk2(Kyk2_new_part[ i],z2_new_part[ i],z1_new_part[ i],i,0,first))
           for i in range(self.num_dev):
@@ -1816,7 +1823,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
             z2_new_part[i+self.num_dev].get(queue=self.queue[3*i+2],ary=z2_new_tmp)
             Kyk2_new_part[i+self.num_dev].get(queue=self.queue[3*i+2],ary=Kyk2_new_tmp)
-            self.queue[3*i+2].finish()
+#            self.queue[3*i+2].finish()
             z2_new[idx_start:idx_stop,...] = z2_new_tmp[:self.par_slices,...]
             Kyk2_new[idx_start:idx_stop,...] = Kyk2_new_tmp[:self.par_slices,...]
             ynorm += ((clarray.vdot(z2_new_part[i+self.num_dev][:self.par_slices,...]-z2_part[i+self.num_dev][:self.par_slices,...],z2_new_part[i+self.num_dev][:self.par_slices,...]-z2_part[i+self.num_dev][:self.par_slices,...],queue=self.queue[3*i+1]))).get()
@@ -1836,7 +1843,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             Kyk2_part[i+self.num_dev].set( Kyk2[idx_start:idx_stop,...] ,self.queue[3*i+1])
             z1_new_part[i+self.num_dev].set( z1_new[idx_start:idx_stop,...] ,self.queue[3*i+1])
 
-          for i in range(self.num_dev):
+#          for i in range(self.num_dev):
             z2_new_part[i+self.num_dev].add_event(self.update_z2(z2_new_part[i+self.num_dev],z2_part[self.num_dev+i],symgrad_v_part[self.num_dev+i],symgrad_v_vold_part[self.num_dev+i],beta_line*tau_new,theta_line,beta,i,1))
             Kyk2_new_part[i+self.num_dev].add_event(self.update_Kyk2(Kyk2_new_part[i+self.num_dev],z2_new_part[i+self.num_dev],z1_new_part[i+self.num_dev],i,1,first))
       #### Collect last block
@@ -1850,7 +1857,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
           z2_new_part[i].get(queue=self.queue[3*i+2],ary=z2_new_tmp)
           Kyk2_new_part[i].get(queue=self.queue[3*i+2],ary=Kyk2_new_tmp)
-          self.queue[3*i+2].finish()
+#          self.queue[3*i+2].finish()
 
           z2_new[idx_start:idx_stop,...] = z2_new_tmp[:self.par_slices,...]
           Kyk2_new[idx_start:idx_stop,...] = Kyk2_new_tmp[:self.par_slices,...]
@@ -1862,7 +1869,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
           z2_new_part[i+self.num_dev].get(queue=self.queue[3*i+2],ary=z2_new_tmp)
           Kyk2_new_part[i+self.num_dev].get(queue=self.queue[3*i+2],ary=Kyk2_new_tmp)
-          self.queue[3*i+2].finish()
+#          self.queue[3*i+2].finish()
           if idx_stop == self.NSlice:
             z2_new[idx_start:idx_stop,...] = z2_new_tmp[self.overlap:,...]
             Kyk2_new[idx_start:idx_stop,...] = Kyk2_new_tmp[self.overlap:,...]
@@ -1875,8 +1882,10 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             lhs += ((clarray.vdot(Kyk2_new_part[i+self.num_dev][:self.par_slices,...]-Kyk2_part[i+self.num_dev][:self.par_slices,...],Kyk2_new_part[i+self.num_dev][:self.par_slices,...]-Kyk2_part[i+self.num_dev][:self.par_slices,...],queue=self.queue[3*i+1]))).get()
 
 
-
+#        lhs = np.sqrt(np.linalg.norm(Kyk2_new-Kyk2)**2+np.linalg.norm(Kyk1_new-Kyk1)**2)
+#        rhs = np.sqrt(np.linalg.norm(r_new-r)**2+np.linalg.norm(z1_new-z1)**2 +np.linalg.norm(z2_new-z2)**2)
         if np.sqrt(beta_line)*tau_new*(abs(lhs)**(1/2)) <= (abs(ynorm)**(1/2))*delta_line:
+#        if np.sqrt(beta_line)*tau_new*lhs <= rhs*delta_line:
             break
         else:
           tau_new = tau_new*mu_line
@@ -1885,12 +1894,12 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
       tau =  (tau_new)
 
 
-      if not np.mod(myit,10):
+      if not np.mod(myit,50):
         self.model.plot_unknowns(np.transpose(x_new,[1,0,2,3]))
         primal_new= (self.irgn_par["lambd"]/2*np.vdot(Axold-res,Axold-res)+alpha*np.sum(abs((gradx[:,:self.unknowns_TGV]-v))) +beta*np.sum(abs(symgrad_v)) + 1/(2*delta)*np.vdot(x_new-xk,x_new-xk)).real
 
-        dual = (-delta/2*np.vdot(-Kyk1,-Kyk1)- np.vdot(xk,(-Kyk1)) + np.sum(Kyk2)
-                  - 1/(2*self.irgn_par["lambd"])*np.vdot(r,r) - np.vdot(res,r)).real
+        dual = (-delta/2*np.vdot(-Kyk1.flatten(),-Kyk1.flatten())- np.vdot(xk.flatten(),(-Kyk1).flatten()) + np.sum(Kyk2)
+                  - 1/(2*self.irgn_par["lambd"])*np.vdot(r.flatten(),r.flatten()) - np.vdot(res.flatten(),r.flatten())).real
 
         gap = np.abs(primal_new - dual)
         if myit==0:
@@ -1941,10 +1950,10 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         idx_start = i*self.par_slices
         idx_stop = (i+1)*self.par_slices+self.overlap
         cl_data.append(clarray.to_device(self.queue[3*i], inp[idx_start:idx_stop,...]))
-      for i in range(self.num_dev):
-        self.queue[3*i].finish()
-#        cl_out[2*i].add_event(self.NUFFT[i].fwd_NUFFT(cl_out[2*i],cl_data[i],0))
-        (self.NUFFT[i].fwd_NUFFT(cl_out[2*i],cl_data[i],0)).wait()
+#      for i in range(self.num_dev):
+#        self.queue[3*i].finish()
+        cl_out[2*i].add_event(self.NUFFT[i].fwd_NUFFT(cl_out[2*i],cl_data[i],0))
+#        (self.NUFFT[i].fwd_NUFFT(cl_out[2*i],cl_data[i],0)).wait()
       for i in range(self.num_dev):
         idx_start = (i+1+self.num_dev-1)*self.par_slices
         idx_stop = (i+2+self.num_dev-1)*self.par_slices
@@ -1953,10 +1962,10 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         else:
           idx_stop+=self.overlap
         cl_data.append(clarray.to_device(self.queue[3*i+1], inp[idx_start:idx_stop,...]))
-      for i in range(self.num_dev):
-        self.queue[3*i+1].finish()
-#        cl_out[2*i+1].add_event(self.NUFFT[i].fwd_NUFFT(cl_out[2*i+1],cl_data[self.num_dev+i],1))
-        (self.NUFFT[i].fwd_NUFFT(cl_out[2*i+1],cl_data[self.num_dev+i],1)).wait()
+#      for i in range(self.num_dev):
+#        self.queue[3*i+1].finish()
+        cl_out[2*i+1].add_event(self.NUFFT[i].fwd_NUFFT(cl_out[2*i+1],cl_data[self.num_dev+i],1))
+#        (self.NUFFT[i].fwd_NUFFT(cl_out[2*i+1],cl_data[self.num_dev+i],1)).wait()
 
       for j in range(2*self.num_dev,int(self.NSlice/(2*self.par_slices*self.num_dev)+(2*self.num_dev-1))):
           for i in range(self.num_dev):
@@ -1964,21 +1973,21 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
             idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
             cl_out[2*i].get(queue=self.queue[3*i+2],ary=self.tmp_FT)
-            self.queue[3*i+1].finish()
+#            self.queue[3*i+1].finish()
             outp[idx_start:idx_stop,...]=self.tmp_FT[:self.par_slices,...]
             idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)*self.par_slices)
             idx_stop = ((i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1))*self.par_slices)+self.overlap
             cl_data[i] = clarray.to_device(self.queue[3*i], inp[idx_start:idx_stop,...])
-          for i in range(self.num_dev):
-            self.queue[3*i].finish()
-#            cl_out[2*i].add_event(self.NUFFT[i].fwd_NUFFT(cl_out[2*i],cl_data[i],0))
-            (self.NUFFT[i].fwd_NUFFT(cl_out[2*i],cl_data[i],0)).wait()
+#          for i in range(self.num_dev):
+#            self.queue[3*i].finish()
+            cl_out[2*i].add_event(self.NUFFT[i].fwd_NUFFT(cl_out[2*i],cl_data[i],0))
+#            (self.NUFFT[i].fwd_NUFFT(cl_out[2*i],cl_data[i],0)).wait()
           for i in range(self.num_dev):
             self.queue[3*i+1].finish()
             idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
             idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
             cl_out[2*i+1].get(queue=self.queue[3*i+2],ary=self.tmp_FT)
-            self.queue[3*i+2].finish()
+#            self.queue[3*i+2].finish()
             outp[idx_start:idx_stop,...]=self.tmp_FT[:self.par_slices,...]
             idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices
             idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices
@@ -1987,10 +1996,10 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             else:
               idx_stop+=self.overlap
             cl_data[i+self.num_dev] = clarray.to_device(self.queue[3*i+1],inp[idx_start:idx_stop,...])
-          for i in range(self.num_dev):
-            self.queue[3*i+1].finish()
-#            cl_out[2*i+1].add_event(self.NUFFT[i].fwd_NUFFT(cl_out[2*i+1],cl_data[i+self.num_dev],1))
-            (self.NUFFT[i].fwd_NUFFT(cl_out[2*i+1],cl_data[self.num_dev+i],1)).wait()
+#          for i in range(self.num_dev):
+#            self.queue[3*i+1].finish()
+            cl_out[2*i+1].add_event(self.NUFFT[i].fwd_NUFFT(cl_out[2*i+1],cl_data[i+self.num_dev],1))
+#            (self.NUFFT[i].fwd_NUFFT(cl_out[2*i+1],cl_data[self.num_dev+i],1)).wait()
       if j< 2*self.num_dev:
         j = 2*self.num_dev
       else:
@@ -2000,13 +2009,13 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
         idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
         cl_out[2*i].get(queue=self.queue[3*i+2],ary=self.tmp_FT)
-        self.queue[3*i+2].finish()
+#        self.queue[3*i+2].finish()
         outp[idx_start:idx_stop,...]=self.tmp_FT[:self.par_slices,...]
         self.queue[3*i+1].finish()
         idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
         idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
         cl_out[2*i+1].get(queue=self.queue[3*i+2],ary=self.tmp_FT)
-        self.queue[3*i+2].finish()
+#        self.queue[3*i+2].finish()
         if idx_stop == self.NSlice:
           outp[idx_start:idx_stop,...]=self.tmp_FT[self.overlap:,...]
         else:
@@ -2038,17 +2047,17 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         idx_start = i*self.par_slices
         idx_stop = (i+1)*self.par_slices+self.overlap
         cl_data.append(clarray.to_device(self.queue[3*i], inp[idx_start:idx_stop,...]))
-        self.coil_buf_part.append(clarray.to_device(self.queue[3*i], self.C[idx_start:idx_stop,...]))
-        self.grad_buf_part.append(clarray.to_device(self.queue[3*i], self.grad_x[idx_start:idx_stop,...]))
+        self.coil_buf_part.append(clarray.to_device(self.queue[3*i], self.C[idx_start:idx_stop,...],allocator=self.alloc[i]))
+        self.grad_buf_part.append(clarray.to_device(self.queue[3*i], self.grad_x[idx_start:idx_stop,...],allocator=self.alloc[i]))
 
-      for i in range(self.num_dev):
-        self.queue[3*i].finish()
-#        cl_tmp[2*i].add_event(self.eval_fwd_streamed(cl_tmp[2*i],cl_data[i],idx=i,idxq=0,wait_for=cl_tmp[2*i].events+cl_data[i].events
-#              +self.coil_buf_part[i].events+self.grad_buf_part[i].events))
-#        cl_out[2*i].add_event(self.NUFFT[i].fwd_NUFFT(cl_out[2*i],cl_tmp[2*i],0,wait_for=cl_tmp[2*i].events+cl_out[2*i].events))
-        (self.eval_fwd_streamed(cl_tmp[2*i],cl_data[i],idx=i,idxq=0,wait_for=cl_tmp[2*i].events+cl_data[i].events
-              +self.coil_buf_part[i].events+self.grad_buf_part[i].events)).wait()
-        (self.NUFFT[i].fwd_NUFFT(cl_out[2*i],cl_tmp[2*i],0,wait_for=cl_tmp[2*i].events+cl_out[2*i].events)).wait()
+#      for i in range(self.num_dev):
+#        self.queue[3*i].finish()
+        cl_tmp[2*i].add_event(self.eval_fwd_streamed(cl_tmp[2*i],cl_data[i],idx=i,idxq=0,wait_for=cl_tmp[2*i].events+cl_data[i].events
+              +self.coil_buf_part[i].events+self.grad_buf_part[i].events))
+        cl_out[2*i].add_event(self.NUFFT[i].fwd_NUFFT(cl_out[2*i],cl_tmp[2*i],0,wait_for=cl_tmp[2*i].events+cl_out[2*i].events))
+#        (self.eval_fwd_streamed(cl_tmp[2*i],cl_data[i],idx=i,idxq=0,wait_for=cl_tmp[2*i].events+cl_data[i].events
+#              +self.coil_buf_part[i].events+self.grad_buf_part[i].events)).wait()
+#        (self.NUFFT[i].fwd_NUFFT(cl_out[2*i],cl_tmp[2*i],0,wait_for=cl_tmp[2*i].events+cl_out[2*i].events)).wait()
 
 
       for i in range(self.num_dev):
@@ -2060,17 +2069,17 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           idx_stop+=self.overlap
 
         cl_data.append(clarray.to_device(self.queue[3*i+1], inp[idx_start:idx_stop,...]))
-        self.coil_buf_part.append(clarray.to_device(self.queue[3*i+1], self.C[idx_start:idx_stop,...]))
-        self.grad_buf_part.append(clarray.to_device(self.queue[3*i+1], self.grad_x[idx_start:idx_stop,...]))
+        self.coil_buf_part.append(clarray.to_device(self.queue[3*i+1], self.C[idx_start:idx_stop,...],allocator=self.alloc[i]))
+        self.grad_buf_part.append(clarray.to_device(self.queue[3*i+1], self.grad_x[idx_start:idx_stop,...],allocator=self.alloc[i]))
 
-      for i in range(self.num_dev):
-        self.queue[3*i+1].finish()
-#        cl_tmp[2*i+1].add_event(self.eval_fwd_streamed(cl_tmp[2*i+1],cl_data[self.num_dev+i],idx=i,idxq=1,wait_for=cl_tmp[2*i+1].events+cl_data[self.num_dev+i].events
-#              +self.coil_buf_part[self.num_dev+i].events+self.grad_buf_part[self.num_dev+i].events))
-#        cl_out[2*i+1].add_event(self.NUFFT[i].fwd_NUFFT(cl_out[2*i+1],cl_tmp[2*i+1],1,wait_for=cl_tmp[2*i+1].events+cl_out[2*i+1].events))
-        (self.eval_fwd_streamed(cl_tmp[2*i+1],cl_data[self.num_dev+i],idx=i,idxq=1,wait_for=cl_tmp[2*i+1].events+cl_data[self.num_dev+i].events
-              +self.coil_buf_part[self.num_dev+i].events+self.grad_buf_part[self.num_dev+i].events)).wait()
-        (self.NUFFT[i].fwd_NUFFT(cl_out[2*i+1],cl_tmp[2*i+1],1,wait_for=cl_tmp[2*i+1].events+cl_out[2*i+1].events)).wait()
+#      for i in range(self.num_dev):
+#        self.queue[3*i+1].finish()
+        cl_tmp[2*i+1].add_event(self.eval_fwd_streamed(cl_tmp[2*i+1],cl_data[self.num_dev+i],idx=i,idxq=1,wait_for=cl_tmp[2*i+1].events+cl_data[self.num_dev+i].events
+              +self.coil_buf_part[self.num_dev+i].events+self.grad_buf_part[self.num_dev+i].events))
+        cl_out[2*i+1].add_event(self.NUFFT[i].fwd_NUFFT(cl_out[2*i+1],cl_tmp[2*i+1],1,wait_for=cl_tmp[2*i+1].events+cl_out[2*i+1].events))
+#        (self.eval_fwd_streamed(cl_tmp[2*i+1],cl_data[self.num_dev+i],idx=i,idxq=1,wait_for=cl_tmp[2*i+1].events+cl_data[self.num_dev+i].events
+#              +self.coil_buf_part[self.num_dev+i].events+self.grad_buf_part[self.num_dev+i].events)).wait()
+#        (self.NUFFT[i].fwd_NUFFT(cl_out[2*i+1],cl_tmp[2*i+1],1,wait_for=cl_tmp[2*i+1].events+cl_out[2*i+1].events)).wait()
 
 
       for j in range(2*self.num_dev,int(self.NSlice/(2*self.par_slices*self.num_dev)+(2*self.num_dev-1))):
@@ -2079,7 +2088,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
             idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
             cl_out[2*i].get(queue=self.queue[3*i+2],ary=self.tmp_FT)
-            self.queue[3*i+2].finish()
+#            self.queue[3*i+2].finish()
             outp[idx_start:idx_stop,...]=self.tmp_FT[:self.par_slices,...]
 
             idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)*self.par_slices)
@@ -2088,20 +2097,20 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             self.coil_buf_part[i]=(clarray.to_device(self.queue[3*i], self.C[idx_start:idx_stop,...]))
             self.grad_buf_part[i]=(clarray.to_device(self.queue[3*i], self.grad_x[idx_start:idx_stop,...]))
 
-          for i in range(self.num_dev):
-            self.queue[3*i].finish()
-#            cl_tmp[2*i].add_event(self.eval_fwd_streamed(cl_tmp[2*i],cl_data[i],idx=i,idxq=0,wait_for=cl_tmp[2*i].events+cl_data[i].events
-#                  +self.coil_buf_part[i].events+self.grad_buf_part[i].events))
-#            cl_out[2*i].add_event(self.NUFFT[i].fwd_NUFFT(cl_out[2*i],cl_tmp[2*i],0,wait_for=cl_tmp[2*i].events+cl_out[2*i].events))
-            (self.eval_fwd_streamed(cl_tmp[2*i],cl_data[i],idx=i,idxq=0,wait_for=cl_tmp[2*i].events+cl_data[i].events
-                  +self.coil_buf_part[i].events+self.grad_buf_part[i].events)).wait()
-            (self.NUFFT[i].fwd_NUFFT(cl_out[2*i],cl_tmp[2*i],0,wait_for=cl_tmp[2*i].events+cl_out[2*i].events)).wait()
+#          for i in range(self.num_dev):
+#            self.queue[3*i].finish()
+            cl_tmp[2*i].add_event(self.eval_fwd_streamed(cl_tmp[2*i],cl_data[i],idx=i,idxq=0,wait_for=cl_tmp[2*i].events+cl_data[i].events
+                  +self.coil_buf_part[i].events+self.grad_buf_part[i].events))
+            cl_out[2*i].add_event(self.NUFFT[i].fwd_NUFFT(cl_out[2*i],cl_tmp[2*i],0,wait_for=cl_tmp[2*i].events+cl_out[2*i].events))
+#            (self.eval_fwd_streamed(cl_tmp[2*i],cl_data[i],idx=i,idxq=0,wait_for=cl_tmp[2*i].events+cl_data[i].events
+#                  +self.coil_buf_part[i].events+self.grad_buf_part[i].events)).wait()
+#            (self.NUFFT[i].fwd_NUFFT(cl_out[2*i],cl_tmp[2*i],0,wait_for=cl_tmp[2*i].events+cl_out[2*i].events)).wait()
           for i in range(self.num_dev):
             self.queue[3*i+1].finish()
             idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
             idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
             cl_out[2*i+1].get(queue=self.queue[3*i+2],ary=self.tmp_FT)
-            self.queue[3*i+2].finish()
+#            self.queue[3*i+2].finish()
             outp[idx_start:idx_stop,...]=self.tmp_FT[:self.par_slices,...]
 
             idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices
@@ -2115,13 +2124,13 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
             self.coil_buf_part[self.num_dev+i]=(clarray.to_device(self.queue[3*i+1], self.C[idx_start:idx_stop,...]))
             self.grad_buf_part[self.num_dev+i]=(clarray.to_device(self.queue[3*i+1], self.grad_x[idx_start:idx_stop,...]))
 
-          for i in range(self.num_dev):
-            self.queue[3*i+1].finish()
-#            cl_tmp[2*i+1].add_event(self.eval_fwd_streamed(cl_tmp[2*i+1],cl_data[self.num_dev+i],idx=i,idxq=1,wait_for=cl_tmp[2*i+1].events+cl_data[self.num_dev+i].events
-#                  +self.coil_buf_part[self.num_dev+i].events+self.grad_buf_part[self.num_dev+i].events))
-#            cl_out[2*i+1].add_event(self.NUFFT[i].fwd_NUFFT(cl_out[2*i+1],cl_tmp[2*i+1],1,wait_for=cl_tmp[2*i+1].events+cl_out[2*i+1].events))
-            (self.eval_fwd_streamed(cl_tmp[2*i+1],cl_data[self.num_dev+i],idx=i,idxq=1,wait_for=cl_tmp[2*i+1].events+cl_data[self.num_dev+i].events+self.coil_buf_part[self.num_dev+i].events+self.grad_buf_part[self.num_dev+i].events)).wait()
-            (self.NUFFT[i].fwd_NUFFT(cl_out[2*i+1],cl_tmp[2*i+1],1,wait_for=cl_tmp[2*i+1].events+cl_out[2*i+1].events)).wait()
+#          for i in range(self.num_dev):
+#            self.queue[3*i+1].finish()
+            cl_tmp[2*i+1].add_event(self.eval_fwd_streamed(cl_tmp[2*i+1],cl_data[self.num_dev+i],idx=i,idxq=1,wait_for=cl_tmp[2*i+1].events+cl_data[self.num_dev+i].events
+                  +self.coil_buf_part[self.num_dev+i].events+self.grad_buf_part[self.num_dev+i].events))
+            cl_out[2*i+1].add_event(self.NUFFT[i].fwd_NUFFT(cl_out[2*i+1],cl_tmp[2*i+1],1,wait_for=cl_tmp[2*i+1].events+cl_out[2*i+1].events))
+#            (self.eval_fwd_streamed(cl_tmp[2*i+1],cl_data[self.num_dev+i],idx=i,idxq=1,wait_for=cl_tmp[2*i+1].events+cl_data[self.num_dev+i].events+self.coil_buf_part[self.num_dev+i].events+self.grad_buf_part[self.num_dev+i].events)).wait()
+#            (self.NUFFT[i].fwd_NUFFT(cl_out[2*i+1],cl_tmp[2*i+1],1,wait_for=cl_tmp[2*i+1].events+cl_out[2*i+1].events)).wait()
       if j<2*self.num_dev:
         j = 2*self.num_dev
       else:
@@ -2131,13 +2140,13 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
         idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
         self.queue[3*i].finish()
         cl_out[2*i].get(queue=self.queue[3*i+2],ary=self.tmp_FT)
-        self.queue[3*i+2].finish()
+#        self.queue[3*i+2].finish()
         outp[idx_start:idx_stop,...]=self.tmp_FT[:self.par_slices,...]
         idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
         idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
         self.queue[3*i+1].finish()
         cl_out[2*i+1].get(queue=self.queue[3*i+2],ary=self.tmp_FT)
-        self.queue[3*i+2].finish()
+#        self.queue[3*i+2].finish()
         if idx_stop==self.NSlice:
           outp[idx_start:idx_stop,...]=self.tmp_FT[self.overlap:,...]
         else:
@@ -3081,7 +3090,7 @@ __global float2* ATd, const float tau, const float delta_inv, const float lambd,
           idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices
           gradx_part[i+self.num_dev].set(inp[idx_start:idx_stop,...],self.queue[3*i+1])
         for i in range(self.num_dev):
-          (self.bdiv(x_part[i+self.num_dev],gradx_part[i+self.num_dev],i,1)).wait()
+          (self.bdiv(x_part[i+self.num_dev],gradx_part[i+self.num_dev],i,1,1)).wait()
   #### Collect last block
     if j<2*self.num_dev:
       j = 2*self.num_dev

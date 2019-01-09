@@ -10,7 +10,7 @@ from sympy import *
 
 
 
-M0, M0_sc, ADC, ADC_sc,b,ADC2,ADC2_sc,f,f_sc,n,TE = symbols('M0,M0_sc,ADC,ADC_sc,b,ADC2,ADC2_sc,f,f_sc,n,TE')
+M0, M0_sc, ADC, ADC_sc,b,kurt,kurt_sc,f,f_sc,n,TE = symbols('M0,M0_sc,ADC,ADC_sc,b,kurt,kurt_sc,f,f_sc,n,TE')
 init_printing(use_unicode=True)
 
 
@@ -40,8 +40,8 @@ init_printing(use_unicode=True)
 
 #S = (M0*M0_sc*sin(fa*fa_corr)*(1-E1*T1_sc))/(1-(E1*T1_sc-E2*T2_sc)*cos(fa*fa_corr)-(E1*T1_sc*E2*T2_sc));
 
-#S = M0*M0_sc*exp(-b*ADC*ADC_sc+1/5*b**2*(ADC*ADC_sc)**2*kurt*kurt_sc)
-S = M0*M0_sc*(f*f_sc*exp(-b*(ADC*ADC_sc+ADC2*ADC2_sc))+(1-f*f_sc)*exp(-b*ADC*ADC_sc))
+S = M0*M0_sc*exp(-b*ADC*ADC_sc+1/6*b**2*(TE*(ADC*ADC_sc+f*f_sc))**2*kurt*kurt_sc)
+#S = M0*M0_sc*(f*f_sc*exp(-b*(ADC*ADC_sc+ADC2*ADC2_sc))+(1-f*f_sc)*exp(-b*ADC*ADC_sc))
 
 #S = bSSFP*(1-INV*exp(-n*TR/T1_star))
 
@@ -49,5 +49,5 @@ S = M0*M0_sc*(f*f_sc*exp(-b*(ADC*ADC_sc+ADC2*ADC2_sc))+(1-f*f_sc)*exp(-b*ADC*ADC
 
 M0_grad = str((diff(S,M0)))
 E1_grad = str((diff(S,ADC)))
-E2_grad = str((diff(S,ADC2)))
+E2_grad = str((diff(S,kurt)))
 f_grad = str((diff(S,f)))

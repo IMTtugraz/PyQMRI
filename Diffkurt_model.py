@@ -38,6 +38,8 @@ class Model:
 
     (NScan,Nislice,dimX,dimY) = images.shape
     self.b = np.ones((NScan,1,1,1))
+    self.dir = par["DWI_dir"].T
+    self.dir = self.dir[:,None,None,None,:]
     try:
       self.NScan = par["T2PREP"].size
       for i in range(self.NScan):
@@ -46,32 +48,32 @@ class Model:
       self.NScan = par["b_value"].size
       for i in range(self.NScan):
         self.b[i,...] = par["b_value"][i]*np.ones((1,1,1))
-
+#    print(self.b)
     self.uk_scale=[]
     self.uk_scale.append(1/np.max(np.abs(images)))
     self.uk_scale.append(1)
     self.uk_scale.append(1)
 #
-    ADC = np.reshape(np.linspace(1e-4,1e-2,dimX*dimY*Nislice),(Nislice,dimX,dimY))
-    kurt = np.reshape(np.linspace(0,1,dimX*dimY*Nislice),(Nislice,dimX,dimY))
-    test_M0 = 1#1*np.sqrt((dimX*np.pi/2)/par['Nproj'])
+    ADC = np.reshape(np.linspace(1e-6,1e-2,dimX*dimY*Nislice),(Nislice,dimX,dimY))
+    kurt = np.reshape(np.linspace(0,2,dimX*dimY*Nislice),(Nislice,dimX,dimY))
+    test_M0 = np.ones((Nislice,dimY,dimX),dtype=DTYPE)
 #    print(test_M0)
     ADC = 1/self.uk_scale[1]*ADC*np.ones((Nislice,dimY,dimX),dtype=DTYPE)
     kurt = 1/self.uk_scale[1]*kurt*np.ones((Nislice,dimY,dimX),dtype=DTYPE)
 #
 #
-    G_x = self.execute_forward_3D(np.array([test_M0/self.uk_scale[0]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),ADC,kurt],dtype=DTYPE))
+    G_x = self.execute_forward_3D(np.array([test_M0/self.uk_scale[0],ADC,kurt],dtype=DTYPE))
 #    print(np.max(np.abs(G_x))/np.max(np.abs(images)))
     self.uk_scale[0] *= 1/np.max(np.abs(G_x))
 #
 #    test_M0*=self.uk_scale[0]
 #    self.uk_scale[0] = 2
 
-    DG_x =  self.execute_gradient_3D(np.array([test_M0/self.uk_scale[0]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),ADC,kurt],dtype=DTYPE))
+    DG_x =  self.execute_gradient_3D(np.array([test_M0/self.uk_scale[0],ADC,kurt],dtype=DTYPE))
     self.uk_scale[1] = self.uk_scale[1]*np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...]))
     self.uk_scale[2] = self.uk_scale[2]*np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[2,...]))
 
-    DG_x =  self.execute_gradient_3D(np.array([test_M0/self.uk_scale[0]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),ADC/self.uk_scale[1],kurt/self.uk_scale[2]],dtype=DTYPE))
+    DG_x =  self.execute_gradient_3D(np.array([test_M0/self.uk_scale[0],ADC/self.uk_scale[1],kurt/self.uk_scale[2]],dtype=DTYPE))
     print('Grad Scaling init', np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...])))
     print('ADC scale: ',self.uk_scale[1])
     print('Kurt scale: ',self.uk_scale[2])
@@ -79,39 +81,28 @@ class Model:
 
 
 
-    result = np.array([0.1/self.uk_scale[0]*np.ones((Nislice,dimY,dimX),dtype=DTYPE),(1e-3/self.uk_scale[1]*np.ones((Nislice,dimY,dimX),dtype=DTYPE)),(0/self.uk_scale[2]*np.ones((Nislice,dimY,dimX),dtype=DTYPE))],dtype=DTYPE)
+    result = np.array([np.mean(test_M0)*np.ones_like(test_M0)/self.uk_scale[0],np.mean(ADC)*np.ones_like(ADC)/self.uk_scale[1],np.mean(kurt)*np.ones_like(kurt)/self.uk_scale[2]],dtype=DTYPE)
     self.guess = result
 
-    self.constraints.append(constraint(1e-5/self.uk_scale[0],100/self.uk_scale[0],False)  )
-    self.constraints.append(constraint((1e-4/self.uk_scale[1]),(1e-2/self.uk_scale[1]),False))
-    self.constraints.append(constraint((0/self.uk_scale[2]),(10/self.uk_scale[2]),True))
+    self.constraints.append(constraint(0/self.uk_scale[0],100/self.uk_scale[0],False)  )
+    self.constraints.append(constraint((1e-6/self.uk_scale[1]),(2/self.uk_scale[1]),True))
+    self.constraints.append(constraint((0/self.uk_scale[2]),(1.5/self.uk_scale[2]),True))
   def rescale(self,x):
     M0 = x[0,...]*self.uk_scale[0]
     ADC = (x[1,...]*self.uk_scale[1])
     kurt = (x[2,...]*self.uk_scale[2])
     return np.array((M0,ADC,kurt))
 
-#  def execute_forward_2D(self,x,islice):
-#    ADC = x[1,...]*self.uk_scale[1]
-#    S = x[0,...]*self.uk_scale[0]*np.exp(-self.TE*(ADC))
-#    S[~np.isfinite(S)] = 1e-200
-#    S = np.array(S,dtype=DTYPE)
-#    return S
-#  def execute_gradient_2D(self,x,islice):
-#    M0 = x[0,...]
-#    ADC = x[1,...]
-#    grad_M0 = self.uk_scale[0]*np.exp(-self.TE*(ADC*self.uk_scale[1]))
-#    grad_ADC = -M0*self.uk_scale[0]*self.TE*self.uk_scale[1]*np.exp(-self.TE*(ADC*self.uk_scale[1]))
-#    grad = np.array([grad_M0,grad_ADC],dtype=DTYPE)
-#    grad[~np.isfinite(grad)] = 1e-20
-##    print('Grad Scaling', np.linalg.norm(np.abs(grad_M0))/np.linalg.norm(np.abs(grad_T2)))
-#    return grad
-
   def execute_forward_3D(self,x):
     ADC = x[1,...]*self.uk_scale[1]
     kurt= x[2,...]*self.uk_scale[2]
 
-    S = x[0,...]*self.uk_scale[0]*np.exp(0.2*ADC**2*self.b**2*kurt - ADC*self.b)
+    ADC = ADC*self.dir[...,0]**2+ADC*self.dir[...,1]**2+ADC*self.dir[...,2]**2#+\
+#          2*ADC*self.dir[...,0]*self.dir[...,1]+2*ADC*self.dir[...,0]*self.dir[...,2]+\
+#          2*ADC*self.dir[...,1]*self.dir[...,2]
+#    kurt = kurt*self.dir[...,0]**2+kurt*self.dir[...,1]**2+kurt*self.dir[...,2]**2
+
+    S = x[0,...]*self.uk_scale[0]*np.exp(1/6*ADC**2*self.b**2*kurt - ADC*self.b)
     S[~np.isfinite(S)] = 1e-20
     S = np.array(S,dtype=DTYPE)
     return S
@@ -123,9 +114,29 @@ class Model:
     M0_sc = self.uk_scale[0]
     ADC_sc = self.uk_scale[1]
     kurt_sc = self.uk_scale[2]
-    grad_M0 = M0_sc*np.exp(0.2*ADC**2*ADC_sc**2*self.b**2*kurt*kurt_sc - ADC*ADC_sc*self.b)
-    grad_ADC = M0*M0_sc*(0.4*ADC*ADC_sc**2*self.b**2*kurt*kurt_sc - ADC_sc*self.b)*np.exp(0.2*ADC**2*ADC_sc**2*self.b**2*kurt*kurt_sc - ADC*ADC_sc*self.b)
-    grad_kurt= 0.2*ADC**2*ADC_sc**2*M0*M0_sc*self.b**2*kurt_sc*np.exp(0.2*ADC**2*ADC_sc**2*self.b**2*kurt*kurt_sc - ADC*ADC_sc*self.b)
+
+    ADC = ADC_sc*ADC*self.dir[...,0]**2+ADC_sc*ADC*self.dir[...,1]**2+ADC_sc*ADC*self.dir[...,2]**2#+\
+#          2*ADC_sc*ADC*self.dir[...,0]*self.dir[...,1]+2*ADC_sc*ADC*self.dir[...,0]*self.dir[...,2]+\
+#          2*ADC_sc*ADC*self.dir[...,1]*self.dir[...,2]
+
+#    kurt = kurt_sc*kurt*self.dir[...,0]**2+kurt_sc*kurt*self.dir[...,1]**2+kurt_sc*kurt*self.dir[...,2]**2
+
+    diffexp = np.exp(1/6*ADC**2*self.b**2*kurt*kurt_sc -ADC*self.b)
+
+    grad_M0 = self.uk_scale[0]*diffexp
+
+
+    grad_ADC = M0*M0_sc*(2/6*ADC*ADC_sc**2*self.dir[...,0]**4*self.b**2*kurt*kurt_sc - ADC_sc*self.dir[...,0]**2*self.b+
+                         2/6*ADC*ADC_sc**2*self.dir[...,1]**4*self.b**2*kurt*kurt_sc - ADC_sc*self.dir[...,1]**2*self.b+
+                         2/6*ADC*ADC_sc**2*self.dir[...,2]**4*self.b**2*kurt*kurt_sc - ADC_sc*self.dir[...,2]**2*self.b)*diffexp#+
+#                         8/6*ADC*ADC_sc**2*self.dir[...,0]**2*self.dir[...,1]**2*self.b**2*kurt
+#                             - 2*ADC_sc*self.dir[...,0]*self.dir[...,1]*self.b+
+#                         8/6*ADC*ADC_sc**2*self.dir[...,0]**2*self.dir[...,2]**2*self.b**2*kurt
+#                             - 2*ADC_sc*self.dir[...,0]*self.dir[...,2]*self.b+
+#                         8/6*ADC*ADC_sc**2*self.dir[...,1]**2*self.dir[...,2]**2*self.b**2*kurt
+#                             - 2*ADC_sc*self.dir[...,2]**2*self.b)*diffexp
+
+    grad_kurt= M0*M0_sc*(1/6*ADC**2*self.b**2*kurt_sc)*diffexp
 
     grad = np.array([grad_M0,grad_ADC,grad_kurt],dtype=DTYPE)
     grad[~np.isfinite(grad)] = 1e-20

@@ -1,7 +1,4 @@
 import numpy as np
-
-import time
-import os
 import argparse
 import h5py
 import sys
@@ -18,9 +15,10 @@ import ipyparallel as ipp
 from gridroutines import gridding
 import pyopencl as cl
 import pyopencl.array as clarray
-import importlib
 import configparser
+import TV_Reco_OpenCL as Model_Reco
 
+import multislice_viewer as msv
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
@@ -121,13 +119,6 @@ def read_config(conf_file,reg_type="DEFAULT"):
 
 
 def main(args):
-    sig_model = importlib.import_module(str(args.sig_model)+"_model")
-    if int(args.streamed)==1:
-      import Model_Reco_OpenCL_streamed_Kyk2_sep as Model_Reco
-    else:
-      pass
-      import Model_Reco_OpenCL as Model_Reco
-    DTYPE = np.complex64
     np.seterr(divide='ignore', invalid='ignore')
 ################################################################################
 ### Initiate parallel interface ################################################
@@ -144,35 +135,7 @@ def main(args):
       root.destroy()
     else:
       file = args.file
-
-    name = file.split('/')[-1]
-
     file = h5py.File(file)
-#    del file['Coils']
-
-################################################################################
-### Check if file contains all necessary information ###########################
-################################################################################
-#    if args.trafo:
-#      test_data = ['dcf', 'fa_corr','imag_dat', 'imag_traj', 'real_dat', 'real_traj']
-#      test_attributes = ['image_dimensions','flip_angle(s)','TR',\
-#                         'data_normalized_with_dcf']
-#    else:
-#      test_data = ['fa_corr','imag_dat', 'real_dat']
-#      test_attributes = ['image_dimensions','flip_angle(s)','TR']
-#
-#
-#
-#    for datasets in test_data:
-#        if not (datasets in list(file.keys())):
-#            file.close()
-#            raise NameError("Error: '" + datasets + \
-#                            "' data was not provided/wrongly named!")
-#    for attributes in test_attributes:
-#        if not (attributes in list(file.attrs)):
-#            file.close()
-#            raise NameError("Error: '" + attributes + \
-#                            "' was not provided/wrongly as an attribute!")
 
 
 ################################################################################
@@ -180,37 +143,21 @@ def main(args):
 ################################################################################
     reco_Slices = args.slices
     dimX, dimY, NSlice = ((file.attrs['image_dimensions']).astype(int))
-    if reco_Slices==-1:
-      reco_Slices=NSlice
     off = 0
 
-    data = file['real_dat'][...,int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:int(NSlice/2)+int(np.ceil(reco_Slices/2))+off,:,:].astype(DTYPE)\
-       +1j*file['imag_dat'][...,int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:int(NSlice/2)+int(np.ceil(reco_Slices/2))+off,:,:].astype(DTYPE)
-
-#    print(data.shape)
-
-#    check = np.outer((-1)**(np.linspace(1,100,100)),(-1)**(np.linspace(1,100,100)))
-#    data = np.fft.ifft(np.fft.fft(data,axis=-1)*check,axis=2)
-#    data = np.require(np.fft.fft2(np.fft.ifftshift(np.fft.ifft2(data),(-1,-2))),dtype=DTYPE,requirements='C')
-
-#    data = np.require(np.transpose(data,(0,1,4,3,2)),requirements='C')
-#    data = data[:,0,...][:,None,...]
-#    data = np.repeat(data[:,None,...],2,1)
+    data = file['real_dat'][-1,...,int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:int(NSlice/2)+int(np.ceil(reco_Slices/2))+off,:,:].astype(DTYPE)\
+       +1j*file['imag_dat'][-1,...,int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:int(NSlice/2)+int(np.ceil(reco_Slices/2))+off,:,:].astype(DTYPE)
 
 
     if args.trafo:
-      traj = file['real_traj'][()].astype(DTYPE) + \
-             1j*file['imag_traj'][()].astype(DTYPE)
+      traj = file['real_traj'][-1,...].astype(DTYPE) + \
+             1j*file['imag_traj'][-1,...].astype(DTYPE)
 
       dcf = np.array(goldcomp.cmp(traj),dtype=DTYPE)
     else:
-#      [NScan,NC,NSlice,dimY,dimX] = data.shape
       traj=None
       dcf = None
 
-#    print(data.shape[-1])
-#    dimX = int(424/2)
-#    dimY = int(424/2)
     if np.max(prime_factors(data.shape[-1]))>13:
       print(data.shape[-1])
       data = np.require(data[...,3:-3],requirements='C')
@@ -218,7 +165,6 @@ def main(args):
       dimY -=3
       traj = traj[...,3:-3]
       dcf = dcf[...,3:-3]
-#      raise ValueError('Samples along the spoke need to have their largest prime factor to be 13 or lower.')
 
     #Create par struct to store everyting
     par={}
@@ -227,28 +173,8 @@ def main(args):
 ################################################################################
 ### FA correction ##############################################################
 ################################################################################
-    try:
-      par["fa_corr"] = np.flip(file['fa_corr'][()].astype(DTYPE),0)[int(NSlice/2)-int(np.floor((reco_Slices)/2)):int(NSlice/2)+int(np.ceil(reco_Slices/2)),...]
-      par["fa_corr"][par["fa_corr"]==0] = 1
-    except:
-        pass
-    try:
-      [NScan,NC,reco_Slices,Nproj, N] = data.shape
-    except:
-      [NC,reco_Slices,Nproj, N] = data.shape
-      Nproj_new = 2
-
-      NScan = np.floor_divide(Nproj,Nproj_new)
-      par["Nproj_measured"] = Nproj
-      Nproj = Nproj_new
-      data = np.require(np.transpose(np.reshape(data[...,:Nproj*NScan,:],\
-                                     (NC,reco_Slices,NScan,Nproj,N)),(2,0,1,3,4)),requirements='C')
-      traj =np.require(np.reshape(traj[:Nproj*NScan,:],(NScan,Nproj,N)),requirements='C')
-      dcf = np.array(goldcomp.cmp(traj),dtype=DTYPE)
-
-
-
-#    del file['Coils']
+    [NC,reco_Slices,Nproj, N] = data.shape
+    NScan = 1
 ################################################################################
 ### Set sequence related parameters ############################################
 ################################################################################
@@ -262,9 +188,6 @@ def main(args):
     par["N"] = N
     par["Nproj"] = Nproj
 
-    par["unknowns_TGV"] = sig_model.unknowns_TGV
-    par["unknowns_H1"] = sig_model.unknowns_H1
-    par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
     if not args.trafo:
       tmp = np.ones_like(np.abs(data))
       tmp[np.abs(data)==0] = 0
@@ -316,8 +239,6 @@ def main(args):
             dview = c[int(np.floor(i*len(c)/NSlice))]
             result.append(dview.apply_async(nlinvns.nlinvns, combinedData,
                                             nlinvNewtonSteps, True, nlinvRealConstr))
-#            nlinvns.nlinvns(combinedData, nlinvNewtonSteps,True,nlinvRealConstr)
-#
           for i in range(reco_Slices):
             par["C"][:,i,:,:] = result[i].get()[2:,-1,:,:]
             sys.stdout.write("slice %i done \r" \
@@ -325,11 +246,7 @@ def main(args):
             sys.stdout.flush()
             if not nlinvRealConstr:
               par["phase_map"][i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
-              #par["C"][:,i,:,:] = par["C"][:,i,:,:]* np.exp(1j *\
-#                   np.angle( result[i].get()[1,-1,:,:]))
-
-              # standardize coil sensitivity profiles
-          sumSqrC = np.sqrt(np.sum((par["C"] * np.conj(par["C"])),0)) #4, 9, 128, 128
+          sumSqrC = np.sqrt(np.sum((par["C"] * np.conj(par["C"])),0))
           if NC == 1:
             par["C"] = sumSqrC
           else:
@@ -345,9 +262,6 @@ def main(args):
 
           result = []
           tmp =  np.sum(data,0)
-#          tmp = np.fft.ifft2(tmp,norm='ortho')
-#          tmp = np.transpose(tmp,(0,3,1,2))
-#          tmp = np.fft.fft2(tmp,norm='ortho')
           for i in range(0,(reco_Slices)):
             sys.stdout.write("Computing coil sensitivity map of slice %i \r" \
                            %(i))
@@ -355,8 +269,6 @@ def main(args):
 
             ##### RADIAL PART
             combinedData = tmp[:,i,...]
-#            combinedData =  np.fft.fftshift(np.mean(data[:,:,i,:,:],0),(-1,-2))
-
             dview = c[int(np.floor(i*len(c)/NSlice))]
             result.append(dview.apply_async(nlinvns.nlinvns, combinedData,
                                             nlinvNewtonSteps, True, nlinvRealConstr))
@@ -368,17 +280,12 @@ def main(args):
             sys.stdout.flush()
             if not nlinvRealConstr:
               par["phase_map"][i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
-#              par["C"][:,i,:,:] = par["C"][:,i,:,:]* np.exp(1j *\
-#                   np.angle( result[i].get()[1,-1,:,:]))
-
-              # standardize coil sensitivity profiles
-          sumSqrC = np.sqrt(np.sum((par["C"] * np.conj(par["C"])),0)) #4, 9, 128, 128
+          sumSqrC = np.sqrt(np.sum((par["C"] * np.conj(par["C"])),0))
           if NC == 1:
             par["C"] = sumSqrC
           else:
             par["C"] = par["C"] / np.tile(sumSqrC, (NC,1,1,1))
           del file['Coils']
-#        par["C"] = np.transpose(par["C"],(0,2,3,1))
         file.create_dataset("Coils",par["C"].shape,dtype=par["C"].dtype,data=par["C"])
         file.flush()
 
@@ -420,7 +327,6 @@ def main(args):
           dview = c[int(np.floor(i*len(c)/NSlice))]
           result.append(dview.apply_async(nlinvns.nlinvns, combinedData,
                                             nlinvNewtonSteps, True, nlinvRealConstr))
-#          nlinvns.nlinvns(combinedData, nlinvNewtonSteps,True,nlinvRealConstr)
 
 
         for i in range(reco_Slices):
@@ -430,11 +336,7 @@ def main(args):
           sys.stdout.flush()
           if not nlinvRealConstr:
             par["phase_map"][i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
-#            par["C"][:,i,:,:] = par["C"][:,i,:,:]* np.exp(1j *\
-#                 np.angle( result[i].get()[1,-1,:,:]))
-
-            # standardize coil sensitivity profiles
-        sumSqrC = np.sqrt(np.sum((par["C"] * np.conj(par["C"])),0)) #4, 9, 128, 128
+        sumSqrC = np.sqrt(np.sum((par["C"] * np.conj(par["C"])),0))
         if NC == 1:
           par["C"] = sumSqrC
         else:
@@ -449,17 +351,13 @@ def main(args):
 
         result = []
         tmp =  np.sum(data,0)
-#        tmp = np.fft.ifft2(tmp,norm='ortho')
-#        tmp = np.transpose(tmp,(0,3,1,2))
-#        tmp = np.fft.fft2(tmp,norm='ortho')
         for i in range(0,(reco_Slices)):
           sys.stdout.write("Computing coil sensitivity map of slice %i \r" \
                          %(i))
           sys.stdout.flush()
 
           ##### RADIAL PART
-          combinedData =  tmp[:,i,...]#np.fft.fftshift(np.mean(data[:,:,i,:,:],0),(-1,-2))
-#          combinedData = np.mean(combinedData,0)
+          combinedData =  tmp[:,i,...]
 
           dview = c[int(np.floor(i*len(c)/NSlice))]
           result.append(dview.apply_async(nlinvns.nlinvns, combinedData,
@@ -472,30 +370,20 @@ def main(args):
           sys.stdout.flush()
           if not nlinvRealConstr:
             par["phase_map"][i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
-#            par["C"][:,i,:,:] = par["C"][:,i,:,:]* np.exp(1j *\
-#                 np.angle( result[i].get()[1,-1,:,:]))
-
-            # standardize coil sensitivity profiles
         sumSqrC = np.sqrt(np.sum((par["C"] * np.conj(par["C"])),0)) #4, 9, 128, 128
         if NC == 1:
           par["C"] = sumSqrC
         else:
           par["C"] = par["C"] / np.tile(sumSqrC, (NC,1,1,1))
-#        par["C"] = np.transpose(par["C"],(0,2,3,1))
       file.create_dataset("Coils",par["C"].shape,dtype=par["C"].dtype,data=par["C"])
       file.flush()
 
 
-##################
-#    par["C"] = np.ones_like(par["C"])
-#    sumSqrC = np.sqrt(np.sum((par["C"] * np.conj(par["C"])),0)) #4, 9, 128, 128
-#    par["C"] = par["C"] / np.tile(sumSqrC, (NC,1,1,1))
-################
-
 ################################################################################
 ### Standardize data norm ######################################################
 ################################################################################
-    [NScan,NC,NSlice,Nproj, N] = data.shape
+    [NC,NSlice,Nproj, N] = data.shape
+    NScan = 1
     if args.trafo:
       if file.attrs['data_normalized_with_dcf']:
           pass
@@ -503,12 +391,6 @@ def main(args):
           data = data*np.sqrt(dcf)
 #### Close File after everything was read
     file.close()
-#    dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2*1e3))/(np.linalg.norm(data[:int(NScan/2)].flatten()))
-#    par["dscale"] = dscale
-#    data[:int(NScan/2)] = data[:int(NScan/2)]* dscale
-#    dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2*1e3))/(np.linalg.norm(data[int(NScan/2):].flatten()))
-#    par["dscale"] = dscale
-#    data[int(NScan/2):] = data[int(NScan/2):]* dscale
     dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2*1e3))/(np.linalg.norm(data.flatten()))
     par["dscale"] = dscale
     data*=dscale
@@ -517,7 +399,7 @@ def main(args):
 ### generate nFFT  #############################################################
 ################################################################################
     if NC ==1:
-      par['C'] = np.ones((data[0,...].shape),dtype=DTYPE)
+      par['C'] = np.ones_like(par['C']).astype(DTYPE)
     else:
       par['C'] = par['C'].astype(DTYPE)
 
@@ -528,15 +410,15 @@ def main(args):
         siz = np.shape(x)
         result = np.zeros((NC,NSlice,NScan,dimY,dimX),dtype=DTYPE)
         tmp_result = clarray.zeros(fft.queue[0],(NScan,1,1,dimY,dimX),dtype=DTYPE)
-        for j in range(siz[1]):
-          for k in range(siz[2]):
-            inp = clarray.to_device(fft.queue[0],np.require(x[:,j,k,...][:,None,None,...],requirements='C'))
+        for j in range(siz[0]):
+          for k in range(siz[1]):
+            inp = clarray.to_device(fft.queue[0],np.require(x[j,k,...][None,None,None,...],requirements='C'))
             fft.adj_NUFFT(tmp_result,inp)
             result[j,k,...] = np.squeeze(tmp_result.get())
-        return np.transpose(result,(2,0,1,3,4))
+        return np.squeeze(np.transpose(result,(2,0,1,3,4)))
 
       images= np.require(np.sum(nFTH(data,FFT,dcf,NScan,NC,\
-                     NSlice,dimY,dimX)*(np.conj(par["C"])),axis = 1),requirements='C')
+                     NSlice,dimY,dimX)*(np.conj(par["C"])),axis = 0),requirements='C')
       del FFT,ctx,queue
       try:
         par["fa_corr"] = np.require((np.transpose(par["fa_corr"],(0,2,1))),requirements='C')
@@ -558,8 +440,12 @@ def main(args):
       images= np.require(np.sum(nFTH(data,FFT,dcf,NScan,NC,\
                      NSlice,dimY,dimX)*(np.conj(par["C"])),axis = 1),requirements='C')
       del FFT,ctx,queue
-#      images= (np.sum(np.fft.ifft2(data,norm='ortho')*(np.conj(par["C"])),axis = 1)).astype(DTYPE)
 
+
+    msv.imshow(np.abs(np.squeeze(images)))
+    plt.pause(1e-3)
+    input("Press Enter to continue...")
+    plt.close('all')
 
 
 
@@ -581,182 +467,51 @@ def main(args):
       queue.append(cl.CommandQueue(tmp, platforms[1].get_devices()[0],properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE | cl.command_queue_properties.PROFILING_ENABLE))
     if args.trafo:
       opt = Model_Reco.Model_Reco(par,ctx,queue,traj,np.sqrt(dcf),args.trafo)
-      opt.data =  data
+      opt.data =  data[None,...]
+      opt.guess = images
     else:
       opt = Model_Reco.Model_Reco(par,ctx,queue,None,None,args.trafo)
       opt.data =  data
 
 
-    if args.type=='3D':
 ################################################################################
-### IRGN - TGV Reco ############################################################
+#### IRGN - TV referenz ########################################################
 ################################################################################
-      if "TGV" in args.reg or args.reg=='all':
-        result_tgv = []
-    ################################################################################
-    ### Init forward model and initial guess #######################################
-    ################################################################################
-        model = sig_model.Model(par,images)
-        opt.model = model
-        opt.dz = 1
+    result_tv = []
+################################################################################
+### Init forward model and initial guess #######################################
+#############################################################re#################
+    opt.dz = 1
+################################################################################
+##IRGN Params
+    try:
+      opt.irgn_par = read_config(args.config,"3D_TV")
+    except:
+      print("Config file not readable or not found. Falling back to default.")
+      gen_default_config()
+      opt.irgn_par = read_config("default","3D_TV")
+    opt.irgn_par["max_iters"]=int(5e2)
+    opt.irgn_par["lambd"]=(2e0)
+    opt.irgn_par["gamma"]=(1e-2)
+    opt.irgn_par["tol"] = 1e-3
+    opt.execute_3D()
+    result_tv.append(opt.result)
 
-    ################################################################################
-    ##IRGN Params
-        try:
-          opt.irgn_par = read_config(args.config,"3D_TGV")
-        except:
-          print("Config file not readable or not found. Falling back to default.")
-          gen_default_config()
-          opt.irgn_par = read_config("default","3D_TGV")
-        opt.execute_3D()
-        result_tgv.append(opt.result)
-        plt.close('all')
-        res_tgv = opt.gn_res
-        res_tgv = np.array(res_tgv)/(opt.irgn_par["lambd"]*NSlice)
-  ################################################################################
-  #### IRGN - TV referenz ########################################################
-  ################################################################################
-      if "TV" in args.reg or args.reg=='all':
-        result_tv = []
-    ################################################################################
-    ### Init forward model and initial guess #######################################
-    #############################################################re###################
-        model = sig_model.Model(par,images)
-        opt.model = model
-        opt.dz = 1
-    ################################################################################
-    ##IRGN Params
-        try:
-          opt.irgn_par = read_config(args.config,"3D_TV")
-        except:
-          print("Config file not readable or not found. Falling back to default.")
-          gen_default_config()
-          opt.irgn_par = read_config("default","3D_TV")
-        opt.execute_3D(1)
-        result_tv.append(opt.result)
-        plt.close('all')
-        res_tv = opt.gn_res
-        res_tv = np.array(res_tv)/(opt.irgn_par["lambd"]*NSlice)
-      del opt
-#    else:
-#################################################################################
-#### IRGN - TGV Reco ############################################################
-#################################################################################
-#      if "TGV" in args.reg or args.reg=='all':
-#        result_tgv = []
-#    ################################################################################
-#    ### Init forward model and initial guess #######################################
-#    ################################################################################
-#        model = sig_model.Model(par,images)
-#        opt.model = model
-#        opt.dz = 1
-#
-#    ################################################################################
-#    ##IRGN Params
-#        irgn_par = {}
-#        if args.def_par:
-#          irgn_par = user_input()
-#        else:
-#          irgn_par["max_iters"] = 300
-#          irgn_par["start_iters"] = 100
-#          irgn_par["max_gn_it"] = 13
-#          irgn_par["lambd"] = 1e2
-#          irgn_par["gamma"] = 1e0
-#          irgn_par["delta"] = 1e-1
-#          irgn_par["display_iterations"] = True
-#          irgn_par["gamma_min"] = 0.18
-#          irgn_par["delta_max"] = 1e2
-#          irgn_par["tol"] = 5e-3
-#          irgn_par["stag"] = 1
-#          irgn_par["delta_inc"] = 2
-#          irgn_par["gamma_dec"] = 0.7
-#        opt.irgn_par = irgn_par
-#
-#        opt.execute_2D()
-#        result_tgv.append(opt.result)
-#        plt.close('all')
-#
-#
-#        res_tgv = opt.gn_res
-#        res_tgv = np.array(res_tgv)/(irgn_par["lambd"]*NSlice)
-#  ################################################################################
-#  #### IRGN - TV referenz ########################################################
-#  ################################################################################
-#      if "TV" in args.reg or args.reg=='all':
-#        result_tv = []
-#    ################################################################################
-#    ### Init forward model and initial guess #######################################
-#    #############################################################re###################
-#        model = sig_model.Model(par,images)
-#        opt.model = model
-#    ################################################################################
-#    ##IRGN Params
-#        irgn_par = {}
-#        if args.def_par:
-#          irgn_par = user_input()
-#        else:
-#          irgn_par["max_iters"] = 300
-#          irgn_par["start_iters"] = 100
-#          irgn_par["max_gn_it"] = 13
-#          irgn_par["lambd"] = 1e2
-#          irgn_par["gamma"] = 1e0
-#          irgn_par["delta"] = 1e-1
-#          irgn_par["display_iterations"] = True
-#          irgn_par["gamma_min"] = 0.23
-#          irgn_par["delta_max"] = 1e2
-#          irgn_par["tol"] = 5e-3
-#          irgn_par["stag"] = 1
-#          irgn_par["delta_inc"] = 2
-#          irgn_par["gamma_dec"] = 0.7
-#        opt.irgn_par = irgn_par
-#
-#        opt.execute_2D(1)
-#        opt.result[:,1,...] = -par["TR"]/np.log(opt.result[:,1,...])
-#        result_tv.append(opt.result)
-#        plt.close('all')
-#
-#        res_tv = opt.gn_res
-#        res_tv = np.array(res_tv)/(irgn_par["lambd"]*NSlice)
-#
-#      del opt
-###############################################################################
-## New .hdf5 save files #######################################################
-###############################################################################
-    outdir = time.strftime("%Y-%m-%d  %H-%M-%S_MRI_"+args.reg+"_"+args.type+"_"+name[:-3])
-    if not os.path.exists('./output'):
-        os.makedirs('./output')
-    os.makedirs("output/"+ outdir)
+    res_tv = opt.gn_res
+    res_tv = np.array(res_tv)/(opt.irgn_par["lambd"]*NSlice)
+    msv.imshow(np.abs(np.squeeze(images)))
+    input("Done! Press Enter to continue...")
+    plt.close('all')
+    del opt
 
-    os.chdir("output/"+ outdir)
-    f = h5py.File("output_"+name,"w")
 
-    if "TGV" in args.reg or args.reg=='all':
-      for i in range(len(result_tgv)):
-        f.create_dataset("tgv_full_result_"+str(i),result_tgv[i].shape,\
-                                     dtype=DTYPE,data=result_tgv[i])
-        f.attrs['res_tgv'] = res_tgv
-    if "TV" in args.reg or args.reg=='all':
-      for i in range(len(result_tv)):
-        f.create_dataset("tv_full_result_"+str(i),result_tv[i].shape,\
-                                         dtype=DTYPE,data=result_tv[i])
-        f.attrs['res_tv'] = res_tv
-      f.attrs['data_norm'] = dscale
-      f.flush()
-    f.close()
 
-    os.chdir('..')
-    os.chdir('..')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='T1 quantification from VFA data. By default runs 3D regularization for TGV and TV.')
-    parser.add_argument('--recon_type', default='3D', dest='type',help='Choose reconstruction type (currently only 3D)')
-    parser.add_argument('--reg_type', default='TGV', dest='reg',help="Choose regularization type (default: TGV)\
-                                                                     options are: TGV, TV, all")
-    parser.add_argument('--slices',default=-1, dest='slices', type=int, help='Number of reconstructed slices (default=40). Symmetrical around the center slice.')
-    parser.add_argument('--trafo', default=0, dest='trafo', type=int, help='Choos between radial (1, default) and Cartesian (0) sampling. ')
-    parser.add_argument('--streamed', default=1, dest='streamed', type=int, help='Enable streaming of large data arrays (>10 slices).')
+    parser.add_argument('--slices',default=4, dest='slices', type=int, help='Number of reconstructed slices (default=40). Symmetrical around the center slice.')
+    parser.add_argument('--trafo', default=1, dest='trafo', type=int, help='Choos between radial (1, default) and Cartesian (0) sampling. ')
     parser.add_argument('--data',default='',dest='file',help='Full path to input data. If not provided, a file dialog will open.')
-    parser.add_argument('--model',default='Diffkurtdir',dest='sig_model',help='Name of the signal model to use. Defaults to VFA. Please name your signal model file MODEL_model.')
     parser.add_argument('--config',default='test',dest='config',help='Name of config file to use (assumed to be in the same folder). If not specified, use default parameters.')
     args = parser.parse_args()
 
