@@ -1,4 +1,3 @@
-
 # cython: infer_types=True
 # cython: profile=False
 
@@ -8,7 +7,6 @@ import numpy as np
 import time
 
 import gradients_divergences_old as gd
-import gridroutines as NUFFT
 
 import matplotlib.pyplot as plt
 plt.ion()
@@ -16,12 +14,12 @@ plt.ion()
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
-
-#import pynfft.nfft as nfft
+import pynfft.nfft as nfft
 
 import pyopencl as cl
 import pyopencl.array as clarray
 import multislice_viewer as msv
+import sys
 
 
 class Program(object):
@@ -34,11 +32,11 @@ class Program(object):
 
 
 class Model_Reco:
-  def __init__(self,par,ctx,queue,traj,model,angles=None):
+  def __init__(self,par,ctx,queue,traj,model):
     self.par = par
-    self.C = par.C
     self.traj = traj
     self.model = model
+    self.C = par.C.T
     self.unknowns_TGV = par.unknowns_TGV
     self.unknowns_H1 = par.unknowns_H1
     self.unknowns = par.unknowns
@@ -46,177 +44,78 @@ class Model_Reco:
     self.NScan = par.NScan
     self.dimX = par.dimX
     self.dimY = par.dimY
-    self.scale = 1#np.sqrt(par.dimX*par.dimY)
+    self.scale = 1
     self.NC = par.NC
     self.N = par.N
     self.Nproj = par.Nproj
-    self.dz = 3
+    self.dz = 1
     self.fval_min = 0
     self.fval = 0
     self.ctx = ctx
     self.queue = queue
+    self.E1_scale = []
     self.coil_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.C.data)
+    self.update_extra = cl.elementwise.ElementwiseKernel(self.queue.context, 'float2 *u_, float2 *u',
+                                                'u[i] = 2.0f*u_[i] - u[i]')
     self.ratio = 100
-#    self.ukscale =  np.ones(self.unknowns,dtype=DTYPE_real)
-    self.ukscale =  clarray.to_device(self.queue,np.ones(self.unknowns,dtype=DTYPE_real))
-    self.gn_res = []
-    self.NUFFT = NUFFT.gridding(ctx,queue,4,2,par.N,(par.NScan,par.NC,par.NSlice,par.N,par.N),(3,4),traj.astype(DTYPE),np.sqrt(np.abs(np.require(np.abs(dcf),DTYPE_real,requirements='C'))),par.N,1000,DTYPE,DTYPE_real)
+    self.ukscale =  clarray.to_device(self.queue,(np.ones(self.unknowns,dtype=DTYPE_real)))
 
-
-    self.prg = Program(self.ctx, r"""
-__kernel void update_v(__global float8 *v,__global float8 *v_, __global float8 *Kyk2, const float tau) {
-  size_t Nx = get_global_size(2), Ny = get_global_size(1);
-  size_t NSl = get_global_size(0);
-  size_t x = get_global_id(2), y = get_global_id(1);
-  size_t k = get_global_id(0);
+    self.prg = Program(ctx, r"""
+__kernel void update_p(__global float8 *p, __global float2 *u,
+                       __global float8 *w,
+                       const float sigma, const float alphainv, const int NUk, __global float* scale, const float ratio) {
+  size_t Nx = get_global_size(0), Ny = get_global_size(1);
+  size_t NSl = get_global_size(2);
+  size_t x = get_global_id(0), y = get_global_id(1);
+  size_t k = get_global_id(2);
   size_t i = k*Nx*Ny+Nx*y + x;
 
-  v[i] = v_[i]-tau*Kyk2[i];
-}
-
-__kernel void update_r(__global float2 *r, __global float2 *r_, __global float2 *A, __global float2 *A_, __global float2 *res,
-                          const float sigma, const float theta, const float lambdainv) {
-  size_t Nx = get_global_size(2), Ny = get_global_size(1);
-  size_t NSl = get_global_size(0);
-  size_t x = get_global_id(2), y = get_global_id(1);
-  size_t k = get_global_id(0);
-  size_t i = k*Nx*Ny+Nx*y + x;
-
-  r[i] = (r_[i]+sigma*((1+theta)*A[i]-theta*A_[i] - res[i]))*lambdainv;
-}
-__kernel void update_z2(__global float16 *z_new, __global float16 *z, __global float16 *gx,__global float16 *gx_,
-                          const float sigma, const float theta, const float alphainv,
-                          const int NUk) {
-  size_t Nx = get_global_size(2), Ny = get_global_size(1);
-  size_t NSl = get_global_size(0);
-  size_t x = get_global_id(2), y = get_global_id(1);
-  size_t k = get_global_id(0);
-  size_t i = k*Nx*Ny+Nx*y + x;
-
+  float8 val[2];
   float fac = 0.0f;
 
   for (int uk=0; uk<NUk; uk++)
   {
-     z_new[i] = z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]);
-
-     // reproject
-     fac = hypot(fac,hypot(
-     hypot(hypot(hypot(z_new[i].s0,z_new[i].s1), hypot(z_new[i].s2,z_new[i].s3)),hypot(z_new[i].s4,z_new[i].s5)),
-     hypot(hypot(2.0f*hypot(z_new[i].s6,z_new[i].s7),2.0f*hypot(z_new[i].s8,z_new[i].s9)),2.0f*hypot(z_new[i].sa,z_new[i].sb)))*alphainv);
-     i += NSl*Nx*Ny;
-   }
-
-  i = k*Nx*Ny+Nx*y + x;
-  for (int uk=0; uk<NUk; uk++)
-  {
-    if (fac > 1.0f) z_new[i] /=fac;
-    i += NSl*Nx*Ny;
-  }
-}
-__kernel void update_z1(__global float8 *z_new, __global float8 *z, __global float8 *gx,__global float8 *gx_,
-                          __global float8 *vx,__global float8 *vx_, const float sigma, const float theta, const float alphainv,
-                          const int NUk) {
-  size_t Nx = get_global_size(2), Ny = get_global_size(1);
-  size_t NSl = get_global_size(0);
-  size_t x = get_global_id(2), y = get_global_id(1);
-  size_t k = get_global_id(0);
-  size_t i = k*Nx*Ny+Nx*y + x;
-
-  float fac = 0.0f;
-
-  for (int uk=0; uk<NUk; uk++)
-  {
-     z_new[i] = z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]-(1+theta)*vx[i]+theta*vx_[i]);
-
-     // reproject
-     fac = hypot(fac,hypot(hypot(z_new[i].s0,z_new[i].s1), hypot(hypot(z_new[i].s2,z_new[i].s3),hypot(z_new[i].s4,z_new[i].s5)))*alphainv);
-     i += NSl*Nx*Ny;
-  }
-  i = k*Nx*Ny+Nx*y + x;
-  for (int uk=0; uk<NUk; uk++)
-  {
-    if (fac > 1.0f) z_new[i] /=fac;
-    i += NSl*Nx*Ny;
-  }
-}
-  __kernel void update_z1_tv(__global float8 *z_new, __global float8 *z, __global float8 *gx,__global float8 *gx_,
-                          const float sigma, const float theta, const float alphainv,
-                          const int NUk) {
-  size_t Nx = get_global_size(2), Ny = get_global_size(1);
-  size_t NSl = get_global_size(0);
-  size_t x = get_global_id(2), y = get_global_id(1);
-  size_t k = get_global_id(0);
-  size_t i = k*Nx*Ny+Nx*y + x;
-
-  float fac = 0.0f;
-
-  for (int uk=0; uk<NUk; uk++)
-  {
-     z_new[i] = z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]);
-
-     // reproject
-     fac = hypot(fac,hypot(hypot(z_new[i].s0,z_new[i].s1), hypot(hypot(z_new[i].s2,z_new[i].s3),hypot(z_new[i].s4,z_new[i].s5)))*alphainv);
-     i += NSl*Nx*Ny;
-  }
-  i = k*Nx*Ny+Nx*y + x;
-  for (int uk=0; uk<NUk; uk++)
-  {
-    if (fac > 1.0f) z_new[i] /=fac;
-    i += NSl*Nx*Ny;
-  }
-}
-__kernel void update_primal(__global float2 *u_new, __global float2 *u, __global float2 *Kyk,__global float2 *u_k, const float tau, const float tauinv, float div, __global float* min, __global float* max, __global int* real, const int NUk) {
-  size_t Nx = get_global_size(2), Ny = get_global_size(1);
-  size_t NSl = get_global_size(0);
-  size_t x = get_global_id(2), y = get_global_id(1);
-  size_t k = get_global_id(0);
-  size_t i = k*Nx*Ny+Nx*y + x;
-
-
-  for (int uk=0; uk<NUk; uk++)
-  {
-     u_new[i] = (u[i]-tau*Kyk[i]+tauinv*u_k[i])*div;
-
-     if(real[uk]>0)
-     {
-         u_new[i].s1 = 0;
-         if (u_new[i].s0<min[uk])
-         {
-             u_new[i].s0 = min[uk];
-         }
-         if(u_new[i].s0>max[uk])
-         {
-             u_new[i].s0 = max[uk];
-         }
-     }
+     // gradient
+     val[uk] = (float8)(-u[i],-u[i],-u[i],0.0f,0.0f);
+     if (x < Nx-1)
+     { val[uk].s0 += u[i+1].s0; val[uk].s1 += u[i+1].s1;}
      else
-     {
-         if (u_new[i].s0<min[uk])
-         {
-             u_new[i].s0 = min[uk];
-         }
-         if(u_new[i].s0>max[uk])
-         {
-             u_new[i].s0 = max[uk];
-         }
-         if (u_new[i].s1<min[uk])
-         {
-             u_new[i].s1 = min[uk];
-         }
-         if(u_new[i].s1>max[uk])
-         {
-             u_new[i].s1 = max[uk];
-         }
-     }
+     { val[uk].s0 = 0.0f; val[uk].s1 = 0.0f;}
+
+     if (y < Ny-1)
+     { val[uk].s2 += u[i+Nx].s0; val[uk].s3 += u[i+Nx].s1;}
+     else
+     { val[uk].s2 = 0.0f; val[uk].s35 = 0.0f; }
+
+     if (k < NSl-1)
+     { val[uk].s4 += u[i+Nx*Ny].s0; val[uk].s5 += u[i+Nx*Ny].s1;}
+     else
+     { val[uk].s4 = 0.0f; val[uk].s5 = 0.0f; }
+
+     // scale gradients
+     if (uk>0)
+     {val[uk]/=scale[uk];}
+     else
+     {val[uk]*=(ratio/scale[uk]);}
+     // step
+     val[uk] = p[i] + sigma*(val[uk] - w[i]);
+
+     // reproject
+     fac = hypot(fac,hypot(hypot(val[uk].s0,val[uk].s1), hypot(hypot(val[uk].s2,val[uk].s3),hypot(val[uk].s4,val[uk].s5)))*alphainv);
      i += NSl*Nx*Ny;
   }
+  i = k*Nx*Ny+Nx*y + x;
+  for (int uk=0; uk<NUk; uk++)
+  {
+    if (fac > 1.0f) p[i] = val[uk]/fac; else p[i] = val[uk];
+    i += NSl*Nx*Ny;
+  }
 }
-
-__kernel void gradient(__global float8 *grad, __global float2 *u, const int NUk, __global float* scale, const float maxscal, const float ratio) {
-  size_t Nx = get_global_size(2), Ny = get_global_size(1);
-  size_t NSl = get_global_size(0);
-  size_t x = get_global_id(2), y = get_global_id(1);
-  size_t k = get_global_id(0);
+__kernel void gradient(__global float8 *grad, __global float2 *u, const int NUk, __global float* scale, const float ratio) {
+  size_t Nx = get_global_size(0), Ny = get_global_size(1);
+  size_t NSl = get_global_size(2);
+  size_t x = get_global_id(0), y = get_global_id(1);
+  size_t k = get_global_id(2);
   size_t i = k*Nx*Ny+Nx*y + x;
 
 
@@ -225,32 +124,86 @@ __kernel void gradient(__global float8 *grad, __global float2 *u, const int NUk,
      // gradient
      grad[i] = (float8)(-u[i],-u[i],-u[i],0.0f,0.0f);
      if (x < Nx-1)
-     { grad[i].s01 += u[i+1].s01;}
+     { grad[i].s0 += u[i+1].s0; grad[i].s1 += u[i+1].s1;}
      else
-     { grad[i].s01 = 0.0f;}
+     { grad[i].s0 = 0.0f; grad[i].s1 = 0.0f;}
 
      if (y < Ny-1)
-     { grad[i].s23 += u[i+Nx].s01;}
+     { grad[i].s2 += u[i+Nx].s0; grad[i].s3 += u[i+Nx].s1;}
      else
-     { grad[i].s23 = 0.0f;}
+     { grad[i].s2 = 0.0f; grad[i].s3 = 0.0f; }
      if (k < NSl-1)
-     { grad[i].s45 += u[i+Nx*Ny].s01;}
+     { grad[i].s4 += u[i+Nx*Ny].s0; grad[i].s5 +=  u[i+Nx*Ny].s1;}
      else
-     { grad[i].s45 = 0.0f;}
+     { grad[i].s4 = 0.0f; grad[i].s5 = 0.0f; }
      // scale gradients
      if (uk>0)
-     {grad[i]*=maxscal/scale[uk];}
+     {grad[i]/=scale[uk];}
      else
-     {grad[i]*=(maxscal/(scale[uk]*ratio));}
+     {grad[i]*=(ratio/scale[uk]);}
      i += NSl*Nx*Ny;
   }
 }
 
+__kernel void update_q(__global float16 *q, __global float8 *w,
+                       const float sigma, const float alphainv, const int NUk) {
+  size_t Nx = get_global_size(0), Ny = get_global_size(1);
+  size_t NSl = get_global_size(2);
+  size_t x = get_global_id(0), y = get_global_id(1);
+  size_t k = get_global_id(2);
+  size_t i = k*Nx*Ny+Nx*y + x;
+
+  float fac = 0.0f;
+  float16 val2[2];
+
+  for (int uk=0; uk<NUk; uk++)
+  {
+     // symmetrized gradient
+     float16 val_real = (float16)(w[i].s024, w[i].s024, w[i].s024,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f);
+     float16 val_imag = (float16)(w[i].s135, w[i].s135, w[i].s135,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f);
+     if (x > 0)
+     { val_real.s012 -= w[i-1].s024;  val_imag.s012 -= w[i-1].s135;}
+     else
+     { val_real.s012 = (float3) 0.0f; val_imag.s012 = (float3) 0.0f; }
+
+     if (y > 0)
+     {val_real.s345 -= w[i-Nx].s024;  val_imag.s345 -= w[i-Nx].s135;}
+     else
+     {val_real.s345 = (float3)  0.0f; val_imag.s345 = (float3) 0.0f;  }
+
+     if (k > 0)
+     {val_real.s678 -= w[i-Nx*Ny].s024;  val_imag.s678 -= w[i-Nx*Ny].s135;}
+     else
+     {val_real.s678 = (float3) 0.0f; val_imag.s678 = (float3) 0.0f;  }
+
+     val2[uk] = (float16)(val_real.s0, val_imag.s0, val_real.s4,val_imag.s4,val_real.s8,val_imag.s8,
+                        0.5f*(val_real.s1 + val_real.s3), 0.5f*(val_imag.s1 + val_imag.s3),
+                        0.5f*(val_real.s2 + val_real.s6), 0.5f*(val_imag.s2 + val_imag.s6),
+                        0.5f*(val_real.s5 + val_real.s7), 0.5f*(val_imag.s5 + val_imag.s7),
+                        0.0f,0.0f,0.0f,0.0f);
+
+     // step
+     val2[uk] = q[i] + sigma*val2[uk];
+
+     // reproject
+     fac = hypot(fac,hypot(
+     hypot(hypot(hypot(val2[uk].s0,val2[uk].s1), hypot(val2[uk].s2,val2[uk].s3)),hypot(val2[uk].s4,val2[uk].s5)),
+     hypot(hypot(2.0f*hypot(val2[uk].s6,val2[uk].s7),2.0f*hypot(val2[uk].s8,val2[uk].s9)),2.0f*hypot(val2[uk].sa,val2[uk].sb)))*alphainv);
+     i += NSl*Nx*Ny;
+   }
+
+  i = k*Nx*Ny+Nx*y + x;
+  for (int uk=0; uk<NUk; uk++)
+  {
+    if (fac > 1.0f) q[i] = val2[uk]/fac; else q[i] = val2[uk];
+    i += NSl*Nx*Ny;
+  }
+}
 __kernel void sym_grad(__global float16 *sym, __global float8 *w, const int NUk) {
-  size_t Nx = get_global_size(2), Ny = get_global_size(1);
-  size_t NSl = get_global_size(0);
-  size_t x = get_global_id(2), y = get_global_id(1);
-  size_t k = get_global_id(0);
+  size_t Nx = get_global_size(0), Ny = get_global_size(1);
+  size_t NSl = get_global_size(2);
+  size_t x = get_global_id(0), y = get_global_id(1);
+  size_t k = get_global_id(2);
   size_t i = k*Nx*Ny+Nx*y + x;
 
 
@@ -282,12 +235,91 @@ __kernel void sym_grad(__global float16 *sym, __global float8 *w, const int NUk)
      i += NSl*Nx*Ny;
    }
 }
+__kernel void update_lambda(__global float2 *lambda, __global float2 *Ku,
+                            __global float2 *f, const float sigma,
+                            const float sigmap1inv) {
+  size_t Nx = get_global_size(0), Ny = get_global_size(1);
+  size_t x = get_global_id(0), y = get_global_id(1);
+  size_t k = get_global_id(2);
+  size_t i = k*Nx*Ny+Nx*y + x;
+
+  lambda[i] = (lambda[i] + sigma*(Ku[i] - f[i]))*sigmap1inv;
+}
+
+__kernel void update_u(__global float2 *u, __global float2 *u_,
+                       __global float8 *p, __global float2 *Kstarlambda,
+                       __global float2 *uk,
+                       const float tau, const float norming, const float delta, const int NUk,
+                       __global float* scale, const float ratio) {
+  size_t Nx = get_global_size(0), Ny = get_global_size(1);
+  size_t NSl = get_global_size(2);
+  size_t x = get_global_id(0), y = get_global_id(1);
+  size_t k = get_global_id(2);
+  size_t i = k*Nx*Ny+Nx*y + x;
+
+  for (int ukn=0; ukn<NUk; ukn++)
+  {
+     // divergence
+     float8 val = p[i];
+     if (x == Nx-1)
+     {
+         //real
+         val.s0 = 0.0f;
+         //imag
+         val.s1 = 0.0f;
+     }
+     if (x > 0)
+     {
+         //real
+         val.s0 -= p[i-1].s0;
+         //imag
+         val.s1 -= p[i-1].s1;
+     }
+     if (y == Ny-1)
+     {
+         //real
+         val.s2 = 0.0f;
+         //imag
+         val.s3 = 0.0f;
+     }
+     if (y > 0)
+     {
+         //real
+         val.s2 -= p[i-Nx].s3;
+         //imag
+         val.s2 -= p[i-Nx].s3;
+     }
+     if (k == NSl-1)
+     {
+         //real
+         val.s4 = 0.0f;
+         //imag
+         val.s5 = 0.0f;
+     }
+     if (k > 0)
+     {
+         //real
+         val.s4 -= p[i-Nx*Ny].s4;
+         //imag
+         val.s5 -= p[i-Nx*Ny].s5;
+     }
+     // scale gradients
+     if (ukn>0)
+     {val/=scale[ukn];}
+     else
+     {val*=(ratio/scale[ukn]);}
+     // linear step
+     u[i] = (u_[i] + tau*(val.s01 + val.s23 + val.s45 - norming*Kstarlambda[i]+1/delta*uk[i]))/(1+tau/delta);
+     i += NSl*Nx*Ny;
+  }
+
+}
 __kernel void divergence(__global float2 *div, __global float8 *p, const int NUk,
-                         __global float* scale, const float maxscal, const float ratio) {
-  size_t Nx = get_global_size(2), Ny = get_global_size(1);
-  size_t NSl = get_global_size(0);
-  size_t x = get_global_id(2), y = get_global_id(1);
-  size_t k = get_global_id(0);
+                         __global float* scale, const float ratio) {
+  size_t Nx = get_global_size(0), Ny = get_global_size(1);
+  size_t NSl = get_global_size(2);
+  size_t x = get_global_id(0), y = get_global_id(1);
+  size_t k = get_global_id(2);
   size_t i = k*Nx*Ny+Nx*y + x;
 
   for (int ukn=0; ukn<NUk; ukn++)
@@ -339,19 +371,20 @@ __kernel void divergence(__global float2 *div, __global float8 *p, const int NUk
      div[i] = val.s01+val.s23+val.s45;
      // scale gradients
      if (ukn>0)
-     {div[i]*=maxscal/scale[ukn];}
+     {div[i]/=scale[ukn];}
      else
-     {div[i]*=(maxscal/(ratio*scale[ukn]));}
+     {div[i]*=(ratio/scale[ukn]);}
      i += NSl*Nx*Ny;
   }
 
 }
-__kernel void sym_divergence(__global float8 *w, __global float16 *q,
-                       const int NUk) {
-  size_t Nx = get_global_size(2), Ny = get_global_size(1);
-  size_t NSl = get_global_size(0);
-  size_t x = get_global_id(2), y = get_global_id(1);
-  size_t k = get_global_id(0);
+__kernel void update_w(__global float8 *w, __global float8 *w_,
+                       __global float8 *p, __global float16 *q,
+                       const float tau, const int NUk) {
+  size_t Nx = get_global_size(0), Ny = get_global_size(1);
+  size_t NSl = get_global_size(2);
+  size_t x = get_global_id(0), y = get_global_id(1);
+  size_t k = get_global_id(2);
   size_t i = k*Nx*Ny+Nx*y + x;
 
   for (int uk=0; uk<NUk; uk++)
@@ -410,97 +443,105 @@ __kernel void sym_divergence(__global float8 *w, __global float16 *q,
      }
      // linear step
      //real
-     w[i].s024 = val_real.s012 + val_real.s345 + val_real.s678;
+     w[i].s012 = w_[i].s024 + tau*(p[i].s024 + val_real.s012 + val_real.s345 + val_real.s678);
      //imag
-     w[i].s135 = val_imag.s012 + val_imag.s345 + val_imag.s678;
+     w[i].s456 = w_[i].s135 + tau*(p[i].s135 + val_imag.s012 + val_imag.s345 + val_imag.s678);
      i += NSl*Nx*Ny;
   }
 }
-__kernel void update_Kyk2(__global float8 *w, __global float16 *q, __global float8 *z,
-                       const int NUk) {
-  size_t Nx = get_global_size(2), Ny = get_global_size(1);
-  size_t NSl = get_global_size(0);
-  size_t x = get_global_id(2), y = get_global_id(1);
-  size_t k = get_global_id(0);
+
+
+
+__kernel void functional_discrepancy(__global float *accum,
+                                __global float2 *Ku, __global float2 *f) {
+  size_t Nx = get_global_size(0), Ny = get_global_size(1);
+  size_t x = get_global_id(0), y = get_global_id(1);
+  size_t k = get_global_id(2);
+  size_t i = k*Nx*Ny+Nx*y + x;
+
+  float2 val = Ku[i] - f[i];
+  accum[i] = hypot(val.x*val.x-val.y*val.y,2*val.x*val.y);
+}
+
+__kernel void functional_tgv(__global float *accum, __global float2 *u,
+                        __global float8 *w,
+                        const float alpha0, const float alpha1, const int NUk,
+                        __global float* scale, const float ratio) {
+  size_t Nx = get_global_size(0), Ny = get_global_size(1);
+  size_t NSl = get_global_size(2);
+  size_t x = get_global_id(0), y = get_global_id(1);
+  size_t k = get_global_id(2);
   size_t i = k*Nx*Ny+Nx*y + x;
 
   for (int uk=0; uk<NUk; uk++)
   {
-     // divergence
-     float16 val0 = -q[i];
-     float16 val_real = (float16)(val0.s0, val0.s6, val0.s8,
-                                  val0.s6, val0.s2, val0.sa,
-                                  val0.s8, val0.sa, val0.s4,
-                                  0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f);
-     float16 val_imag = (float16)(val0.s1, val0.s7, val0.s9,
-                                  val0.s7, val0.s3, val0.sb,
-                                  val0.s9, val0.sb, val0.s5,
-                                  0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f);
-     if (x == 0)
-     {
-         //real
-         val_real.s012 = 0.0f;
-         //imag
-         val_imag.s012 = 0.0f;
-     }
+     // gradient
+     float8 val = (float8)(-u[i],-u[i],-u[i],0.0f,0.0f);
      if (x < Nx-1)
-     {
-         //real
-         val_real.s012 += (float3)(q[i+1].s0, q[i+1].s68);
-         //imag
-         val_imag.s012 += (float3)(q[i+1].s1, q[i+1].s79);
-     }
-     if (y == 0)
-     {
-         //real
-         val_real.s345 = 0.0f;
-         //imag
-         val_imag.s345 = 0.0f;
-     }
+     { val.s0 += u[i+1].s0; val.s1 += u[i+1].s1;}
+     else
+     { val.s0 = 0.0f; val.s1 = 0.0f;}
+
      if (y < Ny-1)
-     {
-         //real
-         val_real.s345 += (float3)(q[i+Nx].s6, q[i+Nx].s2, q[i+Nx].sa);
-         //imag
-         val_imag.s345 += (float3)(q[i+Nx].s7, q[i+Nx].s3, q[i+Nx].sb);
-     }
-     if (k == 0)
-     {
-         //real
-         val_real.s678 = 0.0f;
-         //imag
-         val_imag.s678 = 0.0f;
-     }
+     { val.s2 += u[i+Nx].s0; val.s3 += u[i+Nx].s1;}
+     else
+     { val.s2 = 0.0f; val.s35 = 0.0f; }
+
      if (k < NSl-1)
-     {
-         //real
-         val_real.s678 += (float3)(q[i+Nx*Ny].s8a, q[i+Nx*Ny].s4);
-         //imag
-         val_imag.s678 += (float3)(q[i+Nx*Ny].s9b, q[i+Nx*Ny].s5);
-     }
-     // linear step
-     //real
-     w[i].s024 = -val_real.s012 - val_real.s345 - val_real.s678 -z[i].s024;
-     //imag
-     w[i].s135 = -val_imag.s012 - val_imag.s345 - val_imag.s678 -z[i].s135;
+     { val.s4 += u[i+Nx*Ny].s0; val.s5 += u[i+Nx*Ny].s1;}
+     else
+     { val.s4 = 0.0f; val.s5 = 0.0f; }
+
+     // scale gradients
+     if (uk>0)
+     {val/=scale[uk];}
+     else
+     {val*=(ratio/scale[uk]);}
+
+     // symmetrized gradient
+     float16 val_real = (float16)(w[i].s024, w[i].s024, w[i].s024,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f);
+     float16 val_imag = (float16)(w[i].s135, w[i].s135, w[i].s135,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f);
+     if (x > 0)
+     { val_real.s012 -= w[i-1].s024;  val_imag.s012 -= w[i-1].s135;}
+     else
+     { val_real.s012 = (float3) 0.0f; val_imag.s012 = (float3) 0.0f; }
+
+     if (y > 0)
+     {val_real.s345 -= w[i-Nx].s024;  val_imag.s345 -= w[i-Nx].s135;}
+     else
+     {val_real.s345 = (float3)  0.0f; val_imag.s345 = (float3) 0.0f;  }
+
+     if (k > 0)
+     {val_real.s678 -= w[i-Nx*Ny].s024;  val_imag.s678 -= w[i-Nx*Ny].s135;}
+     else
+     {val_real.s678 = (float3) 0.0f; val_imag.s678 = (float3) 0.0f;  }
+
+     float16 val3 = (float16)(val_real.s0, val_imag.s0, val_real.s4,val_imag.s4,val_real.s8,val_imag.s8,
+                        0.5f*(val_real.s1 + val_real.s3), 0.5f*(val_imag.s1 + val_imag.s3),
+                        0.5f*(val_real.s2 + val_real.s6), 0.5f*(val_imag.s2 + val_imag.s6),
+                        0.5f*(val_real.s5 + val_real.s7), 0.5f*(val_imag.s5 + val_imag.s7),
+                        0.0f,0.0f,0.0f,0.0f);
+
+     val -= w[i];
+     accum[i] = alpha1*hypot(hypot(hypot(val.s0,val.s1), hypot(val.s2,val.s3)),hypot(val.s4,val.s5))
+              + alpha0*hypot(hypot(hypot(hypot(val3.s0,val3.s1), hypot(val3.s2,val3.s3)), hypot(val3.s4,val3.s5)),
+              hypot(hypot(2.0f*hypot(val3.s6,val3.s7),2.0f*hypot(val3.s8,val3.s9)),2.0f*hypot(val3.sa,val3.sb)));
      i += NSl*Nx*Ny;
   }
 }
-
 __kernel void radon(__global float2 *sino, __global float2 *img,
                     __constant float4 *ofs, const int X,
                     const int Y, const int CS, const float scale)
 {
-  size_t I = get_global_size(2);
+  size_t I = get_global_size(0);
   size_t J = get_global_size(1);
-  size_t i = get_global_id(2);
+  size_t i = get_global_id(0);
   size_t j = get_global_id(1);
-  size_t k = get_global_id(0);
+  size_t k = get_global_id(2);
 
   size_t scan = k/CS;
 
   img += k*X*Y;
-  int ii = i;
 
   float4 o = ofs[j+scan*J];
   float2 acc = 0.0f;
@@ -511,40 +552,40 @@ __kernel void radon(__global float2 *sino, __global float2 *img,
 
     // compute bounds
     if (o.x == 0) {
-      if ((d > ii-1) && (d < ii+1)) {
+      if ((d > i-1) && (d < i+1)) {
         x_low = 0; x_high = X-1;
       } else {
         img += X; continue;
       }
     } else if (o.x > 0) {
-      x_low = (int)((ii-1 - d)*o.w);
-      x_high = (int)((ii+1 - d)*o.w);
+      x_low = (int)((i-1 - d)*o.w);
+      x_high = (int)((i+1 - d)*o.w);
     } else {
-      x_low = (int)((ii+1 - d)*o.w);
-      x_high = (int)((ii-1 - d)*o.w);
+      x_low = (int)((i+1 - d)*o.w);
+      x_high = (int)((i-1 - d)*o.w);
     }
     x_low = max(x_low, 0);
     x_high = min(x_high, X-1);
 
     // integrate
     for(int x = x_low; x <= x_high; x++) {
-      float weight = 1.0 - fabs(x*o.x + d - ii);
-      if (weight > 0.0f) acc += weight*img[x];
+      float2 weight = 1.0 - fabs(x*o.x + d - i);
+      if (weight.x > 0.0f) acc += weight*img[x];
     }
     img += X;
   }
-  sino[k*I*J+j*I + ii] = acc/scale;
+  sino[k*I*J+j*I + i] = acc/scale;
 }
 
 __kernel void radon_ad(__global float2 *img, __global float2 *sino,
                        __constant float4 *ofs, const int I,
                        const int J, const int CS, const float scale)
 {
-  size_t X = get_global_size(2);
+  size_t X = get_global_size(0);
   size_t Y = get_global_size(1);
-  size_t x = get_global_id(2);
+  size_t x = get_global_id(0);
   size_t y = get_global_id(1);
-  size_t k = get_global_id(0);
+  size_t k = get_global_id(2);
 
   size_t scan = k/CS;
 
@@ -568,12 +609,12 @@ __kernel void operator_fwd(__global float2 *out, __global float2 *in,
                        __global float2 *coils, __global float2 *grad, const int NCo,
                        const int NSl, const int NScan, const int Nuk)
 {
-  size_t X = get_global_size(2);
+  size_t X = get_global_size(0);
   size_t Y = get_global_size(1);
 
-  size_t x = get_global_id(2);
+  size_t x = get_global_id(0);
   size_t y = get_global_id(1);
-  size_t k = get_global_id(0);
+  size_t k = get_global_id(2);
 
   float2 tmp_in = 0.0f;
   float2 tmp_grad = 0.0f;
@@ -607,12 +648,11 @@ __kernel void operator_ad(__global float2 *out, __global float2 *in,
                        __global float2 *coils, __global float2 *grad, const int NCo,
                        const int NSl, const int NScan, const int Nuk)
 {
-  size_t X = get_global_size(2);
+  size_t X = get_global_size(0);
   size_t Y = get_global_size(1);
-  size_t x = get_global_id(2);
+  size_t x = get_global_id(0);
   size_t y = get_global_id(1);
-  size_t k = get_global_id(0);
-
+  size_t k = get_global_id(2);
 
   float2 tmp_in = 0.0f;
   float2 tmp_mul = 0.0f;
@@ -645,152 +685,29 @@ __kernel void operator_ad(__global float2 *out, __global float2 *in,
 
 }
 
-
-
-__kernel void update_Kyk1(__global float2 *out, __global float2 *in,
-                       __global float2 *coils, __global float2 *grad, __global float8 *p, const int NCo,
-                       const int NSl, const int NScan, __global float* scale, const float maxscal,const float ratio, const int Nuk)
-{
-  size_t X = get_global_size(2);
-  size_t Y = get_global_size(1);
-  size_t x = get_global_id(2);
-  size_t y = get_global_id(1);
-  size_t k = get_global_id(0);
-
-  size_t i = k*X*Y+X*y + x;
-
-  float2 tmp_in = 0.0f;
-  float2 tmp_mul = 0.0f;
-  float2 conj_grad = 0.0f;
-  float2 conj_coils = 0.0f;
-
-
-  for (int uk=0; uk<Nuk; uk++)
-  {
-  float2 sum = (float2) 0.0f;
-  for (int scan=0; scan<NScan; scan++)
-  {
-    conj_grad = (float2) (grad[uk*NScan*NSl*X*Y+scan*NSl*X*Y + k*X*Y + y*X + x].x,
-                          -grad[uk*NScan*NSl*X*Y+scan*NSl*X*Y + k*X*Y + y*X + x].y);
-  for (int coil=0; coil < NCo; coil++)
-  {
-    conj_coils = (float2) (coils[coil*NSl*X*Y + k*X*Y + y*X + x].x,
-                                  -coils[coil*NSl*X*Y + k*X*Y + y*X + x].y);
-
-    tmp_in = in[scan*NCo*NSl*X*Y+coil*NSl*X*Y + k*X*Y+ y*X + x];
-    tmp_mul = (float2)(tmp_in.x*conj_grad.x-tmp_in.y*conj_grad.y,tmp_in.x*conj_grad.y+tmp_in.y*conj_grad.x);
-
-
-    sum += (float2)(tmp_mul.x*conj_coils.x-tmp_mul.y*conj_coils.y,
-                                     tmp_mul.x*conj_coils.y+tmp_mul.y*conj_coils.x);
-  }
-  }
-
-   // divergence
-   float8 val = p[i];
-   if (x == X-1)
-   {
-       //real
-       val.s0 = 0.0f;
-       //imag
-       val.s1 = 0.0f;
-   }
-   if (x > 0)
-   {
-       //real
-       val.s0 -= p[i-1].s0;
-       //imag
-       val.s1 -= p[i-1].s1;
-   }
-   if (y == Y-1)
-   {
-       //real
-       val.s2 = 0.0f;
-       //imag
-       val.s3 = 0.0f;
-   }
-   if (y > 0)
-   {
-       //real
-       val.s2 -= p[i-X].s2;
-       //imag
-       val.s3 -= p[i-X].s3;
-   }
-   if (k == NSl-1)
-   {
-       //real
-       val.s4 = 0.0f;
-       //imag
-       val.s5 = 0.0f;
-   }
-   if (k > 0)
-   {
-       //real
-       val.s4 -= p[i-X*Y].s4;
-       //imag
-       val.s5 -= p[i-X*Y].s5;
-   }
-
-   // scale gradients
-   if (uk>0)
-   {val*=maxscal/scale[uk];}
-   else
-   {val*=(maxscal/(ratio*scale[uk]));}
-
-  out[uk*NSl*X*Y+k*X*Y+y*X+x] = sum - (val.s01+val.s23+val.s45);
-  i += NSl*X*Y;
-  }
-
-}
 """)
-    self.r_struct=self.radon_struct(angles)
-    self.scale = (self.radon_normest())
-    self.tmp_result = clarray.zeros(self.queue,(self.NScan,self.NC,self.NSlice,self.dimY,self.dimX),DTYPE,"C")
-    self.tmp_result2 = clarray.zeros(self.queue,(self.unknowns,self.NSlice,self.dimY,self.dimX),DTYPE,"C")
-    self.tmp_img =  clarray.zeros(self.queue,self.r_struct[1],DTYPE,"C")
-    self.tmp_sino = clarray.zeros(self.queue,(self.NScan,self.NC,self.NSlice,self.Nproj,self.N),DTYPE,"C")
-    print("Radon Norm: %f" %(self.scale))
 
+    self.r_struct=self.radon_struct()
+    self.scale = (self.radon_normest())
+    print("Radon Norm: %f" %(self.scale))
 
     print("Please Set Parameters, Data and Initial images")
 
-  def radon_struct(self, angles=None, n_detectors=None,
+  def radon_struct(self, n_detectors=None,
                    detector_width=1.0, detector_shift=0.0):
 
-    if np.all(angles==None):
-      angles = np.reshape(np.angle(self.traj[:,:,0]),(self.Nproj*self.NScan))
+    angles = np.reshape(np.angle(self.traj[:,:,0]),(self.Nproj*self.NScan))
 #    angles = np.linspace(0,np.pi,(self.Nproj))
     nd = self.N
+    #### Shifts should be accounted for in the angle from the trajectory...
+#    shift_read = np.array((0.0294,0.0319,0.0301,0.0306,0.0311,0.0299,0.0318,0.0296,0.0281,0.0262))
+#    shift_phase = np.array((0.0904,0.0884,0.0884,0.0908,0.0912,0.0895,0.0910,0.0957,0.0968,0.0996))
 
-    ## 34 spk
-#    shift_read = np.array((0.0311,    0.0313,    0.0319,    0.0327,    0.0334,    0.0340,    0.0350,    0.0344,    0.0315,    0.0318))
-#    shift_phase = np.array((0.0902,    0.0882,    0.0898,    0.0911,    0.0929,    0.0947,    0.0971,    0.0997,    0.1028,    0.1037))
-
-    ## 89 spk
-#    shift_read = np.array((0.0316,    0.0310 ,   0.0324  ,  0.0322 ,   0.0329  ,  0.0341 ,   0.0346   , 0.0334 ,   0.0323  ,  0.0280))*self.Nproj/2
-#    shift_phase = np.array((0.0887,    0.0870  ,  0.0897 ,   0.0915  ,  0.0928  ,  0.0964  ,  0.0962 ,   0.0989 ,   0.1052 ,   0.1034))*self.Nproj/2
-#
-
-#    deltax = np.zeros((self.NScan, self.Nproj))
-#    deltay = np.zeros((self.NScan, self.Nproj))
-#    for n in range(self.NScan):
-#      for ip in range(self.Nproj):
-#        deltax[n,ip] = np.real(((np.cos(2*angles[n,ip]) + 1) * shift_read[n]+(-np.cos(2*angles[n,ip]) + 1) * shift_phase[n])/2*np.exp(1j* angles[n,ip]))
-#        deltay[n,ip] = np.imag(((np.cos(2*angles[n,ip]) + 1) * shift_read[n]+(-np.cos(2*angles[n,ip]) + 1) * shift_phase[n])/2*np.exp(1j* angles[n,ip]))
-###
-#
-#    rho = rho/self.N
-#    traj = (rho[...,int(self.N/2)]*np.exp(1j*phi[...,int(self.N/2)]))
-
-    midpoint_domain = np.zeros((self.NScan,self.Nproj,2))
+    midpoint_domain = np.zeros((self.NScan,2))
     for i in range(self.NScan):
-      for j in range(self.Nproj):
-#        midpoint_domain[i,j,:] = np.array([(self.dimX-1)/2.0+deltax[i,j], (self.dimY-1)/2.0+deltay[i,j]])
-        midpoint_domain[i,:] = np.array([(self.dimX-1)/2.0, (self.dimY-1)/2.0])
-
-    angles = np.reshape(angles,(self.Nproj*self.NScan))
-    midpoint_domain=np.reshape(midpoint_domain,(self.Nproj*self.NScan,2))
-#    midpoint_domain=np.repeat(midpoint_domain,self.Nproj,0)
+#        midpoint_domain[i,:] = np.array([(self.dimX-1)/2.0-shift_read[i], (self.dimY-1)/2.0-shift_phase[i]])
+      midpoint_domain[i,:] = np.array([(self.dimX-1)/2.0, (self.dimY-1)/2.0])
+    midpoint_domain=np.repeat(midpoint_domain,self.Nproj,0)
 
     midpoint_detectors = (nd-1.0)/2.0
 
@@ -807,52 +724,53 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
     offset = midpoint_detectors - X*midpoint_domain[:,0] \
              - Y*midpoint_domain[:,1] + detector_shift/detector_width
 
-    ofs = np.zeros((len(angles),4), dtype=np.float32, order='C')
-    ofs[:,0] = X; ofs[:,1] = Y; ofs[:,2] = offset; ofs[:,3] = Xinv
+    ofs = np.zeros((4, len(angles)), dtype=np.float32, order='F')
+    ofs[0,:] = X; ofs[1,:] = Y; ofs[2,:] = offset; ofs[3,:] = Xinv
 
     ofs_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=ofs.data)
-   #    cl.enqueue_copy(queue, ofs_buf, ofs.data).wait()
+#    cl.enqueue_copy(queue, ofs_buf, ofs.data).wait()
 
-    sinogram_shape = (self.NScan*self.NC*self.NSlice,self.Nproj,nd)
+    sinogram_shape = (nd, self.Nproj,self.NC*self.NScan*self.NSlice)
 
-    return (ofs_buf, (self.NScan*self.NC*self.NSlice,self.dimY,self.dimX), sinogram_shape)
+    return (ofs_buf, (self.dimY,self.dimX,self.NC*self.NScan*self.NSlice), sinogram_shape)
 
-
-  def radon(self,sino, img, wait_for=None):
+  def radon(self,sino, img, scan=0, wait_for=None):
       (ofs_buf, shape, sinogram_shape) = self.r_struct
 
       return self.prg.radon(sino.queue, sinogram_shape, None,
                        sino.data, img.data, ofs_buf,
-                       np.int32(shape[-1]), np.int32(shape[-2]),
-                       np.int32(self.NC*self.NSlice), np.float32(self.scale),
+                       np.int32(shape[0]), np.int32(shape[1]),
+                       np.int32(self.NC*self.NSlice),
+                       np.float32(self.scale),
                        wait_for=wait_for)
 
-  def radon_ad(self,img, sino, wait_for=None):
+  def radon_ad(self,img, sino, scan=0, wait_for=None):
       (ofs_buf, shape, sinogram_shape) = self.r_struct
 
       return self.prg.radon_ad(img.queue, shape, None,
                           img.data, sino.data, ofs_buf,
-                          np.int32(sinogram_shape[-1]),
-                          np.int32(sinogram_shape[-2]),
-                          np.int32(self.NC*self.NSlice), np.float32(self.scale),
+                          np.int32(sinogram_shape[0]),
+                          np.int32(sinogram_shape[1]),
+                          np.int32(self.NC*self.NSlice),
+                          np.float32(self.scale),
                           wait_for=wait_for)
 
   def radon_normest(self):
-      img2 = np.require(np.random.randn(*(self.r_struct[1])), DTYPE, 'C')
-      sino2 = np.require(np.random.randn(*(self.r_struct[2])), DTYPE, 'C')
-      img = clarray.zeros(self.queue, self.r_struct[1], dtype=DTYPE, order='C')
+      img2 = np.require(np.random.randn(*(self.r_struct[1])), DTYPE, 'F')
+      sino2 = np.require(np.random.randn(*(self.r_struct[2])), DTYPE, 'F')
+      img = clarray.zeros(self.queue, self.r_struct[1], dtype=DTYPE, order='F')
 
       sino = clarray.to_device(self.queue, sino2)
       img.add_event(self.radon_ad(img, sino))
       a = np.vdot(img2.flatten(),img.get().flatten())
 
       img = clarray.to_device(self.queue, img2)
-      sino = clarray.zeros(self.queue, self.r_struct[2], dtype=DTYPE, order='C')
+      sino = clarray.zeros(self.queue, self.r_struct[2], dtype=DTYPE, order='F')
       self.radon(sino, img, wait_for=img.events)
       b = np.vdot(sino.get().flatten(),sino2.flatten())
       print("Ajointness test: %e" %(np.abs(a-b)))
-      img = clarray.to_device(self.queue, np.require(np.random.randn(*self.r_struct[1]), DTYPE, 'C'))
-      sino = clarray.zeros(self.queue, self.r_struct[2], dtype=DTYPE, order='C')
+      img = clarray.to_device(self.queue, np.require(np.random.randn(*self.r_struct[1]), DTYPE, 'F'))
+      sino = clarray.zeros(self.queue, self.r_struct[2], dtype=DTYPE, order='F')
       for i in range(10):
           normsqr = np.abs(clarray.sum(img).get())
           img /= normsqr
@@ -867,422 +785,408 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
 
     ###################################
     ### Adjointness
-    x= x[:,None,...]
-    data= data[:,:,None,...]
-#    xx = np.random.random_sample(np.shape(x)).astype(DTYPE)
-#    yy = np.random.random_sample(np.shape(data)).astype(DTYPE)
-#    a = np.vdot(xx.flatten(),self.operator_adjoint(clarray.to_device(self.queue,yy)).get().flatten())
-#    b = np.vdot(self.operator_forward(clarray.to_device(self.queue,xx)).get().flatten(),yy.flatten())
-#    test = np.abs(a-b)
-#    print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,(test)))
-    x_old = np.copy(x)
-
-    x = clarray.to_device(self.queue,np.require(x,requirements="C"))
-    a = (self.operator_forward(x).get())
-    b = (self.FT(self.step_val[:,None,...]*self.Coils))
-    res = (data) - b + a
-
-    x = self.tgv_solve_2D(x.get(),res,iters)
+    xx = clarray.to_device(self.queue,np.random.random_sample((self.unknowns,self.NSlice,self.dimX,self.dimY)).T.astype(DTYPE))
+    yy = clarray.to_device(self.queue,np.random.random_sample((self.NScan*self.NC*self.NSlice,self.Nproj,self.N)).T.astype(DTYPE))
+    tmp1 = clarray.zeros_like(xx)
+    tmp2 = clarray.zeros_like(yy)
+    self.operator_adjoint_2D(tmp1,yy)
+    self.operator_forward_2D(tmp2,xx)
+    a = np.vdot(xx.get().flatten(),tmp1.get().flatten())
+    b = np.vdot(tmp2.get().flatten(),yy.get().flatten())
+    test = np.abs(a-b)
+    print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,(test)))
+    x_old = np.squeeze(np.copy(x))
     x = clarray.to_device(self.queue,x)
-    v = clarray.to_device(self.queue,self.v)
-    grad = clarray.to_device(self.queue,np.zeros_like(self.z1))
-    sym_grad = clarray.to_device(self.queue,np.zeros_like(self.z2))
-    grad.add_event(self.f_grad(grad,x,wait_for=grad.events+x.events))
-    sym_grad.add_event(self.sym_grad(sym_grad,v,wait_for=sym_grad.events+v.events))
-    x = x.get()
-    self.fval= (self.irgn_par.lambd/2*np.linalg.norm(data - (self.FT(self.model.execute_forward_2D(x,0)[:,None,None,...]*self.Coils)))**2
-            +self.irgn_par.gamma*np.sum(np.abs(grad.get()-self.v))
-            +self.irgn_par.gamma*(2)*np.sum(np.abs(sym_grad.get()))
-            +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2)
+    a = clarray.zeros(self.queue,(self.NScan*self.NC*self.NSlice,self.Nproj,self.N),dtype=DTYPE,order='F')
+    self.operator_forward_2D(a,x.T)
+    a = np.reshape(a.get().T,(self.NScan,self.NC,self.NSlice,self.Nproj,self.N))
+    b = np.squeeze(self.FT(self.step_val[:,None,...]*self.Coils))
+
+    res = np.squeeze(data) - b + a
+    alpha = self.irgn_par.gamma
+    del xx, yy, tmp1, tmp2, a, b
+    res = np.reshape(res,(self.NScan*self.NC*self.NSlice,self.Nproj,self.N))
+    self.set_scale(x.get())
+    (x,v, values) = self.tgv_radon(res.T, x.get().T, (self.dimX,self.dimY,self.NSlice), self.Nproj, (2*alpha, alpha), iters,
+                              record_values=True)
 
 
-    print('Norm M0 grad: %f  norm T1 grad: %f' %(np.linalg.norm(grad.get()[0,...]),
-                                                  np.linalg.norm(grad.get()[1,...])))
-    scale = np.linalg.norm(grad.get()[0,...])/np.linalg.norm(grad.get()[1,...])
+    self.fval= (self.irgn_par.lambd/2*np.linalg.norm(data - np.squeeze(self.FT(self.model.execute_forward_3D(x)[:,None,...]*self.Coils)))**2
+           +self.irgn_par.gamma*np.sum(np.abs(gd.fgrad_3(x[:self.unknowns_TGV,...])-v[:,:3,...]))
+           +self.irgn_par.gamma*(2)*np.sum(np.abs(gd.sym_bgrad_3(v[:,:3,...])))
+           +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2)
+    print("-"*80)
+#    print(x.shape)
+    print('Norm M0 grad: %f  norm T1 grad: %f' %(np.linalg.norm(gd.fgrad_3(self.scale_fwd(x))[0,...]),
+                                                  np.linalg.norm(gd.fgrad_3(self.scale_fwd(x))[1,...])))
+    scale = np.linalg.norm(gd.fgrad_3(self.scale_fwd(x))[0,...])/np.linalg.norm(gd.fgrad_3(self.scale_fwd(x))[1,...])
     if scale == 0 or not np.isfinite(scale):
       self.ratio = self.ratio
     else:
       self.ratio *= scale
-    return np.squeeze(x)
+    print ("Function value after GN-Step: %f" %(self.fval/self.irgn_par.lambd))
+
+    return x
 
 
   def execute_2D(self):
-      self.NSlice=1
-      self.r_struct=self.radon_struct()
-      self.FT = self.nFT
-      self.FTH = self.nFTH
+
+
+      self.FT = self.nFT_2D
+      self.FTH = self.nFTH_2D
 
       gamma = self.irgn_par.gamma
       delta = self.irgn_par.delta
 
       self.result = np.zeros((self.irgn_par.max_GN_it,self.unknowns_TGV+self.unknowns_H1,self.par.NSlice,self.par.dimY,self.par.dimX),dtype=DTYPE)
       result = np.copy(self.model.guess)
-      for islice in range(self.par.NSlice):
-        self.irgn_par.gamma = gamma
-        self.irgn_par.delta = delta
-        self.Coils = np.array(np.squeeze(self.par.C[:,islice,:,:]),order='C')[:,None,...]
-        self.coil_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.Coils.data)
-        self.conjCoils = np.conj(self.Coils)
-        self.v = np.zeros(([self.unknowns_TGV,self.NSlice,self.par.dimX,self.par.dimY,4]),dtype=DTYPE)
-        self.r = np.zeros(([self.NScan,self.NC,self.NSlice,self.Nproj,self.N]),dtype=DTYPE)
-        self.z1 = np.zeros(([self.unknowns_TGV,self.NSlice,self.par.dimX,self.par.dimY,4]),dtype=DTYPE)
-        self.z2 = np.zeros(([self.unknowns_TGV,self.NSlice,self.par.dimX,self.par.dimY,8]),dtype=DTYPE)
-        iters = self.irgn_par.start_iters
-        for i in range(self.irgn_par.max_GN_it):
-          start = time.time()
-          self.grad_x_2D = np.nan_to_num(self.model.execute_gradient_2D(result[:,islice,:,:],islice))
+      self.irgn_par.gamma = gamma
+      self.irgn_par.delta = delta
+      self.Coils = np.array(np.squeeze(self.par.C),order='C')
+      self.conjCoils = np.conj(self.Coils)
+      self.v = np.zeros((4,self.dimX,self.dimY,self.NSlice,self.unknowns), dtype=DTYPE, order='F')
+      self.r = np.zeros((self.NScan*self.NC*self.NSlice,self.Nproj,self.N),dtype=DTYPE, order='C').T
+      self.z1 = np.zeros((4,self.dimX,self.dimY,self.NSlice,self.unknowns), dtype=DTYPE, order='F')
+      self.z2 = np.zeros( (8,self.dimX,self.dimY,self.NSlice,self.unknowns), dtype=DTYPE, order='F')
 
-          scale = np.linalg.norm(np.abs(self.grad_x_2D[0,...]))/np.linalg.norm(np.abs(self.grad_x_2D[1,...]))
+      iters = self.irgn_par.start_iters
+      for i in range(self.irgn_par.max_GN_it):
+       start = time.time()
+       self.grad_x_2D = np.nan_to_num(self.model.execute_gradient_3D(result))
 
-          for j in range(len(self.model.constraints)-1):
-            self.model.constraints[j+1].update(scale)
+       scale = np.linalg.norm(np.abs(self.grad_x_2D[0,...]))/np.linalg.norm(np.abs(self.grad_x_2D[1,...]))
 
-          result[1,islice,:,:] = result[1,islice,:,:]*self.model.T1_sc
-          self.model.T1_sc = self.model.T1_sc*(scale)
-          result[1,islice,:,:] = result[1,islice,:,:]/self.model.T1_sc
-          self.step_val = self.model.execute_forward_2D(result[:,islice,:,:],islice)[:,None,...]
-          self.grad_x_2D = np.nan_to_num(self.model.execute_gradient_2D(result[:,islice,:,:],islice).astype(DTYPE))[:,:,None,...]
-          self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x_2D.data)
-          self.conj_grad_x_2D = np.conj(self.grad_x_2D)
+       for j in range(len(self.model.constraints)-1):
+         self.model.constraints[j+1].update(scale)
+
+       result[1,...] = result[1,...]*self.model.T1_sc
+       self.model.T1_sc = self.model.T1_sc*(scale)
+       result[1,...] = result[1,...]/self.model.T1_sc
+       self.step_val = self.model.execute_forward_3D(result)
+       self.grad_x_2D = np.nan_to_num(self.model.execute_gradient_3D(result).astype(DTYPE)).T
+       self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x_2D.data)
 
 
-          result[:,islice,:,:] = self.irgn_solve_2D(result[:,islice,:,:], iters, self.data[:,:,islice,:,:])
-          self.result[i,:,islice,:,:] = result[:,islice,:,:]
+       result= self.irgn_solve_2D(result, iters, self.data)
+       self.E1_scale.append(self.model.T1_sc)
+       self.result[i,...] = result
 
-          iters = np.fmin(iters*2,self.irgn_par.max_iters)
-          self.irgn_par.gamma = np.maximum(self.irgn_par.gamma*0.5,self.irgn_par.gamma_min)
-          self.irgn_par.delta = np.minimum(self.irgn_par.delta*self.irgn_par.delta_inc, self.irgn_par.delta_max)
+       iters = np.fmin(iters*2,self.irgn_par.max_iters)
+       self.irgn_par.gamma = np.maximum(self.irgn_par.gamma*0.5,self.irgn_par.gamma_min)
+       self.irgn_par.delta = np.minimum(self.irgn_par.delta*self.irgn_par.delta_inc, self.irgn_par.delta_max)
 
-          end = time.time()-start
-          print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
-          print("-"*80)
-          if np.abs(self.fval_min-self.fval) < self.irgn_par.lambd*self.irgn_par.tol:
-            print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-       self.fval)/self.irgn_par.lambd))
-            return
-          self.fval_min = np.minimum(self.fval,self.fval_min)
+       end = time.time()-start
+       print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
+       print("-"*80)
+#          if np.abs(self.fval_min-self.fval) < self.irgn_par.lambd*self.irgn_par.tol:
+#            print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-       self.fval)/self.irgn_par.lambd))
+#            return
+       self.fval_min = np.minimum(self.fval,self.fval_min)
 
 
   def eval_fwd(self,y,x,wait_for=[]):
 
-    return self.prg.operator_fwd(y.queue, (self.NSlice,self.dimY,self.dimX), None,
+    return self.prg.operator_fwd(y.queue, (self.dimX,self.dimY,self.NSlice), None,
                                  y.data, x.data, self.coil_buf, self.grad_buf,
                                  np.int32(self.NC), np.int32(self.NSlice), np.int32(self.NScan), np.int32(self.unknowns),
                                  wait_for=wait_for)
-  def operator_forward(self, x):
+
+  def operator_forward_2D(self, outp, inp ,wait_for=[]):
 
 #    return self.FT(np.sum(x[:,None,...]*self.grad_x_2D,axis=0)[:,None,...]*self.Coils)
+
 #    tmp_img = clarray.to_device(self.queue,np.require(np.reshape(x.get(),(self.unknowns*self.NSlice,self.dimY,self.dimX)),DTYPE,"C"))
-#    tmp_img = clarray.reshape(x.astype(DTYPE),(self.unknowns*self.NSlice,self.dimY,self.dimX))
-#    tmp_result = clarray.zeros(self.queue,(self.NScan*self.NC*self.NSlice,self.dimY,self.dimX),DTYPE,"C")
-    self.tmp_result.add_event(self.eval_fwd(self.tmp_result,x.astype(DTYPE),wait_for=self.tmp_result.events+x.events))
-    #self.FT(np.reshape(tmp_result.get(),(self.NScan,self.NC,self.dimY,self.dimX)))#
-    self.tmp_sino.add_event(self.radon(self.tmp_sino,self.tmp_result,wait_for=self.tmp_sino.events+self.tmp_result.events))
-    return  self.tmp_sino
 
-  def operator_forward_full(self, out, x):
-#    return self.FT(np.sum(x[:,None,...]*self.grad_x_2D,axis=0)[:,None,...]*self.Coils)
-#    tmp_img = clarray.to_device(self.queue,np.require(np.reshape(x.get(),(self.unknowns*self.NSlice,self.dimY,self.dimX)),DTYPE,"C"))
-#    tmp_img = clarray.reshape(x.astype(DTYPE),(self.unknowns*self.NSlice,self.dimY,self.dimX))
-#    tmp_result = clarray.zeros(self.queue,(self.NScan*self.NC*self.NSlice,self.dimY,self.dimX),DTYPE,"C")
-    self.tmp_result.add_event(self.eval_fwd(self.tmp_result,x.astype(DTYPE),wait_for=self.tmp_result.events+x.events))
-    #self.FT(np.reshape(tmp_result.get(),(self.NScan,self.NC,self.dimY,self.dimX)))#
-    return  self.radon(out,self.tmp_result,wait_for=out.events+self.tmp_result.events)
+    tmp_result = clarray.zeros(self.queue,(self.dimY,self.dimX,self.NC*self.NScan*self.NSlice),DTYPE,"F")
+    tmp_result.add_event(self.eval_fwd(tmp_result,inp,wait_for=tmp_result.events+wait_for))
+
+#    tmp_sino = clarray.zeros(self.queue,self.r_struct[2],DTYPE,"F")#self.FT(np.reshape(tmp_result.get(),(self.NScan,self.NC,self.dimY,self.dimX)))#
+    return (self.radon(outp,tmp_result,wait_for=tmp_result.events))
 
 
-  def operator_adjoint_full(self, out, x,z, wait_for=[]):
-
-    self.tmp_img.add_event(self.radon_ad(self.tmp_img,x,wait_for=self.tmp_img.events+x.events))
-
-    return self.prg.update_Kyk1(out.queue, (self.NSlice,self.dimY,self.dimX), None,
-                                 out.data, self.tmp_img.data, self.coil_buf, self.grad_buf, z.data, np.int32(self.NC),
-                                 np.int32(self.NSlice),  np.int32(self.NScan), self.ukscale.data,
-                                 np.float32(np.amax(self.ukscale.get())),np.float32(self.ratio), np.int32(self.unknowns),
-                                 wait_for=self.tmp_img.events+out.events+z.events+wait_for)
+  def operator_adjoint_2D(self,outp,inp,wait_for=[]):
+#     msv.imshow(np.abs(x.get()))
+#    return np.squeeze(np.sum(np.squeeze(np.sum(self.FTH(x)*self.conjCoils,axis=1))*self.conj_grad_x_2D,axis=1))
+#    tmp_sino = clarray.to_device(self.queue,np.require(np.reshape(x.get(),(self.NScan*self.NC*self.NSlice,self.Nproj,self.N)),DTYPE,"C"))
+#    tmp_sino = clarray.reshape(x,(self.NScan*self.NC,self.Nproj,self.N))
+     tmp_img =  clarray.zeros(self.queue,self.r_struct[1],DTYPE,"F")#clarray.to_device(self.queue,self.FTH(x.get()))#
+     tmp_img.add_event(self.radon_ad(tmp_img,inp,wait_for=tmp_img.events+wait_for))
+#    tmp_result = clarray.zeros(self.queue,(self.unknowns,self.dimY,self.dimX),DTYPE,"C")
+#
+     return (self.eval_adj(outp,tmp_img,wait_for=tmp_img.events))
+#    result = clarray.reshape(tmp_result,(self.unknowns,self.dimY,self.dimX))
+#    return result
 
   def eval_adj(self,x,y,wait_for=[]):
 
-    return self.prg.operator_ad(x.queue, (self.NSlice,self.dimY,self.dimX), None,
+    return self.prg.operator_ad(x.queue, (self.dimX,self.dimY,self.NSlice), None,
                                  x.data, y.data, self.coil_buf, self.grad_buf,np.int32(self.NC),
                                  np.int32(self.NSlice),  np.int32(self.NScan), np.int32(self.unknowns),
                                  wait_for=wait_for)
 
-
-
-  def eval_const(self):
-    num_const = (len(self.model.constraints))
-    self.min_const = np.zeros((num_const),dtype=np.float32)
-    self.max_const = np.zeros((num_const),dtype=np.float32)
-    self.real_const = np.zeros((num_const),dtype=np.int32)
-    for j in range(num_const):
-        self.min_const[j] = np.float32(self.model.constraints[j].min)
-        self.max_const[j] = np.float32(self.model.constraints[j].max)
-        self.real_const[j] = np.int32(self.model.constraints[j].real)
-    self.min_const = clarray.to_device(self.queue, self.min_const)
-    self.max_const = clarray.to_device(self.queue, self.max_const)
-    self.real_const = clarray.to_device(self.queue, self.real_const)
-#    print(x.shape[-3:])
-
-#    x.add_event(self.prg.box_con(x.queue, x.shape[-2:],None,
-#                                 x.data, min_const.data, max_const.data, real_const.data,
-#                                 np.float32(num_const),
-#                                 wait_for=wait_for))
-
-
-  def tgv_solve_2D(self, x,res, iters):
-    alpha = self.irgn_par.gamma
-    beta = self.irgn_par.gamma*2
-
-    L = np.float32(0.5*(18.0 + np.sqrt(33)))
-    print('L: %f'%(L))
-
-
-    tau = np.float32(1/np.sqrt(L))
-    tau_new =np.float32(0)
-
-    self.set_scale(x)
-    x = clarray.to_device(self.queue,x)
-    xk = x.copy()
-    x_new = clarray.zeros_like(x)
-
-    r = clarray.to_device(self.queue,self.r)#np.zeros_like(res,dtype=DTYPE)
-    z1 = clarray.to_device(self.queue,self.z1)#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-    z1_new = clarray.zeros_like(z1)#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-    z2 = clarray.to_device(self.queue,self.z2)#np.zeros(([self.unknowns,3,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-    z2_new = clarray.zeros_like(z2)
-    v = clarray.to_device(self.queue,self.v)#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-    res = clarray.to_device(self.queue, res)
-
-
-    delta = self.irgn_par.delta
-    mu = 1/delta
-
-    theta_line = np.float32(1.0)
-
-
-    beta_line = np.float32(10)
-    beta_new = np.float32(0)
-
-    mu_line =np.float32( 0.5)
-    delta_line = np.float32(1)
-
-    ynorm = np.float32(0.0)
-    lhs = np.float32(0.0)
-
-    primal = np.float32(0.0)
-    primal_new = np.float32(0)
-    dual = np.float32(0.0)
-    gap_min = np.float32(0.0)
-    gap = np.float32(0.0)
-    self.eval_const()
-
-    Kyk1 = clarray.zeros_like(x)
-    Kyk1_new = clarray.zeros_like(x)
-    Kyk2 = clarray.zeros_like(z1)
-    Kyk2_new = clarray.zeros_like(z1)
-    gradx = clarray.zeros_like(z1)
-    gradx_xold = clarray.zeros_like(z1)
-    symgrad_v = clarray.zeros_like(z2)
-    symgrad_v_vold = clarray.zeros_like(z2)
-
-    Axold = clarray.zeros_like(res)
-    Ax = clarray.zeros_like(res)
-
-    Axold = self.operator_forward(x)
-
-    Kyk1.add_event(self.operator_adjoint_full(Kyk1,r,z1))
-    Kyk2.add_event(self.update_Kyk2(Kyk2,z2,z1))
-
-    for i in range(iters):
-      x_new.add_event(self.update_primal(x_new,x,Kyk1,xk,tau,delta))
-
-
-      v_new = (v-tau*Kyk2).astype(DTYPE)
-
-      beta_new = beta_line*(1+mu*tau)
-      tau_new = tau*np.sqrt(beta_line/beta_new*(1+theta_line))
-
-      beta_line = beta_new
-
-
-      gradx.add_event(self.f_grad(gradx,x_new,wait_for=gradx.events+x_new.events))
-      gradx_xold.add_event(self.f_grad(gradx_xold,x,wait_for=gradx_xold.events+x.events))
-
-      symgrad_v.add_event(self.sym_grad(symgrad_v,v_new,wait_for=symgrad_v.events+v_new.events))
-      symgrad_v_vold.add_event(self.sym_grad(symgrad_v_vold,v,wait_for=symgrad_v_vold.events+v.events))
-
-
-      Ax = self.operator_forward(x_new)
-
-      while True:
-
-        theta_line = tau_new/tau
-        z1_new.add_event(self.update_z1(z1_new,z1,gradx,gradx_xold,v_new,v, beta_line*tau_new, theta_line, alpha))
-        z2_new.add_event(self.update_z2(z2_new,z2,symgrad_v,symgrad_v_vold,beta_line*tau_new,theta_line,beta))
-
-        r_new = ( r  + beta_line*tau_new*((1+theta_line)*Ax-theta_line*Axold - res))/(1+beta_line*tau_new/self.irgn_par.lambd)
-
-
-
-        Kyk1_new.add_event(self.operator_adjoint_full(Kyk1_new,r_new,z1_new))
-        Kyk2_new.add_event(self.update_Kyk2(Kyk2_new,z2_new,z1_new))
-
-        ynorm = ((clarray.vdot(r_new-r,r_new-r)+clarray.vdot(z1_new-z1,z1_new-z1)+clarray.vdot(z2_new-z2,z2_new-z2))**(1/2)).real
-        lhs = np.sqrt(beta_line)*tau_new*((clarray.vdot(Kyk1_new-Kyk1,Kyk1_new-Kyk1)+clarray.vdot(Kyk2_new-Kyk2,Kyk2_new-Kyk2))**(1/2)).real
-        if lhs <= ynorm*delta_line:
-            break
-        else:
-          tau_new = tau_new*mu_line
-
-      (Kyk1, Kyk1_new, Kyk2, Kyk2_new, Axold, Ax, z1, z1_new, z2, z2_new, r, r_new) =\
-      (Kyk1_new, Kyk1, Kyk2_new, Kyk2, Ax, Axold, z1_new, z1, z2_new, z2, r_new, r)
-      tau =  (tau_new)
-
-      if not np.mod(i,20):
-
-        self.model.plot_unknowns(x_new.get()[:,0,...],True)
-        primal_new= (self.irgn_par.lambd/2*clarray.vdot(Axold-res,Axold-res)+alpha*clarray.sum(abs((gradx[:self.unknowns_TGV]-v))) +beta*clarray.sum(abs(symgrad_v)) + 1/(2*delta)*clarray.vdot(x_new-xk,x_new-xk)).real
-
-        dual = (-delta/2*clarray.vdot(-Kyk1,-Kyk1)- clarray.vdot(xk,(-Kyk1)) + clarray.sum(Kyk2)
-                  - 1/(2*self.irgn_par.lambd)*clarray.vdot(r,r) - clarray.vdot(res,r)).real
-
-        gap = np.abs(primal_new - dual)
-        if i==0:
-          gap_min = gap
-        if np.abs(primal-primal_new)<self.irgn_par.lambd*self.irgn_par.tol:
-          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(i,abs(primal-primal_new).get()/(self.irgn_par.lambd*self.NSlice)))
-          self.v = v_new.get()
-          self.r = r.get()
-          self.z1 = z1.get()
-          self.z2 = z2.get()
-          return x_new.get()
-        if (gap > gap_min*self.irgn_par.stag) and i>1:
-          self.v = v_new.get()
-          self.r = r.get()
-          self.z1 = z1.get()
-          self.z2 = z2.get()
-          print("Terminated at iteration %d because the method stagnated"%(i))
-          return x.get()
-        if np.abs(gap - gap_min)<self.irgn_par.lambd*self.irgn_par.tol and i>1:
-          self.v = v_new.get()
-          self.r = r.get()
-          self.z1 = z1.get()
-          self.z2 = z2
-          print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(i,abs(gap - gap_min).get()/self.irgn_par.lambd))
-          return x_new.get()
-        primal = primal_new
-        gap_min = np.minimum(gap,gap_min)
-        print("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f "%(i,primal.get()/self.irgn_par.lambd,dual.get()/self.irgn_par.lambd,gap.get()/self.irgn_par.lambd))
-#        print("Norm of primal gradient: %.3e"%(np.linalg.norm(Kyk1)+np.linalg.norm(Kyk2)))
-#        print("Norm of dual gradient: %.3e"%(np.linalg.norm(tmp)+np.linalg.norm(gradx[:self.unknowns_TGV] + theta_line*gradx_xold[:self.unknowns_TGV]
-#                                          - v_new - theta_line*v_vold)+np.linalg.norm( symgrad_v + theta_line*symgrad_v_vold)))
-
-      (x, x_new) = (x_new, x)
-      (v, v_new) = (v_new, v)
-#      for j in range(self.par.unknowns_TGV):
-#        self.scale_2D[j,...] = np.linalg.norm(x[j,...])
-    self.v = v.get()
-    self.r = r.get()
-    self.z1 = z1.get()
-    self.z2 = z2.get()
-    return x.get()
-
-
-  def nFT(self, x):
-    result = np.zeros((self.NScan,self.NC,self.NSlice,self.Nproj,self.N),dtype=DTYPE)
-    tmp_img = clarray.to_device(self.queue,np.require(np.reshape(x,(self.NScan*self.NC*self.NSlice,self.dimY,self.dimX)),DTYPE,"C"))
-    tmp_sino = clarray.zeros(self.queue,self.r_struct[2],DTYPE,"C")
-    (self.radon(tmp_sino,tmp_img))
-    result = (np.reshape(tmp_sino.get(),(self.NScan,self.NC,self.NSlice,self.Nproj,self.N)))
-
-    return result
-
-
-
-  def nFTH(self, x):
-    result = np.zeros((self.NScan,self.NC,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
-    tmp_sino = clarray.to_device(self.queue,np.require(np.reshape(x,(self.NScan*self.NC*self.NSlice,self.Nproj,self.N)),DTYPE,"C"))
-    tmp_img = clarray.zeros(self.queue,self.r_struct[1],DTYPE,"C")
-    (self.radon_ad(tmp_img,tmp_sino))
-    result = (np.reshape(tmp_img.get(),(self.NScan,self.NC,self.NSlice,self.dimY,self.dimX)))
-
-    return result
-
 #
-#  def nFT_inplace(self, x,y):
-#    y = clarray.reshape(y,self.r_struct[2])
-#    (self.radon(y,clarray.reshape(x,(self.NScan*self.NC*self.NSlice,self.dimY,self.dimX))))
-#    y = clarray.reshape(y,(self.NScan,self.NC,self.NSlice,self.Nproj,self.N))
-#
-#  def nFTH_inplace(self, x,y):
-#    y = clarray.reshape(y,self.r_struct[1])
-#    (self.radon_ad(y,clarray.reshape(x,(self.NScan*self.NC*self.NSlice,self.Nproj,self.N))))
-#    y = clarray.reshape(y,(self.NScan,self.NC,self.NSlice,self.dimY,self.dimX))
+  def update_p(self,p, u, w, sigma, alpha, wait_for=[]):
+    p.add_event(self.prg.update_p(p.queue, u.shape[:-1], None, p.data, u.data,
+                w.data, np.float32(sigma), np.float32(1.0/alpha), np.int32(self.unknowns),
+                self.ukscale.data, np.float32(np.amax(self.ukscale.get())/self.ratio),
+                wait_for=u.events + w.events + p.events + wait_for))
 
+  def update_q(self,q, w, sigma, alpha, wait_for=[]):
+    q.add_event(self.prg.update_q(q.queue, q.shape[1:-1], None, q.data, w.data,
+                np.float32(sigma), np.float32(1.0/alpha),np.int32(self.unknowns),
+                wait_for=q.events + w.events + wait_for))
 
   def f_grad(self,grad, u, wait_for=[]):
-    return self.prg.gradient(grad.queue, u.shape[1:], None, grad.data, u.data,
+    grad.add_event(self.prg.gradient(grad.queue, grad.shape[1:-1], None, grad.data, u.data,
                 np.int32(self.unknowns),
-                self.ukscale.data,  np.float32(np.amax(self.ukscale.get())),np.float32(self.ratio),
-                wait_for=grad.events + u.events + wait_for)
+                self.ukscale.data, np.float32(np.amax(self.ukscale.get())/self.ratio),
+                wait_for=grad.events + u.events + wait_for))
 
   def bdiv(self,div, u, wait_for=[]):
-    return self.prg.divergence(div.queue, u.shape[1:-1], None, div.data, u.data,
+    div.add_event(self.prg.divergence(div.queue, u.shape[1:-1], None, div.data, u.data,
                 np.int32(self.unknowns),
-                self.ukscale.data, np.float32(np.amax(self.ukscale.get())),np.float32(self.ratio),
-                wait_for=div.events + u.events + wait_for)
+                self.ukscale.data, np.float32(np.amax(self.ukscale.get())/self.ratio),
+                wait_for=div.events + u.events + wait_for))
 
   def sym_grad(self,sym, w, wait_for=[]):
-    return self.prg.sym_grad(sym.queue, w.shape[1:-1], None, sym.data, w.data,
+    sym.add_event(self.prg.sym_grad(sym.queue, sym.shape[1:-1], None, sym.data, w.data,
                 np.int32(self.unknowns),
-                wait_for=sym.events + w.events + wait_for)
+                wait_for=sym.events + w.events + wait_for))
 
-  def sym_bdiv(self,div, u, wait_for=[]):
-    return self.prg.sym_divergence(div.queue, u.shape[1:-1], None, div.data, u.data,
-                np.int32(self.unknowns),
-                wait_for=div.events + u.events + wait_for)
-  def update_Kyk2(self,div, u, z, wait_for=[]):
-    return self.prg.update_Kyk2(div.queue, u.shape[1:-1], None, div.data, u.data, z.data,
-                np.int32(self.unknowns),
-                wait_for=div.events + u.events + z.events+wait_for)
+  def update_lambda(self,lamb, Ku, f, sigma, normest, wait_for=[]):
+    lamb.add_event(self.prg.update_lambda(lamb.queue, lamb.shape, None,
+                   lamb.data, Ku.data, f.data, np.float32(sigma/normest),
+                   np.float32(1.0/(sigma/self.irgn_par.lambd+1.0)),
+                   wait_for=lamb.events + Ku.events + f.events + wait_for))
 
-  def update_primal(self, x_new, x, Kyk, xk, tau, delta, wait_for=[]):
-    return self.prg.update_primal(x_new.queue, x.shape[1:], None, x_new.data, x.data, Kyk.data, xk.data, np.float32(tau),
-                                  np.float32(tau/delta), np.float32(1/(1+tau/delta)), self.min_const.data, self.max_const.data,
-                                  self.real_const.data, np.int32(self.unknowns),
-                                  wait_for=x_new.events + x.events + Kyk.events+ xk.events+wait_for
-                                  )
-  def update_z1(self, z_new, z, gx, gx_, vx, vx_, sigma, theta, alpha, wait_for=[]):
-    return self.prg.update_z1(z_new.queue, z.shape[1:-1], None, z_new.data, z.data, gx.data, gx_.data, vx.data, vx_.data, np.float32(sigma), np.float32(theta),
-                                  np.float32(1/alpha), np.int32(self.unknowns),
-                                  wait_for= z_new.events + z.events + gx.events+ gx_.events+ vx.events+ vx_.events+wait_for
-                                  )
-  def update_z1_tv(self, z_new, z, gx, gx_, sigma, theta, alpha, wait_for=[]):
-    return self.prg.update_z1_tv(z_new.queue, z.shape[1:-1], None, z_new.data, z.data, gx.data, gx_.data, np.float32(sigma), np.float32(theta),
-                                  np.float32(1/alpha), np.int32(self.unknowns),
-                                  wait_for= z_new.events + z.events + gx.events+ gx_.events+ wait_for
-                                  )
-  def update_z2(self, z_new, z, gx, gx_, sigma, theta, beta, wait_for=[]):
-    return self.prg.update_z2(z_new.queue, z.shape[1:-1], None, z_new.data, z.data, gx.data, gx_.data, np.float32(sigma), np.float32(theta),
-                                  np.float32(1/beta),  np.int32(self.unknowns),
-                                  wait_for= z_new.events + z.events + gx.events+ gx_.events+ wait_for
-                                  )
-  def update_r(self, r_new, r, A, A_, res, sigma, theta, lambd, wait_for=[]):
-    return self.prg.update_r(r_new.queue, self.r_struct[2], None, r_new.data, r.data, A.data, A_.data, res.data, np.float32(sigma), np.float32(theta),
-                                  np.float32(1/(1+sigma/lambd)),
-                                  wait_for= r_new.events + r.events + A.events+ A_.events+ wait_for
-                                  )
-  def update_v(self, v_new, v, Kyk2, tau, wait_for=[]):
-    return self.prg.update_v(v_new.queue, (self.unknowns*v.shape[1]*self.NSlice,v.shape[-2],v.shape[-1]), None,
-                             v_new.data, v.data, Kyk2.data, np.float32(tau),
-                                  wait_for= v_new.events + v.events + Kyk2.events+ wait_for
-                                  )
+  def update_u(self,u, u_, p, Kstarlambda, uk, tau, normest, delta, wait_for=[]):
+    u.add_event(self.prg.update_u(u.queue, u.shape[:-1], None, u.data, u_.data,
+                p.data, Kstarlambda.data, uk.data, np.float32(tau), np.float32(1.0/normest),
+                np.float32(delta),np.int32(self.unknowns),
+                self.ukscale.data, np.float32(np.amax(self.ukscale.get())/self.ratio),
+                wait_for=u.events + u_.events + p.events +
+                Kstarlambda.events +uk.events+ wait_for))
+
+  def update_w(self,w, w_, p, q, tau, wait_for=[]):
+    w.add_event(self.prg.update_w(w.queue, w.shape[1:-1], None, w.data, w_.data,
+                p.data, q.data, np.float32(tau),np.int32(self.unknowns),
+                wait_for=w.events + w_.events + p.events + q.events +
+                wait_for))
+
+
+  def functional_value(self,accum_u, accum_f, u, w, Ku, f, alpha, r_struct):
+    Ku.add_event(self.operator_forward_2D(Ku, u, wait_for=u.events))
+    accum_f.add_event(self.prg.functional_discrepancy(Ku.queue, Ku.shape,
+                      None, accum_f.data, Ku.data, f.data,
+                      wait_for=Ku.events + f.events))
+    accum_u.add_event(self.prg.functional_tgv(u.queue, u.shape[:-1], None,
+                      accum_u.data, u.data, w.data, np.float32(alpha[0]),
+                      np.float32(alpha[1]), np.int32(self.unknowns),
+                      self.ukscale.data, np.float32(np.amax(self.ukscale.get())/self.ratio),
+                      wait_for=u.events + w.events))
+    cl.wait_for_events(accum_f.events + accum_u.events)
+    value = 0.5*abs(np.abs(clarray.sum(accum_f).get()) \
+            + abs(clarray.sum(accum_u).get()))
+    return value
+
+#################
+## main iteration
+
+  def tgv_radon(self,f0, x0, img_shape, angles, alpha, maxiter, record_values=True):
+
+    f = clarray.to_device(self.queue, np.require(f0, DTYPE, 'F'))
+    u = clarray.to_device(self.queue, np.require(x0, DTYPE, 'F'))
+    uk = clarray.to_device(self.queue, np.require(np.copy(x0), DTYPE, 'F'))
+    u_ = clarray.to_device(self.queue, np.require(np.copy(x0), DTYPE, 'F'))
+    w = clarray.to_device(self.queue, self.v)
+    w_ = clarray.to_device(self.queue, self.v)
+    p = clarray.to_device(self.queue, self.z1)
+    q = clarray.to_device(self.queue, self.z2)
+    lamb = clarray.to_device(self.queue, self.r)
+
+#    ## Guess OP norm
+#    yy = clarray.zeros_like(u)
+#    xx = np.random.random_sample(u.shape).astype(DTYPE)
+#    xxcl = clarray.to_device(self.queue,xx)
+#    tmp = clarray.zeros_like(f)
+#    self.operator_forward_2D(tmp,xxcl)
+#    self.operator_adjoint_2D(yy,tmp)
+#    for j in range(10):
+#       if not np.isclose(np.linalg.norm(yy.get().flatten()),0):
+#           xxcl = yy/np.linalg.norm(yy.get().flatten())
+#       else:
+#           xxcl = yy
+#       self.operator_forward_2D(tmp,xxcl)
+#       self.operator_adjoint_2D(yy,tmp)
+#       l1 = clarray.vdot(yy,xxcl).get();
+#    L = np.max(np.abs(l1)) ## Lipschitz constant estimate
+    L = ((0.5*(18.0 + np.sqrt(33)))+(300))
+    print('L: %f'%(L))
+#    del yy, xx, xxcl, tmp, l1
+
+    p_d_ratio = np.sqrt(10)
+
+
+
+    if record_values:
+        accum_u = clarray.zeros_like(u)
+        accum_f = clarray.zeros_like(f)
+
+    Ku = clarray.zeros(self.queue, f0.shape, dtype=DTYPE, order='F')
+    Kstarlambda = clarray.zeros_like(u)
+    normest = 1#self.radon_normest()
+
+#    L = 0.5*(18.0 + np.sqrt(33))
+    sigma = 1.0/np.sqrt(L)*p_d_ratio
+    tau = 1.0/np.sqrt(L)/p_d_ratio
+    alpha = np.array(alpha)
+
+    if record_values:
+        values = []
+    for i in range(np.minimum(10,maxiter)):
+        self.update_p(p, u_, w_, sigma, alpha[1])
+        self.update_q(q, w_, sigma, alpha[0], wait_for=w_.events)
+        Ku.add_event(self.operator_forward_2D(Ku, u_, wait_for=u_.events+Ku.events))
+        self.update_lambda(lamb, Ku, f, sigma, normest)
+        Kstarlambda.add_event(self.operator_adjoint_2D(Kstarlambda, lamb, wait_for=lamb.events+Kstarlambda.events))
+        self.update_u(u_, u, p, Kstarlambda, uk, tau, normest, self.irgn_par.delta)
+        self.update_w(w_, w, p, q, tau)
+
+        u_= u_.get()
+        for j in range(len(self.model.constraints)):
+          u_[...,j] = np.maximum(self.model.constraints[j].min,np.minimum(self.model.constraints[j].max,u_[...,j]))
+          if self.model.constraints[j].real:
+            u_[...,j] = np.real(u_[...,j])
+        u_ = clarray.to_device(self.queue,u_)
+
+        if record_values:
+            values.append(self.functional_value(accum_u, accum_f, u, w, Ku, f,
+                                           alpha, self.r_struct))
+            sys.stdout.write('Iteration %d, functional value=%f        \r' \
+                             % (i, values[-1]))
+            sys.stdout.flush()
+
+        u.add_event(self.update_extra(u_, u, wait_for=u.events + u_.events))
+        w.add_event(self.update_extra(w_, w, wait_for=w.events + w_.events))
+
+        (u, u_, w, w_) = (u_, u, w_, w)
+        #Adapt stepsize
+        (sigma,tau) = self.step_update(u-u_,w-w_,sigma,tau,p_d_ratio)
+
+    for i in np.arange(10,maxiter):
+        self.update_p(p, u_, w_, sigma, alpha[1])
+        self.update_q(q, w_, sigma, alpha[0], wait_for=w_.events)
+        Ku.add_event(self.operator_forward_2D(Ku, u_, wait_for=Ku.events+u_.events))
+        self.update_lambda(lamb, Ku, f, sigma, normest)
+        Kstarlambda.add_event(self.operator_adjoint_2D(Kstarlambda, lamb, wait_for=Kstarlambda.events+lamb.events))
+        self.update_u(u_, u, p, Kstarlambda, uk, tau, normest, self.irgn_par.delta)
+        self.update_w(w_, w, p, q, tau)
+
+        u_= u_.get()
+        for j in range(len(self.model.constraints)):
+          u_[...,j] = np.maximum(self.model.constraints[j].min,np.minimum(self.model.constraints[j].max,u_[...,j]))
+          if self.model.constraints[j].real:
+            u_[...,j] = np.real(u_[...,j])
+        u_ = clarray.to_device(self.queue,u_)
+
+        if record_values:
+            values.append(self.functional_value(accum_u, accum_f, u, w, Ku, f,
+                                           alpha, self.r_struct))
+            sys.stdout.write('Iteration %d, functional value=%f        \r' \
+                             % (i, values[-1]))
+            sys.stdout.flush()
+
+        u.add_event(self.update_extra(u_, u, wait_for=u.events + u_.events))
+        w.add_event(self.update_extra(w_, w, wait_for=w.events + w_.events))
+
+
+        (u, u_, w, w_) = (u_, u, w_, w)
+
+        if (i % 50 == 0):
+            self.model.plot_unknowns(u.get().T)
+            #Adapt stepsize
+            (sigma,tau) = self.step_update(u-u_,w-w_,sigma,tau,p_d_ratio)
+
+
+    if record_values:
+        sys.stdout.write('\n')
+        self.z1 = p.get()
+        self.z2 = q.get()
+        self.r = lamb.get()
+        self.v = w.get()
+        return (np.squeeze(u.get().T), np.transpose(np.squeeze(w.get().T),(0,-1,1,2,3)), values)
+    else:
+        return u.get()
+
+
+  def nFT_2D(self, x):
+    result = np.zeros((self.NScan,self.NC,self.NSlice,self.Nproj,self.N),dtype=DTYPE)
+#    for i in range(self.NScan):
+#       for j in range(self.NC):
+    tmp_img = clarray.to_device(self.queue,np.require(np.reshape(x,(self.NC*self.NScan*self.NSlice,self.dimY,self.dimX)),DTYPE,"C"))
+    tmp_sino = clarray.zeros(self.queue,self.r_struct[2],DTYPE,"F")
+    (self.radon(tmp_sino,tmp_img.T))
+    result = np.reshape(tmp_sino.get().T,(self.NScan,self.NC,self.NSlice,self.Nproj,self.N))
+
+    return result
+
+
+
+  def nFTH_2D(self, x):
+    result = np.zeros((self.NScan,self.NC,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
+#    for i in range(self.NScan):
+#       for j in range(self.NC):
+    tmp_sino = clarray.to_device(self.queue,np.require(np.reshape(x,(self.NScan*self.NC*self.NSlice,self.Nproj,self.N)),DTYPE,"C"))
+    tmp_img = clarray.zeros(self.queue,self.r_struct[1],DTYPE,"F")
+    (self.radon_ad(tmp_img,tmp_sino.T))
+    result = np.reshape(tmp_img.get().T,(self.NScan,self.NC,self.NSlice,self.dimY,self.dimX))
+
+    return result
+
+
+  def step_update(self,u,v,sig,tau,s_t_ratio=1):
+     sig = sig
+     tau = tau
+
+     Ku = clarray.zeros(self.queue, (self.N,self.Nproj,self.NC*self.NSlice*self.NScan),dtype=DTYPE,order='F')
+     grad = clarray.zeros(self.queue, (4,self.dimX,self.dimY,self.NSlice,self.unknowns), dtype=DTYPE, order='F')
+     sym_grad = clarray.zeros(self.queue, (8,self.dimX,self.dimY,self.NSlice,self.unknowns), dtype=DTYPE, order='F')
+     Ku.add_event(self.operator_forward_2D(Ku, u, wait_for=u.events))
+     self.f_grad(grad,u)
+     grad = grad-v
+     self.sym_grad(sym_grad,v)
+
+
+     #Get |Kx|  2 bei sym grad berücksichtigt!
+     sym_grad = sym_grad.get()
+
+     nKx = np.real((clarray.vdot(Ku,Ku).get()+clarray.vdot(grad,grad).get()+np.sum(np.vdot(sym_grad[:3],sym_grad[:3]))+2*np.sum(np.vdot(sym_grad[3:],sym_grad[3:])))**(1/2))
+
+     #Get |x|
+     nx = np.real(((clarray.vdot(u,u)+clarray.vdot(v,v))**(1/2)).get())
+
+
+     #Set |x| / |Kx|
+     tmp = (nx/nKx);
+     theta = 0.90;
+
+    #Check convergence condition
+     while sig*tau > tmp**2: #If stepsize is too large
+        if theta**(2)*sig*tau < tmp**2: #Check if minimal decrease satisfies condition
+            sig = theta*sig
+            tau = theta*tau
+        else:                 #If not, decrease further
+            sig = tmp*s_t_ratio
+            tau = tmp/s_t_ratio
+
+     return (sig,tau)
 ################################################################################
 ### Scale before gradient ######################################################
 ################################################################################
   def set_scale(self,x):
     for j in range(x.shape[0]):
       self.ukscale[j] = np.linalg.norm(x[j,...])
-      print('scale %f at uk %i' %(self.ukscale[j].get(),j))
+      print('scale %f at uk %i' %(self.ukscale.get()[j],j))
   def scale_fwd(self,x):
     y = np.copy(x)
     for j in range(x.shape[0]):
@@ -1301,498 +1205,3 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
       else:
         y[j,...] *= np.max(self.ukscale.get())
     return y
-
-
-################################################################################
-### Start a 3D Reconstruction, set TV to True to perform TV instead of TGV######
-### Precompute Model and Gradient values for xk ################################
-### Call inner optimization ####################################################
-### input: bool to switch between TV (1) and TGV (0) regularization ############
-### output: optimal value of x #################################################
-################################################################################
-  def execute_3D(self, TV=0):
-   self.FT = self.nFT
-   self.FTH = self.nFTH
-   iters = self.irgn_par.start_iters
-
-
-   self.r = np.zeros_like(self.data,dtype=DTYPE)
-   self.z1 = np.zeros(([self.unknowns,self.NSlice,self.par.dimX,self.par.dimY,4]),dtype=DTYPE)
-
-
-   self.result = np.zeros((self.irgn_par.max_GN_it+1,self.unknowns,self.par.NSlice,self.par.dimY,self.par.dimX),dtype=DTYPE)
-   self.result[0,:,:,:,:] = np.copy(self.model.guess)
-
-   self.Coils3D = np.squeeze(self.par.C)
-   self.conjCoils3D = np.conj(self.Coils3D)
-   result = np.copy(self.model.guess)
-
-   if TV==1:
-      for i in range(self.irgn_par.max_GN_it):
-        start = time.time()
-        self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
-
-        scale = np.linalg.norm(np.abs(self.grad_x[0,...]))/np.linalg.norm(np.abs(self.grad_x[1,...]))
-
-        for j in range(len(self.model.constraints)-1):
-          self.model.constraints[j+1].update(scale)
-
-        result[1,...] = result[1,...]*self.model.T1_sc
-        self.model.T1_sc = self.model.T1_sc*(scale)
-        result[1,...] = result[1,...]/self.model.T1_sc
-
-        self.step_val = np.nan_to_num(self.model.execute_forward_3D(result))
-        self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
-        self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x.data)
-        self.conj_grad_x = np.nan_to_num(np.conj(self.grad_x))
-
-        result = self.irgn_solve_3D(result, iters, self.data,TV)
-        self.result[i+1,0,...] = result[0,...]*self.model.M0_sc
-        self.result[i+1,1,...] = result[1,...]*self.model.T1_sc
-
-        iters = np.fmin(iters*2,self.irgn_par.max_iters)
-        self.irgn_par.gamma = np.maximum(self.irgn_par.gamma*self.irgn_par.gamma_dec,self.irgn_par.gamma_min)
-        self.irgn_par.delta = np.minimum(self.irgn_par.delta*self.irgn_par.delta_inc,self.irgn_par.delta_max)
-
-        end = time.time()-start
-        self.gn_res.append(self.fval)
-        print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
-        print("-"*80)
-        if (np.abs(self.fval_min-self.fval) < self.irgn_par.lambd*self.irgn_par.tol) and i>0:
-          print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/(self.irgn_par.lambd*self.NSlice)))
-          break
-        if i==0:
-          self.fval_min = self.fval
-        self.fval_min = np.minimum(self.fval,self.fval_min)
-
-   elif TV==0:
-      self.v = np.zeros(([self.unknowns,self.NSlice,self.par.dimX,self.par.dimY,4]),dtype=DTYPE)
-      self.z2 = np.zeros(([self.unknowns,self.NSlice,self.par.dimX,self.par.dimY,8]),dtype=DTYPE)
-      for i in range(self.irgn_par.max_GN_it):
-        start = time.time()
-        self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
-
-        scale = np.linalg.norm(np.abs(self.grad_x[0,...]))/np.linalg.norm(np.abs(self.grad_x[1,...]))
-
-        for j in range(len(self.model.constraints)-1):
-          self.model.constraints[j+1].update(scale)
-
-        result[1,...] = result[1,...]*self.model.T1_sc
-        self.model.T1_sc = self.model.T1_sc*(scale)
-        result[1,...] = result[1,...]/self.model.T1_sc
-
-        self.step_val = np.nan_to_num(self.model.execute_forward_3D(result))
-        self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
-        self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x.data)
-        self.conj_grad_x = np.nan_to_num(np.conj(self.grad_x))
-
-        result = self.irgn_solve_3D(result, iters, self.data,TV)
-        self.result[i+1,0,...] = result[0,...]*self.model.M0_sc
-        self.result[i+1,1,...] = result[1,...]*self.model.T1_sc
-
-        iters = np.fmin(iters*2,self.irgn_par.max_iters)
-        self.irgn_par.gamma = np.maximum(self.irgn_par.gamma*self.irgn_par.gamma_dec,self.irgn_par.gamma_min)
-        self.irgn_par.delta = np.minimum(self.irgn_par.delta*self.irgn_par.delta_inc,self.irgn_par.delta_max)
-
-        end = time.time()-start
-        self.gn_res.append(self.fval)
-        print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
-        print("-"*80)
-        if (np.abs(self.fval_min-self.fval) < self.irgn_par.lambd*self.irgn_par.tol) and i>0:
-          print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/(self.irgn_par.lambd*self.NSlice)))
-          break
-        if i==0:
-          self.fval_min = self.fval
-        self.fval_min = np.minimum(self.fval,self.fval_min)
-   else:
-      self.z1 = pywt.wavedec2(result,self.wavelet,self.border)
-      for j in range(len(self.z1)):
-        self.z1[j] = np.array(self.z1[j])
-        self.z1[j] = np.zeros_like(self.z1[j]).astype(DTYPE)
-      for i in range(self.irgn_par.max_GN_it):
-        start = time.time()
-        self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
-
-        scale = np.linalg.norm(np.abs(self.grad_x[0,...]))/np.linalg.norm(np.abs(self.grad_x[1,...]))
-
-        for j in range(len(self.model.constraints)-1):
-          self.model.constraints[j+1].update(scale)
-
-        result[1,...] = result[1,...]*self.model.T1_sc
-        self.model.T1_sc = self.model.T1_sc*(scale)
-        result[1,...] = result[1,...]/self.model.T1_sc
-
-        self.step_val = np.nan_to_num(self.model.execute_forward_3D(result))
-        self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
-        self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x.data)
-        self.conj_grad_x = np.nan_to_num(np.conj(self.grad_x))
-
-        result = self.irgn_solve_3D(result, iters, self.data,TV)
-        self.result[i+1,0,...] = result[0,...]*self.model.M0_sc
-        self.result[i+1,1,...] = result[1,...]*self.model.T1_sc
-
-        iters = np.fmin(iters*2,self.irgn_par.max_iters)
-        self.irgn_par.gamma = np.maximum(self.irgn_par.gamma*self.irgn_par.gamma_dec,self.irgn_par.gamma_min)
-        self.irgn_par.delta = np.minimum(self.irgn_par.delta*self.irgn_par.delta_inc,self.irgn_par.delta_max)
-
-        end = time.time()-start
-        self.gn_res.append(self.fval)
-        print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
-        print("-"*80)
-        if (np.abs(self.fval_min-self.fval) < self.irgn_par.lambd*self.irgn_par.tol) and i>0:
-          print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/(self.irgn_par.lambd*self.NSlice)))
-          break
-        if i==0:
-          self.fval_min = self.fval
-        self.fval_min = np.minimum(self.fval,self.fval_min)
-################################################################################
-### Precompute constant terms of the GN linearization step #####################
-### input: linearization point x ###############################################
-########## numeber of innner iterations iters ##################################
-########## Data ################################################################
-########## bool to switch between TV (1) and TGV (0) regularization ############
-### output: optimal value of x for the inner GN step ###########################
-################################################################################
-################################################################################
-  def irgn_solve_3D(self,x,iters, data, TV=0):
-
-    x_old = x
-    x = clarray.to_device(self.queue,np.require(x,requirements="C"))
-
-    res = data - self.FT(self.step_val[:,None,...]*self.Coils3D) + self.operator_forward(x).get()
-
-
-    if TV==1:
-      x = self.tv_solve_3D(x.get(),res,iters)
-      x = clarray.to_device(self.queue,x)
-      grad = clarray.to_device(self.queue,np.zeros_like(self.z1))
-      grad.add_event(self.f_grad(grad,x,wait_for=grad.events+x.events))
-      x = x.get()
-      self.fval= (self.irgn_par.lambd/2*np.linalg.norm(data - self.FT(self.model.execute_forward_3D(x)[:,None,...]*self.Coils3D))**2
-              +self.irgn_par.gamma*np.sum(np.abs(grad.get()))
-              +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2)
-      print('Norm M0 grad: %f  norm T1 grad: %f' %(np.linalg.norm(grad.get()[0,...]),np.linalg.norm(grad.get()[1,...])))
-      scale = np.linalg.norm(grad.get()[0,...])/np.linalg.norm(grad.get()[1,...])
-      if scale == 0 or not np.isfinite(scale):
-        self.ratio = self.ratio
-      else:
-        self.ratio *= scale
-    elif TV==0:
-       x = self.tgv_solve_3D(x.get(),res,iters)
-       x = clarray.to_device(self.queue,x)
-       v = clarray.to_device(self.queue,self.v)
-       grad = clarray.to_device(self.queue,np.zeros_like(self.z1))
-       sym_grad = clarray.to_device(self.queue,np.zeros_like(self.z2))
-       grad.add_event(self.f_grad(grad,x,wait_for=grad.events+x.events))
-       sym_grad.add_event(self.sym_grad(sym_grad,v,wait_for=sym_grad.events+v.events))
-       x = x.get()
-       self.fval= (self.irgn_par.lambd/2*np.linalg.norm(data - self.FT(self.model.execute_forward_3D(x)[:,None,...]*self.Coils3D))**2
-              +self.irgn_par.gamma*np.sum(np.abs(grad.get()-self.v))
-              +self.irgn_par.gamma*(2)*np.sum(np.abs(sym_grad.get()))
-              +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2)
-       print('Norm M0 grad: %f  norm T1 grad: %f' %(np.linalg.norm(grad.get()[0,...]),np.linalg.norm(grad.get()[1,...])))
-       scale = np.linalg.norm(grad.get()[0,...])/np.linalg.norm(grad.get()[1,...])
-       if scale == 0 or not np.isfinite(scale):
-         self.ratio = self.ratio
-       else:
-         self.ratio *= scale
-    else:
-       x = self.wt_solve_3D(x.get(),res,iters)
-       grad = pywt.wavedec2(self.scale_fwd(x),self.wavelet,self.border)
-       print('Norm M0 grad: %f  norm T1 grad: %f' %(np.linalg.norm(np.array(grad[len(grad)-1])[:,0,...]),np.linalg.norm(np.array(grad[len(grad)-1])[:,1,...])))
-       scale = np.linalg.norm(np.array(grad[len(grad)-1])[:,0,...])/np.linalg.norm(np.array(grad[len(grad)-1])[:,1,...])
-       if scale == 0 or not np.isfinite(scale):
-         self.ratio = self.ratio
-       else:
-         self.ratio *= scale
-       for j in range(len(grad)):
-         grad[j] = np.sum(np.abs(np.array(grad[j])))
-       self.fval= (self.irgn_par.lambd/2*np.linalg.norm(data - self.FT(self.model.execute_forward_3D(x)[:,None,...]*self.Coils3D))**2
-              +self.irgn_par.gamma*np.abs(np.sum(grad))
-              +1/(2*self.irgn_par.delta)*np.linalg.norm((x-x_old).flatten())**2)
-
-    print("-"*80)
-    print ("Function value after GN-Step: %f" %(self.fval/(self.irgn_par.lambd*self.NSlice)))
-
-    return x
-
-  def tgv_solve_3D(self, x,res, iters):
-    alpha = self.irgn_par.gamma
-    beta = self.irgn_par.gamma*2
-
-    L = np.float32(0.5*(18.0 + np.sqrt(33)))
-    print('L: %f'%(L))
-
-
-    tau = np.float32(1/np.sqrt(L))
-    tau_new =np.float32(0)
-
-    self.set_scale(x)
-    x = clarray.to_device(self.queue,x)
-    xk = x.copy()
-    x_new = clarray.zeros_like(x)
-
-    r = clarray.to_device(self.queue,self.r)#np.zeros_like(res,dtype=DTYPE)
-    r_new = clarray.zeros_like(r)
-    z1 = clarray.to_device(self.queue,self.z1)#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-    z1_new = clarray.zeros_like(z1)#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-    z2 = clarray.to_device(self.queue,self.z2)#np.zeros(([self.unknowns,3,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-    z2_new = clarray.zeros_like(z2)
-    v = clarray.to_device(self.queue,self.v)#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-    v_new = clarray.zeros_like(v)
-    res = clarray.to_device(self.queue, res.astype(DTYPE))
-
-
-    delta = self.irgn_par.delta
-    mu = 1/delta
-
-    theta_line = np.float32(1.0)
-
-
-    beta_line = np.float32(10)
-    beta_new = np.float32(0)
-
-    mu_line =np.float32( 0.5)
-    delta_line = np.float32(1)
-
-    ynorm = np.float32(0.0)
-    lhs = np.float32(0.0)
-
-    primal = np.float32(0.0)
-    primal_new = np.float32(0)
-    dual = np.float32(0.0)
-    gap_min = np.float32(0.0)
-    gap = np.float32(0.0)
-    self.eval_const()
-
-    Kyk1 = clarray.zeros_like(x)
-    Kyk1_new = clarray.zeros_like(x)
-    Kyk2 = clarray.zeros_like(z1)
-    Kyk2_new = clarray.zeros_like(z1)
-    gradx = clarray.zeros_like(z1)
-    gradx_xold = clarray.zeros_like(z1)
-    symgrad_v = clarray.zeros_like(z2)
-    symgrad_v_vold = clarray.zeros_like(z2)
-
-    Axold = clarray.zeros_like(res)
-    Ax = clarray.zeros_like(res)
-
-    Axold.add_event(self.operator_forward_full(Axold,x))
-
-    Kyk1.add_event(self.operator_adjoint_full(Kyk1,r,z1))
-    Kyk2.add_event(self.update_Kyk2(Kyk2,z2,z1))
-
-    for i in range(iters):
-      x_new.add_event(self.update_primal(x_new,x,Kyk1,xk,tau,delta))
-      v_new.add_event(self.update_v(v_new,v,Kyk2,tau))
-
-      beta_new = beta_line*(1+mu*tau)
-      tau_new = tau*np.sqrt(beta_line/beta_new*(1+theta_line))
-
-      beta_line = beta_new
-
-
-      gradx.add_event(self.f_grad(gradx,x_new,wait_for=gradx.events+x_new.events))
-      gradx_xold.add_event(self.f_grad(gradx_xold,x,wait_for=gradx_xold.events+x.events))
-      symgrad_v.add_event(self.sym_grad(symgrad_v,v_new,wait_for=symgrad_v.events+v_new.events))
-      symgrad_v_vold.add_event(self.sym_grad(symgrad_v_vold,v,wait_for=symgrad_v_vold.events+v.events))
-
-      Ax.add_event(self.operator_forward_full(Ax,x_new))
-
-      while True:
-
-        theta_line = tau_new/tau
-        z1_new.add_event(self.update_z1(z1_new,z1,gradx,gradx_xold,v_new,v, beta_line*tau_new, theta_line, alpha))
-        z2_new.add_event(self.update_z2(z2_new,z2,symgrad_v,symgrad_v_vold,beta_line*tau_new,theta_line,beta))
-        r_new.add_event(self.update_r(r_new,r,Ax,Axold,res,beta_line*tau_new,theta_line,self.irgn_par.lambd))
-
-
-        Kyk1_new.add_event(self.operator_adjoint_full(Kyk1_new,r_new,z1_new))
-        Kyk2_new.add_event(self.update_Kyk2(Kyk2_new,z2_new,z1_new))
-
-        ynorm = ((clarray.vdot(r_new-r,r_new-r)+clarray.vdot(z1_new-z1,z1_new-z1)+clarray.vdot(z2_new-z2,z2_new-z2))**(1/2)).real
-        lhs = np.sqrt(beta_line)*tau_new*((clarray.vdot(Kyk1_new-Kyk1,Kyk1_new-Kyk1)+clarray.vdot(Kyk2_new-Kyk2,Kyk2_new-Kyk2))**(1/2)).real
-        if lhs <= ynorm*delta_line:
-            break
-        else:
-          tau_new = tau_new*mu_line
-
-      (Kyk1, Kyk1_new, Kyk2, Kyk2_new, Axold, Ax, z1, z1_new, z2, z2_new, r, r_new) =\
-      (Kyk1_new, Kyk1, Kyk2_new, Kyk2, Ax, Axold, z1_new, z1, z2_new, z2, r_new, r)
-      tau =  (tau_new)
-
-
-      if not np.mod(i,20):
-
-        self.model.plot_unknowns(x_new.get())
-        primal_new= (self.irgn_par.lambd/2*clarray.vdot(Axold-res,Axold-res)+alpha*clarray.sum(abs((gradx[:self.unknowns_TGV]-v))) +beta*clarray.sum(abs(symgrad_v)) + 1/(2*delta)*clarray.vdot(x_new-xk,x_new-xk)).real
-
-        dual = (-delta/2*clarray.vdot(-Kyk1,-Kyk1)- clarray.vdot(xk,(-Kyk1)) + clarray.sum(Kyk2)
-                  - 1/(2*self.irgn_par.lambd)*clarray.vdot(r,r) - clarray.vdot(res,r)).real
-
-        gap = np.abs(primal_new - dual)
-        if i==0:
-          gap_min = gap
-        if np.abs(primal-primal_new)<(self.irgn_par.lambd*self.NSlice)*self.irgn_par.tol:
-          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(i,abs(primal-primal_new).get()/(self.irgn_par.lambd*self.NSlice)))
-          self.v = v_new.get()
-          self.r = r.get()
-          self.z1 = z1.get()
-          self.z2 = z2.get()
-          return x_new.get()
-        if (gap > gap_min*self.irgn_par.stag) and i>1:
-          self.v = v_new.get()
-          self.r = r.get()
-          self.z1 = z1.get()
-          self.z2 = z2.get()
-          print("Terminated at iteration %d because the method stagnated"%(i))
-          return x.get()
-        if np.abs(gap - gap_min)<(self.irgn_par.lambd*self.NSlice)*self.irgn_par.tol and i>1:
-          self.v = v_new.get()
-          self.r = r.get()
-          self.z1 = z1.get()
-          self.z2 = z2.get()
-          print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(i,abs(gap - gap_min).get()/(self.irgn_par.lambd*self.NSlice)))
-          return x_new.get()
-        primal = primal_new
-        gap_min = np.minimum(gap,gap_min)
-        print("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f "%(i,primal.get()/(self.irgn_par.lambd*self.NSlice),dual.get()/(self.irgn_par.lambd*self.NSlice),gap.get()/(self.irgn_par.lambd*self.NSlice)))
-
-      (x, x_new) = (x_new, x)
-      (v, v_new) = (v_new, v)
-
-    self.v = v.get()
-    self.r = r.get()
-    self.z1 = z1.get()
-    self.z2 = z2.get()
-    return x.get()
-
-  def tv_solve_3D(self, x,res, iters):
-    alpha = self.irgn_par.gamma
-
-    L = np.float32(8)
-    print('L: %f'%(L))
-
-
-    tau = np.float32(1/np.sqrt(L))
-    tau_new =np.float32(0)
-
-    self.set_scale(x)
-    x = clarray.to_device(self.queue,x)
-    xk = x.copy()
-    x_new = clarray.zeros_like(x)
-
-    r = clarray.to_device(self.queue,self.r)#np.zeros_like(res,dtype=DTYPE)
-    r_new  = clarray.zeros_like(r)
-    z1 = clarray.to_device(self.queue,self.z1)#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-    z1_new = clarray.zeros_like(z1)#np.zeros(([self.unknowns,2,self.par.dimX,self.par.dimY]),dtype=DTYPE)
-    res = clarray.to_device(self.queue, res.astype(DTYPE))
-
-
-    delta = self.irgn_par.delta
-    mu = 1/delta
-
-    theta_line = np.float32(1.0)
-
-
-    beta_line = np.float32(10)
-    beta_new = np.float32(0)
-
-    mu_line =np.float32( 0.5)
-    delta_line = np.float32(1)
-
-    ynorm = np.float32(0.0)
-    lhs = np.float32(0.0)
-
-    primal = np.float32(0.0)
-    primal_new = np.float32(0)
-    dual = np.float32(0.0)
-    gap_min = np.float32(0.0)
-    gap = np.float32(0.0)
-    self.eval_const()
-
-    Kyk1 = clarray.zeros_like(x)
-    Kyk1_new = clarray.zeros_like(x)
-
-
-    gradx = clarray.zeros_like(z1)
-    gradx_xold = clarray.zeros_like(z1)
-
-    Axold = clarray.zeros_like(res)
-    Ax = clarray.zeros_like(res)
-
-    Axold.add_event(self.operator_forward_full(Axold,x))
-    Kyk1.add_event(self.operator_adjoint_full(Kyk1,r,z1))
-
-
-    for i in range(iters):
-
-      x_new.add_event(self.update_primal(x_new,x,Kyk1,xk,tau,delta))
-
-
-      beta_new = beta_line*(1+mu*tau)
-      tau_new = tau*np.sqrt(beta_line/beta_new*(1+theta_line))
-      beta_line = beta_new
-
-
-      gradx.add_event(self.f_grad(gradx,x_new,wait_for=gradx.events+x_new.events))
-      gradx_xold.add_event(self.f_grad(gradx_xold,x,wait_for=gradx_xold.events+x.events))
-
-
-      Ax.add_event(self.operator_forward_full(Ax,x_new))
-
-
-      while True:
-
-        theta_line = tau_new/tau
-        z1_new.add_event(self.update_z1_tv(z1_new,z1,gradx,gradx_xold, beta_line*tau_new, theta_line,alpha))
-        r_new.add_event(self.update_r(r_new,r,Ax,Axold,res,beta_line*tau_new,theta_line,self.irgn_par.lambd))
-
-        Kyk1_new.add_event(self.operator_adjoint_full(Kyk1_new,r_new,z1_new))
-
-        ynorm = ((clarray.vdot(r_new-r,r_new-r)+clarray.vdot(z1_new-z1,z1_new-z1))**(1/2)).real
-        lhs = np.sqrt(beta_line)*tau_new*((clarray.vdot(Kyk1_new-Kyk1,Kyk1_new-Kyk1))**(1/2)).real
-        if lhs <= ynorm*delta_line:
-            break
-        else:
-          tau_new = tau_new*mu_line
-
-      (Kyk1, Kyk1_new,  Axold, Ax, z1, z1_new, r, r_new) =\
-      (Kyk1_new, Kyk1,  Ax, Axold, z1_new, z1, r_new, r)
-      tau =  (tau_new)
-
-
-      if not np.mod(i,20):
-        self.model.plot_unknowns(x_new.get())
-        primal_new= (self.irgn_par.lambd/2*clarray.vdot(Axold-res,Axold-res)+alpha*clarray.sum(abs((gradx[:self.unknowns_TGV]))) + 1/(2*delta)*clarray.vdot(x_new-xk,x_new-xk)).real
-
-        dual = (-delta/2*clarray.vdot(-Kyk1,-Kyk1)- clarray.vdot(xk,(-Kyk1))
-                  - 1/(2*self.irgn_par.lambd)*clarray.vdot(r,r) - clarray.vdot(res,r)).real
-
-        gap = np.abs(primal_new - dual)
-        if i==0:
-          gap_min = gap
-        if np.abs(primal-primal_new)<(self.irgn_par.lambd*self.NSlice)*self.irgn_par.tol:
-          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(i,abs(primal-primal_new).get()/(self.irgn_par.lambd*self.NSlice)))
-          self.r = r.get()
-          self.z1 = z1.get()
-          return x_new.get()
-        if (gap > gap_min*self.irgn_par.stag) and i>1:
-          self.r = r.get()
-          self.z1 = z1.get()
-          print("Terminated at iteration %d because the method stagnated"%(i))
-          return x_new.get()
-        if np.abs(gap - gap_min)<(self.irgn_par.lambd*self.NSlice)*self.irgn_par.tol and i>1:
-          self.r = r.get()
-          self.z1 = z1.get()
-          print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(i,abs(gap - gap_min).get()/(self.irgn_par.lambd*self.NSlice)))
-          return x_new.get()
-        primal = primal_new
-        gap_min = np.minimum(gap,gap_min)
-        print("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f "%(i,primal.get()/(self.irgn_par.lambd*self.NSlice),dual.get()/(self.irgn_par.lambd*self.NSlice),gap.get()/(self.irgn_par.lambd*self.NSlice)))
-
-
-      (x, x_new) = (x_new, x)
-    self.r = r.get()
-    self.z1 = z1.get()
-    return x.get()

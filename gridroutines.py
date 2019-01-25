@@ -1,5 +1,5 @@
 import numpy as np
-from calckbkernel import calckbkernel
+from helper_fun.calckbkernel import calckbkernel
 import pyopencl as cl
 import pyopencl.array as clarray
 
@@ -17,7 +17,7 @@ class Program(object):
 
 
 class gridding:
-  def __init__(self, ctx,queue, kwidth,overgridfactor,G,NScan,fft_size,fft_dim,traj,dcf,gridsize,klength=400, DTYPE=np.complex128,DTYPE_real=np.float64, radial=True,mask=None):
+  def __init__(self, ctx,queue, kwidth,overgridfactor,G,NScan,fft_size,fft_dim,traj,dcf,gridsize,klength=400, DTYPE=np.complex128,DTYPE_real=np.float64, radial=True,mask=None,shift=None,packs=1):
     self.radial = radial
     self.DTYPE = DTYPE
     self.DTYPE_real = DTYPE_real
@@ -39,8 +39,6 @@ class gridding:
       self.fftshift = []
       self.thr = []
       self.par_fft = int(fft_size[0]/NScan)
-#      import ipdb
-#      ipdb.set_trace()
       for j in range(len(queue)):
         self.thr.append(self.api.Thread(queue[j]))
         fftshift = FFTShift(self.tmp_fft_array,axes=fft_dim)
@@ -64,8 +62,14 @@ class gridding:
       for j in range(len(queue)):
         fft = FFT(ctx,queue[j],self.tmp_fft_array[0:int(fft_size[0]/NScan),...],out_array=self.tmp_fft_array[0:int(fft_size[0]/NScan),...],axes=fft_dim)
         self.fft2.append(fft)
-      self.fwd_NUFFT = self.FFT
-      self.adj_NUFFT = self.FFTH
+      if np.any(shift):
+        self.packs = packs
+        self.shift = clarray.to_device(self.queue[0],shift.astype(np.int32))
+        self.fwd_NUFFT = self.FFT_SMS
+        self.adj_NUFFT = self.FFTH_SMS
+      else:
+        self.fwd_NUFFT = self.FFT
+        self.adj_NUFFT = self.FFTH
 
     if DTYPE==np.complex128:
       print('Using double precission')
@@ -462,6 +466,43 @@ __kernel void copy(__global float2 *out, __global float2 *in, const float scale)
     out[x] = in[x]*scale;
 
   }
+
+__kernel void copy_SMS_fwd(__global float2 *out, __global float2 *in, __global int* shift, const int packs, const int MB, const float scale)
+  {
+    size_t x = get_global_id(2);
+    size_t dimX = get_global_size(2);
+    size_t y = get_global_id(1);
+    size_t dimY = get_global_size(1);
+    size_t n = get_global_id(0);
+
+
+    for (int k=0; k<packs; k++)
+    {
+    out[x+y*dimX+dimX*dimY*k+dimX*dimY*packs*n] = (float2)(0);
+    for(int z=0; z< MB; z++)
+    {
+        out[x+y*dimX+dimX*dimY*k+dimX*dimY*packs*n] += in[x+(y+shift[z])%dimY*dimX+k*dimX*dimY+z*dimX*dimY*packs+dimX*dimY*packs*MB*n]*scale;
+    }
+    }
+  }
+
+__kernel void copy_SMS_adj(__global float2 *out, __global float2 *in, __global int* shift, const int packs, const int MB, const float scale)
+  {
+    size_t x = get_global_id(2);
+    size_t dimX = get_global_size(2);
+    size_t y = get_global_id(1);
+    size_t dimY = get_global_size(1);
+    size_t n = get_global_id(0);
+
+    for (int k=0; k<packs; k++)
+    {
+    for(int z=0; z<MB; z++)
+    {
+        out[x+(y+shift[z])%dimY*dimX+dimX*dimY*(z*packs+k)+n*dimX*dimY*packs*MB] = in[x+y*dimX+dimX*dimY*k+dimX*dimY*packs*n]*scale;
+    }
+    }
+
+  }
 __kernel void masking(__global float2 *ksp, __global float *mask)
   {
     size_t x = get_global_id(0);
@@ -565,3 +606,33 @@ __kernel void masking(__global float2 *ksp, __global float *mask)
 
     s.add_event(self.prg.copy(queue,(s.size,),None,s.data,self.tmp_fft_array.data,self.DTYPE_real(1),wait_for=self.tmp_fft_array.events))
     return (self.prg.masking(queue,(s.size,),None,s.data,self.mask.data,wait_for=s.events))
+
+  def FFTH_SMS(self,sg,s,idx=None,wait_for=[]):
+    if idx==None:
+      idx = 0
+      queue=self.queue[0]
+    else:
+      queue=self.queue[idx]
+    s.add_event(self.prg.masking(queue,(s.size,),None,s.data,self.mask.data,wait_for=s.events))
+    self.tmp_fft_array.add_event(self.prg.copy(queue,(s.size,),None,self.tmp_fft_array.data,(s).data,self.DTYPE_real(1),wait_for=s.events))
+
+
+    for j in range(s.shape[0]):
+      self.tmp_fft_array.add_event(self.fft2[idx].enqueue_arrays(data=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],result=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],forward=False)[0])
+    return  (self.prg.copy_SMS_adj(queue,(sg.shape[0]*sg.shape[1],sg.shape[-2],sg.shape[-1]),None,sg.data,self.tmp_fft_array.data,self.shift.data,np.int32(self.packs),np.int32(sg.shape[-3]/self.packs),self.DTYPE_real(self.fft_scale)))
+
+
+  def FFT_SMS(self,s,sg,idx=None,wait_for=[]):
+    if idx==None:
+      idx = 0
+      queue=self.queue[0]
+    else:
+      queue=self.queue[idx]
+    self.tmp_fft_array.add_event(self.prg.copy_SMS_fwd(queue,(sg.shape[0]*sg.shape[1],sg.shape[-2],sg.shape[-1]),None,self.tmp_fft_array.data,sg.data,self.shift.data,np.int32(self.packs),np.int32(sg.shape[-3]/self.packs),self.DTYPE_real(1/self.fft_scale)))
+
+    for j in range(s.shape[0]):
+      self.tmp_fft_array.add_event(self.fft2[idx].enqueue_arrays(data=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],result=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],forward=True)[0])
+
+    s.add_event(self.prg.copy(queue,(s.size,),None,s.data,self.tmp_fft_array.data,self.DTYPE_real(1),wait_for=self.tmp_fft_array.events))
+    return (self.prg.masking(queue,(s.size,),None,s.data,self.mask.data,wait_for=s.events))
+

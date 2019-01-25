@@ -1,5 +1,5 @@
 import numpy as np
-from calckbkernel import calckbkernel
+from helper_fun.calckbkernel import calckbkernel
 import pyopencl as cl
 import pyopencl.array as clarray
 
