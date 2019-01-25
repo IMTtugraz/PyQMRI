@@ -19,7 +19,7 @@ import configparser
 
 from helper_fun import nlinvns_maier as nlinvns
 from helper_fun import  goldcomp as goldcomp
-from gridroutines import gridding
+from Transforms.gridroutines import gridding
 
 
 
@@ -131,10 +131,9 @@ def read_config(conf_file,reg_type="DEFAULT"):
 def main(args):
     sig_model = importlib.import_module("Models."+str(args.sig_model))
     if int(args.streamed)==1:
-      import Model_Reco_OpenCL_streamed as Model_Reco
+      import IRGN.Model_Reco_OpenCL_streamed as Model_Reco
     else:
-      pass
-      import Model_Reco_OpenCL as Model_Reco
+      import IRGN.Model_Reco_OpenCL as Model_Reco
     DTYPE = np.complex64
     np.seterr(divide='ignore', invalid='ignore')
 ################################################################################
@@ -156,7 +155,7 @@ def main(args):
     name = file.split('/')[-1]
 
     file = h5py.File(file)
-    del file['Coils']
+#    del file['Coils']
 
 ################################################################################
 ### Check if file contains all necessary information ###########################

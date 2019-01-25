@@ -7,7 +7,7 @@ from __future__ import division
 import numpy as np
 import time
 import sys
-import gridroutines_slicefirst as NUFFT
+import Transforms.gridroutines_slicefirst as NUFFT
 
 import matplotlib.pyplot as plt
 plt.ion()
