@@ -15,22 +15,21 @@
 import numpy as np
 import time
 from helper_fun.fftshift2 import fftshift2
-#import pyfftw
 import pyopencl as cl
 import pyopencl.array as clarray
-from gridroutines import gridding
+from Transforms.gridroutines import gridding
 
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
-def NUFFT(N,NScan,NC,NSlice,traj=None,dcf=None,trafo=0,mask=None):
+def NUFFT(par,trafo=1,SMS=0):
   platforms = cl.get_platforms()
   ctx = cl.Context(
             dev_type=cl.device_type.GPU,
             properties=[(cl.context_properties.PLATFORM, platforms[1])])
   queue=[]
   queue.append(cl.CommandQueue(ctx,platforms[1].get_devices()[0]))
-  FFT = gridding(ctx,queue,4,2,N,NScan,(NScan*NC*NSlice,N,N),(1,2),traj,dcf,N,1000,DTYPE,DTYPE_real,radial=trafo,mask=mask)
+  FFT = gridding(ctx,queue,par,radial=trafo,SMS=SMS)
   return (ctx,queue[0],FFT)
 
 
@@ -47,8 +46,22 @@ def nlinvns(Y, n,*arg):  #*returnProfiles,**realConstr):
         if nrarg < 1:
             returnProfiles = 0
 
+    [c, y, x] = Y.shape
+
+    par = {}
+    par["NScan"] = 1
+    par["NC"] = NC
+    par["NSlice"] = 1
+    par["dimY"] = y
+    par["dimX"] = x
+    par["N"] = x
+    par["Nproj"] = y
+    par["mask"] = np.ones_like(Y)
+
+    print(Y.dtype)
     print(Y.strides)
-    (ctx,queue,fft) = NUFFT(N,1,NC,1,mask=np.ones_like(Y))
+
+    (ctx,queue,fft) = NUFFT(par,trafo=0)
 
 
 
@@ -57,7 +70,7 @@ def nlinvns(Y, n,*arg):  #*returnProfiles,**realConstr):
 
     alpha = 1e0
 
-    [c, y, x] = Y.shape
+
 
     if returnProfiles:
         R = np.zeros([c+2, n, 1, y, x],DTYPE)

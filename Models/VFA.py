@@ -178,6 +178,8 @@ class Model:
            cax.yaxis.set_ticks_position('left')
            for spine in cbar.ax.spines:
             cbar.ax.spines[spine].set_color('white')
+           plt.draw()
+           plt.pause(1e-10)
 
            self.T1_plot=self.ax[3].imshow((T1[int(self.NSlice/2),...]))
            self.T1_plot_cor=self.ax[9].imshow((T1[:,int(T1.shape[1]/2),...]))
