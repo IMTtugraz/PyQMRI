@@ -86,7 +86,7 @@ class Model_Reco:
     return self.prg[idx].update_Kyk1(self.queue[3*idx+idxq], (self.par_slices+self.overlap,self.dimY,self.dimX), None,
                                  out.data, self.tmp_img[idx].data, self.coil_buf_part[idx+idxq*self.num_dev].data, self.grad_buf_part[idx+idxq*self.num_dev].data, z.data, np.int32(self.NC),
                                  np.int32(self.NScan), self.ukscale[idx].data,
-                                 np.float32(np.amax(self.ukscale[idx].get())),self.ratio[idx].data, np.int32(self.unknowns),np.int32(last),
+                                 np.float32(np.amax(self.ukscale[idx].get())),self.ratio[idx].data, np.int32(self.unknowns),np.int32(last),np.float32(self.dz),
                                  wait_for=self.tmp_img[idx].events+out.events+z.events+wait_for)
 
 
@@ -113,27 +113,27 @@ class Model_Reco:
   def f_grad(self,grad, u, idx=0,idxq=0, wait_for=[]):
     return self.prg[idx].gradient(self.queue[3*idx+idxq],  u.shape[1:], None, grad.data, u.data,
                 np.int32(self.unknowns),
-                self.ukscale[idx].data,  np.float32(np.amax(self.ukscale[idx].get())),self.ratio[idx].data, np.int32(self.dz),
+                self.ukscale[idx].data,  np.float32(np.amax(self.ukscale[idx].get())),self.ratio[idx].data, np.float32(self.dz),
                 wait_for=grad.events + u.events + wait_for)
 
   def bdiv(self,div, u, idx=0,idxq=0,last=0,wait_for=[]):
     return self.prg[idx].divergence(self.queue[3*idx+idxq], u.shape[1:-1], None, div.data, u.data,
                 np.int32(self.unknowns),
-                self.ukscale[idx].data, np.float32(np.amax(self.ukscale[idx].get())),self.ratio[idx].data, np.int32(last),np.int32(self.dz),
+                self.ukscale[idx].data, np.float32(np.amax(self.ukscale[idx].get())),self.ratio[idx].data, np.int32(last),np.float32(self.dz),
                 wait_for=div.events + u.events + wait_for)
 
   def sym_grad(self,sym, w,  idx=0,idxq=0,wait_for=[]):
     return self.prg[idx].sym_grad(self.queue[3*idx+idxq], w.shape[1:-1], None, sym.data, w.data,
-                np.int32(self.unknowns),np.int32(self.dz),
+                np.int32(self.unknowns),np.float32(self.dz),
                 wait_for=sym.events + w.events + wait_for)
 
   def sym_bdiv(self,div, u, idx=0,idxq=0,first=0,wait_for=[]):
     return self.prg[idx].sym_divergence(self.queue[3*idx+idxq], u.shape[1:-1], None, div.data, u.data,
-                np.int32(self.unknowns),np.int32(first),np.int32(self.dz),
+                np.int32(self.unknowns),np.int32(first),np.float32(self.dz),
                 wait_for=div.events + u.events + wait_for)
   def update_Kyk2(self,div, u, z,  idx=0,idxq=0,first=0,wait_for=[]):
     return self.prg[idx].update_Kyk2(self.queue[3*idx+idxq], u.shape[1:-1], None, div.data, u.data, z.data,
-                np.int32(self.unknowns),np.int32(first),np.int32(self.dz),
+                np.int32(self.unknowns),np.int32(first),np.float32(self.dz),
                 wait_for=div.events + u.events + z.events+wait_for)
 
   def update_primal(self, x_new, x, Kyk, xk, tau, delta,  idx=0,idxq=0,wait_for=[]):

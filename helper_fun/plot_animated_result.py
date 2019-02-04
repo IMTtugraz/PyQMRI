@@ -12,7 +12,7 @@ import matplotlib.gridspec as gridspec
 import h5py
 from tkinter import filedialog
 from tkinter import Tk
-import helper_fun.Compute_mask as masking
+#from helper_fun import Compute_mask as masking
 
 
 
@@ -179,6 +179,6 @@ def run():
 
   line_ani = animation.FuncAnimation(figure, update_img, x, interval=100, blit=False)
   #line_ani.save("3D_reco.gif",writer="imagemagick",dpi=70,fps=20,savefig_kwargs={'facecolor':plt.cm.viridis.colors[0]})
-  
+
 if __name__ == '__main__':
   run()
