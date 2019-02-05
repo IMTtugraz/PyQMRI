@@ -12,34 +12,46 @@ class constraint:
 class IRLL_Model:
 
 
-  def __init__(self, fa, fa_corr, TR,tau,td,
-               NScan,NSlice,dimY,dimX, Nproj,Nproj_measured,scale):
+  def __init__(self,par,images):
 
     self.constraints = []
-    self.NSlice = NSlice
-    self.TR = TR
-    self.fa = fa
-    self.fa_corr = fa_corr
+    self.NSlice = par["NSlice"]
+    self.TR = par['time_per_slice']-(par['tau']*par['Nproj_measured']+par['gradient_delay'])
+    self.fa = par["flip_angle(s)"]*np.pi/180
+    self.fa_corr = par["fa_corr"]
 
-    self.T1_sc = 3000#5000
-    self.M0_sc = 1#50
-    self.Nproj_measured = Nproj_measured
+    self.uk_scale.append(1)
+    self.uk_scale.append(3000)
 
-    self.tau = tau
-    self.td = td
-    self.NLL = NScan
-    self.Nproj = Nproj
-    self.dimY = dimY
-    self.dimX = dimX
+    self.Nproj_measured = par["Nproj_measured"]
+    self.tau = par["tau"]
+    self.td = par["gradient_delay"]
+    self.NLL = par["NScan"]
+    self.Nproj = par["Nproj"]
+    self.dimY = par["dimY"]
+    self.dimX = par["dimX"]
 
-#    phi_corr = np.zeros_like(fa_corr,dtype='complex128')
-    phi_corr = np.real(fa)*np.real(fa_corr) + 1j*np.imag(fa)*np.imag(fa_corr)
+    phi_corr = np.zeros_like(par["fa_corr"],dtype=DTYPE)
+    phi_corr = np.real(self.fa)*np.real(par["fa_corr"]) + 1j*np.imag(self.fa)*np.imag(par["fa_corr"])
 
 
     self.sin_phi = np.sin(phi_corr)
     self.cos_phi = np.cos(phi_corr)
 
-    self.guess = np.array([1e-3/self.M0_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE),1000/self.T1_sc*np.ones((NSlice,dimY,dimX),dtype=DTYPE)])
+    test_T1 = np.reshape(np.linspace(10,5500,self.dimX*self.dimY*self.NSlice),(self.NSlice,self.dimY,self.dimX))
+    test_M0 = 1
+    G_x = self.execute_forward_3D(np.array([test_M0/self.uk_scale[0]*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE),1/self.uk_scale[1]*test_T1*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)],dtype=DTYPE))
+    self.uk_scale[0] = self.uk_scale[0]*np.median(np.abs(images))/np.median(np.abs(G_x))
+
+    DG_x =  self.execute_gradient_3D(np.array([test_M0/self.uk_scale[0]*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE),1/self.uk_scale[1]*test_T1*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)],dtype=DTYPE))
+    self.uk_scale[1] = self.uk_scale[1]*np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...]))
+
+    self.uk_scale[1] = self.uk_scale[1]
+    DG_x =  self.execute_gradient_3D(np.array([test_M0/self.uk_scale[0]*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE),1/self.uk_scale[1]*test_T1*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)],dtype=DTYPE))
+
+
+    self.guess = np.array([1/self.uk_scale[0]*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE),800/self.uk_scale[1]*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)])
+
     self.constraints.append(constraint(-300,300,False)  )
     self.constraints.append(constraint(10/self.T1_sc, 5500/self.T1_sc,True))
 

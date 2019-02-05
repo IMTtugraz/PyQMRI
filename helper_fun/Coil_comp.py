@@ -25,7 +25,6 @@ file = h5py.File(file)
 
 
 data = data = file['real_dat'][()]+1j*file['imag_dat'][()]
-#data = np.require(np.transpose(data,(0,1,4,3,2)),requirements='C')
 
 print('performing coil compression ...')
 [nscan,ncoils,rNz,rNy,rNx] = data.shape

@@ -25,17 +25,17 @@ class gridding:
     self.fft_shape = (par["NScan"]*par["NC"]*par["NSlice"],par["N"],par["N"])
     self.traj = par["traj"]
     self.dcf = par["dcf"]
+    self.ctx = ctx
+    self.queue = queue
     if self.radial:
       (self.kerneltable,self.kerneltable_FT,self.u) = calckbkernel(kwidth,overgridfactor,par["N"],klength)
       self.kernelpoints = self.kerneltable.size
-      self.ctx = ctx
-      self.queue = queue
       self.api = cluda.ocl_api()
       self.fft_scale = DTYPE_real(np.sqrt(np.prod(self.fft_shape[fft_dim[0]:])))
       self.deapo = 1/self.kerneltable_FT.astype(DTYPE_real)
       self.kwidth = kwidth/2
-      self.cl_kerneltable = cl.Buffer(self.queue[0].context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.kerneltable.astype(DTYPE_real).data)
-      self.deapo_cl = cl.Buffer(self.queue[0].context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.deapo.data)
+      self.cl_kerneltable = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.kerneltable.astype(DTYPE_real).data)
+      self.deapo_cl = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.deapo.data)
       self.dcf = clarray.to_device(self.queue[0],self.dcf)
       self.traj = clarray.to_device(self.queue[0],self.traj)
       self.tmp_fft_array = (clarray.zeros(self.queue[0],(self.fft_shape),dtype=DTYPE))
@@ -53,8 +53,6 @@ class gridding:
       self.fwd_NUFFT = self.NUFFT
       self.adj_NUFFT = self.NUFFTH
     else:
-      self.ctx = ctx
-      self.queue = queue
       if SMS:
         self.packs = par["packs"]
         self.shift = clarray.to_device(self.queue[0],par["shift"].astype(np.int32))

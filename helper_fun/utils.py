@@ -5,7 +5,6 @@ Created on Wed Jan 30 11:10:07 2019
 
 @author: omaier
 """
-import pyopencl as cl
 import numpy as np
 import configparser
 from Transforms.gridroutines import gridding
@@ -27,20 +26,14 @@ def prime_factors(n):
     return factors
 
 def NUFFT(par,trafo=1,SMS=0):
-  platforms = cl.get_platforms()
-  ctx = cl.Context(
-            dev_type=cl.device_type.GPU,
-            properties=[(cl.context_properties.PLATFORM, platforms[1])])
-  queue=[]
-  queue.append(cl.CommandQueue(ctx,platforms[1].get_devices()[0]))
   NC = par["NC"]
   NSlice = par["NSlice"]
   par["NC"] = 1
   par["NSlice"] = 1
-  FFT = gridding(ctx,queue,par,radial=trafo,SMS=SMS)
+  FFT = gridding(par["ctx"][0],par["queue"],par,radial=trafo,SMS=SMS)
   par["NC"] = NC
   par["NSlice"] = NSlice
-  return (ctx,queue[0],FFT)
+  return FFT
 
 def gen_default_config():
 

@@ -21,7 +21,7 @@ def cmp(k,cmp_type=None):
     fac=N*np.pi/2/nspokes   ### 4???
     w = DoCalcDCF(np.real(k), np.imag(k))
     w = fac*w.T
-    w = reshape(w, [N, nspokes])
+    w = np.reshape(w, [N, nspokes])
   else:
     w = np.abs(np.linspace(-N/2,N/2,N))  ### -N/2 N/2
     w = w*(np.pi/4)/nspokes   ### no scaling seems to work better??
@@ -139,7 +139,7 @@ def voronoiarea(Kx,Ky):
     Kxy = [Kx,Ky]
     # returns vertices and cells of voronoi diagram
 #    [V,C]  = Voronoin(Kxy)
-    vor = Voronoin(Kxy)
+    vor = Voronoi(Kxy)
 
     # compute area of each ploygon
     Area = np.zeros((1,(Kx).size))

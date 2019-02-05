@@ -22,7 +22,7 @@ class Program(object):
 
 
 class Model_Reco:
-  def __init__(self,par,ctx,queue,trafo=1,imagespace=False,SMS=0):
+  def __init__(self,par,trafo=1,imagespace=False,SMS=0):
 
     self.C = par["C"]
     self.traj = par["traj"]
@@ -36,8 +36,8 @@ class Model_Reco:
     self.NC = par["NC"]
     self.fval_min = 0
     self.fval = 0
-    self.ctx = ctx[0]
-    self.queue = queue[0]
+    self.ctx = par["ctx"][0]
+    self.queue = par["queue"][0]
     self.ratio = clarray.to_device(self.queue,(np.ones(self.unknowns)).astype(dtype=DTYPE_real))
     self.ukscale =  clarray.to_device(self.queue,np.ones(self.unknowns,dtype=DTYPE_real))
     self.gn_res = []
@@ -51,14 +51,14 @@ class Model_Reco:
       self.operator_adjoint_full = self.operator_adjoint_full_imagespace
       self.tmp_result = clarray.zeros(self.queue,(self.NScan,self.NSlice,self.dimY,self.dimX),DTYPE,"C")
     else:
-      self.coil_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.C.data)
+      self.coil_buf = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.C.data)
       self.operator_forward = self.operator_forward_kspace
       self.operator_adjoint = self.operator_adjoint_kspace
       self.operator_forward_full = self.operator_forward_full_kspace
       self.operator_adjoint_full = self.operator_adjoint_full_kspace
       self.tmp_sino = clarray.zeros(self.queue,(self.NScan,self.NC,self.NSlice,self.Nproj,self.N),DTYPE,"C")
       self.tmp_result = clarray.zeros(self.queue,(self.NScan,self.NC,self.NSlice,self.dimY,self.dimX),DTYPE,"C")
-      self.NUFFT = NUFFT.gridding(self.ctx,queue,par,radial=trafo,SMS=SMS)
+      self.NUFFT = NUFFT.gridding(self.ctx,par["queue"],par,radial=trafo,SMS=SMS)
       self.tmp_result = clarray.zeros(self.queue,(self.NScan,self.NC,self.NSlice,self.dimY,self.dimX),DTYPE,"C")
       if SMS:
         self.tmp_sino = clarray.zeros(self.queue,(self.NScan,self.NC,par["packs"],self.Nproj,self.N),DTYPE,"C")

@@ -70,7 +70,6 @@ def est_coils(data,par,file,args):
           dview = c[int(np.floor(i*len(c)/par["NSlice"]))]
           result.append(dview.apply_async(nlinvns.nlinvns, combinedData,
                                           nlinvNewtonSteps, True, nlinvRealConstr))
-#            nlinvns.nlinvns(combinedData, nlinvNewtonSteps,True,nlinvRealConstr)
 #
         for i in range(par["NSlice"]):
           par["C"][:,i,:,:] = result[i].get()[2:,-1,:,:]
@@ -79,9 +78,6 @@ def est_coils(data,par,file,args):
           sys.stdout.flush()
           if not nlinvRealConstr:
             par["phase_map"][i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
-            #par["C"][:,i,:,:] = par["C"][:,i,:,:]* np.exp(1j *\
-#                   np.angle( result[i].get()[1,-1,:,:]))
-
             # standardize coil sensitivity profiles
         sumSqrC = np.sqrt(np.sum((par["C"] * np.conj(par["C"])),0)) #4, 9, 128, 128
         if par["NC"] == 1:
@@ -99,9 +95,6 @@ def est_coils(data,par,file,args):
 
         result = []
         tmp =  np.sum(data,0)
-#          tmp = np.fft.ifft2(tmp,norm='ortho')
-#          tmp = np.transpose(tmp,(0,3,1,2))
-#          tmp = np.fft.fft2(tmp,norm='ortho')
         for i in range(0,(par["NSlice"])):
           sys.stdout.write("Computing coil sensitivity map of slice %i \r" \
                          %(i))
@@ -109,8 +102,6 @@ def est_coils(data,par,file,args):
 
           ##### RADIAL PART
           combinedData = tmp[:,i,...]
-#            combinedData =  np.fft.fftshift(np.mean(data[:,:,i,:,:],0),(-1,-2))
-
           dview = c[int(np.floor(i*len(c)/par["NSlice"]))]
           result.append(dview.apply_async(nlinvns.nlinvns, combinedData,
                                           nlinvNewtonSteps, True, nlinvRealConstr))
@@ -122,8 +113,6 @@ def est_coils(data,par,file,args):
           sys.stdout.flush()
           if not nlinvRealConstr:
             par["phase_map"][i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
-#              par["C"][:,i,:,:] = par["C"][:,i,:,:]* np.exp(1j *\
-#                   np.angle( result[i].get()[1,-1,:,:]))
 
             # standardize coil sensitivity profiles
         sumSqrC = np.sqrt(np.sum((par["C"] * np.conj(par["C"])),0)) #4, 9, 128, 128
@@ -185,7 +174,6 @@ def est_coils(data,par,file,args):
         dview = c[int(np.floor(i*len(c)/par["NSlice"]))]
         result.append(dview.apply_async(nlinvns.nlinvns, combinedData,
                                           nlinvNewtonSteps, True, nlinvRealConstr))
-#          nlinvns.nlinvns(combinedData, nlinvNewtonSteps,True,nlinvRealConstr)
 
 
       for i in range(par["NSlice"]):
@@ -195,8 +183,6 @@ def est_coils(data,par,file,args):
         sys.stdout.flush()
         if not nlinvRealConstr:
           par["phase_map"][i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
-#            par["C"][:,i,:,:] = par["C"][:,i,:,:]* np.exp(1j *\
-#                 np.angle( result[i].get()[1,-1,:,:]))
 
           # standardize coil sensitivity profiles
       sumSqrC = np.sqrt(np.sum((par["C"] * np.conj(par["C"])),0)) #4, 9, 128, 128
@@ -214,18 +200,13 @@ def est_coils(data,par,file,args):
 
       result = []
       tmp =  np.sum(data,0)
-#        tmp = np.fft.ifft2(tmp,norm='ortho')
-#        tmp = np.transpose(tmp,(0,3,1,2))
-#        tmp = np.fft.fft2(tmp,norm='ortho')
       for i in range(0,(par["NSlice"])):
         sys.stdout.write("Computing coil sensitivity map of slice %i \r" \
                        %(i))
         sys.stdout.flush()
 
         ##### RADIAL PART
-        combinedData =  tmp[:,i,...]#np.fft.fftshift(np.mean(data[:,:,i,:,:],0),(-1,-2))
-#          combinedData = np.mean(combinedData,0)
-
+        combinedData =  tmp[:,i,...]
         dview = c[int(np.floor(i*len(c)/par["NSlice"]))]
         result.append(dview.apply_async(nlinvns.nlinvns, combinedData,
                                         nlinvNewtonSteps, True, nlinvRealConstr))
@@ -237,8 +218,6 @@ def est_coils(data,par,file,args):
         sys.stdout.flush()
         if not nlinvRealConstr:
           par["phase_map"][i,:,:] = np.exp(1j * np.angle( result[i].get()[0,-1,:,:]))
-#            par["C"][:,i,:,:] = par["C"][:,i,:,:]* np.exp(1j *\
-#                 np.angle( result[i].get()[1,-1,:,:]))
 
           # standardize coil sensitivity profiles
       sumSqrC = np.sqrt(np.sum((par["C"] * np.conj(par["C"])),0)) #4, 9, 128, 128
@@ -246,6 +225,5 @@ def est_coils(data,par,file,args):
         par["C"] = sumSqrC
       else:
         par["C"] = par["C"] / np.tile(sumSqrC, (par["NC"],1,1,1))
-#        par["C"] = np.transpose(par["C"],(0,2,3,1))
     file.create_dataset("Coils",par["C"].shape,dtype=par["C"].dtype,data=par["C"])
     file.flush()

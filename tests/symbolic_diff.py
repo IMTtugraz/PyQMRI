@@ -10,12 +10,12 @@ from sympy import *
 
 
 
-M0, M0_sc, T1, T1_sc,T2,T2_sc,TR,fa,fa_corr,n,TE = symbols('M0,M0_sc,T1,T1_sc,T2,T2_sc,TR,fa,fa_corr,n,TE')
+M0, M0_sc, T1,T1_sc,T2,T2_sc,TR,fa,fa_corr,n,TE = symbols('M0,M0_sc,T1,T1_sc,T2,T2_sc,TR,fa,fa_corr,n,TE')
 init_printing(use_unicode=True)
 
-
-E1 = exp(-TR/(T1*T1_sc))
-E2 = exp(-TR/(T2*T2_sc))
+T2 = TE*T1+T1_sc
+E1 = exp(-TR*T2)
+#E2 = exp(-TR/(T2*T2_sc))
 #T1_star = (1/(T1*T1_sc)*cos(fa/2)**2+1/(T2*T2_sc)*sin(fa/2)**2)**(-1)
 #INV =  1 + (sin(fa/2)/sin(fa))*(((T1*T1_sc)/(T2*T2_sc)+1)-cos(fa)*((T1*T1_sc)/(T2*T2_sc)-1))
 #bSSFP = M0*M0_sc*(sin(fa)*(1-E1))/(1-(E1-E2)*cos(fa)-(E1*E2))
@@ -38,9 +38,9 @@ E2 = exp(-TR/(T2*T2_sc))
 
 
 
-#S = M0*M0_sc*sin(fa*fa_corr)*(1-E1)/(1-E1*cos(fa*fa_corr))
+S = M0*M0_sc*sin(fa*fa_corr)*(1-E1)/(1-E1*cos(fa*fa_corr))
 
-S = (M0*M0_sc*sin(fa*fa_corr)*(1-E1))/(1-(E1-E2)*cos(fa*fa_corr)-(E1*E2));
+#S = (M0*M0_sc*sin(fa*fa_corr)*(1-E1))/(1-(E1-E2)*cos(fa*fa_corr)-(E1*E2));
 
 #S = M0*M0_sc*exp(-b*ADC*ADC_sc+1/6*b**2*(TE*(ADC*ADC_sc+f*f_sc))**2*kurt*kurt_sc)
 #S = M0*M0_sc*(f*f_sc*exp(-b*(ADC*ADC_sc+ADC2*ADC2_sc))+(1-f*f_sc)*exp(-b*ADC*ADC_sc))

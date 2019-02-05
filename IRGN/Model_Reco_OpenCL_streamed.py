@@ -30,7 +30,7 @@ class Program(object):
 
 
 class Model_Reco:
-  def __init__(self,par,ctx,queue,trafo=1,imagespace=False, SMS=False):
+  def __init__(self,par,trafo=1,imagespace=False, SMS=False):
 
 
     par["par_slices"] = 1
@@ -53,10 +53,10 @@ class Model_Reco:
     self.dz = 1
     self.fval_min = 0
     self.fval = 0
-    self.ctx = ctx
-    self.queue = queue
+    self.ctx = par["ctx"]
+    self.queue = par["queue"]
     self.gn_res = []
-    self.num_dev = len(ctx)
+    self.num_dev = len(self.ctx)
     self.NUFFT = []
     self.ukscale = []
     self.prg = []
