@@ -230,7 +230,7 @@ class Model_Reco:
    if TV==1:
       for i in range(self.irgn_par["max_gn_it"]):
         start = time.time()
-        self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
+        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
 
         for uk in range(self.unknowns-1):
           scale = np.linalg.norm(np.abs(self.grad_x[0,...]))/np.linalg.norm(np.abs(self.grad_x[uk+1,...]))
@@ -239,8 +239,8 @@ class Model_Reco:
           self.model.uk_scale[uk+1] = self.model.uk_scale[uk+1]*scale
           result[uk+1,...] = result[uk+1,...]/self.model.uk_scale[uk+1]
 
-        self.step_val = np.nan_to_num(self.model.execute_forward_3D(result))
-        self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
+        self.step_val = np.nan_to_num(self.model.execute_forward(result))
+        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
         self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x.data)
         self.conj_grad_x = np.nan_to_num(np.conj(self.grad_x))
 
@@ -270,7 +270,7 @@ class Model_Reco:
         start = time.time()
 
 
-        self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
+        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
 
         for uk in range(self.unknowns-1):
           scale = np.linalg.norm(np.abs(self.grad_x[0,...].flatten()))/np.linalg.norm(np.abs(self.grad_x[uk+1,...].flatten()))
@@ -279,8 +279,8 @@ class Model_Reco:
           self.model.uk_scale[uk+1]*=scale
           result[uk+1,...] /= self.model.uk_scale[uk+1]
 
-        self.step_val = np.nan_to_num(self.model.execute_forward_3D(result))
-        self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
+        self.step_val = np.nan_to_num(self.model.execute_forward(result))
+        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
         self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x.data)
 
         self.set_scale(result)
@@ -309,7 +309,7 @@ class Model_Reco:
       self.z2 = np.zeros(([self.unknowns,self.NSlice,self.dimY,self.dimX,8]),dtype=DTYPE)
       for i in range(self.irgn_par["max_gn_it"]):
         start = time.time()
-        self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
+        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
 
 
         for j in range(len(self.model.constraints)-1):
@@ -319,8 +319,8 @@ class Model_Reco:
           self.model.T1_sc = self.model.T1_sc*(scale)
           result[j+1,...] = result[j+1,...]/self.model.T1_sc
 
-        self.step_val = np.nan_to_num(self.model.execute_forward_3D(result))
-        self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
+        self.step_val = np.nan_to_num(self.model.execute_forward(result))
+        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
         self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x.data)
         self.conj_grad_x = np.nan_to_num(np.conj(self.grad_x))
 
@@ -370,7 +370,7 @@ class Model_Reco:
       grad = clarray.to_device(self.queue,np.zeros_like(self.z1))
       grad.add_event(self.f_grad(grad,x,wait_for=grad.events+x.events))
       x = x.get()
-      self.FT(b,clarray.to_device(self.queue,self.model.execute_forward_3D(x)[:,None,...]*self.Coils3D)).wait()
+      self.FT(b,clarray.to_device(self.queue,self.model.execute_forward(x)[:,None,...]*self.Coils3D)).wait()
       grad = grad.get()
       self.fval= (self.irgn_par["lambd"]/2*np.linalg.norm(data - b.get())**2
               +self.irgn_par["gamma"]*np.sum(np.abs(grad[:self.unknowns_TGV]))
@@ -394,7 +394,7 @@ class Model_Reco:
        sym_grad.add_event(self.sym_grad(sym_grad,v,wait_for=sym_grad.events+v.events))
        x = x.get()
        grad = grad.get()
-       test = self.model.execute_forward_3D(x)[:,None,...]
+       test = self.model.execute_forward(x)[:,None,...]
        self.FT(b,clarray.to_device(self.queue,test*self.Coils3D)).wait()
        self.fval= (self.irgn_par["lambd"]/2*np.linalg.norm(data - b.get())**2
               +self.irgn_par["gamma"]*np.sum(np.abs(grad[:self.unknowns_TGV]-self.v))
@@ -411,7 +411,7 @@ class Model_Reco:
        sym_grad.add_event(self.sym_grad(sym_grad,v,wait_for=sym_grad.events+v.events))
        x = x.get()
        grad = grad.get()
-       self.FT(b,clarray.to_device(self.queue,self.model.execute_forward_3D(x)[:,None,...]*self.Coils3D)).wait()
+       self.FT(b,clarray.to_device(self.queue,self.model.execute_forward(x)[:,None,...]*self.Coils3D)).wait()
        self.fval= (self.irgn_par["lambd"]/2*np.linalg.norm(data - b.get())**2
               +self.irgn_par["gamma"]*np.sum(np.abs(grad[:self.unknowns_TGV]-self.v))
               +self.irgn_par["gamma"]*(2)*np.sum(np.abs(sym_grad.get()))
@@ -525,8 +525,8 @@ class Model_Reco:
 
 
       if not np.mod(i,50):
-
-        self.model.plot_unknowns(x_new.get())
+        if self.irgn_par["display_iterations"]:
+          self.model.plot_unknowns(x_new.get())
         if self.unknowns_H1>0:
           primal_new= (self.irgn_par["lambd"]/2*clarray.vdot(Axold-res,Axold-res)+alpha*clarray.sum(abs((gradx[:self.unknowns_TGV]-v))) +beta*clarray.sum(abs(symgrad_v)) + 1/(2*delta)*clarray.vdot(x_new-xk,x_new-xk)+self.irgn_par["omega"]/2*clarray.vdot(gradx[self.unknowns_TGV:],gradx[self.unknowns_TGV:])).real
 
@@ -872,7 +872,7 @@ class Model_Reco:
    if TV==1:
       for i in range(self.irgn_par["max_gn_it"]):
         start = time.time()
-        self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
+        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
 
         for uk in range(self.unknowns-1):
           scale = np.linalg.norm(np.abs(self.grad_x[0,...]))/np.linalg.norm(np.abs(self.grad_x[uk+1,...]))
@@ -881,8 +881,8 @@ class Model_Reco:
           self.model.uk_scale[uk+1] = self.model.uk_scale[uk+1]*scale
           result[uk+1,...] = result[uk+1,...]/self.model.uk_scale[uk+1]
 
-        self.step_val = np.nan_to_num(self.model.execute_forward_3D(result))
-        self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
+        self.step_val = np.nan_to_num(self.model.execute_forward(result))
+        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
         self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x.data)
 
         result = self.irgn_solve_3D_imagespace(result, iters, self.data,TV)
@@ -911,7 +911,7 @@ class Model_Reco:
         start = time.time()
 
 
-        self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
+        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
 
         for uk in range(self.unknowns-1):
           scale = np.linalg.norm(np.abs(self.grad_x[0,...].flatten()))/np.linalg.norm(np.abs(self.grad_x[uk+1,...].flatten()))
@@ -920,8 +920,8 @@ class Model_Reco:
           self.model.uk_scale[uk+1]*=scale
           result[uk+1,...] /= self.model.uk_scale[uk+1]
 
-        self.step_val = np.nan_to_num(self.model.execute_forward_3D(result))
-        self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
+        self.step_val = np.nan_to_num(self.model.execute_forward(result))
+        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
         self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x.data)
 
         self.set_scale(result)
@@ -950,7 +950,7 @@ class Model_Reco:
       self.z2 = np.zeros(([self.unknowns,self.NSlice,self.dimY,self.dimX,8]),dtype=DTYPE)
       for i in range(self.irgn_par["max_gn_it"]):
         start = time.time()
-        self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
+        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
 
 
         for j in range(len(self.model.constraints)-1):
@@ -960,8 +960,8 @@ class Model_Reco:
           self.model.T1_sc = self.model.T1_sc*(scale)
           result[j+1,...] = result[j+1,...]/self.model.T1_sc
 
-        self.step_val = np.nan_to_num(self.model.execute_forward_3D(result))
-        self.grad_x = np.nan_to_num(self.model.execute_gradient_3D(result))
+        self.step_val = np.nan_to_num(self.model.execute_forward(result))
+        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
         self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x.data)
         self.conj_grad_x = np.nan_to_num(np.conj(self.grad_x))
 
@@ -1008,7 +1008,7 @@ class Model_Reco:
       grad.add_event(self.f_grad(grad,x,wait_for=grad.events+x.events))
       x = x.get()
       grad = grad.get()
-      self.fval= (self.irgn_par["lambd"]/2*np.linalg.norm(data - self.model.execute_forward_3D(x))**2
+      self.fval= (self.irgn_par["lambd"]/2*np.linalg.norm(data - self.model.execute_forward(x))**2
               +self.irgn_par["gamma"]*np.sum(np.abs(grad[:self.unknowns_TGV]))
               +1/(2*self.irgn_par["delta"])*np.linalg.norm((x-x_old).flatten())**2+self.irgn_par["omega"]/2*np.linalg.norm(grad[self.unknowns_TGV:])**2)
     elif TV==0:
@@ -1029,7 +1029,7 @@ class Model_Reco:
        sym_grad.add_event(self.sym_grad(sym_grad,v,wait_for=sym_grad.events+v.events))
        x = x.get()
        grad = grad.get()
-       self.fval= (self.irgn_par["lambd"]/2*np.linalg.norm(data - self.model.execute_forward_3D(x))**2
+       self.fval= (self.irgn_par["lambd"]/2*np.linalg.norm(data - self.model.execute_forward(x))**2
               +self.irgn_par["gamma"]*np.sum(np.abs(grad[:self.unknowns_TGV]-self.v))
               +self.irgn_par["gamma"]*(2)*np.sum(np.abs(sym_grad.get()))
               +1/(2*self.irgn_par["delta"])*np.linalg.norm((x-x_old).flatten())**2
@@ -1044,7 +1044,7 @@ class Model_Reco:
        sym_grad.add_event(self.sym_grad(sym_grad,v,wait_for=sym_grad.events+v.events))
        x = x.get()
        grad = grad.get()
-       self.fval= (self.irgn_par["lambd"]/2*np.linalg.norm(data - self.model.execute_forward_3D(x))**2
+       self.fval= (self.irgn_par["lambd"]/2*np.linalg.norm(data - self.model.execute_forward(x))**2
               +self.irgn_par["gamma"]*np.sum(np.abs(grad[:self.unknowns_TGV]-self.v))
               +self.irgn_par["gamma"]*(2)*np.sum(np.abs(sym_grad.get()))
               +1/(2*self.irgn_par["delta"])*np.linalg.norm((x-x_old).flatten())**2
@@ -1091,7 +1091,7 @@ class Model_Reco:
 
     if reco_2D:
       print("2D currently not implemented, 3D can be used with a single slice.")
-      return
+      raise NotImplementedError
     else:
       if imagespace:
         self.execute_3D_imagespace(TV)

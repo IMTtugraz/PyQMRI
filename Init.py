@@ -28,6 +28,9 @@ def main(args):
     else:
       import IRGN.Model_Reco_OpenCL as Model_Reco
     np.seterr(divide='ignore', invalid='ignore')
+
+    #Create par struct to store everyting
+    par={}
 ################################################################################
 ### Select input file ##########################################################
 ################################################################################
@@ -42,34 +45,56 @@ def main(args):
 
     name = file.split('/')[-1]
 
-    file = h5py.File(file)
-#    del file['Coils']
+    par["file"] = h5py.File(file)
 ################################################################################
 ### Read Data ##################################################################
 ################################################################################
-    #Create par struct to store everyting
-    par={}
     reco_Slices = args.slices
-    dimX, dimY, NSlice = ((file.attrs['image_dimensions']).astype(int))
+    dimX, dimY, NSlice = ((par["file"].attrs['image_dimensions']).astype(int))
     if reco_Slices==-1:
       reco_Slices=NSlice
     off = 0
 
     if args.sms:
-      data = file['real_dat'][()].astype(DTYPE)\
-       +1j*file['imag_dat'][()].astype(DTYPE)
+      data = par["file"]['real_dat'][()].astype(DTYPE)\
+       +1j*par["file"]['imag_dat'][()].astype(DTYPE)
     else:
-      data = file['real_dat']\
+      data = par["file"]['real_dat']\
              [...,int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:\
               int(NSlice/2)+int(np.ceil(reco_Slices/2))+off,:,:].astype(DTYPE)\
-             +1j*file['imag_dat']\
+             +1j*par["file"]['imag_dat']\
              [...,int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:\
               int(NSlice/2)+int(np.ceil(reco_Slices/2))+off,:,:].astype(DTYPE)
+#
+#    images = par["file"]["GT/SI"][()]
+###
+#    del par["file"]['Coils']
+###
+###    data = data+np.max(np.abs(data))*0.0001*(np.random.standard_normal(data.shape).astype(DTYPE_real)+1j*np.random.standard_normal(data.shape).astype(DTYPE_real))
+##
+##    norm_coils = par["file"]["GT/sensitivities/real_dat"][2:] + 1j*par["file"]["GT/sensitivities/imag_dat"][2:]
+#    norm_coils = par["file"]["Coils_real"][...] + 1j*par["file"]["Coils_imag"][...]
+##    norm = np.sqrt(np.sum(np.abs(norm_coils)**2,0,keepdims=True))
+##    norm_coils = (norm_coils)/norm
+###    norm_coils = norm_coils/np.max(np.abs(norm_coils))
+##    norm_coils = (norm_coils)/np.linalg.norm(norm_coils)*128
+##    norm_coils = np.abs(norm_coils).astype(DTYPE)
+##
+#
+#    data = np.fft.fft2(images[:,None,...]*norm_coils,norm="ortho")
+##    del par["file"]["GT/sensitivities/real_dat"]
+##    del par["file"]["GT/sensitivities/imag_dat"]
+#    del par["file"]["real_dat"]
+#    del par["file"]["imag_dat"]
+#    par["file"].create_dataset("real_dat",data.shape,dtype=DTYPE_real,data=np.real(data))
+#    par["file"].create_dataset("imag_dat",data.shape,dtype=DTYPE_real,data=np.imag(data))
+##    par["file"].create_dataset("GT/sensitivities/real_dat",norm_coils.shape,dtype=DTYPE_real,data=np.real(norm_coils))
+##    par["file"].create_dataset("GT/sensitivities/imag_dat",norm_coils.shape,dtype=DTYPE_real,data=np.imag(norm_coils))
 
     dimreduction = 0
     if args.trafo:
-      par["traj"] = file['real_traj'][()].astype(DTYPE) + \
-             1j*file['imag_traj'][()].astype(DTYPE)
+      par["traj"] = par["file"]['real_traj'][()].astype(DTYPE) + \
+             1j*par["file"]['imag_traj'][()].astype(DTYPE)
 
       par["dcf"] = np.sqrt(np.array(goldcomp.cmp( \
                        par["traj"]),dtype=DTYPE_real)).astype(DTYPE_real)
@@ -88,20 +113,20 @@ def main(args):
                           data.shape[-1]-int(dimreduction/2)],requirements='C')
       dimX -=dimreduction
       dimY -=dimreduction
-      par["traj"] = par["traj"][...,int(dimreduction/2):\
-                                 par["traj"].shape[-1]-int(dimreduction/2)]
+      par["traj"] = np.require(par["traj"][...,int(dimreduction/2):\
+                                 par["traj"].shape[-1]-int(dimreduction/2)],requirements='C')
       par["dcf"] = np.sqrt(np.array(goldcomp.cmp( par["traj"]),\
                                        dtype=DTYPE_real)).astype(DTYPE_real)
       par["dcf"] = np.require(np.abs(par["dcf"]),DTYPE_real,requirements='C')
 ################################################################################
 ### FA correction ##############################################################
 ################################################################################
-    if "fa_corr" in list(file.keys()):
+    if "fa_corr" in list(par["file"].keys()):
       print("Using provied flip angle correction.")
       if args.sms:
-        par["fa_corr"] = np.flip(file['fa_corr'][()].astype(DTYPE),0)[...]
+        par["fa_corr"] = np.flip(par["file"]['fa_corr'][()].astype(DTYPE),0)[...]
       else:
-        par["fa_corr"] = np.flip(file['fa_corr'][()].astype(DTYPE),0)\
+        par["fa_corr"] = np.flip(par["file"]['fa_corr'][()].astype(DTYPE),0)\
                             [int(NSlice/2)-int(np.floor((reco_Slices)/2)):\
                              int(NSlice/2)+int(np.ceil(reco_Slices/2)),...]
       par["fa_corr"][par["fa_corr"]==0] = 0
@@ -138,8 +163,8 @@ def main(args):
 ################################################################################
 ### Set sequence related parameters ############################################
 ################################################################################
-    for att in file.attrs:
-      par[att] = file.attrs[att]
+    for att in par["file"].attrs:
+      par[att] = par["file"].attrs[att]
 
     par["NC"]          = NC
     par["dimY"]        = dimY
@@ -164,25 +189,6 @@ def main(args):
       del tmp
     else:
       par['mask']=None
-################################################################################
-### Coil Sensitivity Estimation ################################################
-################################################################################
-    est_coils(data,par,file,args)
-################################################################################
-### Standardize data norm ######################################################
-################################################################################
-    [NScan,NC,NSlice,Nproj, N] = data.shape
-    if args.trafo:
-      if file.attrs['data_normalized_with_dcf']:
-          pass
-      else:
-          data = data*(par["dcf"])
-#### Close File after everything was read
-    file.close()
-    dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2*1e3))/\
-                                          (np.linalg.norm(data.flatten()))
-    par["dscale"] = dscale
-    data*=dscale
 ################################################################################
 ### Create OpenCL Context and Queues ###########################################
 ################################################################################
@@ -219,7 +225,23 @@ def main(args):
          platforms[par["Platform_Indx"]].get_devices()[device],\
          properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE |\
          cl.command_queue_properties.PROFILING_ENABLE))
-
+################################################################################
+### Coil Sensitivity Estimation ################################################
+################################################################################
+    est_coils(data,par,par["file"],args)
+################################################################################
+### Standardize data norm ######################################################
+################################################################################
+    [NScan,NC,NSlice,Nproj, N] = data.shape
+    if args.trafo:
+      if par["file"].attrs['data_normalized_with_dcf']:
+          pass
+      else:
+          data = data*(par["dcf"])
+    dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2*1e3))/\
+                                          (np.linalg.norm(data.flatten()))
+    par["dscale"] = dscale
+    data*=dscale
 ################################################################################
 ### generate nFFT  #############################################################
 ################################################################################
@@ -273,6 +295,8 @@ def main(args):
 ################################################################################
         model = sig_model.Model(par,images)
         opt.model = model
+        #### Close File after everything was read
+        par["file"].close()
 ################################################################################
 ##IRGN Params ##################################################################
 ################################################################################
@@ -292,6 +316,8 @@ def main(args):
 #############################################################re#################
         model = sig_model.Model(par,images)
         opt.model = model
+        #### Close File after everything was read
+        par["file"].close()
 ################################################################################
 ##IRGN Params ##################################################################
 ################################################################################
@@ -341,30 +367,19 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='T1 quantification from VFA \
                                      data. By default runs 3D regularization \
                                      for TGV and TV.')
-    parser.add_argument('--recon_type', default='3D', dest='type',\
-    help='Choose reconstruction type (currently only 3D)')
-    parser.add_argument('--reg_type', default='TGV', dest='reg',\
-    help="Choose regularization type (default: TGV) options are: TGV, TV, all")
-    parser.add_argument('--slices',default=1, dest='slices', type=int, \
-    help='Number of reconstructed slices (default=40). \
-          Symmetrical around the center slice.')
-    parser.add_argument('--trafo', default=0, dest='trafo', type=int, \
-    help='Choos between radial (1, default) and Cartesian (0) sampling. ')
-    parser.add_argument('--streamed', default=0, dest='streamed', type=int, \
-    help='Enable streaming of large data arrays (>10 slices).')
-    parser.add_argument('--data',default='',dest='file',\
-    help='Full path to input data. If not provided, a file dialog will open.')
-    parser.add_argument('--model',default='VFA_michael',dest='sig_model',\
-    help='Name of the signal model to use. Defaults to VFA. \
+    parser.add_argument('--recon_type', default='3D', dest='type', help='Choose reconstruction type (currently only 3D)')
+    parser.add_argument('--reg_type', default='TGV', dest='reg',  help="Choose regularization type (default: TGV) options are: TGV, TV, all")
+    parser.add_argument('--slices',default=4, dest='slices', type=int,  help='Number of reconstructed slices (default=40). Symmetrical around the center slice.')
+    parser.add_argument('--trafo', default=1, dest='trafo', type=int, help='Choos between radial (1, default) and Cartesian (0) sampling. ')
+    parser.add_argument('--streamed', default=1, dest='streamed', type=int, help='Enable streaming of large data arrays (>10 slices).')
+    parser.add_argument('--data',default='',dest='file', help='Full path to input data. If not provided, a file dialog will open.')
+    parser.add_argument('--model',default='VFA',dest='sig_model', help='Name of the signal model to use. Defaults to VFA. \
           Please put your signal model file in the Model subfolder.')
-    parser.add_argument('--config',default='test',dest='config',\
-    help='Name of config file to use (assumed to be in the same folder). \
+    parser.add_argument('--config',default='test',dest='config', help='Name of config file to use (assumed to be in the same folder). \
           If not specified, use default parameters.')
-    parser.add_argument('--sms',default=0, dest='sms', type=int, \
-    help='Simultanious Multi Slice, defaults to off (0). \
+    parser.add_argument('--sms',default=0, dest='sms', type=int,  help='Simultanious Multi Slice, defaults to off (0). \
           Can only be used with Cartesian sampling.')
-    parser.add_argument('--imagespace',default=0,dest='imagespace',type=int,\
-    help='Select if Reco is performed on images (1) or on kspace (0) data. \
+    parser.add_argument('--imagespace',default=0,dest='imagespace',type=int, help='Select if Reco is performed on images (1) or on kspace (0) data. \
           Defaults to 0')
     args = parser.parse_args()
 

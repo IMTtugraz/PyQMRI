@@ -13,25 +13,23 @@ import ipyparallel as ipp
 import pyopencl.array as clarray
 from helper_fun import utils
 
+
 #% Estimates sensitivities and complex image.
 #%(see Martin Uecker: Image reconstruction by regularized nonlinear
 #%inversion joint estimation of coil sensitivities and image content)
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
-class B(Exception):
-  pass
-
 def est_coils(data,par,file,args):
 ################################################################################
 ### Initiate parallel interface ################################################
 ################################################################################
   c = ipp.Client()
+  nlinvNewtonSteps = 6
+  nlinvRealConstr  = False
   try:
     if not file['Coils'][()].shape[1] >= par["NSlice"] and not args.sms:
       if args.trafo:
-        nlinvNewtonSteps = 6
-        nlinvRealConstr  = False
 
         traj_coil = np.reshape(par["traj"],(par["NScan"]*par["Nproj"],par["N"]))
         dcf_coil = (np.array(goldcomp.cmp(traj_coil),dtype=DTYPE))
@@ -46,8 +44,10 @@ def est_coils(data,par,file,args):
         par_coils["NScan"] = 1
         par_coils["NC"] = 1
         par_coils["NSlice"] = 1
+        par_coils["ctx"] = par["ctx"]
+        par_coils["queue"] = par["queue"]
 
-        (ctx,queue,FFT) = utils.NUFFT(par_coils)
+        FFT = utils.NUFFT(par_coils)
 
         result = []
         for i in range(0,(par["NSlice"])):
@@ -85,10 +85,8 @@ def est_coils(data,par,file,args):
         else:
           par["C"] = par["C"] / np.tile(sumSqrC, (par["NC"],1,1,1))
         del file['Coils']
-        del FFT,ctx,queue
+        del FFT
       else:
-        nlinvNewtonSteps = 6
-        nlinvRealConstr  = False
 
         par["C"] = np.zeros((par["NC"],par["NSlice"],par["dimY"],par["dimX"]), dtype=DTYPE)
         par["phase_map"] = np.zeros((par["NSlice"],par["dimY"],par["dimX"]), dtype=DTYPE)
@@ -135,8 +133,6 @@ def est_coils(data,par,file,args):
 
   except:
     if args.trafo:
-      nlinvNewtonSteps = 6
-      nlinvRealConstr  = False
 
       traj_coil = np.reshape(par["traj"],(par["NScan"]*par["Nproj"],par["N"]))
       dcf_coil = np.repeat(par["dcf"],par["NScan"],0)
@@ -151,8 +147,10 @@ def est_coils(data,par,file,args):
       par_coils["NScan"] = 1
       par_coils["NC"] = 1
       par_coils["NSlice"] = 1
+      par_coils["ctx"] = par["ctx"]
+      par_coils["queue"] = par["queue"]
 
-      (ctx,queue,FFT) = utils.NUFFT(par_coils)
+      FFT = utils.NUFFT(par_coils)
 
       result = []
       for i in range(0,(par["NSlice"])):
@@ -190,10 +188,8 @@ def est_coils(data,par,file,args):
         par["C"] = sumSqrC
       else:
         par["C"] = par["C"] / np.tile(sumSqrC, (par["NC"],1,1,1))
-      del FFT,ctx,queue
+      del FFT
     else:
-      nlinvNewtonSteps = 6
-      nlinvRealConstr  = False
 
       par["C"] = np.zeros((par["NC"],par["NSlice"],par["dimY"],par["dimX"]), dtype=DTYPE)
       par["phase_map"] = np.zeros((par["NSlice"],par["dimY"],par["dimX"]), dtype=DTYPE)

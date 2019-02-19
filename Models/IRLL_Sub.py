@@ -10,44 +10,29 @@ Created on Fri Jun  9 11:33:09 2017
 #cython: boundscheck=False, wraparound=False, nonecheck=False
 
 import numpy as np
+import matplotlib
+matplotlib.use("Qt5agg")
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import numexpr as ne
 plt.ion()
 
-DTYPE = np.complex64
+from Models.Model import BaseModel, constraints, DTYPE
 unknowns_TGV = 2
 unknowns_H1 = 0
 
-class constraint:
-  def __init__(self, min_val=-np.inf, max_val=np.inf, real_const=False, pos_real=False):
-    self.min = min_val
-    self.max = max_val
-    self.real = real_const
-    self.real = real_const
-    self.pos_real = pos_real
-  def update(self,scale):
-    self.min = self.min/scale
-    self.max = self.max/scale
-
-class Model:
-
-
+class Model(BaseModel):
   def __init__(self, par,images):
+    super().__init__(par)
 
-    self.constraints = []
-    self.NSlice = par["NSlice"]
     self.TR = par['time_per_slice']-(par['tau']*par['Nproj_measured']+par['gradient_delay'])
     self.fa = par["flip_angle(s)"]*np.pi/180
-    self.uk_scale=[]
 
     self.tau = par["tau"]
     self.td = par["gradient_delay"]
     self.NLL = par["NScan"]
     self.Nproj = par["Nproj"]
     self.Nproj_measured =  par["Nproj_measured"]
-    self.dimY =  par["dimX"]
-    self.dimX = par["dimY"]
 
     phi_corr = np.zeros_like(par["fa_corr"],dtype=DTYPE)
     phi_corr = np.real(self.fa)*np.real(par["fa_corr"]) + 1j*np.imag(self.fa)*np.imag(par["fa_corr"])
@@ -59,30 +44,11 @@ class Model:
     self.uk_scale.append(1/np.median(np.abs(images)))
     self.uk_scale.append(1)
 
-    self.scale = 100
-    self.figure = None
+    self.guess = self._set_init_scales()
 
-    test_T1 = np.exp(-self.scale/np.reshape(np.linspace(10,5500,self.dimX*self.dimY*self.NSlice),(self.NSlice,self.dimY,self.dimX)))
-    test_M0 = np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
+    self.constraints.append(constraints(-300,300,False)  )
+    self.constraints.append(constraints(np.exp(-self.scale/10)/self.uk_scale[1], np.exp(-self.scale/5500)/self.uk_scale[1],True))
 
-    G_x = self.execute_forward_3D(np.array([test_M0,test_T1],dtype=DTYPE))
-
-    self.uk_scale[0]*=1/np.median(np.abs(G_x))
-
-    DG_x =  self.execute_gradient_3D(np.array([test_M0/self.uk_scale[0],test_T1],dtype=DTYPE))
-    self.uk_scale[1] = self.uk_scale[1]*np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...]))
-
-    DG_x =  self.execute_gradient_3D(np.array([test_M0/self.uk_scale[0],test_T1],dtype=DTYPE))
-    print('T1 scale: ',self.uk_scale[1],
-                              '/ M0_scale: ',self.uk_scale[0])
-
-    self.guess = np.array([1/self.uk_scale[0]*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE),np.exp(-self.scale/800)/self.uk_scale[1]*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)])
-    self.constraints.append(constraint(-300,300,False)  )
-    self.constraints.append(constraint(np.exp(-self.scale/10)/self.uk_scale[1], np.exp(-self.scale/5500)/self.uk_scale[1],True))
-  def rescale(self,x):
-    M0 = np.abs(x[0,...]*self.uk_scale[0])
-    T1 = np.abs(-self.scale/np.log(x[1,...]*self.uk_scale[1]))
-    return np.array((M0,T1))
   def plot_unknowns(self,x,dim_2D=False):
       M0 = np.abs(x[0,...]*self.uk_scale[0])
       T1 = np.abs(-self.scale/np.log(x[1,...]*self.uk_scale[1]))
@@ -171,7 +137,7 @@ class Model:
            self.T1_plot_cor.set_clim([T1_min,T1_max])
            plt.draw()
            plt.pause(1e-10)
-  def execute_forward_2D(self, x, islice):
+  def _execute_forward_2D(self, x, islice):
         S = np.zeros((self.NLL,self.Nproj,self.dimY,self.dimX),dtype=DTYPE)
         M0_sc = self.uk_scale[0]
         TR = self.TR
@@ -197,7 +163,7 @@ class Model:
                 S[i,j,...] = M0*M0_sc*((Etau*cos_phi)**(n - 1)*Q_F + F)*sin_phi
 
         return np.array(np.mean(S,axis=1,dtype=np.complex256),dtype=DTYPE)
-  def execute_gradient_2D(self, x, islice):
+  def _execute_gradient_2D(self, x, islice):
         grad = np.zeros((2,self.NLL,self.Nproj,self.dimY,self.dimX),dtype=DTYPE)
         M0_sc = self.uk_scale[0]
         TR = self.TR
@@ -248,7 +214,7 @@ class Model:
 
         return np.array(np.mean(grad,axis=2,dtype=np.complex256),dtype=DTYPE)
 
-  def execute_forward_3D(self, x):
+  def _execute_forward_3D(self, x):
         S = np.zeros((self.NLL,self.Nproj,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
 
         TR = self.TR
@@ -278,7 +244,7 @@ class Model:
 
         return np.array(np.mean(S,axis=1,dtype=np.complex256),dtype=DTYPE)
 
-  def execute_gradient_3D(self, x):
+  def _execute_gradient_3D(self, x):
         grad = np.zeros((2,self.NLL,self.Nproj,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
         M0_sc = self.uk_scale[0]
         TR = self.TR
@@ -335,8 +301,24 @@ class Model:
 
         return np.array(np.mean(grad,axis=2,dtype=DTYPE),dtype=DTYPE)
 
+  def _set_init_scales(self):
+    self.scale = 100
 
+    test_T1 = np.exp(-self.scale/np.reshape(np.linspace(10,5500,self.dimX*self.dimY*self.NSlice),(self.NSlice,self.dimY,self.dimX)))
+    test_M0 = np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
 
+    G_x = self._execute_forward_3D(np.array([test_M0,test_T1],dtype=DTYPE))
+
+    self.uk_scale[0]*=1/np.median(np.abs(G_x))
+
+    DG_x =  self._execute_gradient_3D(np.array([test_M0/self.uk_scale[0],test_T1],dtype=DTYPE))
+    self.uk_scale[1] = self.uk_scale[1]*np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...]))
+
+#    DG_x =  self._execute_gradient_3D(np.array([test_M0/self.uk_scale[0],test_T1],dtype=DTYPE))
+    print('T1 scale: ',self.uk_scale[1],
+                              '/ M0_scale: ',self.uk_scale[0])
+
+    return np.array([1/self.uk_scale[0]*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE),np.exp(-self.scale/800)/self.uk_scale[1]*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)])
 
 
 

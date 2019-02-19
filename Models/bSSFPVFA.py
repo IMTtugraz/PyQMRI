@@ -12,37 +12,23 @@ matplotlib.use("Qt5agg")
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 plt.ion()
-DTYPE = np.complex64
 
-unknowns_TGV = 3
-unknowns_H1 = 1
+from Models.Model import BaseModel, constraints, DTYPE
+unknowns_TGV = 4
+unknowns_H1 = 0
 
-class constraint:
-  def __init__(self, min_val=-np.inf, max_val=np.inf, real_const=False, pos_real=False):
-    self.min = min_val
-    self.max = max_val
-    self.pos_real = pos_real
-    self.real = real_const
-  def update(self,scale):
-    self.min = self.min/scale
-    self.max = self.max/scale
-
-
-class Model:
+class Model(BaseModel):
   def __init__(self,par,images):
-    self.constraints = []
+    super().__init__(par)
     if len(par['TR'])>1:
       self.par['TR'] = par['TR'][0]
     else:
       self.TR = par['TR']
-    self.images = images
-    self.fa_fl = par['flip_angle(s)'][:5]*np.pi/180
-    self.fa_bl = par['flip_angle(s)'][5:]*np.pi/180
-    self.fa_corr = par['fa_corr']
-    self.NSlice = par['NSlice']
-    self.figure = None
 
-    (NScan,NSlice,dimY,dimX) = images.shape
+    NScan_VFA = int(par["NScan_VFA"])
+    self.fa_fl = par['flip_angle(s)'][:NScan_VFA]*np.pi/180
+    self.fa_bl = par['flip_angle(s)'][NScan_VFA:]*np.pi/180
+    self.fa_corr = par['fa_corr']
 
     phi_corr = np.zeros_like(images,dtype=DTYPE)
     for i in range(np.size(self.fa_fl)):
@@ -51,119 +37,78 @@ class Model:
     for i in range(np.size(self.fa_fl),np.size(self.fa_bl)+np.size(self.fa_fl)):
       phi_corr[i,:,:,:] = self.fa_bl[i-np.size(self.fa_fl)]*self.fa_corr
 
-    self.sin_phi_fl = np.sin(phi_corr[:5])
-    self.cos_phi_fl = np.cos(phi_corr[:5])
+    self.sin_phi_fl = np.sin(phi_corr[:NScan_VFA])
+    self.cos_phi_fl = np.cos(phi_corr[:NScan_VFA])
 
-    self.sin_phi_bl = np.sin(phi_corr[5:])
-    self.cos_phi_bl = np.cos(phi_corr[5:])
+    self.sin_phi_bl = np.sin(phi_corr[NScan_VFA:])
+    self.cos_phi_bl = np.cos(phi_corr[NScan_VFA:])
 
 
     self.uk_scale = []
-    for i in range(4):
+    for i in range(unknowns_TGV+unknowns_H1):
       self.uk_scale.append(1)
-
-    self.uk_scale[0] = 1/np.median(np.abs(images))
-    print(np.median(np.abs(images[:5])))
-    print(np.median(np.abs(images[5:])))
-    print(np.median(np.abs(images[5:]))/np.median(np.abs(images[:5])))
-
-    tmp = np.median(np.abs(images[5:]))/np.median(np.abs(images[:5]))/4.8432
-#    self.uk_scale[0] = 1
-#    self.uk_scale[1] = 1
-#    self.uk_scale[2] = 1
-#    self.uk_scale[3] = 1
-#    self.E1 = np.exp(-TR/T1_ref)
-
-    test_T1 = np.reshape(np.linspace(10,5500,dimX*dimY*NSlice),(NSlice,dimX,dimY))
-    test_T2 = np.reshape(np.linspace(10,2500,dimX*dimY*NSlice),(NSlice,dimX,dimY))
-    test_M0 = np.ones((NSlice,dimY,dimX),dtype=DTYPE)#np.mean(np.abs(images))*np.ones((NSlice,dimY,dimX),dtype=DTYPE)#1*np.sqrt((dimX*np.pi/2)/par['Nproj'])*np.sqrt(par["N"]*np.pi/(4*par["Nproj"]))*
-    test_T1 = 1/self.uk_scale[1]*np.exp(-self.TR/(test_T1*np.ones((NSlice,dimY,dimX),dtype=DTYPE)))
-    test_T2 = 1/self.uk_scale[2]*np.exp(-self.TR/(test_T2*np.ones((NSlice,dimY,dimX),dtype=DTYPE)))
-    test_k = 1/self.uk_scale[3]*tmp*np.ones((NSlice,dimY,dimX),dtype=DTYPE)
+    self.uk_scale[0] = 1/np.median(np.abs(images[:NScan_VFA]))
 
 
-    G_x = self.execute_forward_3D(np.array([test_M0/self.uk_scale[0],test_T1,test_T2,test_k],dtype=DTYPE))
-#    self.uk_scale[0] *= np.median(np.abs(G_x))/np.median(np.abs(images))
-
-    self.uk_scale[0]*= 1/np.median(np.abs(G_x))
-#    print((np.median(np.abs(images[int(par['NScan']/2):]))/np.median(np.abs(images[:int(par['NScan']/2)])))/4)
-#    test_k = (np.median(np.abs(images[int(par['NScan']/2):]))/np.median(np.abs(images[:int(par['NScan']/2)])))/4*np.ones((NSlice,dimY,dimX),dtype=DTYPE)
 
 
-#    print(np.mean(test_k))
-#    test_M0*=self.uk_scale[0]
-#    self.uk_scale[0] = 2
 
-    DG_x =  self.execute_gradient_3D(np.array([test_M0/self.uk_scale[0],test_T1/self.uk_scale[1],test_T2/self.uk_scale[2],test_k/self.uk_scale[3]],dtype=DTYPE))
-    self.uk_scale[1] = self.uk_scale[1]*np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...]))
-    self.uk_scale[2] = self.uk_scale[2]*np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[2,...]))
-    self.uk_scale[3] = self.uk_scale[3]*np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[3,...]))
+    self.guess = self._set_init_scales()
+    self.constraints.append(constraints(0/self.uk_scale[0],1000/self.uk_scale[0],False)  )
+    self.constraints.append(constraints(np.exp(-self.TR/(10))/self.uk_scale[1],np.exp(-self.TR/(5500))/self.uk_scale[1],True))
+    self.constraints.append(constraints(np.exp(-self.TR/(10))/self.uk_scale[2],np.exp(-self.TR/(2500))/self.uk_scale[2],True))
+    self.constraints.append(constraints(0/self.uk_scale[3],1000/self.uk_scale[3],False)  )
 
-
-#    self.uk_scale[1] /= (self.uk_scale[0])
-#    self.uk_scale[2] /= (self.uk_scale[0])
-#    self.uk_scale[3] /= (self.uk_scale[0])
-
-
-    DG_x =  self.execute_gradient_3D(np.array([test_M0/self.uk_scale[0],test_T1/self.uk_scale[1],test_T2/self.uk_scale[2],test_k/self.uk_scale[3]],dtype=DTYPE))
-    print('Grad Scaling init M0/T1: %f,  M0/T2: %f,  M0/k: %f'%(np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...])),np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[2,...])),np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[3,...]))))
-    print('T1 scale: ',self.uk_scale[1],'/ T2_scale: ',self.uk_scale[2],
-                              '/ M0_scale: ',self.uk_scale[0],'/ k_scale: ',self.uk_scale[3])
+  def _execute_forward_2D(self,x,islice):
+    print("2D Functions not implemented")
+    raise NotImplementedError
+  def _execute_gradient_2D(self,x,islice):
+    print("2D Functions not implemented")
+    raise NotImplementedError
 
 
-    result = np.array([np.ones_like(test_M0)/self.uk_scale[0],1/self.uk_scale[1]*np.mean(test_T1)*np.ones_like(test_T1),1/self.uk_scale[2]*np.mean(test_T2)*np.ones_like(test_T2),np.mean(test_k)/self.uk_scale[3]*np.ones_like(test_k)]).astype(DTYPE)
-    self.guess = result
-    self.constraints.append(constraint(0/self.uk_scale[0],1000/self.uk_scale[0],False)  )
-    self.constraints.append(constraint(np.exp(-self.TR/(10))/self.uk_scale[1],np.exp(-self.TR/(5500))/self.uk_scale[1],True))
-    self.constraints.append(constraint(np.exp(-self.TR/(10))/self.uk_scale[2],np.exp(-self.TR/(2500))/self.uk_scale[2],True))
-    self.constraints.append(constraint(tmp*0/self.uk_scale[3],10*tmp/self.uk_scale[3],True,False)  )
-
-  def rescale(self,x):
-    M0 = x[0,...]*self.uk_scale[0]
-    T1 = -self.TR/np.log(x[1,...]*self.uk_scale[1])
-    T2 = -self.TR/np.log(x[2,...]*self.uk_scale[2])
-    k = x[3,...]*self.uk_scale[3]
-    return np.array((M0,T1,T2,k))
-
-  def execute_forward_3D(self,x):
+  def _execute_forward_3D(self,x):
     M0 = x[0,...]
     E1 = x[1,...]
     E2 = x[2,...]
-    k = x[3,...]
+    M02 = x[3,...]
     M0_sc = self.uk_scale[0]
     T1_sc = self.uk_scale[1]
     T2_sc = self.uk_scale[2]
-    S1 =  M0*self.uk_scale[0]*(-E1*T1_sc + 1)*self.sin_phi_fl/(-E1*T1_sc*self.cos_phi_fl + 1)
-    S2 = (k*self.uk_scale[3])*M0*M0_sc*(-E1*T1_sc + 1)*self.sin_phi_bl/(-E1*E2*T1_sc*T2_sc - (E1*T1_sc - E2*T2_sc)*self.cos_phi_bl + 1)
+    M02_sc = self.uk_scale[3]
+    S1 =  M0*M0_sc*(-E1*T1_sc + 1)*self.sin_phi_fl/(-E1*T1_sc*self.cos_phi_fl + 1)
+    S2 = M02*M02_sc*(-E1*T1_sc + 1)*self.sin_phi_bl/(-E1*E2*T1_sc*T2_sc - (E1*T1_sc - E2*T2_sc)*self.cos_phi_bl + 1)
     S =(np.concatenate((S1,S2)))
     S[~np.isfinite(S)] = 1e-20
     S = np.array(S,dtype=DTYPE)
     return S
-  def execute_gradient_3D(self,x):
+  def _execute_gradient_3D(self,x):
     M0 = x[0,...]
     E1 = x[1,:,:]#self.E1#
     E2 = x[2,...]#self.E2#
-    k = x[3,...]
+    M02 = x[3,...]
     M0_sc = self.uk_scale[0]
     T1_sc = self.uk_scale[1]
     T2_sc = self.uk_scale[2]
+    M02_sc = self.uk_scale[3]
+
     grad_M0_fl =  (M0_sc*(-E1*T1_sc + 1)*self.sin_phi_fl/(-E1*T1_sc*self.cos_phi_fl + 1))
     grad_T1_fl =  (M0*self.uk_scale[0]*self.uk_scale[1]*(-E1*T1_sc + 1)*self.sin_phi_fl*self.cos_phi_fl/(-E1*T1_sc*self.cos_phi_fl + 1)**2 -\
     M0*self.uk_scale[0]*self.uk_scale[1]*self.sin_phi_fl/(-E1*T1_sc*self.cos_phi_fl + 1))
     grad_T2_fl = np.zeros_like(grad_T1_fl)
-    grad_k_fl = np.zeros_like(M0*M0_sc*(-E1*T1_sc + 1)*self.sin_phi_fl/(-E1*T1_sc*self.cos_phi_fl + 1))
+    grad_M02_fl = np.zeros_like(M0*M0_sc*(-E1*T1_sc + 1)*self.sin_phi_fl/(-E1*T1_sc*self.cos_phi_fl + 1))
 
-    grad_M0_bl = (k*self.uk_scale[3])*(M0_sc*(-E1*T1_sc + 1)*self.sin_phi_bl/(-E1*E2*T1_sc*T2_sc - (E1*T1_sc - E2*T2_sc)*self.cos_phi_bl + 1))
-    grad_T1_bl = (k*self.uk_scale[3])*(-M0*M0_sc*T1_sc*self.sin_phi_bl/(-E1*E2*T1_sc*T2_sc - (E1*T1_sc - E2*T2_sc)*self.cos_phi_bl + 1) + M0*M0_sc*(-E1*T1_sc + 1)*(E2*T1_sc*T2_sc + T1_sc*self.cos_phi_bl)*self.sin_phi_bl/(-E1*E2*T1_sc*T2_sc - (E1*T1_sc - E2*T2_sc)*self.cos_phi_bl + 1)**2)
-    grad_T2_bl = (k*self.uk_scale[3])*(M0*M0_sc*(-E1*T1_sc + 1)*(E1*T1_sc*T2_sc - T2_sc*self.cos_phi_bl)*self.sin_phi_bl/(-E1*E2*T1_sc*T2_sc - (E1*T1_sc - E2*T2_sc)*self.cos_phi_bl + 1)**2)
+    grad_M0_bl = np.zeros_like(M0_sc*(-E1*T1_sc + 1)*self.sin_phi_bl/(-E1*E2*T1_sc*T2_sc - (E1*T1_sc - E2*T2_sc)*self.cos_phi_bl + 1))
+    grad_T1_bl = (-M02*M02_sc*T1_sc*self.sin_phi_bl/(-E1*E2*T1_sc*T2_sc - (E1*T1_sc - E2*T2_sc)*self.cos_phi_bl + 1) + M02*M02_sc*(-E1*T1_sc + 1)*(E2*T1_sc*T2_sc + T1_sc*self.cos_phi_bl)*self.sin_phi_bl/(-E1*E2*T1_sc*T2_sc - (E1*T1_sc - E2*T2_sc)*self.cos_phi_bl + 1)**2)
+    grad_T2_bl = (M02*M02_sc*(-E1*T1_sc + 1)*(E1*T1_sc*T2_sc - T2_sc*self.cos_phi_bl)*self.sin_phi_bl/(-E1*E2*T1_sc*T2_sc - (E1*T1_sc - E2*T2_sc)*self.cos_phi_bl + 1)**2)
 
-    grad_k_bl = self.uk_scale[3]*(M0*M0_sc*(-E1*T1_sc + 1)*self.sin_phi_bl/(-E1*E2*T1_sc*T2_sc - (E1*T1_sc - E2*T2_sc)*self.cos_phi_bl + 1))
+    grad_M02_bl = ((M02_sc*(-E1*T1_sc + 1)*self.sin_phi_bl/(-E1*E2*T1_sc*T2_sc - (E1*T1_sc - E2*T2_sc)*self.cos_phi_bl + 1)))
 
     grad_M0 = np.concatenate((grad_M0_fl,grad_M0_bl))
     grad_T1 = np.concatenate((grad_T1_fl,grad_T1_bl))
     grad_T2 = np.concatenate((grad_T2_fl,grad_T2_bl))
-    grad_k =  np.concatenate((grad_k_fl,grad_k_bl))
-    grad = np.array([grad_M0,grad_T1,grad_T2,grad_k],dtype=DTYPE)
+    grad_M02 =  np.concatenate((grad_M02_fl,grad_M02_bl))
+    grad = np.array([grad_M0,grad_T1,grad_T2,grad_M02],dtype=DTYPE)
     grad[~np.isfinite(grad)] = 1e-20
     print('Grad Scaling E1', np.linalg.norm(np.abs(grad[0]))/np.linalg.norm(np.abs(grad[1])))
     print('Grad Scaling E2', np.linalg.norm(np.abs(grad[0]))/np.linalg.norm(np.abs(grad[2])))
@@ -303,3 +248,29 @@ class Model:
 
            plt.draw()
            plt.pause(1e-10)
+
+  def _set_init_scales(self):
+
+
+    test_T1 = 800*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
+    test_T2 = 200*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
+    test_M0 = np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
+    test_T1 = 1/self.uk_scale[1]*np.exp(-self.TR/(test_T1*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)))
+    test_T2 = 1/self.uk_scale[2]*np.exp(-self.TR/(test_T2*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)))
+    test_M02 = 1/self.uk_scale[3]*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
+
+    x = np.array([test_M0,test_T1,test_T2,test_M02],dtype=DTYPE)
+    G_x = self._execute_forward_3D(x)
+
+    self.uk_scale[0]*= 1/np.median(np.abs(G_x))
+    x[0]/=self.uk_scale[0]
+
+
+    DG_x =  self._execute_gradient_3D(x)
+
+    for i in range(unknowns_TGV+unknowns_H1-1):
+      self.uk_scale[i+1] *= np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[i+1,...]))
+      x[i+1]/= self.uk_scale[i+1]
+
+
+    return x
