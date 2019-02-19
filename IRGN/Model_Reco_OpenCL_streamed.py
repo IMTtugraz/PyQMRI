@@ -9,9 +9,6 @@ import pyopencl.array as clarray
 
 import Transforms.gridroutines_slicefirst as NUFFT
 
-from helper_fun import multislice_viewer as msv
-import matplotlib.pyplot as plt
-
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
@@ -411,13 +408,6 @@ class Model_Reco:
           idx_stop = self.NSlice-(i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices))
           Axold_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],Axold[idx_start:idx_stop,...],Axold_part[i].data,wait_for=Axold_part[i].events,is_blocking=False))
           Kyk1_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],Kyk1[idx_start:idx_stop,...],Kyk1_part[i].data,wait_for=Kyk1_part[i].events,is_blocking=False))
-#          self.queue[3*i+2].finish()
-#          if idx_start==0:
-#            Axold[idx_start:idx_stop,...] = Axold_tmp[:self.par_slices,...]
-#            Kyk1[idx_start:idx_stop,...] = Kyk1_tmp[:self.par_slices,...]
-#          else:
-#            Axold[idx_start:idx_stop,...] = Axold_tmp[self.overlap:,...]
-#            Kyk1[idx_start:idx_stop,...] = Kyk1_tmp[self.overlap:,...]
           ### Put Data
           idx_start = self.NSlice-((i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1))*self.par_slices)-self.overlap
           idx_stop = self.NSlice-(i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)*self.par_slices))
@@ -435,9 +425,6 @@ class Model_Reco:
           idx_stop = self.NSlice-(i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices)
           Axold_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],Axold[idx_start:idx_stop,...],Axold_part[i+self.num_dev].data,wait_for=Axold_part[i+self.num_dev].events,is_blocking=False))
           Kyk1_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],Kyk1[idx_start:idx_stop,...],Kyk1_part[i+self.num_dev].data,wait_for=Kyk1_part[i+self.num_dev].events,is_blocking=False))
-#          self.queue[3*i+2].finish()
-#          Axold[idx_start:idx_stop,...] = Axold_tmp[self.overlap:,...]
-#          Kyk1[idx_start:idx_stop,...] = Kyk1_tmp[self.overlap:,...]
           idx_start = self.NSlice-((i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices)
           idx_stop = self.NSlice-(i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices)
           if idx_start==0:
@@ -450,10 +437,6 @@ class Model_Reco:
 
           self.coil_buf_part[self.num_dev+i].add_event(cl.enqueue_copy(self.queue[3*i+1],self.coil_buf_part[self.num_dev+i].data,self.C[idx_start:idx_stop,...],wait_for=self.coil_buf_part[self.num_dev+i].events,is_blocking=False))
           self.grad_buf_part[self.num_dev+i].add_event(cl.enqueue_copy(self.queue[3*i+1],self.grad_buf_part[self.num_dev+i].data,self.grad_x[idx_start:idx_stop,...],wait_for=self.grad_buf_part[self.num_dev+i].events,is_blocking=False))
-#          if idx_stop == self.NSlice:
-#            last=1
-#          else:
-#            last=0
           Axold_part[i+self.num_dev].add_event(self.operator_forward_full(Axold_part[i+self.num_dev],x_part[self.num_dev+i],i,1))
           Kyk1_part[i+self.num_dev].add_event(self.operator_adjoint_full(Kyk1_part[i+self.num_dev],r_part[self.num_dev+i],z1_part[self.num_dev+i],i,1,last))
 #### Collect last block
@@ -592,9 +575,6 @@ class Model_Reco:
         gradx_xold_part = []
         symgrad_v_part = []
         symgrad_v_vold_part = []
-        v_new_tmp = np.zeros((self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX,4),dtype=DTYPE)
-        symgrad_v_tmp = np.zeros((self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX,8),dtype=DTYPE)
-        symgrad_v_vold_tmp = np.zeros((self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX,8),dtype=DTYPE)
         for i in range(2*self.num_dev):
           x_new_part.append(clarray.zeros(self.queue[3*int(np.mod(i,self.num_dev))],(self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX),dtype=DTYPE,allocator=self.alloc[int(np.mod(i,self.num_dev))]))
           Ax_part.append(clarray.zeros(self.queue[3*int(np.mod(i,self.num_dev))],(self.par_slices+self.overlap,self.NScan,self.NC,self.Nproj,self.N),dtype=DTYPE,allocator=self.alloc[int(np.mod(i,self.num_dev))]))
@@ -642,11 +622,6 @@ class Model_Reco:
             gradx_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],gradx[idx_start:idx_stop,...],gradx_part[i].data,wait_for=gradx_part[i].events,is_blocking=False))
             gradx_xold_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],gradx_xold[idx_start:idx_stop,...],gradx_xold_part[i].data,wait_for=gradx_xold_part[i].events,is_blocking=False))
             Ax_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],Ax[idx_start:idx_stop,...],Ax_part[i].data,wait_for=Ax_part[i].events,is_blocking=False))
-#            self.queue[3*i+2].finish()
-#            x_new[idx_start:idx_stop,...]=x_new_tmp[:self.par_slices,...]
-#            gradx[idx_start:idx_stop,...] = gradx_tmp[:self.par_slices,...]
-#            gradx_xold[idx_start:idx_stop,...] = gradx_xold_tmp[:self.par_slices,...]
-#            Ax[idx_start:idx_stop,...]=Ax_tmp[:self.par_slices,...]
             ### Put Data
             idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)*self.par_slices)
             idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1))*self.par_slices+self.overlap
@@ -666,11 +641,6 @@ class Model_Reco:
             gradx_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],gradx[idx_start:idx_stop,...],gradx_part[i+self.num_dev].data,wait_for=gradx_part[i+self.num_dev].events,is_blocking=False))
             gradx_xold_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],gradx_xold[idx_start:idx_stop,...],gradx_xold_part[i+self.num_dev].data,wait_for=gradx_xold_part[i+self.num_dev].events,is_blocking=False))
             Ax_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],Ax[idx_start:idx_stop,...],Ax_part[i+self.num_dev].data,wait_for=Ax_part[i+self.num_dev].events,is_blocking=False))
-#            self.queue[3*i+2].finish()
-#            x_new[idx_start:idx_stop,...]=x_new_tmp[:self.par_slices,...]
-#            gradx[idx_start:idx_stop,...] = gradx_tmp[:self.par_slices,...]
-#            gradx_xold[idx_start:idx_stop,...] = gradx_xold_tmp[:self.par_slices,...]
-#            Ax[idx_start:idx_stop,...]=Ax_tmp[:self.par_slices,...]
             idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices
             idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices
             if idx_stop == self.NSlice:
@@ -713,20 +683,20 @@ class Model_Reco:
 
       j=0
       for i in range(self.num_dev):
-        idx_start = i*self.par_slices
-        idx_stop = (i+1)*self.par_slices
-        if idx_start==0:
-          idx_stop +=self.overlap
-        else:
-          idx_start-=self.overlap
+        idx_start = self.NSlice-((i+1)*self.par_slices)-self.overlap
+        idx_stop = self.NSlice-(i*self.par_slices)
         v_part[i].add_event(cl.enqueue_copy(self.queue[3*i],v_part[i].data,v[idx_start:idx_stop,...],wait_for=v_part[i].events,is_blocking=False))
         Kyk2_part[i].add_event(cl.enqueue_copy(self.queue[3*i],Kyk2_part[i].data,Kyk2[idx_start:idx_stop,...],wait_for=Kyk2_part[i].events,is_blocking=False))
         v_new_part[i].add_event(self.update_v(v_new_part[i],v_part[i],Kyk2_part[i],tau,i,0))
         symgrad_v_part[i].add_event(self.sym_grad(symgrad_v_part[i],v_new_part[i],i,0))
         symgrad_v_vold_part[i].add_event(self.sym_grad(symgrad_v_vold_part[i],v_part[i],i,0))
       for i in range(self.num_dev):
-        idx_start = (i+1+self.num_dev-1)*self.par_slices-self.overlap
-        idx_stop = (i+2+self.num_dev-1)*self.par_slices
+        idx_start = self.NSlice-((i+2+self.num_dev-1)*self.par_slices)
+        idx_stop = self.NSlice-((i+1+self.num_dev-1)*self.par_slices)
+        if idx_start==0:
+          idx_stop+=self.overlap
+        else:
+          idx_start-=self.overlap
         v_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+1],v_part[i+self.num_dev].data,v[idx_start:idx_stop,...],wait_for=v_part[i+self.num_dev].events,is_blocking=False))
         Kyk2_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+1],Kyk2_part[i+self.num_dev].data,Kyk2[idx_start:idx_stop,...],wait_for=Kyk2_part[i+self.num_dev].events,is_blocking=False))
         v_new_part[i+self.num_dev].add_event(self.update_v(v_new_part[i+self.num_dev],v_part[self.num_dev+i],Kyk2_part[self.num_dev+i],tau,i,1))
@@ -736,41 +706,28 @@ class Model_Reco:
       for j in range(2*self.num_dev,int(self.NSlice/(2*self.par_slices*self.num_dev)+(2*self.num_dev-1))):
           for i in range(self.num_dev):
             ### Get Data
-            idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
-            idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
-            v_new_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],v_new_tmp,v_new_part[i].data,wait_for=v_new_part[i].events,is_blocking=False))
-            symgrad_v_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],symgrad_v_tmp,symgrad_v_part[i].data,wait_for=symgrad_v_part[i].events,is_blocking=False))
-            symgrad_v_vold_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],symgrad_v_vold_tmp,symgrad_v_vold_part[i].data,wait_for=symgrad_v_vold_part[i].events,is_blocking=False))
-            self.queue[3*i+2].finish()
-            if idx_start==0:
-              v_new[idx_start:idx_stop,...]=v_new_tmp[:self.par_slices,...]
-              symgrad_v[idx_start:idx_stop,...] = symgrad_v_tmp[:self.par_slices,...]
-              symgrad_v_vold[idx_start:idx_stop,...] = symgrad_v_vold_tmp[:self.par_slices,...]
-            else:
-              v_new[idx_start:idx_stop,...]=v_new_tmp[self.overlap:,...]
-              symgrad_v[idx_start:idx_stop,...] = symgrad_v_tmp[self.overlap:,...]
-              symgrad_v_vold[idx_start:idx_stop,...] = symgrad_v_vold_tmp[self.overlap:,...]
+            idx_start = self.NSlice-((i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices)-self.overlap
+            idx_stop = self.NSlice-(i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices))
+            v_new_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],v_new[idx_start:idx_stop,...],v_new_part[i].data,wait_for=v_new_part[i].events,is_blocking=False))
+            symgrad_v_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],symgrad_v[idx_start:idx_stop,...],symgrad_v_part[i].data,wait_for=symgrad_v_part[i].events,is_blocking=False))
+            symgrad_v_vold_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],symgrad_v_vold[idx_start:idx_stop,...],symgrad_v_vold_part[i].data,wait_for=symgrad_v_vold_part[i].events,is_blocking=False))
             ### Put Data
-            idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)*self.par_slices)-self.overlap
-            idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1))*self.par_slices
+            idx_start = self.NSlice-((i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1))*self.par_slices)-self.overlap
+            idx_stop = self.NSlice-(i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)*self.par_slices))
             v_part[i].add_event(cl.enqueue_copy(self.queue[3*i],v_part[i].data,v[idx_start:idx_stop,...],wait_for=v_part[i].events,is_blocking=False))
             Kyk2_part[i].add_event(cl.enqueue_copy(self.queue[3*i],Kyk2_part[i].data,Kyk2[idx_start:idx_stop,...],wait_for=Kyk2_part[i].events,is_blocking=False))
             v_new_part[i].add_event(self.update_v(v_new_part[i],v_part[i],Kyk2_part[i],tau,i,0))
             symgrad_v_part[i].add_event(self.sym_grad(symgrad_v_part[i],v_new_part[i],i,0))
             symgrad_v_vold_part[i].add_event(self.sym_grad(symgrad_v_vold_part[i],v_part[i],i,0))
           for i in range(self.num_dev):
-            idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
-            idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
-            v_new_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],v_new_tmp,v_new_part[i+self.num_dev].data,wait_for=v_new_part[i+self.num_dev].events,is_blocking=False))
-            symgrad_v_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],symgrad_v_tmp,symgrad_v_part[i+self.num_dev].data,wait_for=symgrad_v_part[i+self.num_dev].events,is_blocking=False))
-            symgrad_v_vold_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],symgrad_v_vold_tmp,symgrad_v_vold_part[i+self.num_dev].data,wait_for=symgrad_v_vold_part[i+self.num_dev].events,is_blocking=False))
-            self.queue[3*i+2].finish()
-            v_new[idx_start:idx_stop,...]=v_new_tmp[self.overlap:,...]
-            symgrad_v[idx_start:idx_stop,...] = symgrad_v_tmp[self.overlap:,...]
-            symgrad_v_vold[idx_start:idx_stop,...] = symgrad_v_vold_tmp[self.overlap:,...]
+            idx_start = self.NSlice-((i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices)-self.overlap
+            idx_stop = self.NSlice-(i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices)
+            v_new_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],v_new[idx_start:idx_stop,...],v_new_part[i+self.num_dev].data,wait_for=v_new_part[i+self.num_dev].events,is_blocking=False))
+            symgrad_v_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],symgrad_v[idx_start:idx_stop,...],symgrad_v_part[i+self.num_dev].data,wait_for=symgrad_v_part[i+self.num_dev].events,is_blocking=False))
+            symgrad_v_vold_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],symgrad_v_vold[idx_start:idx_stop,...],symgrad_v_vold_part[i+self.num_dev].data,wait_for=symgrad_v_vold_part[i+self.num_dev].events,is_blocking=False))
 
-            idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices-self.overlap
-            idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices
+            idx_start = self.NSlice-((i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices)
+            idx_stop = self.NSlice-(i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices)
             v_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+1],v_part[i+self.num_dev].data,v[idx_start:idx_stop,...],wait_for=v_part[i+self.num_dev].events,is_blocking=False))
             Kyk2_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+1],Kyk2_part[i+self.num_dev].data,Kyk2[idx_start:idx_stop,...],wait_for=Kyk2_part[i+self.num_dev].events,is_blocking=False))
             v_new_part[i+self.num_dev].add_event(self.update_v(v_new_part[i+self.num_dev],v_part[self.num_dev+i],Kyk2_part[self.num_dev+i],tau,i,1))
@@ -782,31 +739,21 @@ class Model_Reco:
       else:
         j+=1
       for i in range(self.num_dev):
-        self.queue[3*i].finish()
-        idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
-        idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
-        v_new_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],v_new_tmp,v_new_part[i].data,wait_for=v_new_part[i].events,is_blocking=False))
-        symgrad_v_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],symgrad_v_tmp,symgrad_v_part[i].data,wait_for=symgrad_v_part[i].events,is_blocking=False))
-        symgrad_v_vold_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],symgrad_v_vold_tmp,symgrad_v_vold_part[i].data,wait_for=symgrad_v_vold_part[i].events,is_blocking=False))
-        self.queue[3*i+2].finish()
+        idx_start = self.NSlice-((i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices)-self.overlap
+        idx_stop =  self.NSlice-(i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices))
+        v_new_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],v_new[idx_start:idx_stop,...],v_new_part[i].data,wait_for=v_new_part[i].events,is_blocking=False))
+        symgrad_v_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],symgrad_v[idx_start:idx_stop,...],symgrad_v_part[i].data,wait_for=symgrad_v_part[i].events,is_blocking=False))
+        symgrad_v_vold_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],symgrad_v_vold[idx_start:idx_stop,...],symgrad_v_vold_part[i].data,wait_for=symgrad_v_vold_part[i].events,is_blocking=False))
+        idx_start = self.NSlice-(i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices)
+        idx_stop = self.NSlice-((i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices)
         if idx_start==0:
-          v_new[idx_start:idx_stop,...]=v_new_tmp[:self.par_slices,...]
-          symgrad_v[idx_start:idx_stop,...] = symgrad_v_tmp[:self.par_slices,...]
-          symgrad_v_vold[idx_start:idx_stop,...] = symgrad_v_vold_tmp[:self.par_slices,...]
+          idx_stop+=self.overlap
         else:
-          v_new[idx_start:idx_stop,...]=v_new_tmp[self.overlap:,...]
-          symgrad_v[idx_start:idx_stop,...] = symgrad_v_tmp[self.overlap:,...]
-          symgrad_v_vold[idx_start:idx_stop,...] = symgrad_v_vold_tmp[self.overlap:,...]
-        self.queue[3*i+1].finish()
-        idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
-        idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
-        v_new_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],v_new_tmp,v_new_part[i+self.num_dev].data,wait_for=v_new_part[i+self.num_dev].events,is_blocking=False))
-        symgrad_v_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],symgrad_v_tmp,symgrad_v_part[i+self.num_dev].data,wait_for=symgrad_v_part[i+self.num_dev].events,is_blocking=False))
-        symgrad_v_vold_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],symgrad_v_vold_tmp,symgrad_v_vold_part[i+self.num_dev].data,wait_for=symgrad_v_vold_part[i+self.num_dev].events,is_blocking=False))
-        self.queue[3*i+2].finish()
-        v_new[idx_start:idx_stop,...]=v_new_tmp[self.overlap:,...]
-        symgrad_v[idx_start:idx_stop,...] = symgrad_v_tmp[self.overlap:,...]
-        symgrad_v_vold[idx_start:idx_stop,...] = symgrad_v_vold_tmp[self.overlap:,...]
+          idx_start-=self.overlap
+        v_new_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],v_new[idx_start:idx_stop,...],v_new_part[i+self.num_dev].data,wait_for=v_new_part[i+self.num_dev].events,is_blocking=False))
+        symgrad_v_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],symgrad_v[idx_start:idx_stop,...],symgrad_v_part[i+self.num_dev].data,wait_for=symgrad_v_part[i+self.num_dev].events,is_blocking=False))
+        symgrad_v_vold_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],symgrad_v_vold[idx_start:idx_stop,...],symgrad_v_vold_part[i+self.num_dev].data,wait_for=symgrad_v_vold_part[i+self.num_dev].events,is_blocking=False))
+      self.queue[3*i+2].finish()
 
 
 
@@ -822,15 +769,10 @@ class Model_Reco:
 
         if myit == 0:
           z1_new_part = []
-          z1_new_tmp = np.zeros((self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX,4),dtype=DTYPE)
           z2_new_part = []
-          z2_new_tmp = np.zeros((self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX,8),dtype=DTYPE)
           r_new_part = []
-          r_new_tmp = np.zeros((self.par_slices+self.overlap,self.NScan,self.NC,self.Nproj,self.N),dtype=DTYPE)
           Kyk1_new_part = []
-          Kyk1_new_tmp = np.zeros((self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX),dtype=DTYPE)
           Kyk2_new_part = []
-          Kyk2_new_tmp =np.zeros((self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX,4),dtype=DTYPE)
           for i in range(2*self.num_dev):
             z1_new_part.append(clarray.zeros(self.queue[3*int(np.mod(i,self.num_dev))],(self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX,4),dtype=DTYPE,allocator=self.alloc[int(np.mod(i,self.num_dev))]))
             z2_new_part.append(clarray.zeros(self.queue[3*int(np.mod(i,self.num_dev))],(self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX,8),dtype=DTYPE,allocator=self.alloc[int(np.mod(i,self.num_dev))]))
@@ -841,12 +783,12 @@ class Model_Reco:
         j=0
         last=0
         for i in range(self.num_dev):
-          idx_start = i*self.par_slices
-          idx_stop = (i+1)*self.par_slices #### +1 overlap
-          if idx_start == 0:
-            idx_stop +=self.overlap
+          idx_start = self.NSlice-((i+1)*self.par_slices)-self.overlap
+          idx_stop = self.NSlice-(i*self.par_slices)
+          if idx_stop==self.NSlice:
+            last=1
           else:
-            idx_start -=self.overlap
+            last=0
 
           z1_part[i].add_event(cl.enqueue_copy(self.queue[3*i],z1_part[i].data,z1[idx_start:idx_stop,...],wait_for=z1_part[i].events,is_blocking=False))
           gradx_part[i].add_event(cl.enqueue_copy(self.queue[3*i],gradx_part[i].data,gradx[idx_start:idx_stop,...],wait_for=gradx_part[i].events,is_blocking=False))
@@ -865,10 +807,14 @@ class Model_Reco:
           r_new_part[i].add_event(self.update_r(r_new_part[i],r_part[i],Ax_part[i],Ax_old_part[i],res_part[i],beta_line*tau_new,theta_line,self.irgn_par["lambd"],i,0))
           Kyk1_new_part[ i].add_event(self.operator_adjoint_full(Kyk1_new_part[ i],r_new_part[ i],z1_new_part[ i],i,0,last))
 
-
+        last = 0
         for i in range(self.num_dev):
-          idx_start = (i+1+self.num_dev-1)*self.par_slices-self.overlap
-          idx_stop = (i+2+self.num_dev-1)*self.par_slices
+          idx_start = self.NSlice-((i+2+self.num_dev-1)*self.par_slices)
+          idx_stop = self.NSlice-((i+1+self.num_dev-1)*self.par_slices)
+          if idx_start==0:
+            idx_stop+=self.overlap
+          else:
+            idx_start-=self.overlap
           z1_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+1],z1_part[i+self.num_dev].data,z1[idx_start:idx_stop,...],wait_for=z1_part[i+self.num_dev].events,is_blocking=False))
           gradx_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+1],gradx_part[i+self.num_dev].data,gradx[idx_start:idx_stop,...],wait_for=gradx_part[i+self.num_dev].events,is_blocking=False))
           gradx_xold_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+1],gradx_xold_part[i+self.num_dev].data,gradx_xold[idx_start:idx_stop,...],wait_for=gradx_xold_part[i+self.num_dev].events,is_blocking=False))
@@ -881,41 +827,25 @@ class Model_Reco:
           Kyk1_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+1],Kyk1_part[i+self.num_dev].data,Kyk1[idx_start:idx_stop,...],wait_for=Kyk1_part[i+self.num_dev].events,is_blocking=False))
           self.coil_buf_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+1],self.coil_buf_part[i+self.num_dev].data,self.C[idx_start:idx_stop,...],wait_for=self.coil_buf_part[i+self.num_dev].events,is_blocking=False))
           self.grad_buf_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+1],self.grad_buf_part[i+self.num_dev].data,self.grad_x[idx_start:idx_stop,...],wait_for=self.grad_buf_part[i+self.num_dev].events,is_blocking=False))
-          if idx_stop == self.NSlice:
-            last=1
-          else:
-            last=0
           z1_new_part[i+self.num_dev].add_event(self.update_z1(z1_new_part[i+self.num_dev],z1_part[self.num_dev+i],gradx_part[self.num_dev+i],gradx_xold_part[self.num_dev+i],v_new_part[self.num_dev+i],v_part[self.num_dev+i], beta_line*tau_new, theta_line, alpha,i,1))
           r_new_part[i+self.num_dev].add_event(self.update_r(r_new_part[i+self.num_dev],r_part[self.num_dev+i],Ax_part[self.num_dev+i],Ax_old_part[self.num_dev+i],res_part[self.num_dev+i],beta_line*tau_new,theta_line,self.irgn_par["lambd"],i,1))
           Kyk1_new_part[i+self.num_dev].add_event(self.operator_adjoint_full(Kyk1_new_part[i+self.num_dev],r_new_part[i+self.num_dev],z1_new_part[i+self.num_dev],i,1,last))
 
       #### Stream
         for j in range(2*self.num_dev,int(self.NSlice/(2*self.par_slices*self.num_dev)+(2*self.num_dev-1))):
-#          tic = time.time()
           last = 0
           for i in range(self.num_dev):
             ### Get Data
-            idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
-            idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
-            z1_new_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],z1_new_tmp,z1_new_part[i].data,wait_for=z1_new_part[i].events,is_blocking=False))
-            r_new_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],r_new_tmp,r_new_part[i].data,wait_for=r_new_part[i].events,is_blocking=False))
-            Kyk1_new_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],Kyk1_new_tmp,Kyk1_new_part[i].data,wait_for=Kyk1_new_part[i].events,is_blocking=False))
-            self.queue[3*i+2].finish()
-            if idx_start == 0:
-              z1_new[idx_start:idx_stop,...] = z1_new_tmp[:self.par_slices,...]
-              r_new[idx_start:idx_stop,...] = r_new_tmp[:self.par_slices,...]
-              Kyk1_new[idx_start:idx_stop,...] = Kyk1_new_tmp[:self.par_slices,...]
-              ynorm += ((clarray.vdot(r_new_part[i][:self.par_slices,...]-r_part[i][:self.par_slices,...],r_new_part[i][:self.par_slices,...]-r_part[i][:self.par_slices,...],queue=self.queue[3*i])+clarray.vdot(z1_new_part[i][:self.par_slices,...]-z1_part[i][:self.par_slices,...],z1_new_part[i][:self.par_slices,...]-z1_part[i][:self.par_slices,...],queue=self.queue[3*i]))).get()
-              lhs += ((clarray.vdot(Kyk1_new_part[i][:self.par_slices,...]-Kyk1_part[i][:self.par_slices,...],Kyk1_new_part[i][:self.par_slices,...]-Kyk1_part[i][:self.par_slices,...],queue=self.queue[3*i]))).get()
-            else:
-              z1_new[idx_start:idx_stop,...] = z1_new_tmp[self.overlap:,...]
-              r_new[idx_start:idx_stop,...] = r_new_tmp[self.overlap:,...]
-              Kyk1_new[idx_start:idx_stop,...] = Kyk1_new_tmp[self.overlap:,...]
-              ynorm += ((clarray.vdot(r_new_part[i][self.overlap:,...]-r_part[i][self.overlap:,...],r_new_part[i][self.overlap:,...]-r_part[i][self.overlap:,...],queue=self.queue[3*i])+clarray.vdot(z1_new_part[i][self.overlap:,...]-z1_part[i][self.overlap:,...],z1_new_part[i][self.overlap:,...]-z1_part[i][self.overlap:,...],queue=self.queue[3*i]))).get()
-              lhs += ((clarray.vdot(Kyk1_new_part[i][self.overlap:,...]-Kyk1_part[i][self.overlap:,...],Kyk1_new_part[i][self.overlap:,...]-Kyk1_part[i][self.overlap:,...],queue=self.queue[3*i]))).get()
+            idx_start = self.NSlice-((i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices)-self.overlap
+            idx_stop = self.NSlice-(i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices))
+            z1_new_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],z1_new[idx_start:idx_stop,...],z1_new_part[i].data,wait_for=z1_new_part[i].events,is_blocking=False))
+            r_new_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],r_new[idx_start:idx_stop,...],r_new_part[i].data,wait_for=r_new_part[i].events,is_blocking=False))
+            Kyk1_new_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],Kyk1_new[idx_start:idx_stop,...],Kyk1_new_part[i].data,wait_for=Kyk1_new_part[i].events,is_blocking=False))
+            ynorm += ((clarray.vdot(r_new_part[i][self.overlap:,...]-r_part[i][self.overlap:,...],r_new_part[i][self.overlap:,...]-r_part[i][self.overlap:,...],queue=self.queue[3*i])+clarray.vdot(z1_new_part[i][self.overlap:,...]-z1_part[i][self.overlap:,...],z1_new_part[i][self.overlap:,...]-z1_part[i][self.overlap:,...],queue=self.queue[3*i]))).get()
+            lhs += ((clarray.vdot(Kyk1_new_part[i][self.overlap:,...]-Kyk1_part[i][self.overlap:,...],Kyk1_new_part[i][self.overlap:,...]-Kyk1_part[i][self.overlap:,...],queue=self.queue[3*i]))).get()
             ### Put Data
-            idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)*self.par_slices)-self.overlap
-            idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1))*self.par_slices
+            idx_start = self.NSlice-((i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1))*self.par_slices)-self.overlap
+            idx_stop = self.NSlice-(i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)*self.par_slices))
             z1_part[i].add_event(cl.enqueue_copy(self.queue[3*i],z1_part[i].data,z1[idx_start:idx_stop,...],wait_for=z1_part[i].events,is_blocking=False))
             gradx_part[i].add_event(cl.enqueue_copy(self.queue[3*i],gradx_part[i].data,gradx[idx_start:idx_stop,...],wait_for=gradx_part[i].events,is_blocking=False))
             gradx_xold_part[i].add_event(cl.enqueue_copy(self.queue[3*i],gradx_xold_part[i].data,gradx_xold[idx_start:idx_stop,...],wait_for=gradx_xold_part[i].events,is_blocking=False))
@@ -933,20 +863,20 @@ class Model_Reco:
             Kyk1_new_part[ i].add_event(self.operator_adjoint_full(Kyk1_new_part[ i],r_new_part[ i],z1_new_part[ i],i,0,last))
           for i in range(self.num_dev):
             ### Get Data
-            idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
-            idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
-            z1_new_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],z1_new_tmp,z1_new_part[i+self.num_dev].data,wait_for=z1_new_part[i+self.num_dev].events,is_blocking=False))
-            r_new_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],r_new_tmp,r_new_part[i+self.num_dev].data,wait_for=r_new_part[i+self.num_dev].events,is_blocking=False))
-            Kyk1_new_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],Kyk1_new_tmp,Kyk1_new_part[i+self.num_dev].data,wait_for=Kyk1_new_part[i+self.num_dev].events,is_blocking=False))
-            self.queue[3*i+2].finish()
-            z1_new[idx_start:idx_stop,...] = z1_new_tmp[self.overlap:,...]
-            r_new[idx_start:idx_stop,...] = r_new_tmp[self.overlap:,...]
-            Kyk1_new[idx_start:idx_stop,...] = Kyk1_new_tmp[self.overlap:,...]
+            idx_start = self.NSlice-((i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices)-self.overlap
+            idx_stop = self.NSlice-(i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices)
+            z1_new_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],z1_new[idx_start:idx_stop,...],z1_new_part[i+self.num_dev].data,wait_for=z1_new_part[i+self.num_dev].events,is_blocking=False))
+            r_new_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],r_new[idx_start:idx_stop,...],r_new_part[i+self.num_dev].data,wait_for=r_new_part[i+self.num_dev].events,is_blocking=False))
+            Kyk1_new_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],Kyk1_new[idx_start:idx_stop,...],Kyk1_new_part[i+self.num_dev].data,wait_for=Kyk1_new_part[i+self.num_dev].events,is_blocking=False))
             ynorm += ((clarray.vdot(r_new_part[i+self.num_dev][self.overlap:,...]-r_part[i+self.num_dev][self.overlap:,...],r_new_part[i+self.num_dev][self.overlap:,...]-r_part[i+self.num_dev][self.overlap:,...],queue=self.queue[3*i+1])+clarray.vdot(z1_new_part[i+self.num_dev][self.overlap:,...]-z1_part[i+self.num_dev][self.overlap:,...],z1_new_part[i+self.num_dev][self.overlap:,...]-z1_part[i+self.num_dev][self.overlap:,...],queue=self.queue[3*i+1]))).get()
             lhs += ((clarray.vdot(Kyk1_new_part[i+self.num_dev][self.overlap:,...]-Kyk1_part[i+self.num_dev][self.overlap:,...],Kyk1_new_part[i+self.num_dev][self.overlap:,...]-Kyk1_part[i+self.num_dev][self.overlap:,...],queue=self.queue[3*i+1]))).get()
             ### Put Data
-            idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices-self.overlap
-            idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices
+            idx_start = self.NSlice-((i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices)
+            idx_stop = self.NSlice-(i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices)
+            if idx_start==0:
+              idx_stop+=self.overlap
+            else:
+              idx_start-=self.overlap
             z1_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+1],z1_part[i+self.num_dev].data,z1[idx_start:idx_stop,...],wait_for=z1_part[i+self.num_dev].events,is_blocking=False))
             gradx_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+1],gradx_part[i+self.num_dev].data,gradx[idx_start:idx_stop,...],wait_for=gradx_part[i+self.num_dev].events,is_blocking=False))
             gradx_xold_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+1],gradx_xold_part[i+self.num_dev].data,gradx_xold[idx_start:idx_stop,...],wait_for=gradx_xold_part[i+self.num_dev].events,is_blocking=False))
@@ -959,10 +889,6 @@ class Model_Reco:
             Kyk1_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+1],Kyk1_part[i+self.num_dev].data,Kyk1[idx_start:idx_stop,...],wait_for=Kyk1_part[i+self.num_dev].events,is_blocking=False))
             self.coil_buf_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+1],self.coil_buf_part[i+self.num_dev].data,self.C[idx_start:idx_stop,...],wait_for=self.coil_buf_part[i+self.num_dev].events,is_blocking=False))
             self.grad_buf_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+1],self.grad_buf_part[i+self.num_dev].data,self.grad_x[idx_start:idx_stop,...],wait_for=self.grad_buf_part[i+self.num_dev].events,is_blocking=False))
-            if idx_stop == self.NSlice:
-              last=1
-            else:
-              last=0
             z1_new_part[i+self.num_dev].add_event(self.update_z1(z1_new_part[i+self.num_dev],z1_part[self.num_dev+i],gradx_part[self.num_dev+i],gradx_xold_part[self.num_dev+i],v_new_part[self.num_dev+i],v_part[self.num_dev+i], beta_line*tau_new, theta_line, alpha,i,1))
             r_new_part[i+self.num_dev].add_event(self.update_r(r_new_part[i+self.num_dev],r_part[self.num_dev+i],Ax_part[self.num_dev+i],Ax_old_part[self.num_dev+i],res_part[self.num_dev+i],beta_line*tau_new,theta_line,self.irgn_par["lambd"],i,1))
             Kyk1_new_part[i+self.num_dev].add_event(self.operator_adjoint_full(Kyk1_new_part[i+self.num_dev],r_new_part[i+self.num_dev],z1_new_part[i+self.num_dev],i,1,last))
@@ -972,36 +898,28 @@ class Model_Reco:
         else:
           j+=1
         for i in range(self.num_dev):
-          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
-          idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
-          z1_new_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],z1_new_tmp,z1_new_part[i].data,wait_for=z1_new_part[i].events,is_blocking=False))
-          r_new_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],r_new_tmp,r_new_part[i].data,wait_for=r_new_part[i].events,is_blocking=False))
-          Kyk1_new_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],Kyk1_new_tmp,Kyk1_new_part[i].data,wait_for=Kyk1_new_part[i].events,is_blocking=False))
-          self.queue[3*i+2].finish()
-          if idx_start == 0:
-            z1_new[idx_start:idx_stop,...] = z1_new_tmp[:self.par_slices,...]
-            r_new[idx_start:idx_stop,...] = r_new_tmp[:self.par_slices,...]
-            Kyk1_new[idx_start:idx_stop,...] = Kyk1_new_tmp[:self.par_slices,...]
+          idx_start = self.NSlice-((i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices)-self.overlap
+          idx_stop =  self.NSlice-(i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices))
+          z1_new_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],z1_new[idx_start:idx_stop,...],z1_new_part[i].data,wait_for=z1_new_part[i].events,is_blocking=False))
+          r_new_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],r_new[idx_start:idx_stop,...],r_new_part[i].data,wait_for=r_new_part[i].events,is_blocking=False))
+          Kyk1_new_part[i].add_event(cl.enqueue_copy(self.queue[3*i+2],Kyk1_new[idx_start:idx_stop,...],Kyk1_new_part[i].data,wait_for=Kyk1_new_part[i].events,is_blocking=False))
+          ynorm += ((clarray.vdot(r_new_part[i][self.overlap:,...]-r_part[i][self.overlap:,...],r_new_part[i][self.overlap:,...]-r_part[i][self.overlap:,...],queue=self.queue[3*i])+clarray.vdot(z1_new_part[i][self.overlap:,...]-z1_part[i][self.overlap:,...],z1_new_part[i][self.overlap:,...]-z1_part[i][self.overlap:,...],queue=self.queue[3*i]))).get()
+          lhs += ((clarray.vdot(Kyk1_new_part[i][self.overlap:,...]-Kyk1_part[i][self.overlap:,...],Kyk1_new_part[i][self.overlap:,...]-Kyk1_part[i][self.overlap:,...],queue=self.queue[3*i]))).get()
+          idx_start = self.NSlice-(i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices)
+          idx_stop = self.NSlice-((i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices)
+          if idx_start==0:
+            idx_stop+=self.overlap
             ynorm += ((clarray.vdot(r_new_part[i][:self.par_slices,...]-r_part[i][:self.par_slices,...],r_new_part[i][:self.par_slices,...]-r_part[i][:self.par_slices,...],queue=self.queue[3*i])+clarray.vdot(z1_new_part[i][:self.par_slices,...]-z1_part[i][:self.par_slices,...],z1_new_part[i][:self.par_slices,...]-z1_part[i][:self.par_slices,...],queue=self.queue[3*i]))).get()
             lhs += ((clarray.vdot(Kyk1_new_part[i][:self.par_slices,...]-Kyk1_part[i][:self.par_slices,...],Kyk1_new_part[i][:self.par_slices,...]-Kyk1_part[i][:self.par_slices,...],queue=self.queue[3*i]))).get()
           else:
-            z1_new[idx_start:idx_stop,...] = z1_new_tmp[self.overlap:,...]
-            r_new[idx_start:idx_stop,...] = r_new_tmp[self.overlap:,...]
-            Kyk1_new[idx_start:idx_stop,...] = Kyk1_new_tmp[self.overlap:,...]
-            ynorm += ((clarray.vdot(r_new_part[i][self.overlap:,...]-r_part[i][self.overlap:,...],r_new_part[i][self.overlap:,...]-r_part[i][self.overlap:,...],queue=self.queue[3*i])+clarray.vdot(z1_new_part[i][self.overlap:,...]-z1_part[i][self.overlap:,...],z1_new_part[i][self.overlap:,...]-z1_part[i][self.overlap:,...],queue=self.queue[3*i]))).get()
-            lhs += ((clarray.vdot(Kyk1_new_part[i][self.overlap:,...]-Kyk1_part[i][self.overlap:,...],Kyk1_new_part[i][self.overlap:,...]-Kyk1_part[i][self.overlap:,...],queue=self.queue[3*i]))).get()
-          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
-          idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
-          z1_new_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],z1_new_tmp,z1_new_part[i+self.num_dev].data,wait_for=z1_new_part[i+self.num_dev].events,is_blocking=False))
-          r_new_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],r_new_tmp,r_new_part[i+self.num_dev].data,wait_for=r_new_part[i+self.num_dev].events,is_blocking=False))
-          Kyk1_new_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],Kyk1_new_tmp,Kyk1_new_part[i+self.num_dev].data,wait_for=Kyk1_new_part[i+self.num_dev].events,is_blocking=False))
-          self.queue[3*i+2].finish()
-          z1_new[idx_start:idx_stop,...] = z1_new_tmp[self.overlap:,...]
-          r_new[idx_start:idx_stop,...] = r_new_tmp[self.overlap:,...]
-          Kyk1_new[idx_start:idx_stop,...] = Kyk1_new_tmp[self.overlap:,...]
-          ynorm += ((clarray.vdot(r_new_part[i+self.num_dev][self.overlap:,...]-r_part[i+self.num_dev][self.overlap:,...],r_new_part[i+self.num_dev][self.overlap:,...]-r_part[i+self.num_dev][self.overlap:,...],queue=self.queue[3*i+1])+clarray.vdot(z1_new_part[i+self.num_dev][self.overlap:,...]-z1_part[i+self.num_dev][self.overlap:,...],z1_new_part[i+self.num_dev][self.overlap:,...]-z1_part[i+self.num_dev][self.overlap:,...],queue=self.queue[3*i+1]))).get()
-          lhs += ((clarray.vdot(Kyk1_new_part[i+self.num_dev][self.overlap:,...]-Kyk1_part[i+self.num_dev][self.overlap:,...],Kyk1_new_part[i+self.num_dev][self.overlap:,...]-Kyk1_part[i+self.num_dev][self.overlap:,...],queue=self.queue[3*i+1]))).get()
+            idx_start-=self.overlap
+            ynorm += ((clarray.vdot(r_new_part[i+self.num_dev][self.overlap:,...]-r_part[i+self.num_dev][self.overlap:,...],r_new_part[i+self.num_dev][self.overlap:,...]-r_part[i+self.num_dev][self.overlap:,...],queue=self.queue[3*i+1])+clarray.vdot(z1_new_part[i+self.num_dev][self.overlap:,...]-z1_part[i+self.num_dev][self.overlap:,...],z1_new_part[i+self.num_dev][self.overlap:,...]-z1_part[i+self.num_dev][self.overlap:,...],queue=self.queue[3*i+1]))).get()
+            lhs += ((clarray.vdot(Kyk1_new_part[i+self.num_dev][self.overlap:,...]-Kyk1_part[i+self.num_dev][self.overlap:,...],Kyk1_new_part[i+self.num_dev][self.overlap:,...]-Kyk1_part[i+self.num_dev][self.overlap:,...],queue=self.queue[3*i+1]))).get()
 
+          z1_new_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],z1_new[idx_start:idx_stop,...],z1_new_part[i+self.num_dev].data,wait_for=z1_new_part[i+self.num_dev].events,is_blocking=False))
+          r_new_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],r_new[idx_start:idx_stop,...],r_new_part[i+self.num_dev].data,wait_for=r_new_part[i+self.num_dev].events,is_blocking=False))
+          Kyk1_new_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],Kyk1_new[idx_start:idx_stop,...],Kyk1_new_part[i+self.num_dev].data,wait_for=Kyk1_new_part[i+self.num_dev].events,is_blocking=False))
+        self.queue[3*i+2].finish()
 
 
         j=0
@@ -1098,18 +1016,16 @@ class Model_Reco:
           idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
           idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
           if idx_stop == self.NSlice:
-            z2_new_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],z2_new_tmp,z2_new_part[i+self.num_dev].data,wait_for=z2_new_part[i+self.num_dev].events,is_blocking=False))
-            Kyk2_new_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],Kyk2_new_tmp,Kyk2_new_part[i+self.num_dev].data,wait_for=Kyk2_new_part[i+self.num_dev].events,is_blocking=False))
-            self.queue[3*i+2].finish()
-            z2_new[idx_start:idx_stop,...] = z2_new_tmp[self.overlap:,...]
-            Kyk2_new[idx_start:idx_stop,...] = Kyk2_new_tmp[self.overlap:,...]
+            idx_start-=self.overlap
             ynorm += ((clarray.vdot(z2_new_part[i+self.num_dev][self.overlap:,...]-z2_part[i+self.num_dev][self.overlap:,...],z2_new_part[i+self.num_dev][self.overlap:,...]-z2_part[i+self.num_dev][self.overlap:,...],queue=self.queue[3*i+1]))).get()
             lhs += ((clarray.vdot(Kyk2_new_part[i+self.num_dev][self.overlap:,...]-Kyk2_part[i+self.num_dev][self.overlap:,...],Kyk2_new_part[i+self.num_dev][self.overlap:,...]-Kyk2_part[i+self.num_dev][self.overlap:,...],queue=self.queue[3*i+1]))).get()
           else:
-            z2_new_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],z2_new[idx_start:idx_stop+self.overlap,...],z2_new_part[i+self.num_dev].data,wait_for=z2_new_part[i+self.num_dev].events,is_blocking=False))
-            Kyk2_new_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],Kyk2_new[idx_start:idx_stop+self.overlap,...],Kyk2_new_part[i+self.num_dev].data,wait_for=Kyk2_new_part[i+self.num_dev].events,is_blocking=False))
+            idx_stop+=self.overlap
             ynorm += ((clarray.vdot(z2_new_part[i+self.num_dev][:self.par_slices,...]-z2_part[i+self.num_dev][:self.par_slices,...],z2_new_part[i+self.num_dev][:self.par_slices,...]-z2_part[i+self.num_dev][:self.par_slices,...],queue=self.queue[3*i+1]))).get()
             lhs += ((clarray.vdot(Kyk2_new_part[i+self.num_dev][:self.par_slices,...]-Kyk2_part[i+self.num_dev][:self.par_slices,...],Kyk2_new_part[i+self.num_dev][:self.par_slices,...]-Kyk2_part[i+self.num_dev][:self.par_slices,...],queue=self.queue[3*i+1]))).get()
+          z2_new_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],z2_new[idx_start:idx_stop,...],z2_new_part[i+self.num_dev].data,wait_for=z2_new_part[i+self.num_dev].events,is_blocking=False))
+          Kyk2_new_part[i+self.num_dev].add_event(cl.enqueue_copy(self.queue[3*i+2],Kyk2_new[idx_start:idx_stop,...],Kyk2_new_part[i+self.num_dev].data,wait_for=Kyk2_new_part[i+self.num_dev].events,is_blocking=False))
+        self.queue[3*i+2].finish()
 
         if np.sqrt(beta_line)*tau_new*(abs(lhs)**(1/2)) <= (abs(ynorm)**(1/2))*delta_line:
             break
