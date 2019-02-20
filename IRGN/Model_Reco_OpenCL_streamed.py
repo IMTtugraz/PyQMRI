@@ -36,7 +36,7 @@ class Model_Reco:
   def __init__(self,par,trafo=1,imagespace=False, SMS=False):
 
 
-    par["par_slices"] = 1
+    par["par_slices"] = 5
     par["overlap"] = 1
     self.overlap = par["overlap"]
     self.par_slices = par["par_slices"]
@@ -60,6 +60,8 @@ class Model_Reco:
     self.queue = par["queue"]
     self.gn_res = []
     self.num_dev = par["num_dev"]
+    if np.mod(self.NSlice/(self.par_slices*self.num_dev),2):
+      raise ValueError('Number of Slices devided by parallel computed slices and devices needs to be an even number')
     self.NUFFT = []
     self.ukscale = []
     self.prg = []
