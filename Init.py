@@ -207,11 +207,15 @@ def main(args):
     par["ctx"] = []
     par["queue"] = []
     num_dev = len(platforms[par["Platform_Indx"]].get_devices())
+    par["num_dev"] = num_dev
     for device in range(num_dev):
-      tmp = cl.Context(
-              dev_type=cl.device_type.GPU,
-              properties=[(cl.context_properties.PLATFORM, \
-                           platforms[par["Platform_Indx"]])])
+#      tmp = cl.Context(
+#              dev_type=cl.device_type.GPU,
+#              properties=[(cl.context_properties.PLATFORM, \
+#                           platforms[par["Platform_Indx"]])])
+      dev=[]
+      dev.append(platforms[par["Platform_Indx"]].get_devices()[device])
+      tmp = cl.Context(dev)
       par["ctx"].append(tmp)
       par["queue"].append(cl.CommandQueue(tmp,\
          platforms[par["Platform_Indx"]].get_devices()[device],\
@@ -369,11 +373,11 @@ if __name__ == '__main__':
                                      for TGV and TV.')
     parser.add_argument('--recon_type', default='3D', dest='type', help='Choose reconstruction type (currently only 3D)')
     parser.add_argument('--reg_type', default='TGV', dest='reg',  help="Choose regularization type (default: TGV) options are: TGV, TV, all")
-    parser.add_argument('--slices',default=1, dest='slices', type=int,  help='Number of reconstructed slices (default=40). Symmetrical around the center slice.')
-    parser.add_argument('--trafo', default=0, dest='trafo', type=int, help='Choos between radial (1, default) and Cartesian (0) sampling. ')
-    parser.add_argument('--streamed', default=0, dest='streamed', type=int, help='Enable streaming of large data arrays (>10 slices).')
+    parser.add_argument('--slices',default=10, dest='slices', type=int,  help='Number of reconstructed slices (default=40). Symmetrical around the center slice.')
+    parser.add_argument('--trafo', default=1, dest='trafo', type=int, help='Choos between radial (1, default) and Cartesian (0) sampling. ')
+    parser.add_argument('--streamed', default=1, dest='streamed', type=int, help='Enable streaming of large data arrays (>10 slices).')
     parser.add_argument('--data',default='',dest='file', help='Full path to input data. If not provided, a file dialog will open.')
-    parser.add_argument('--model',default='VFA_michael',dest='sig_model', help='Name of the signal model to use. Defaults to VFA. \
+    parser.add_argument('--model',default='VFA',dest='sig_model', help='Name of the signal model to use. Defaults to VFA. \
           Please put your signal model file in the Model subfolder.')
     parser.add_argument('--config',default='test',dest='config', help='Name of config file to use (assumed to be in the same folder). \
           If not specified, use default parameters.')
