@@ -59,7 +59,7 @@ class Model_Reco:
     self.ctx = par["ctx"]
     self.queue = par["queue"]
     self.gn_res = []
-    self.num_dev = len(self.ctx)
+    self.num_dev = par["num_dev"]
     self.NUFFT = []
     self.ukscale = []
     self.prg = []
