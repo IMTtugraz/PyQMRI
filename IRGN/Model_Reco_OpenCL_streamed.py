@@ -187,6 +187,7 @@ class Model_Reco:
       x = clarray.to_device(self.queue[3*i],x)
       grad.add_event(self.f_grad(grad,x,wait_for=grad.events+x.events))
       grad = grad.get()
+      x = x.get()
       for j in range(self.unknowns):
         scale = np.linalg.norm(grad[:,j,...])/np.linalg.norm(grad[:,0,...])
         if np.isfinite(scale) and scale>1e-4:
