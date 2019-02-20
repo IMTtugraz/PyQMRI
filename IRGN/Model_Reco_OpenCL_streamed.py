@@ -183,14 +183,15 @@ class Model_Reco:
     for i in range(self.num_dev):
       for j in range(self.unknowns):
         self.ukscale[i][j] = np.linalg.norm(x[:,j,...])
-    grad = clarray.to_device(self.queue[3*i],np.zeros_like(self.z1))
-    x = clarray.to_device(self.queue[3*i],x)
-    grad.add_event(self.f_grad(grad,x,wait_for=grad.events+x.events))
-    grad = grad.get()
-    for j in range(self.unknowns):
-      scale = np.linalg.norm(grad[:,j,...])/np.linalg.norm(grad[:,0,...])
-      if np.isfinite(scale) and scale>1e-4:
-        self.ratio[i][j] = scale
+      grad = clarray.to_device(self.queue[3*i],np.zeros_like(self.z1))
+      x = clarray.to_device(self.queue[3*i],x)
+      grad.add_event(self.f_grad(grad,x,wait_for=grad.events+x.events))
+      grad = grad.get()
+      for j in range(self.unknowns):
+        scale = 
+np.linalg.norm(grad[:,j,...])/np.linalg.norm(grad[:,0,...])
+        if np.isfinite(scale) and scale>1e-4:
+          self.ratio[i][j] = scale
 
 
 
