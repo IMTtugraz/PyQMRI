@@ -188,8 +188,7 @@ class Model_Reco:
       grad.add_event(self.f_grad(grad,x,wait_for=grad.events+x.events))
       grad = grad.get()
       for j in range(self.unknowns):
-        scale = 
-np.linalg.norm(grad[:,j,...])/np.linalg.norm(grad[:,0,...])
+        scale = np.linalg.norm(grad[:,j,...])/np.linalg.norm(grad[:,0,...])
         if np.isfinite(scale) and scale>1e-4:
           self.ratio[i][j] = scale
 
