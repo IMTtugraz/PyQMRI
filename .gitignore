@@ -1,9 +1,8 @@
-
+*__pycache__*
 *.so
 *.html
 build/
 cython_debug/
-__*
 output/
 data/
 Memory*
