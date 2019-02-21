@@ -48,7 +48,7 @@ class Model(BaseModel):
     self.guess = np.array([1/self.uk_scale[0]*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE),1/self.uk_scale[1]*np.exp(-self.TR/(800*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)))],dtype=DTYPE)
 
 
-    self.constraints.append(constraints(1e-4/self.uk_scale[0],1e6/self.uk_scale[0],False)  )
+    self.constraints.append(constraints(1e-4/self.uk_scale[0],10/self.uk_scale[0],False)  )
     self.constraints.append(constraints(np.exp(-self.TR/(50))/self.uk_scale[1],np.exp(-self.TR/(5500))/self.uk_scale[1],True))
 
 
