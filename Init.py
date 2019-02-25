@@ -206,7 +206,7 @@ def main(args):
 
     par["ctx"] = []
     par["queue"] = []
-    num_dev = 2#len(platforms[par["Platform_Indx"]].get_devices())
+    num_dev = 1#len(platforms[par["Platform_Indx"]].get_devices())
     par["num_dev"] = num_dev
     for device in range(num_dev):
 #      tmp = cl.Context(
@@ -214,19 +214,19 @@ def main(args):
 #              properties=[(cl.context_properties.PLATFORM, \
 #                           platforms[par["Platform_Indx"]])])
       dev=[]
-      dev.append(platforms[par["Platform_Indx"]].get_devices()[device+2])
+      dev.append(platforms[par["Platform_Indx"]].get_devices()[device+1])
       tmp = cl.Context(dev)
       par["ctx"].append(tmp)
       par["queue"].append(cl.CommandQueue(tmp,\
-         platforms[par["Platform_Indx"]].get_devices()[device+2],\
+         platforms[par["Platform_Indx"]].get_devices()[device+1],\
          properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE |\
          cl.command_queue_properties.PROFILING_ENABLE))
       par["queue"].append(cl.CommandQueue(tmp, \
-         platforms[par["Platform_Indx"]].get_devices()[device+2],\
+         platforms[par["Platform_Indx"]].get_devices()[device+1],\
          properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE |\
          cl.command_queue_properties.PROFILING_ENABLE))
       par["queue"].append(cl.CommandQueue(tmp, \
-         platforms[par["Platform_Indx"]].get_devices()[device+2],\
+         platforms[par["Platform_Indx"]].get_devices()[device+1],\
          properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE |\
          cl.command_queue_properties.PROFILING_ENABLE))
 ################################################################################
