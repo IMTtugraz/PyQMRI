@@ -206,7 +206,7 @@ def main(args):
 
     par["ctx"] = []
     par["queue"] = []
-    num_dev = 2#len(platforms[par["Platform_Indx"]].get_devices())
+    num_dev = len(platforms[par["Platform_Indx"]].get_devices())
     par["num_dev"] = num_dev
     for device in range(num_dev):
 #      tmp = cl.Context(
@@ -214,19 +214,19 @@ def main(args):
 #              properties=[(cl.context_properties.PLATFORM, \
 #                           platforms[par["Platform_Indx"]])])
       dev=[]
-      dev.append(platforms[par["Platform_Indx"]].get_devices()[device+2])
+      dev.append(platforms[par["Platform_Indx"]].get_devices()[device])
       tmp = cl.Context(dev)
       par["ctx"].append(tmp)
       par["queue"].append(cl.CommandQueue(tmp,\
-         platforms[par["Platform_Indx"]].get_devices()[device+2],\
+         platforms[par["Platform_Indx"]].get_devices()[device],\
          properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE |\
          cl.command_queue_properties.PROFILING_ENABLE))
       par["queue"].append(cl.CommandQueue(tmp, \
-         platforms[par["Platform_Indx"]].get_devices()[device+2],\
+         platforms[par["Platform_Indx"]].get_devices()[device],\
          properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE |\
          cl.command_queue_properties.PROFILING_ENABLE))
       par["queue"].append(cl.CommandQueue(tmp, \
-         platforms[par["Platform_Indx"]].get_devices()[device+2],\
+         platforms[par["Platform_Indx"]].get_devices()[device],\
          properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE |\
          cl.command_queue_properties.PROFILING_ENABLE))
 ################################################################################
@@ -373,7 +373,7 @@ if __name__ == '__main__':
                                      for TGV and TV.')
     parser.add_argument('--recon_type', default='3D', dest='type', help='Choose reconstruction type (currently only 3D)')
     parser.add_argument('--reg_type', default='TGV', dest='reg',  help="Choose regularization type (default: TGV) options are: TGV, TV, all")
-    parser.add_argument('--slices',default=8, dest='slices', type=int,  help='Number of reconstructed slices (default=40). Symmetrical around the center slice.')
+    parser.add_argument('--slices',default=10, dest='slices', type=int,  help='Number of reconstructed slices (default=40). Symmetrical around the center slice.')
     parser.add_argument('--trafo', default=1, dest='trafo', type=int, help='Choos between radial (1, default) and Cartesian (0) sampling. ')
     parser.add_argument('--streamed', default=1, dest='streamed', type=int, help='Enable streaming of large data arrays (>10 slices).')
     parser.add_argument('--data',default='',dest='file', help='Full path to input data. If not provided, a file dialog will open.')
