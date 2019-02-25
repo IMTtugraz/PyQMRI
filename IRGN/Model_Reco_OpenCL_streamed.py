@@ -1266,7 +1266,7 @@ class Model_Reco:
     for i in range(self.num_dev):
       idx_start = (self.NSlice)-((i+1)*self.par_slices)-self.overlap
       idx_stop = (self.NSlice)-(i*self.par_slices)
-      if idx_stop==self.NSlice:
+      if i==0:
         last=1
       else:
         last=0
@@ -1870,313 +1870,318 @@ class Model_Reco:
 
 
 
-#  def grad_streamed(self,outp,inp):
-#    x_part = []
-#    gradx_part= []
-#    gradx_tmp = np.zeros((self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX,4),dtype=DTYPE)
-#    for i in range(2*self.num_dev):
-#      gradx_part.append(clarray.zeros(self.queue[3*int(np.mod(i,self.num_dev))],(self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX,4),dtype=DTYPE,allocator=self.alloc[int(np.mod(i,self.num_dev))]))
-#      x_part.append(clarray.zeros(self.queue[3*int(np.mod(i,self.num_dev))],(self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX),dtype=DTYPE,allocator=self.alloc[int(np.mod(i,self.num_dev))]))
-#    j=0
+  def grad_streamed(self,outp,inp):
+    x_part = []
+    gradx_part= []
+    gradx_tmp = np.zeros((self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX,4),dtype=DTYPE)
+    for i in range(2*self.num_dev):
+      gradx_part.append(clarray.zeros(self.queue[3*int(np.mod(i,self.num_dev))],(self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX,4),dtype=DTYPE,allocator=self.alloc[int(np.mod(i,self.num_dev))]))
+      x_part.append(clarray.zeros(self.queue[3*int(np.mod(i,self.num_dev))],(self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX),dtype=DTYPE,allocator=self.alloc[int(np.mod(i,self.num_dev))]))
+    j=0
+    for i in range(self.num_dev):
+      idx_start = i*self.par_slices
+      idx_stop = (i+1)*self.par_slices+self.overlap
+      x_part[i].set(inp[idx_start:idx_stop,...],self.queue[3*i])
+    for i in range(self.num_dev):
+      (self.f_grad(gradx_part[i],x_part[i],i,0)).wait()
+    for i in range(self.num_dev):
+      idx_start = (i+1+self.num_dev-1)*self.par_slices
+      idx_stop = (i+2+self.num_dev-1)*self.par_slices
+      if idx_stop == self.NSlice:
+        idx_start -=self.overlap
+      else:
+        idx_stop +=self.overlap
+      x_part[i+self.num_dev].set(inp[idx_start:idx_stop,...],self.queue[3*i+1],)
+    for i in range(self.num_dev):
+      (self.f_grad(gradx_part[i+self.num_dev],x_part[i+self.num_dev],i,1)).wait()
+  #### Stream
+    for j in range(2*self.num_dev,int(self.NSlice/(2*self.par_slices*self.num_dev)+(2*self.num_dev-1))):
+  #          tic = time.time()
+        for i in range(self.num_dev):
+          ### Get Data
+          self.queue[3*i].finish()
+          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
+          idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
+          gradx_part[i].get(queue=self.queue[3*i+2],ary=gradx_tmp)
+          self.queue[3*i+2].finish()
+          outp[idx_start:idx_stop,...] = gradx_tmp[:self.par_slices,...]
+          ### Put Data
+          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)*self.par_slices)
+          idx_stop = ((i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1))*self.par_slices)+self.overlap
+          x_part[i].set(inp[idx_start:idx_stop,...],self.queue[3*i])
+        for i in range(self.num_dev):
+          (self.f_grad(gradx_part[i],x_part[i],i,0)).wait()
+        for i in range(self.num_dev):
+          self.queue[3*i+1].finish()
+          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
+          idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
+          gradx_part[i+self.num_dev].get(queue=self.queue[3*i+2],ary=gradx_tmp)
+          self.queue[3*i+2].finish()
+          outp[idx_start:idx_stop,...] = gradx_tmp[:self.par_slices,...]
+          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices
+          idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices
+          if idx_stop == self.NSlice:
+            idx_start -=self.overlap
+          else:
+            idx_stop +=self.overlap
+          x_part[i+self.num_dev].set(inp[idx_start:idx_stop,...],self.queue[3*i+1],)
+        for i in range(self.num_dev):
+          (self.f_grad(gradx_part[i+self.num_dev],x_part[i+self.num_dev],i,1)).wait()
+  #### Collect last block
+    if j<2*self.num_dev:
+      j = 2*self.num_dev
+    else:
+      j+=1
+    for i in range(self.num_dev):
+      self.queue[3*i].finish()
+      idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
+      idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
+      gradx_part[i].get(queue=self.queue[3*i+2],ary=gradx_tmp)
+      self.queue[3*i+2].finish()
+      outp[idx_start:idx_stop,...] = gradx_tmp[:self.par_slices,...]
+      self.queue[3*i+1].finish()
+      idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
+      idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
+      gradx_part[i+self.num_dev].get(queue=self.queue[3*i+2],ary=gradx_tmp)
+      self.queue[3*i+2].finish()
+      if idx_stop == self.NSlice:
+        outp[idx_start:idx_stop,...] = gradx_tmp[self.overlap:,...]
+      else:
+        outp[idx_start:idx_stop,...] = gradx_tmp[:self.par_slices,...]
+  def div_streamed(self,outp,inp):
+    x_part = []
+    gradx_part= []
+    x_tmp = np.zeros((self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX),dtype=DTYPE)
+    for i in range(2*self.num_dev):
+      gradx_part.append(clarray.zeros(self.queue[3*int(np.mod(i,self.num_dev))],(self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX,4),dtype=DTYPE,allocator=self.alloc[int(np.mod(i,self.num_dev))]))
+      x_part.append(clarray.zeros(self.queue[3*int(np.mod(i,self.num_dev))],(self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX),dtype=DTYPE,allocator=self.alloc[int(np.mod(i,self.num_dev))]))
+    j=0
+    last = 0
+    for i in range(self.num_dev):
+      idx_start = i*self.par_slices
+      idx_stop = (i+1)*self.par_slices
+      if idx_start == 0:
+        idx_stop+=self.overlap
+      else:
+        idx_start-=self.overlap
+      gradx_part[i].set(inp[idx_start:idx_stop,...],self.queue[3*i])
+    for i in range(self.num_dev):
+      (self.bdiv(x_part[i],gradx_part[i],i,0)).wait()
+    for i in range(self.num_dev):
+      idx_start = (i+1+self.num_dev-1)*self.par_slices-self.overlap
+      idx_stop = (i+2+self.num_dev-1)*self.par_slices
+      if idx_stop==self.NSlice:
+        last = 1
+      gradx_part[i+self.num_dev].set(inp[idx_start:idx_stop,...],self.queue[3*i+1])
 #    for i in range(self.num_dev):
-#      idx_start = i*self.par_slices
-#      idx_stop = (i+1)*self.par_slices+self.overlap
-#      x_part[i].set(inp[idx_start:idx_stop,...],self.queue[3*i])
-#    for i in range(self.num_dev):
-#      (self.f_grad(gradx_part[i],x_part[i],i,0)).wait()
-#    for i in range(self.num_dev):
-#      idx_start = (i+1+self.num_dev-1)*self.par_slices
-#      idx_stop = (i+2+self.num_dev-1)*self.par_slices
-#      if idx_stop == self.NSlice:
-#        idx_start -=self.overlap
-#      else:
-#        idx_stop +=self.overlap
-#      x_part[i+self.num_dev].set(inp[idx_start:idx_stop,...],self.queue[3*i+1],)
-#    for i in range(self.num_dev):
-#      (self.f_grad(gradx_part[i+self.num_dev],x_part[i+self.num_dev],i,1)).wait()
-#  #### Stream
-#    for j in range(2*self.num_dev,int(self.NSlice/(2*self.par_slices*self.num_dev)+(2*self.num_dev-1))):
-#  #          tic = time.time()
+      (self.bdiv(x_part[i+self.num_dev],gradx_part[i+self.num_dev],i,1,last=last)).wait()
+  ### Stream
+    for j in range(2*self.num_dev,int(self.NSlice/(2*self.par_slices*self.num_dev)+(2*self.num_dev-1))):
+        for i in range(self.num_dev):
+          ## Get Data
+          self.queue[3*i].finish()
+          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
+          idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
+          x_part[i].get(queue=self.queue[3*i+2],ary=x_tmp)
+          self.queue[3*i+2].finish()
+          if idx_start==0:
+            outp[idx_start:idx_stop,...] = x_tmp[:self.par_slices,...]
+          else:
+            outp[idx_start:idx_stop,...] = x_tmp[self.overlap:,...]
+          ### Put Data
+          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)*self.par_slices)-self.overlap
+          idx_stop = ((i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1))*self.par_slices)
+          gradx_part[i].set(inp[idx_start:idx_stop,...],self.queue[3*i])
 #        for i in range(self.num_dev):
-#          ### Get Data
-#          self.queue[3*i].finish()
-#          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
-#          idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
-#          gradx_part[i].get(queue=self.queue[3*i+2],ary=gradx_tmp)
-#          self.queue[3*i+2].finish()
-#          outp[idx_start:idx_stop,...] = gradx_tmp[:self.par_slices,...]
-#          ### Put Data
-#          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)*self.par_slices)
-#          idx_stop = ((i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1))*self.par_slices)+self.overlap
-#          x_part[i].set(inp[idx_start:idx_stop,...],self.queue[3*i])
+          (self.bdiv(x_part[i],gradx_part[i],i,0)).wait()
+        for i in range(self.num_dev):
+          self.queue[3*i+1].finish()
+          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
+          idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
+          x_part[i+self.num_dev].get(queue=self.queue[3*i+2],ary=x_tmp)
+          self.queue[3*i+2].finish()
+          outp[idx_start:idx_stop,...] = x_tmp[self.overlap:,...]
+          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices-self.overlap
+          idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices
+          if idx_stop==self.NSlice:
+            last = 1
+          gradx_part[i+self.num_dev].set(inp[idx_start:idx_stop,...],self.queue[3*i+1])
 #        for i in range(self.num_dev):
-#          (self.f_grad(gradx_part[i],x_part[i],i,0)).wait()
-#        for i in range(self.num_dev):
-#          self.queue[3*i+1].finish()
-#          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
-#          idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
-#          gradx_part[i+self.num_dev].get(queue=self.queue[3*i+2],ary=gradx_tmp)
-#          self.queue[3*i+2].finish()
-#          outp[idx_start:idx_stop,...] = gradx_tmp[:self.par_slices,...]
-#          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices
-#          idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices
-#          if idx_stop == self.NSlice:
-#            idx_start -=self.overlap
-#          else:
-#            idx_stop +=self.overlap
-#          x_part[i+self.num_dev].set(inp[idx_start:idx_stop,...],self.queue[3*i+1],)
-#        for i in range(self.num_dev):
-#          (self.f_grad(gradx_part[i+self.num_dev],x_part[i+self.num_dev],i,1)).wait()
-#  #### Collect last block
-#    if j<2*self.num_dev:
-#      j = 2*self.num_dev
-#    else:
-#      j+=1
-#    for i in range(self.num_dev):
-#      self.queue[3*i].finish()
-#      idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
-#      idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
-#      gradx_part[i].get(queue=self.queue[3*i+2],ary=gradx_tmp)
-#      self.queue[3*i+2].finish()
-#      outp[idx_start:idx_stop,...] = gradx_tmp[:self.par_slices,...]
-#      self.queue[3*i+1].finish()
-#      idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
-#      idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
-#      gradx_part[i+self.num_dev].get(queue=self.queue[3*i+2],ary=gradx_tmp)
-#      self.queue[3*i+2].finish()
-#      if idx_stop == self.NSlice:
-#        outp[idx_start:idx_stop,...] = gradx_tmp[self.overlap:,...]
-#      else:
-#        outp[idx_start:idx_stop,...] = gradx_tmp[:self.par_slices,...]
-#  def div_streamed(self,outp,inp):
-#    x_part = []
-#    gradx_part= []
-#    x_tmp = np.zeros((self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX),dtype=DTYPE)
-#    for i in range(2*self.num_dev):
-#      gradx_part.append(clarray.zeros(self.queue[3*int(np.mod(i,self.num_dev))],(self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX,4),dtype=DTYPE,allocator=self.alloc[int(np.mod(i,self.num_dev))]))
-#      x_part.append(clarray.zeros(self.queue[3*int(np.mod(i,self.num_dev))],(self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX),dtype=DTYPE,allocator=self.alloc[int(np.mod(i,self.num_dev))]))
-#    j=0
-#    for i in range(self.num_dev):
-#      idx_start = i*self.par_slices
-#      idx_stop = (i+1)*self.par_slices
-#      if idx_start == 0:
-#        idx_stop+=self.overlap
-#      else:
-#        idx_start-=self.overlap
-#      gradx_part[i].set(inp[idx_start:idx_stop,...],self.queue[3*i])
-#    for i in range(self.num_dev):
-#      (self.bdiv(x_part[i],gradx_part[i],i,0)).wait()
-#    for i in range(self.num_dev):
-#      idx_start = (i+1+self.num_dev-1)*self.par_slices-self.overlap
-#      idx_stop = (i+2+self.num_dev-1)*self.par_slices
-#      gradx_part[i+self.num_dev].set(inp[idx_start:idx_stop,...],self.queue[3*i+1])
-#    for i in range(self.num_dev):
-#      (self.bdiv(x_part[i+self.num_dev],gradx_part[i+self.num_dev],i,1)).wait()
-#  ### Stream
-#    for j in range(2*self.num_dev,int(self.NSlice/(2*self.par_slices*self.num_dev)+(2*self.num_dev-1))):
-#        for i in range(self.num_dev):
-#          ## Get Data
-#          self.queue[3*i].finish()
-#          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
-#          idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
-#          x_part[i].get(queue=self.queue[3*i+2],ary=x_tmp)
-#          self.queue[3*i+2].finish()
-#          if idx_start==0:
-#            outp[idx_start:idx_stop,...] = x_tmp[:self.par_slices,...]
-#          else:
-#            outp[idx_start:idx_stop,...] = x_tmp[self.overlap:,...]
-#          ### Put Data
-#          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)*self.par_slices)-self.overlap
-#          idx_stop = ((i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1))*self.par_slices)
-#          gradx_part[i].set(inp[idx_start:idx_stop,...],self.queue[3*i])
-#        for i in range(self.num_dev):
-#          (self.bdiv(x_part[i],gradx_part[i],i,0)).wait()
-#        for i in range(self.num_dev):
-#          self.queue[3*i+1].finish()
-#          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
-#          idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
-#          x_part[i+self.num_dev].get(queue=self.queue[3*i+2],ary=x_tmp)
-#          self.queue[3*i+2].finish()
-#          outp[idx_start:idx_stop,...] = x_tmp[self.overlap:,...]
-#          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices-self.overlap
-#          idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices
-#          gradx_part[i+self.num_dev].set(inp[idx_start:idx_stop,...],self.queue[3*i+1])
-#        for i in range(self.num_dev):
-#          (self.bdiv(x_part[i+self.num_dev],gradx_part[i+self.num_dev],i,1,1)).wait()
-#  #### Collect last block
-#    if j<2*self.num_dev:
-#      j = 2*self.num_dev
-#    else:
-#      j+=1
-#    for i in range(self.num_dev):
-#      self.queue[3*i].finish()
-#      idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
-#      idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
-#      x_part[i].get(queue=self.queue[3*i+2],ary=x_tmp)
-#      self.queue[3*i+2].finish()
-#      if idx_start==0:
-#        outp[idx_start:idx_stop,...] = x_tmp[:self.par_slices,...]
-#      else:
-#        outp[idx_start:idx_stop,...] = x_tmp[self.overlap:,...]
-#      self.queue[3*i+1].finish()
-#      idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
-#      idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
-#      x_part[i+self.num_dev].get(queue=self.queue[3*i+2],ary=x_tmp)
-#      self.queue[3*i+2].finish()
-#      outp[idx_start:idx_stop,...] = x_tmp[self.overlap:,...]
-#
-#  def symgrad_streamed(self,outp,inp):
-#    x_part = []
-#    gradx_part= []
-#    gradx_tmp = np.zeros((self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX,8),dtype=DTYPE)
-#    for i in range(2*self.num_dev):
-#      gradx_part.append(clarray.zeros(self.queue[3*int(np.mod(i,self.num_dev))],(self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX,8),dtype=DTYPE,allocator=self.alloc[int(np.mod(i,self.num_dev))]))
-#      x_part.append(clarray.zeros(self.queue[3*int(np.mod(i,self.num_dev))],(self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX,4),dtype=DTYPE,allocator=self.alloc[int(np.mod(i,self.num_dev))]))
-#    j=0
-#    for i in range(self.num_dev):
-#      idx_start = i*self.par_slices
-#      idx_stop = (i+1)*self.par_slices
-#      if idx_start == 0:
-#        idx_stop +=self.overlap
-#      else:
-#        idx_start -=self.overlap
-#      x_part[i].set(inp[idx_start:idx_stop,...],self.queue[3*i])
-#    for i in range(self.num_dev):
-#      (self.sym_grad(gradx_part[i],x_part[i],i,0)).wait()
-#    for i in range(self.num_dev):
-#      idx_start = (i+1+self.num_dev-1)*self.par_slices-self.overlap
-#      idx_stop = (i+2+self.num_dev-1)*self.par_slices
-#      x_part[i+self.num_dev].set(inp[idx_start:idx_stop,...],self.queue[3*i+1],)
-#    for i in range(self.num_dev):
-#      (self.sym_grad(gradx_part[i+self.num_dev],x_part[i+self.num_dev],i,1)).wait()
-#  #### Stream
-#    for j in range(2*self.num_dev,int(self.NSlice/(2*self.par_slices*self.num_dev)+(2*self.num_dev-1))):
-#  #          tic = time.time()
-#        for i in range(self.num_dev):
-#          ### Get Data
-#          self.queue[3*i].finish()
-#          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
-#          idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
-#          gradx_part[i].get(queue=self.queue[3*i+2],ary=gradx_tmp)
-#          self.queue[3*i+2].finish()
-#          if idx_start == 0:
-#            outp[idx_start:idx_stop,...] = gradx_tmp[:self.par_slices,...]
-#          else:
-#            outp[idx_start:idx_stop,...] = gradx_tmp[self.overlap:,...]
-#          ### Put Data
-#          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)*self.par_slices)-self.overlap
-#          idx_stop = ((i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1))*self.par_slices)
-#          x_part[i].set(inp[idx_start:idx_stop,...],self.queue[3*i])
-#        for i in range(self.num_dev):
-#          (self.sym_grad(gradx_part[i],x_part[i],i,0)).wait()
-#        for i in range(self.num_dev):
-#          self.queue[3*i+1].finish()
-#          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
-#          idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
-#          gradx_part[i+self.num_dev].get(queue=self.queue[3*i+2],ary=gradx_tmp)
-#          self.queue[3*i+2].finish()
-#          outp[idx_start:idx_stop,...] = gradx_tmp[self.overlap:,...]
-#          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices-self.overlap
-#          idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices
-#          x_part[i+self.num_dev].set(inp[idx_start:idx_stop,...],self.queue[3*i+1],)
-#        for i in range(self.num_dev):
-#          (self.sym_grad(gradx_part[i+self.num_dev],x_part[i+self.num_dev],i,1)).wait()
-#  #### Collect last block
-#    if j<2*self.num_dev:
-#      j = 2*self.num_dev
-#    else:
-#      j+=1
-#    for i in range(self.num_dev):
-#      self.queue[3*i].finish()
-#      idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
-#      idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
-#      gradx_part[i].get(queue=self.queue[3*i+2],ary=gradx_tmp)
-#      self.queue[3*i+2].finish()
-#      if idx_start == 0:
-#        outp[idx_start:idx_stop,...] = gradx_tmp[:self.par_slices,...]
-#      else:
-#        outp[idx_start:idx_stop,...] = gradx_tmp[self.overlap:,...]
-#      self.queue[3*i+1].finish()
-#      idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
-#      idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
-#      gradx_part[i+self.num_dev].get(queue=self.queue[3*i+2],ary=gradx_tmp)
-#      self.queue[3*i+2].finish()
-#      outp[idx_start:idx_stop,...] = gradx_tmp[self.overlap:,...]
-#
-#  def symdiv_streamed(self,outp,inp):
-#    x_part = []
-#    gradx_part= []
-#    x_tmp = np.zeros((self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX,4),dtype=DTYPE)
-#    for i in range(2*self.num_dev):
-#      gradx_part.append(clarray.zeros(self.queue[3*int(np.mod(i,self.num_dev))],(self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX,8),dtype=DTYPE,allocator=self.alloc[int(np.mod(i,self.num_dev))]))
-#      x_part.append(clarray.zeros(self.queue[3*int(np.mod(i,self.num_dev))],(self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX,4),dtype=DTYPE,allocator=self.alloc[int(np.mod(i,self.num_dev))]))
-#    j=0
-#    for i in range(self.num_dev):
-#      idx_start = i*self.par_slices
-#      idx_stop = (i+1)*self.par_slices+self.overlap
-#      gradx_part[i].set(inp[idx_start:idx_stop,...],self.queue[3*i])
-#    for i in range(self.num_dev):
-#      (self.sym_bdiv(x_part[i],gradx_part[i],i,0,1)).wait()
-#    for i in range(self.num_dev):
-#      idx_start = (i+1+self.num_dev-1)*self.par_slices
-#      idx_stop = (i+2+self.num_dev-1)*self.par_slices
-#      if idx_stop==self.NSlice:
-#        idx_start-=self.overlap
-#      else:
-#        idx_stop+=self.overlap
-#      gradx_part[i+self.num_dev].set(inp[idx_start:idx_stop,...],self.queue[3*i+1])
-#    for i in range(self.num_dev):
-#      (self.sym_bdiv(x_part[i+self.num_dev],gradx_part[i+self.num_dev],i,1,0)).wait()
-#  ### Stream
-#    for j in range(2*self.num_dev,int(self.NSlice/(2*self.par_slices*self.num_dev)+(2*self.num_dev-1))):
-#        for i in range(self.num_dev):
-#          ## Get Data
-#          self.queue[3*i].finish()
-#          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
-#          idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
-#          x_part[i].get(queue=self.queue[3*i+2],ary=x_tmp)
-#          self.queue[3*i+2].finish()
-#          outp[idx_start:idx_stop,...] = x_tmp[:self.par_slices,...]
-#          ### Put Data
-#          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)*self.par_slices)
-#          idx_stop = ((i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1))*self.par_slices)+self.overlap
-#          gradx_part[i].set(inp[idx_start:idx_stop,...],self.queue[3*i])
-#        for i in range(self.num_dev):
-#          (self.sym_bdiv(x_part[i],gradx_part[i],i,0,0)).wait()
-#        for i in range(self.num_dev):
-#          self.queue[3*i+1].finish()
-#          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
-#          idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
-#          x_part[i+self.num_dev].get(queue=self.queue[3*i+2],ary=x_tmp)
-#          self.queue[3*i+2].finish()
-#          outp[idx_start:idx_stop,...] = x_tmp[:self.par_slices,...]
-#          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices
-#          idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices
-#          if idx_stop==self.NSlice:
-#            idx_start-=self.overlap
-#          else:
-#            idx_stop+=self.overlap
-#          gradx_part[i+self.num_dev].set(inp[idx_start:idx_stop,...],self.queue[3*i+1])
-#        for i in range(self.num_dev):
-#          (self.sym_bdiv(x_part[i+self.num_dev],gradx_part[i+self.num_dev],i,1,0)).wait()
-#  #### Collect last block
-#    if j<2*self.num_dev:
-#      j = 2*self.num_dev
-#    else:
-#      j+=1
-#    for i in range(self.num_dev):
-#      self.queue[3*i].finish()
-#      idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
-#      idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
-#      x_part[i].get(queue=self.queue[3*i+2],ary=x_tmp)
-#      self.queue[3*i+2].finish()
-#      outp[idx_start:idx_stop,...] = x_tmp[:self.par_slices,...]
-#      self.queue[3*i+1].finish()
-#      idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
-#      idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
-#      x_part[i+self.num_dev].get(queue=self.queue[3*i+2],ary=x_tmp)
-#      self.queue[3*i+2].finish()
-#      if idx_stop==self.NSlice:
-#        outp[idx_start:idx_stop,...] = x_tmp[self.overlap:,...]
-#      else:
-#        outp[idx_start:idx_stop,...] = x_tmp[:self.par_slices,...]
+          (self.bdiv(x_part[i+self.num_dev],gradx_part[i+self.num_dev],i,1,last=last)).wait()
+  #### Collect last block
+    if j<2*self.num_dev:
+      j = 2*self.num_dev
+    else:
+      j+=1
+    for i in range(self.num_dev):
+      self.queue[3*i].finish()
+      idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
+      idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
+      x_part[i].get(queue=self.queue[3*i+2],ary=x_tmp)
+      self.queue[3*i+2].finish()
+      if idx_start==0:
+        outp[idx_start:idx_stop,...] = x_tmp[:self.par_slices,...]
+      else:
+        outp[idx_start:idx_stop,...] = x_tmp[self.overlap:,...]
+      self.queue[3*i+1].finish()
+      idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
+      idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
+      x_part[i+self.num_dev].get(queue=self.queue[3*i+2],ary=x_tmp)
+      self.queue[3*i+2].finish()
+      outp[idx_start:idx_stop,...] = x_tmp[self.overlap:,...]
+
+  def symgrad_streamed(self,outp,inp):
+    x_part = []
+    gradx_part= []
+    gradx_tmp = np.zeros((self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX,8),dtype=DTYPE)
+    for i in range(2*self.num_dev):
+      gradx_part.append(clarray.zeros(self.queue[3*int(np.mod(i,self.num_dev))],(self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX,8),dtype=DTYPE,allocator=self.alloc[int(np.mod(i,self.num_dev))]))
+      x_part.append(clarray.zeros(self.queue[3*int(np.mod(i,self.num_dev))],(self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX,4),dtype=DTYPE,allocator=self.alloc[int(np.mod(i,self.num_dev))]))
+    j=0
+    for i in range(self.num_dev):
+      idx_start = i*self.par_slices
+      idx_stop = (i+1)*self.par_slices
+      if idx_start == 0:
+        idx_stop +=self.overlap
+      else:
+        idx_start -=self.overlap
+      x_part[i].set(inp[idx_start:idx_stop,...],self.queue[3*i])
+    for i in range(self.num_dev):
+      (self.sym_grad(gradx_part[i],x_part[i],i,0)).wait()
+    for i in range(self.num_dev):
+      idx_start = (i+1+self.num_dev-1)*self.par_slices-self.overlap
+      idx_stop = (i+2+self.num_dev-1)*self.par_slices
+      x_part[i+self.num_dev].set(inp[idx_start:idx_stop,...],self.queue[3*i+1],)
+    for i in range(self.num_dev):
+      (self.sym_grad(gradx_part[i+self.num_dev],x_part[i+self.num_dev],i,1)).wait()
+  #### Stream
+    for j in range(2*self.num_dev,int(self.NSlice/(2*self.par_slices*self.num_dev)+(2*self.num_dev-1))):
+  #          tic = time.time()
+        for i in range(self.num_dev):
+          ### Get Data
+          self.queue[3*i].finish()
+          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
+          idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
+          gradx_part[i].get(queue=self.queue[3*i+2],ary=gradx_tmp)
+          self.queue[3*i+2].finish()
+          if idx_start == 0:
+            outp[idx_start:idx_stop,...] = gradx_tmp[:self.par_slices,...]
+          else:
+            outp[idx_start:idx_stop,...] = gradx_tmp[self.overlap:,...]
+          ### Put Data
+          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)*self.par_slices)-self.overlap
+          idx_stop = ((i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1))*self.par_slices)
+          x_part[i].set(inp[idx_start:idx_stop,...],self.queue[3*i])
+        for i in range(self.num_dev):
+          (self.sym_grad(gradx_part[i],x_part[i],i,0)).wait()
+        for i in range(self.num_dev):
+          self.queue[3*i+1].finish()
+          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
+          idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
+          gradx_part[i+self.num_dev].get(queue=self.queue[3*i+2],ary=gradx_tmp)
+          self.queue[3*i+2].finish()
+          outp[idx_start:idx_stop,...] = gradx_tmp[self.overlap:,...]
+          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices-self.overlap
+          idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices
+          x_part[i+self.num_dev].set(inp[idx_start:idx_stop,...],self.queue[3*i+1],)
+        for i in range(self.num_dev):
+          (self.sym_grad(gradx_part[i+self.num_dev],x_part[i+self.num_dev],i,1)).wait()
+  #### Collect last block
+    if j<2*self.num_dev:
+      j = 2*self.num_dev
+    else:
+      j+=1
+    for i in range(self.num_dev):
+      self.queue[3*i].finish()
+      idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
+      idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
+      gradx_part[i].get(queue=self.queue[3*i+2],ary=gradx_tmp)
+      self.queue[3*i+2].finish()
+      if idx_start == 0:
+        outp[idx_start:idx_stop,...] = gradx_tmp[:self.par_slices,...]
+      else:
+        outp[idx_start:idx_stop,...] = gradx_tmp[self.overlap:,...]
+      self.queue[3*i+1].finish()
+      idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
+      idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
+      gradx_part[i+self.num_dev].get(queue=self.queue[3*i+2],ary=gradx_tmp)
+      self.queue[3*i+2].finish()
+      outp[idx_start:idx_stop,...] = gradx_tmp[self.overlap:,...]
+
+  def symdiv_streamed(self,outp,inp):
+    x_part = []
+    gradx_part= []
+    x_tmp = np.zeros((self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX,4),dtype=DTYPE)
+    for i in range(2*self.num_dev):
+      gradx_part.append(clarray.zeros(self.queue[3*int(np.mod(i,self.num_dev))],(self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX,8),dtype=DTYPE,allocator=self.alloc[int(np.mod(i,self.num_dev))]))
+      x_part.append(clarray.zeros(self.queue[3*int(np.mod(i,self.num_dev))],(self.par_slices+self.overlap,self.unknowns,self.dimY,self.dimX,4),dtype=DTYPE,allocator=self.alloc[int(np.mod(i,self.num_dev))]))
+    j=0
+    for i in range(self.num_dev):
+      idx_start = i*self.par_slices
+      idx_stop = (i+1)*self.par_slices+self.overlap
+      gradx_part[i].set(inp[idx_start:idx_stop,...],self.queue[3*i])
+    for i in range(self.num_dev):
+      (self.sym_bdiv(x_part[i],gradx_part[i],i,0,1)).wait()
+    for i in range(self.num_dev):
+      idx_start = (i+1+self.num_dev-1)*self.par_slices
+      idx_stop = (i+2+self.num_dev-1)*self.par_slices
+      if idx_stop==self.NSlice:
+        idx_start-=self.overlap
+      else:
+        idx_stop+=self.overlap
+      gradx_part[i+self.num_dev].set(inp[idx_start:idx_stop,...],self.queue[3*i+1])
+    for i in range(self.num_dev):
+      (self.sym_bdiv(x_part[i+self.num_dev],gradx_part[i+self.num_dev],i,1,0)).wait()
+  ### Stream
+    for j in range(2*self.num_dev,int(self.NSlice/(2*self.par_slices*self.num_dev)+(2*self.num_dev-1))):
+        for i in range(self.num_dev):
+          ## Get Data
+          self.queue[3*i].finish()
+          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
+          idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
+          x_part[i].get(queue=self.queue[3*i+2],ary=x_tmp)
+          self.queue[3*i+2].finish()
+          outp[idx_start:idx_stop,...] = x_tmp[:self.par_slices,...]
+          ### Put Data
+          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)*self.par_slices)
+          idx_stop = ((i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1))*self.par_slices)+self.overlap
+          gradx_part[i].set(inp[idx_start:idx_stop,...],self.queue[3*i])
+        for i in range(self.num_dev):
+          (self.sym_bdiv(x_part[i],gradx_part[i],i,0,0)).wait()
+        for i in range(self.num_dev):
+          self.queue[3*i+1].finish()
+          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
+          idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
+          x_part[i+self.num_dev].get(queue=self.queue[3*i+2],ary=x_tmp)
+          self.queue[3*i+2].finish()
+          outp[idx_start:idx_stop,...] = x_tmp[:self.par_slices,...]
+          idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices
+          idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev)*self.par_slices
+          if idx_stop==self.NSlice:
+            idx_start-=self.overlap
+          else:
+            idx_stop+=self.overlap
+          gradx_part[i+self.num_dev].set(inp[idx_start:idx_stop,...],self.queue[3*i+1])
+        for i in range(self.num_dev):
+          (self.sym_bdiv(x_part[i+self.num_dev],gradx_part[i+self.num_dev],i,1,0)).wait()
+  #### Collect last block
+    if j<2*self.num_dev:
+      j = 2*self.num_dev
+    else:
+      j+=1
+    for i in range(self.num_dev):
+      self.queue[3*i].finish()
+      idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
+      idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev))*self.par_slices
+      x_part[i].get(queue=self.queue[3*i+2],ary=x_tmp)
+      self.queue[3*i+2].finish()
+      outp[idx_start:idx_stop,...] = x_tmp[:self.par_slices,...]
+      self.queue[3*i+1].finish()
+      idx_start = i*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
+      idx_stop = (i+1)*self.par_slices+(2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
+      x_part[i+self.num_dev].get(queue=self.queue[3*i+2],ary=x_tmp)
+      self.queue[3*i+2].finish()
+      if idx_stop==self.NSlice:
+        outp[idx_start:idx_stop,...] = x_tmp[self.overlap:,...]
+      else:
+        outp[idx_start:idx_stop,...] = x_tmp[:self.par_slices,...]
