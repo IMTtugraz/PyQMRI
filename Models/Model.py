@@ -34,7 +34,7 @@ class BaseModel(ABC):
     self.dimY = par["dimY"]
     self.figure = None
   def rescale(self,x):
-    tmp_x = np.zeros_like(x)
+    tmp_x = np.copy(x)
     for i in range(x.shape[0]):
       tmp_x[i]*=self.uk_scale[i]
     return tmp_x

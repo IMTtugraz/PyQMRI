@@ -24,6 +24,9 @@ class Model(BaseModel):
     self.images = images
     self.t = par['t']
     parameters = par["file"]["GT/parameters"]
+#    print(list(par["file"].keys()))
+
+    self.mask = par["file"]["image_mask"][()]
 
     self.A_B = (parameters[0][...].astype(DTYPE_real))
     self.mu_B  = (parameters[1][...].astype(DTYPE_real))
@@ -128,6 +131,12 @@ class Model(BaseModel):
       Te_max = 5#Te.max()
       alpha_min = alpha.min()
       alpha_max = alpha.max()
+      Tc = np.concatenate((np.abs(x[4,...]*self.uk_scale[4]),self.Tc),axis=-1)
+      tau = np.concatenate((np.abs(x[5,...]*self.uk_scale[5]),self.tau),axis=-1)
+      Tc_min = Tc.min()
+      Tc_max = Tc.max()
+      tau_min = tau.min()
+      tau_max = tau.max()
 
       if dim_2D:
          if not self.figure:
@@ -153,12 +162,12 @@ class Model(BaseModel):
            plt.pause(1e-10)
       else:
          [z,y,x] = M0.shape
-         self.ax = []
          if not self.figure:
+           self.ax = []
            plt.ion()
            self.figure = plt.figure(figsize = (12,6))
            self.figure.subplots_adjust(hspace=0, wspace=0)
-           self.gs = gridspec.GridSpec(8,6, width_ratios=[x/(20*z),x/z,1,x/z,1,x/(20*z)],height_ratios=[x/z,1,x/z/2,x/z,1,x/z/2,x/z,1])
+           self.gs = gridspec.GridSpec(11,6, width_ratios=[x/(20*z),x/z,1,x/z,1,x/(20*z)],height_ratios=[x/z,1,x/z/2,x/z,1,x/z/2,x/z,1,x/z/2,x/z,1])
            self.figure.tight_layout()
            self.figure.patch.set_facecolor(plt.cm.viridis.colors[0])
            for grid in self.gs:
@@ -227,15 +236,31 @@ class Model(BaseModel):
            plt.draw()
            plt.pause(1e-10)
 
-           self.time_err_plot=self.ax[37].imshow((time_err[int(self.NSlice/2),...]))
-           self.time_err_plot_cor=self.ax[43].imshow((time_err[:,int(time_err.shape[1]/2),...]))
-           self.time_err_plot_sag=self.ax[38].imshow(np.flip((time_err[:,:,int(time_err.shape[-1]/2)]).T,1))
-           self.ax[37].set_title('error in time',color='white')
+           self.Tc_plot=self.ax[37].imshow((Tc[int(self.NSlice/2),...]))
+           self.Tc_plot_cor=self.ax[43].imshow((Tc[:,int(Tc.shape[1]/2),...]))
+           self.Tc_plot_sag=self.ax[38].imshow(np.flip((Tc[:,:,int(Tc.shape[-1]/2)]).T,1))
+           self.ax[37].set_title('Tc',color='white')
            self.ax[37].set_anchor('SE')
            self.ax[38].set_anchor('SW')
            self.ax[43].set_anchor('NE')
-           cax = plt.subplot(self.gs[6:,0])
-           cbar = self.figure.colorbar(self.time_err_plot, cax=cax)
+           cax = plt.subplot(self.gs[6:8,0])
+           cbar = self.figure.colorbar(self.Tc_plot, cax=cax)
+           cbar.ax.tick_params(labelsize=12,colors='white')
+           cax.yaxis.set_ticks_position('left')
+           for spine in cbar.ax.spines:
+            cbar.ax.spines[spine].set_color('white')
+           plt.draw()
+           plt.pause(1e-10)
+
+           self.tau_plot=self.ax[39].imshow((tau[int(self.NSlice/2),...]))
+           self.tau_plot_cor=self.ax[45].imshow((tau[:,int(tau.shape[1]/2),...]))
+           self.tau_plot_sag=self.ax[40].imshow(np.flip((tau[:,:,int(tau.shape[-1]/2)]).T,1))
+           self.ax[39].set_title('tau',color='white')
+           self.ax[39].set_anchor('SE')
+           self.ax[40].set_anchor('SW')
+           self.ax[45].set_anchor('NE')
+           cax = plt.subplot(self.gs[6:8,5])
+           cbar = self.figure.colorbar(self.tau_plot, cax=cax)
            cbar.ax.tick_params(labelsize=12,colors='white')
            for spine in cbar.ax.spines:
             cbar.ax.spines[spine].set_color('white')
@@ -243,9 +268,26 @@ class Model(BaseModel):
            plt.pause(1e-10)
 
 
-           self.time_course = self.ax[39].plot(self.t,np.abs(images[:,0,40,26]),'r')[0]
-           self.time_course_ref = self.ax[39].plot(self.t,np.abs(self.images[:,0,40,26]),'g')[0]
+           self.time_err_plot=self.ax[55].imshow((time_err[int(self.NSlice/2),...]))
+           self.time_err_plot_cor=self.ax[61].imshow((time_err[:,int(time_err.shape[1]/2),...]))
+           self.time_err_plot_sag=self.ax[56].imshow(np.flip((time_err[:,:,int(time_err.shape[-1]/2)]).T,1))
+           self.ax[55].set_title('error in time',color='white')
+           self.ax[55].set_anchor('SE')
+           self.ax[56].set_anchor('SW')
+           self.ax[61].set_anchor('NE')
+           cax = plt.subplot(self.gs[9:,0])
+           cbar = self.figure.colorbar(self.time_err_plot, cax=cax)
+           cbar.ax.tick_params(labelsize=12,colors='white')
+           cax.yaxis.set_ticks_position('left')
+           for spine in cbar.ax.spines:
+            cbar.ax.spines[spine].set_color('white')
+           plt.draw()
+           plt.pause(1e-10)
 
+
+           self.time_course = self.ax[57].plot(self.t,np.abs(images[:,0,40,26]),'r')[0]
+           self.time_course_ref = self.ax[57].plot(self.t,np.abs(self.images[:,0,40,26]),'g')[0]
+           self.ax[57].set_ylim(np.abs(self.images[:,0,40,26]).min()-np.abs(self.images[:,0,40,26]).min()*0.01, np.abs(self.images[:,0,40,26]).max()+np.abs(self.images[:,0,40,26]).max()*0.01)
            plt.draw()
            plt.pause(1e-10)
 
@@ -285,9 +327,23 @@ class Model(BaseModel):
            self.time_err_plot_sag.set_clim([time_err_min,time_err_max])
            self.time_err_plot_cor.set_clim([time_err_min,time_err_max])
 
-           self.time_course.set_data(self.t,np.abs(images[:,0,40,26]))
-           self.time_course_ref.set_data(self.t,np.abs(self.images[:,0,40,26]))
+           self.Tc_plot.set_data((Tc[int(self.NSlice/2),...]))
+           self.Tc_plot_cor.set_data((Tc[:,int(Tc.shape[1]/2),...]))
+           self.Tc_plot_sag.set_data(np.flip((Tc[:,:,int(Tc.shape[-1]/2)]).T,1))
+           self.Tc_plot.set_clim([Tc_min,Tc_max])
+           self.Tc_plot_cor.set_clim([Tc_min,Tc_max])
+           self.Tc_plot_sag.set_clim([Tc_min,Tc_max])
 
+           self.tau_plot.set_data((tau[int(self.NSlice/2),...]))
+           self.tau_plot_cor.set_data((tau[:,int(tau.shape[1]/2),...]))
+           self.tau_plot_sag.set_data(np.flip((tau[:,:,int(tau.shape[-1]/2)]).T,1))
+           self.tau_plot.set_clim([tau_min,tau_max])
+           self.tau_plot_sag.set_clim([tau_min,tau_max])
+           self.tau_plot_cor.set_clim([tau_min,tau_max])
+
+
+           self.time_course.set_ydata(np.abs(images[:,0,40,26]))
+           self.ax[57].set_ylim(np.abs(self.images[:,0,40,26]).min()-np.abs(self.images[:,0,40,26]).min()*0.01, np.abs(self.images[:,0,40,26]).max()+np.abs(self.images[:,0,40,26]).max()*0.01)
            plt.draw()
            plt.pause(1e-10)
 
@@ -599,23 +655,23 @@ class Model(BaseModel):
 
   def _set_init_scales(self,dscale):
 
-    self.mask = np.ones_like(self.alpha)
-    self.mask[self.alpha<1e-4] = 0
+#    self.mask = np.ones_like(self.alpha)
+#    self.mask[self.alpha<1e-4] = 0
 
 
-    test_M0 =0.01*dscale*self.dimX*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask
+    test_M0 =0.01*(dscale)*self.dimX*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask
 
     FP = 0.5*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
-    Te = 5*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[6][...]#5*np.ones((NSlice,dimY,dimX),dtype=DTYPE)#
-    Te[Te<1/60] = 1/60
-    alpha = 0.4*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[7][...]#
-    alpha[alpha<1e-4] = 1e-4
+    Te = 1*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[6][...]#5*np.ones((NSlice,dimY,dimX),dtype=DTYPE)#
+#    Te[Te<1/60] = 1/60
+    alpha = 0.6*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[7][...]#
+#    alpha[alpha<1e-4] = 1e-4
 #    A_B = 50000*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
 #    mu_B = 10*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
 #    A_G = 500*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
 #    mu_G = 0.1*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
     Tc = 1/6*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
-    tau = 0.5*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
+    tau = 0.4*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
 
     x = np.array([test_M0,FP,Te,alpha,Tc,tau],dtype=DTYPE)
 
@@ -630,8 +686,14 @@ class Model(BaseModel):
 
 
     DG_x =  self._execute_gradient_3D(x)
-    for j in range(1,unknowns_TGV+unknowns_H1):
-      self.uk_scale[j] = self.uk_scale[j]*np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[j,...]))
+    x[0]*=self.uk_scale[0]
+    scale = np.reshape(DG_x,(unknowns_TGV+unknowns_H1,self.NScan*self.NSlice*self.dimY*self.dimX))
+    scale = np.linalg.norm(scale,axis=-1)
+    scale /= np.max(scale)
+    scale = 1/scale
+    print(scale)
+    for j in range(unknowns_TGV+unknowns_H1):
+      self.uk_scale[j] *= scale[j]#self.uk_scale[j]*np.linalg.norm(np.abs(DG_x[0,...].flatten()))/np.linalg.norm(np.abs(DG_x[j,...].flatten()))
       x[j]/=self.uk_scale[j]
 
     print('Fp scale: ',self.uk_scale[1],

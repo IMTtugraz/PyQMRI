@@ -230,17 +230,24 @@ class Model_Reco:
    if TV==1:
       for i in range(self.irgn_par["max_gn_it"]):
         start = time.time()
-        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
 
-        for uk in range(self.unknowns-1):
-          scale = np.linalg.norm(np.abs(self.grad_x[0,...]))/np.linalg.norm(np.abs(self.grad_x[uk+1,...]))
-          self.model.constraints[uk+1].update(scale)
-          result[uk+1,...] = result[uk+1,...]*self.model.uk_scale[uk+1]
-          self.model.uk_scale[uk+1] = self.model.uk_scale[uk+1]*scale
-          result[uk+1,...] = result[uk+1,...]/self.model.uk_scale[uk+1]
+
+        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
+        scale = np.reshape(self.grad_x,(self.unknowns,self.NScan*self.NSlice*self.dimY*self.dimX))
+        scale = np.linalg.norm(scale,axis=-1)
+        scale /= np.max(scale)
+        scale = 1/scale
+        print(scale)
+        for uk in range(self.unknowns):
+          self.model.constraints[uk].update(scale[uk])
+          result[uk,...] *= self.model.uk_scale[uk]
+          self.grad_x[uk] /= self.model.uk_scale[uk]
+          self.model.uk_scale[uk]*=scale[uk]
+          result[uk,...] /= self.model.uk_scale[uk]
+          self.grad_x[uk] *= self.model.uk_scale[uk]
 
         self.step_val = np.nan_to_num(self.model.execute_forward(result))
-        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
+#        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
         self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x.data)
         self.conj_grad_x = np.nan_to_num(np.conj(self.grad_x))
 
@@ -271,16 +278,21 @@ class Model_Reco:
 
 
         self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
-
-        for uk in range(self.unknowns-1):
-          scale = np.linalg.norm(np.abs(self.grad_x[0,...].flatten()))/np.linalg.norm(np.abs(self.grad_x[uk+1,...].flatten()))
-          self.model.constraints[uk+1].update(scale)
-          result[uk+1,...] *= self.model.uk_scale[uk+1]
-          self.model.uk_scale[uk+1]*=scale
-          result[uk+1,...] /= self.model.uk_scale[uk+1]
+        scale = np.reshape(self.grad_x,(self.unknowns,self.NScan*self.NSlice*self.dimY*self.dimX))
+        scale = np.linalg.norm(scale,axis=-1)
+        scale /= np.max(scale)
+        scale = 1/scale
+        print(scale)
+        for uk in range(self.unknowns):
+          self.model.constraints[uk].update(scale[uk])
+          result[uk,...] *= self.model.uk_scale[uk]
+          self.grad_x[uk] /= self.model.uk_scale[uk]
+          self.model.uk_scale[uk]*=scale[uk]
+          result[uk,...] /= self.model.uk_scale[uk]
+          self.grad_x[uk] *= self.model.uk_scale[uk]
 
         self.step_val = np.nan_to_num(self.model.execute_forward(result))
-        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
+#        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
         self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x.data)
 
         self.set_scale(result)
@@ -309,18 +321,24 @@ class Model_Reco:
       self.z2 = np.zeros(([self.unknowns,self.NSlice,self.dimY,self.dimX,8]),dtype=DTYPE)
       for i in range(self.irgn_par["max_gn_it"]):
         start = time.time()
+
+
         self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
-
-
-        for j in range(len(self.model.constraints)-1):
-          scale = np.linalg.norm(np.abs(self.grad_x[0,...]))/np.linalg.norm(np.abs(self.grad_x[j+1,...]))
-          self.model.constraints[j+1].update(scale)
-          result[j+1,...] = result[j+1,...]*self.model.T1_sc
-          self.model.T1_sc = self.model.T1_sc*(scale)
-          result[j+1,...] = result[j+1,...]/self.model.T1_sc
+        scale = np.reshape(self.grad_x,(self.unknowns,self.NScan*self.NSlice*self.dimY*self.dimX))
+        scale = np.linalg.norm(scale,axis=-1)
+        scale /= np.max(scale)
+        scale = 1/scale
+        print(scale)
+        for uk in range(self.unknowns):
+          self.model.constraints[uk].update(scale[uk])
+          result[uk,...] *= self.model.uk_scale[uk]
+          self.grad_x[uk] /= self.model.uk_scale[uk]
+          self.model.uk_scale[uk]*=scale[uk]
+          result[uk,...] /= self.model.uk_scale[uk]
+          self.grad_x[uk] *= self.model.uk_scale[uk]
 
         self.step_val = np.nan_to_num(self.model.execute_forward(result))
-        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
+#        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
         self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x.data)
         self.conj_grad_x = np.nan_to_num(np.conj(self.grad_x))
 
