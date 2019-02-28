@@ -40,7 +40,7 @@ def run():
     res_name.append(name[0])
 
 
-  data = file[res_name[0]][()]
+  data = file[res_name[1]][()]
   file.close()
   data = data[-1,:,:]
 

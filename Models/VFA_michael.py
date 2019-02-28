@@ -51,7 +51,7 @@ class Model(BaseModel):
     self.sin_phi = np.sin(par["flip_angle(s)"]*np.pi/180)
     self.cos_phi = np.cos(par["flip_angle(s)"]*np.pi/180)
 
-    self.uk_scale.append(1/np.median(np.abs(images)))
+    self.uk_scale.append(1/np.median(np.abs(images[0])))
     for j in range(unknowns_TGV):
       self.uk_scale.append(1)
 
@@ -655,29 +655,29 @@ class Model(BaseModel):
 
   def _set_init_scales(self,dscale):
 
-#    self.mask = np.ones_like(self.alpha)
-#    self.mask[self.alpha<1e-4] = 0
+    self.mask = np.ones_like(self.tau)
+    self.mask[self.tau<1e-4] = 0
 
 
-    test_M0 =0.01*(dscale)*self.dimX*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask
+    test_M0 =0.01*dscale*self.dimX*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask
 
-    FP = 0.5*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
+    FP = 0.1*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
     Te = 1*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[6][...]#5*np.ones((NSlice,dimY,dimX),dtype=DTYPE)#
 #    Te[Te<1/60] = 1/60
-    alpha = 0.6*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[7][...]#
+    alpha = 0.7*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[7][...]#
 #    alpha[alpha<1e-4] = 1e-4
 #    A_B = 50000*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
 #    mu_B = 10*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
 #    A_G = 500*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
 #    mu_G = 0.1*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
-    Tc = 1/6*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
-    tau = 0.4*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
+    Tc = 0.3*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
+    tau = 0.5*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
 
     x = np.array([test_M0,FP,Te,alpha,Tc,tau],dtype=DTYPE)
 
-    G_x = self._execute_forward_3D(x)
-    self.uk_scale[0]*=1/np.median(np.abs(G_x))
-
+#    G_x = self._execute_forward_3D(x)
+#    self.uk_scale[0]*=np.median(np.abs(self.images[0]))/np.median(np.abs(G_x[0]))
+#
     x[0]/=self.uk_scale[0]
 
 #    res_R1 = par["file"]["GT/dR1"][()]

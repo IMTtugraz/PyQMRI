@@ -65,23 +65,28 @@ def main(args):
              +1j*par["file"]['imag_dat']\
              [...,int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:\
               int(NSlice/2)+int(np.ceil(reco_Slices/2))+off,:,:].astype(DTYPE)
-#
-#    images = par["file"]["GT/SI"][()]
-###
-#    del par["file"]['Coils']
-###
-###    data = data+np.max(np.abs(data))*0.0001*(np.random.standard_normal(data.shape).astype(DTYPE_real)+1j*np.random.standard_normal(data.shape).astype(DTYPE_real))
+
+
+#    data /= dimX
 ##
+#    images = par["file"]["GT/SI"][()]
+##
+#    del par["file"]['Coils']
+##
+##    data = data+np.max(np.abs(data))*0.0001*(np.random.standard_normal(data.shape).astype(DTYPE_real)+1j*np.random.standard_normal(data.shape).astype(DTYPE_real))
+#
 ##    norm_coils = par["file"]["GT/sensitivities/real_dat"][2:] + 1j*par["file"]["GT/sensitivities/imag_dat"][2:]
 #    norm_coils = par["file"]["Coils_real"][...] + 1j*par["file"]["Coils_imag"][...]
+#    norm_coils = np.array((norm_coils[0],norm_coils[-2],norm_coils[-1]))
 ##    norm = np.sqrt(np.sum(np.abs(norm_coils)**2,0,keepdims=True))
 ##    norm_coils = (norm_coils)/norm
 ###    norm_coils = norm_coils/np.max(np.abs(norm_coils))
 ##    norm_coils = (norm_coils)/np.linalg.norm(norm_coils)*128
 ##    norm_coils = np.abs(norm_coils).astype(DTYPE)
-##
 #
-#    data = np.fft.fft2(images[:,None,...]*norm_coils,norm="ortho")
+#
+#    data = np.fft.fft2(images[:,None,...]*norm_coils)
+#    data = data+np.max(np.abs(data))*0.0001*(np.random.standard_normal(data.shape).astype(DTYPE_real)+1j*np.random.standard_normal(data.shape).astype(DTYPE_real))
 ##    del par["file"]["GT/sensitivities/real_dat"]
 ##    del par["file"]["GT/sensitivities/imag_dat"]
 #    del par["file"]["real_dat"]
@@ -272,7 +277,7 @@ def main(args):
 
     images= np.require(np.sum(nFTH(data,FFT,par)*(np.conj(par["C"])),axis = 1),\
                        requirements='C')
-    del FFT
+    del FFT, nFTH
 
 
     opt = Model_Reco.Model_Reco(par,args.trafo,\
@@ -373,11 +378,11 @@ if __name__ == '__main__':
                                      for TGV and TV.')
     parser.add_argument('--recon_type', default='3D', dest='type', help='Choose reconstruction type (currently only 3D)')
     parser.add_argument('--reg_type', default='TGV', dest='reg',  help="Choose regularization type (default: TGV) options are: TGV, TV, all")
-    parser.add_argument('--slices',default=20, dest='slices', type=int,  help='Number of reconstructed slices (default=40). Symmetrical around the center slice.')
-    parser.add_argument('--trafo', default=1, dest='trafo', type=int, help='Choos between radial (1, default) and Cartesian (0) sampling. ')
-    parser.add_argument('--streamed', default=1, dest='streamed', type=int, help='Enable streaming of large data arrays (>10 slices).')
+    parser.add_argument('--slices',default=1, dest='slices', type=int,  help='Number of reconstructed slices (default=40). Symmetrical around the center slice.')
+    parser.add_argument('--trafo', default=0, dest='trafo', type=int, help='Choos between radial (1, default) and Cartesian (0) sampling. ')
+    parser.add_argument('--streamed', default=0, dest='streamed', type=int, help='Enable streaming of large data arrays (>10 slices).')
     parser.add_argument('--data',default='',dest='file', help='Full path to input data. If not provided, a file dialog will open.')
-    parser.add_argument('--model',default='VFA',dest='sig_model', help='Name of the signal model to use. Defaults to VFA. \
+    parser.add_argument('--model',default='VFA_michael',dest='sig_model', help='Name of the signal model to use. Defaults to VFA. \
           Please put your signal model file in the Model subfolder.')
     parser.add_argument('--config',default='test',dest='config', help='Name of config file to use (assumed to be in the same folder). \
           If not specified, use default parameters.')
