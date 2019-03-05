@@ -40,7 +40,7 @@ def run():
     res_name.append(name[0])
 
 
-  data = file[res_name[1]][()]
+  data = file[res_name[2]][()]
   file.close()
   data = data[-1,:,:]
 
@@ -77,9 +77,9 @@ def run():
 
   #M0 = np.abs(data[0])
   #mask[M0<0.5] = 0
-  M0 = (np.abs(data[4]))#*mask
+  M0 = (np.abs(data[2]))#*mask
 #  M0 = 1/3*(M0[0]+M0[1]+M0[2])
-  T1 = (np.abs(data[5]))#*mask
+  T1 = (np.abs(data[3]))#*mask
   #M0 = (np.abs(data[0])-np.abs(data2[0]))/np.abs(data[0])*mask
   #T1 = (np.abs(data[1])-np.abs(data2[1]))/np.abs(data[1])*mask
   #M0 = np.sqrt((np.abs(np.abs(data[0])**2-np.abs(data2[0])**2))/np.abs(data[0])**2*mask)

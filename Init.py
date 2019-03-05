@@ -264,7 +264,7 @@ def main(args):
       siz = np.shape(x)
       result = np.zeros((par["NC"],par["NSlice"],par["NScan"],\
                          par["dimY"],par["dimX"]),dtype=DTYPE)
-      tmp_result = clarray.zeros(fft.queue[0],(par["NScan"],1,1,\
+      tmp_result = clarray.empty(fft.queue[0],(par["NScan"],1,1,\
                                  par["dimY"],par["dimX"]),dtype=DTYPE)
       for j in range(siz[1]):
         for k in range(siz[2]):
@@ -354,6 +354,11 @@ def main(args):
         f.create_dataset("tgv_full_result_"+str(i),result_tgv[i].shape,\
                                      dtype=DTYPE,data=result_tgv[i])
         f.attrs['res_tgv'] = res_tgv
+        for j in range(len(model.uk_scale)):
+          model.uk_scale[j] = 1
+        image_final = model.execute_forward(result_tgv[i][-1,...])
+        f.create_dataset("sim_images_"+str(i),image_final.shape,\
+                                     dtype=DTYPE,data=image_final)
     if "TV" in args.reg or args.reg=='all':
       for i in range(len(result_tv)):
         f.create_dataset("tv_full_result_"+str(i),result_tv[i].shape,\

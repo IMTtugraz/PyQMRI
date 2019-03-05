@@ -202,10 +202,11 @@ class Model_Reco:
     scale = np.reshape(grad,(self.unknowns,self.NSlice*self.dimY*self.dimX*4))
     scale = np.linalg.norm(scale,axis=-1)
     scale /= np.max(scale)
+    print("Ratio: ",scale)
     for j in range(x.shape[0]):
 #      scale = np.linalg.norm(grad[j,...].get())/np.linalg.norm(grad[0,...].get())
       if np.isfinite(scale[j]) and scale[j]>1e-4:
-        self.ratio[j] = scale[j]
+        self.ratio[j] = 1/scale[j]
 ################################################################################
 ### Start a 3D Reconstruction, set TV to True to perform TV instead of TGV######
 ### Precompute Model and Gradient values for xk ################################
@@ -228,8 +229,15 @@ class Model_Reco:
     result = np.copy(self.model.guess)
 
     if TV==1:
+      self.tau = np.float32(1/np.sqrt(8))
+      self.beta_line = 400
+      self.theta_line = np.float32(1.0)
       pass
     elif TV==0:
+      L = np.float32(0.5*(18.0 + np.sqrt(33)))
+      self.tau = np.float32(1/np.sqrt(L))
+      self.beta_line = 400
+      self.theta_line = np.float32(1.0)
       self.v = np.zeros(([self.unknowns_TGV,self.NSlice,self.dimY,self.dimX,4]),dtype=DTYPE)
       self.z2 = np.zeros(([self.unknowns_TGV,self.NSlice,self.dimY,self.dimX,8]),dtype=DTYPE)
     else:
@@ -251,6 +259,7 @@ class Model_Reco:
         self.model.uk_scale[uk]*=scale[uk]
         result[uk,...] /= self.model.uk_scale[uk]
         self.grad_x[uk] *= self.model.uk_scale[uk]
+      self.irgn_par["lambd"] /=scale[0]**2
 
       self.step_val = np.nan_to_num(self.model.execute_forward(result))
       self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x.data)
@@ -349,34 +358,37 @@ class Model_Reco:
     alpha = self.irgn_par["gamma"]
     beta = self.irgn_par["gamma"]*2
 
-    L = np.float32(0.5*(18.0 + np.sqrt(33)))
-    print('L: %f'%(L))
+#    L = np.float32(0.5*(18.0 + np.sqrt(33)))
+#    print('L: %f'%(L))
 
 
-    tau = np.float32(1/np.sqrt(L))
+    tau = self.tau#np.float32(1/np.sqrt(L))
+    print("Tau: ",tau)
     tau_new =np.float32(0)
 
 
     x = clarray.to_device(self.queue,x)
     xk = x.copy()
-    x_new = clarray.empty_like(x)#x.copy()
+    x_new = clarray.empty_like(x)
 
-    r = clarray.to_device(self.queue,np.zeros_like(self.r))#np.zeros_like(res,dtype=DTYPE)
-    r_new = r.copy()#clarray.empty_like(r)
-    z1 = clarray.to_device(self.queue,np.zeros_like(self.z1))#np.zeros(([self.unknowns,2,self.dimY,self.dimX]),dtype=DTYPE)
-    z1_new = z1.copy()#clarray.empty_like(z1)#np.zeros(([self.unknowns,2,self.dimY,self.dimX]),dtype=DTYPE)
-    z2 = clarray.to_device(self.queue,np.zeros_like(self.z2))#np.zeros(([self.unknowns,3,self.dimY,self.dimX]),dtype=DTYPE)
-    z2_new = z2.copy()#clarray.empty_like(z2)
-    v = clarray.to_device(self.queue,np.zeros_like(self.v))#np.zeros(([self.unknowns,2,self.dimY,self.dimX]),dtype=DTYPE)
-    v_new = v.copy()#clarray.empty_like(v)
+    r = clarray.to_device(self.queue,np.zeros_like(self.r))
+    r_new = clarray.empty_like(r)
+    z1 = clarray.to_device(self.queue,np.zeros_like(self.z1))
+    z1_new = clarray.empty_like(z1)
+    z2 = clarray.to_device(self.queue,np.zeros_like(self.z2))
+    z2_new = clarray.empty_like(z2)
+    v = clarray.to_device(self.queue,np.zeros_like(self.v))
+    v_new = clarray.empty_like(v)
     res = clarray.to_device(self.queue, res.astype(DTYPE))
 
 
     delta = self.irgn_par["delta"]
     mu = 1/delta
 
-    theta_line = np.float32(1.0)
-    beta_line = np.float32(400)
+    theta_line = self.theta_line#np.float32(1.0)
+    print("Theta: ",theta_line)
+    beta_line = self.beta_line#np.float32(400)
+    print("Beta: ",beta_line)
     beta_new = np.float32(0)
     mu_line =np.float32( 0.5)
     delta_line = np.float32(1)
@@ -443,7 +455,7 @@ class Model_Reco:
 
       (Kyk1, Kyk1_new, Kyk2, Kyk2_new, Axold, Ax, z1, z1_new, z2, z2_new, r, r_new) =\
       (Kyk1_new, Kyk1, Kyk2_new, Kyk2, Ax, Axold, z1_new, z1, z2_new, z2, r_new, r)
-      tau =  (tau_new)
+      tau =  np.copy(tau_new)
 
 
       if not np.mod(i,50):
@@ -497,6 +509,9 @@ class Model_Reco:
     self.r = r.get()
     self.z1 = z1.get()
     self.z2 = z2.get()
+    self.tau = tau
+    self.beta_line = beta_line
+    self.theta_line = theta_line
     return x.get()
 
   def tv_solve_3D(self, x,res, iters):

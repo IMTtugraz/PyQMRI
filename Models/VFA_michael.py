@@ -51,10 +51,11 @@ class Model(BaseModel):
     self.sin_phi = np.sin(par["flip_angle(s)"]*np.pi/180)
     self.cos_phi = np.cos(par["flip_angle(s)"]*np.pi/180)
 
-    self.uk_scale.append(1/np.median(np.abs(images[0])))
+#    self.uk_scale.append(1/np.median(np.abs(images)))
+
     for j in range(unknowns_TGV):
       self.uk_scale.append(1)
-
+    self.uk_scale[0] = 100
 
     self.guess = self._set_init_scales(par["dscale"])
 
@@ -659,7 +660,8 @@ class Model(BaseModel):
     self.mask[self.tau<1e-4] = 0
 
 
-    test_M0 =0.01*dscale*self.dimX*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask
+    test_M0 =0.3*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask
+#    print(0.01*dscale**2*self.dimX)
 
     FP = 0.1*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
     Te = 1*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[6][...]#5*np.ones((NSlice,dimY,dimX),dtype=DTYPE)#
@@ -691,7 +693,7 @@ class Model(BaseModel):
     scale = np.linalg.norm(scale,axis=-1)
     scale /= np.max(scale)
     scale = 1/scale
-    print(scale)
+#    print(scale)
     for j in range(unknowns_TGV+unknowns_H1):
       self.uk_scale[j] *= scale[j]#self.uk_scale[j]*np.linalg.norm(np.abs(DG_x[0,...].flatten()))/np.linalg.norm(np.abs(DG_x[j,...].flatten()))
       x[j]/=self.uk_scale[j]
