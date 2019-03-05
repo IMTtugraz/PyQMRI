@@ -160,7 +160,7 @@ __kernel void gradient(__global float8 *grad, __global float2 *u, const int NUk,
      { grad[i].s45 += u[i+Nx*Ny*NUk].s01/dz;}
      else
      { grad[i].s45 = 0.0f;}
-     {grad[i]/=ratio[uk];}
+     {grad[i]*=ratio[uk];}
      i+=Nx*Ny;
   }
 }
@@ -256,7 +256,7 @@ __kernel void divergence(__global float2 *div, __global float8 *p, const int NUk
          val.s5 -= p[i-Nx*Ny*NUk].s5;
      }
      div[i] = val.s01+val.s23+val.s45/dz;
-     {div[i]/=ratio[ukn];}
+     {div[i]*=ratio[ukn];}
      i+=Nx*Ny;
   }
 
@@ -579,7 +579,7 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
    }
    // scale gradients
    //{val*=(maxscal/(scale[uk]))*ratio[uk];}
-   {val/=ratio[uk];}
+   {val*=ratio[uk];}
 
   out[i] = sum - (val.s01+val.s23+val.s45/dz);
   i+=X*Y;

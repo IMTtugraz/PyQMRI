@@ -231,3 +231,13 @@ __kernel void masking(__global float2 *ksp, __global float *mask)
     size_t x = get_global_id(0);
     ksp[x] = ksp[x]*mask[x];
   }
+__kernel void fftshift(__global float2* ksp, __global float *check)
+  {
+    size_t x = get_global_id(2);
+    size_t dimX = get_global_size(2);
+    size_t y = get_global_id(1);
+    size_t dimY = get_global_size(1);
+    size_t n = get_global_id(0);
+
+    ksp[x+dimX*y+dimX*dimY*n] = ksp[x+dimX*y+dimX*dimY*n]*check[x]*check[y];
+  }

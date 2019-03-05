@@ -188,7 +188,7 @@ __kernel void gradient(__global float8 *grad, __global float2 *u, const int NUk,
      { grad[i].s45 = 0.0f;}
      // scale gradients
      //{grad[i]*=(maxscal/(scale[uk]))*ratio[uk];}
-     {grad[i]/=ratio[uk];}
+     {grad[i]*=ratio[uk];}
      i += NSl*Nx*Ny;
   }
 }
@@ -286,7 +286,7 @@ __kernel void divergence(__global float2 *div, __global float8 *p, const int NUk
      div[i] = val.s01+val.s23+val.s45/dz;
      // scale gradients
      //{div[i]*=(maxscal/(scale[ukn]))*ratio[ukn];}
-     {div[i]/=ratio[ukn];}
+     {div[i]*=ratio[ukn];}
      i += NSl*Nx*Ny;
   }
 
@@ -602,7 +602,7 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
 
    // scale gradients
    //{val*=(maxscal/(scale[uk]))*ratio[uk];}
-   {val/=ratio[uk];}
+   {val*=ratio[uk];}
 
   out[uk*NSl*X*Y+k*X*Y+y*X+x] = sum - (val.s01+val.s23+val.s45/dz);
   i += NSl*X*Y;
@@ -747,7 +747,7 @@ __kernel void update_Kyk1_imagespace(__global float2 *out, __global float2 *in,
 
    // scale gradients
    //{val*=(maxscal/(scale[uk]))*ratio[uk];}
-   {val/=ratio[uk];}
+   {val*=ratio[uk];}
 
   out[uk*NSl*X*Y+k*X*Y+y*X+x] = sum - (val.s01+val.s23+val.s45/dz);
   i += NSl*X*Y;

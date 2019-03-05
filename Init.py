@@ -21,7 +21,7 @@ from helper_fun import utils
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
-def main(args):
+def main(args,myiter):
     sig_model = importlib.import_module("Models."+str(args.sig_model))
     if int(args.streamed)==1:
       import IRGN.Model_Reco_OpenCL_streamed as Model_Reco
@@ -65,23 +65,28 @@ def main(args):
              +1j*par["file"]['imag_dat']\
              [...,int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:\
               int(NSlice/2)+int(np.ceil(reco_Slices/2))+off,:,:].astype(DTYPE)
-#
-#    images = par["file"]["GT/SI"][()]
-###
-#    del par["file"]['Coils']
-###
-###    data = data+np.max(np.abs(data))*0.0001*(np.random.standard_normal(data.shape).astype(DTYPE_real)+1j*np.random.standard_normal(data.shape).astype(DTYPE_real))
+
+
+#    data /= dimX
 ##
+#    images = par["file"]["GT/SI"][()]
+##
+#    del par["file"]['Coils']
+##
+    data = data+np.max(np.abs(data))*0.0001*(np.random.standard_normal(data.shape).astype(DTYPE_real)+1j*np.random.standard_normal(data.shape).astype(DTYPE_real))
+#
 ##    norm_coils = par["file"]["GT/sensitivities/real_dat"][2:] + 1j*par["file"]["GT/sensitivities/imag_dat"][2:]
 #    norm_coils = par["file"]["Coils_real"][...] + 1j*par["file"]["Coils_imag"][...]
+#    norm_coils = np.array((norm_coils[0],norm_coils[-2],norm_coils[-1]))
 ##    norm = np.sqrt(np.sum(np.abs(norm_coils)**2,0,keepdims=True))
 ##    norm_coils = (norm_coils)/norm
 ###    norm_coils = norm_coils/np.max(np.abs(norm_coils))
 ##    norm_coils = (norm_coils)/np.linalg.norm(norm_coils)*128
 ##    norm_coils = np.abs(norm_coils).astype(DTYPE)
-##
 #
-#    data = np.fft.fft2(images[:,None,...]*norm_coils,norm="ortho")
+#
+#    data = np.fft.fft2(images[:,None,...]*norm_coils)
+#    data = data+np.max(np.abs(data))*0.0001*(np.random.standard_normal(data.shape).astype(DTYPE_real)+1j*np.random.standard_normal(data.shape).astype(DTYPE_real))
 ##    del par["file"]["GT/sensitivities/real_dat"]
 ##    del par["file"]["GT/sensitivities/imag_dat"]
 #    del par["file"]["real_dat"]
@@ -259,7 +264,7 @@ def main(args):
       siz = np.shape(x)
       result = np.zeros((par["NC"],par["NSlice"],par["NScan"],\
                          par["dimY"],par["dimX"]),dtype=DTYPE)
-      tmp_result = clarray.zeros(fft.queue[0],(par["NScan"],1,1,\
+      tmp_result = clarray.empty(fft.queue[0],(par["NScan"],1,1,\
                                  par["dimY"],par["dimX"]),dtype=DTYPE)
       for j in range(siz[1]):
         for k in range(siz[2]):
@@ -272,7 +277,7 @@ def main(args):
 
     images= np.require(np.sum(nFTH(data,FFT,par)*(np.conj(par["C"])),axis = 1),\
                        requirements='C')
-    del FFT
+    del FFT, nFTH
 
 
     opt = Model_Reco.Model_Reco(par,args.trafo,\
@@ -335,20 +340,26 @@ def main(args):
 ################################################################################
 ## New .hdf5 save files ########################################################
 ################################################################################
-    outdir = time.strftime("%Y-%m-%d  %H-%M-%S_MRI_"+args.reg+"_"+args.type+"_"
-                           +name[:-3])
+#    outdir = time.strftime("%Y-%m-%d  %H-%M-%S_MRI_"+args.reg+"_"+args.type+"_"
+#                           +name[:-3])
+    outdir = "noise_prop_test"
     if not os.path.exists('./output'):
         os.makedirs('./output')
     os.makedirs("output/"+ outdir)
 
     os.chdir("output/"+ outdir)
     f = h5py.File("output_"+name,"w")
-
+    f.create_dataset("images_ifft_"+str(myiter),images.shape,dtype=DTYPE,data=images)
     if "TGV" in args.reg or args.reg=='all':
       for i in range(len(result_tgv)):
-        f.create_dataset("tgv_full_result_"+str(i),result_tgv[i].shape,\
+        f.create_dataset("tgv_full_result_"+str(myiter),result_tgv[i].shape,\
                                      dtype=DTYPE,data=result_tgv[i])
-        f.attrs['res_tgv'] = res_tgv
+        f.attrs['res_tgv'+str(myiter)] = res_tgv
+        for j in range(len(model.uk_scale)):
+          model.uk_scale[j] = 1
+        image_final = model.execute_forward(result_tgv[i][-1,...])
+        f.create_dataset("sim_images_"+str(myiter),image_final.shape,\
+                                     dtype=DTYPE,data=image_final)
     if "TV" in args.reg or args.reg=='all':
       for i in range(len(result_tv)):
         f.create_dataset("tv_full_result_"+str(i),result_tv[i].shape,\
@@ -373,9 +384,9 @@ if __name__ == '__main__':
                                      for TGV and TV.')
     parser.add_argument('--recon_type', default='3D', dest='type', help='Choose reconstruction type (currently only 3D)')
     parser.add_argument('--reg_type', default='TGV', dest='reg',  help="Choose regularization type (default: TGV) options are: TGV, TV, all")
-    parser.add_argument('--slices',default=8, dest='slices', type=int,  help='Number of reconstructed slices (default=40). Symmetrical around the center slice.')
+    parser.add_argument('--slices',default=1, dest='slices', type=int,  help='Number of reconstructed slices (default=40). Symmetrical around the center slice.')
     parser.add_argument('--trafo', default=1, dest='trafo', type=int, help='Choos between radial (1, default) and Cartesian (0) sampling. ')
-    parser.add_argument('--streamed', default=1, dest='streamed', type=int, help='Enable streaming of large data arrays (>10 slices).')
+    parser.add_argument('--streamed', default=0, dest='streamed', type=int, help='Enable streaming of large data arrays (>10 slices).')
     parser.add_argument('--data',default='',dest='file', help='Full path to input data. If not provided, a file dialog will open.')
     parser.add_argument('--model',default='VFA',dest='sig_model', help='Name of the signal model to use. Defaults to VFA. \
           Please put your signal model file in the Model subfolder.')
@@ -386,5 +397,5 @@ if __name__ == '__main__':
     parser.add_argument('--imagespace',default=0,dest='imagespace',type=int, help='Select if Reco is performed on images (1) or on kspace (0) data. \
           Defaults to 0')
     args = parser.parse_args()
-
-    main(args)
+    for i in range(100):
+      main(args,i)

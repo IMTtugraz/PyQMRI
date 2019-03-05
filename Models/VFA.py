@@ -40,12 +40,13 @@ class Model(BaseModel):
     self.cos_phi = np.cos(phi_corr)
 
     self.uk_scale.append(1/np.median(np.abs(images)))
+#    self.uk_scale.append(50)
     for j in range(unknowns_TGV+unknowns_H1-1):
       self.uk_scale.append(1)
 
-    self._set_init_scales()
+    self.guess = self._set_init_scales(images)
 
-    self.guess = np.array([1/self.uk_scale[0]*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE),1/self.uk_scale[1]*np.exp(-self.TR/(800*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)))],dtype=DTYPE)
+#    self.guess = np.array([1/self.uk_scale[0]*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE),1/self.uk_scale[1]*np.exp(-self.TR/(800*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)))],dtype=DTYPE)
 
 
     self.constraints.append(constraints(1e-4/self.uk_scale[0],10/self.uk_scale[0],False)  )
@@ -182,20 +183,24 @@ class Model(BaseModel):
            plt.pause(1e-10)
 
 
-  def _set_init_scales(self):
-    test_T1 = np.reshape(np.linspace(50,5500,self.dimX*self.dimY*self.NSlice),(self.NSlice,self.dimX,self.dimY))
-    test_M0 =np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
-    test_T1 = 1/self.uk_scale[1]*np.exp(-self.TR/(test_T1))
+  def _set_init_scales(self,images):
+    test_T1 = 1500*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)#np.reshape(np.linspace(50,5500,self.dimX*self.dimY*self.NSlice),(self.NSlice,self.dimX,self.dimY))
+    test_M0 = np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
+    test_T1 = np.exp(-self.TR/(test_T1))
 
 
-    G_x = self._execute_forward_3D(np.array([test_M0,test_T1],dtype=DTYPE))
-    self.uk_scale[0]*=1/np.median(np.abs(G_x))
+#    G_x = self._execute_forward_3D(np.array([test_M0,test_T1],dtype=DTYPE))
+#    self.uk_scale[0]*=1/np.median(np.abs(G_x))
 
     DG_x =  self._execute_gradient_3D(np.array([test_M0/self.uk_scale[0],test_T1],dtype=DTYPE))
-    self.uk_scale[1] = self.uk_scale[1]*np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...]))
 
-#    DG_x =  self._execute_gradient_3D(np.array([test_M0/self.uk_scale[0],test_T1],dtype=DTYPE))
-#    print('Grad Scaling init', np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...])))
-    print('T1 scale: ',self.uk_scale[1],
-                              '/ M0_scale: ',self.uk_scale[0])
-    return (test_M0, test_T1)
+    scale = np.reshape(DG_x,(unknowns_TGV+unknowns_H1,self.NScan*self.NSlice*self.dimY*self.dimX))
+    scale = np.linalg.norm(scale,axis=-1)
+    scale /= np.max(scale)
+    scale = 1/scale
+#    print(scale)
+    for j in range(unknowns_TGV+unknowns_H1):
+      self.uk_scale[j] *= scale[j]
+    print('T1 scale: ',self.uk_scale[1],  '/ M0_scale: ',self.uk_scale[0])
+    x = np.array([test_M0/self.uk_scale[0],test_T1/self.uk_scale[1]],dtype=DTYPE)
+    return x

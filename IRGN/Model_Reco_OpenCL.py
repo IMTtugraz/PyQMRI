@@ -49,21 +49,21 @@ class Model_Reco:
       self.operator_adjoint = self.operator_adjoint_imagespace
       self.operator_forward_full = self.operator_forward_full_imagespace
       self.operator_adjoint_full = self.operator_adjoint_full_imagespace
-      self.tmp_result = clarray.zeros(self.queue,(self.NScan,self.NSlice,self.dimY,self.dimX),DTYPE,"C")
+      self.tmp_result = clarray.empty(self.queue,(self.NScan,self.NSlice,self.dimY,self.dimX),DTYPE,"C")
     else:
       self.coil_buf = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.C.data)
       self.operator_forward = self.operator_forward_kspace
       self.operator_adjoint = self.operator_adjoint_kspace
       self.operator_forward_full = self.operator_forward_full_kspace
       self.operator_adjoint_full = self.operator_adjoint_full_kspace
-      self.tmp_sino = clarray.zeros(self.queue,(self.NScan,self.NC,self.NSlice,self.Nproj,self.N),DTYPE,"C")
-      self.tmp_result = clarray.zeros(self.queue,(self.NScan,self.NC,self.NSlice,self.dimY,self.dimX),DTYPE,"C")
+      self.tmp_sino = clarray.empty(self.queue,(self.NScan,self.NC,self.NSlice,self.Nproj,self.N),DTYPE,"C")
+      self.tmp_result = clarray.empty(self.queue,(self.NScan,self.NC,self.NSlice,self.dimY,self.dimX),DTYPE,"C")
       self.NUFFT = NUFFT.gridding(self.ctx,par["queue"],par,radial=trafo,SMS=SMS)
-      self.tmp_result = clarray.zeros(self.queue,(self.NScan,self.NC,self.NSlice,self.dimY,self.dimX),DTYPE,"C")
+      self.tmp_result = clarray.empty(self.queue,(self.NScan,self.NC,self.NSlice,self.dimY,self.dimX),DTYPE,"C")
       if SMS:
-        self.tmp_sino = clarray.zeros(self.queue,(self.NScan,self.NC,par["packs"],self.Nproj,self.N),DTYPE,"C")
+        self.tmp_sino = clarray.empty(self.queue,(self.NScan,self.NC,par["packs"],self.Nproj,self.N),DTYPE,"C")
       else:
-        self.tmp_sino = clarray.zeros(self.queue,(self.NScan,self.NC,self.NSlice,self.Nproj,self.N),DTYPE,"C")
+        self.tmp_sino = clarray.empty(self.queue,(self.NScan,self.NC,self.NSlice,self.Nproj,self.N),DTYPE,"C")
 
     self.prg = Program(self.ctx, open('./Kernels/OpenCL_Kernels.c').read())
     print("Please Set Parameters, Data and Initial images")
@@ -193,17 +193,20 @@ class Model_Reco:
   def set_scale(self,x):
     for j in range(x.shape[0]):
       self.ukscale[j] = np.linalg.norm(x[j,...])
-#      print('scale %f at uk %i' %(self.ukscale[j].get(),j))
-#    for j in range(x.shape[0]):
-#        self.ratio[j] = self.ukscale[j]/np.amax(self.ukscale.get())
-#        print('ratio %f at uk %i' %( self.ratio[j].get(),j))
+
+
     grad = clarray.to_device(self.queue,np.zeros_like(self.z1))
     x = clarray.to_device(self.queue,x)
     grad.add_event(self.f_grad(grad,x,wait_for=grad.events+x.events))
+    grad = grad.get()
+    scale = np.reshape(grad,(self.unknowns,self.NSlice*self.dimY*self.dimX*4))
+    scale = np.linalg.norm(scale,axis=-1)
+    scale /= np.max(scale)
+    print("Ratio: ",scale)
     for j in range(x.shape[0]):
-      scale = np.linalg.norm(grad[j,...].get())/np.linalg.norm(grad[0,...].get())
-      if np.isfinite(scale) and scale>1e-4:
-        self.ratio[j] = scale
+#      scale = np.linalg.norm(grad[j,...].get())/np.linalg.norm(grad[0,...].get())
+      if np.isfinite(scale[j]) and scale[j]>1e-4:
+        self.ratio[j] = 1/scale[j]
 ################################################################################
 ### Start a 3D Reconstruction, set TV to True to perform TV instead of TGV######
 ### Precompute Model and Gradient values for xk ################################
@@ -212,155 +215,76 @@ class Model_Reco:
 ### output: optimal value of x #################################################
 ################################################################################
   def execute_3D(self, TV=0):
-   self.FT = self.NUFFT.fwd_NUFFT# self.nFT
-   self.FTH = self.NUFFT.adj_NUFFT#self.nFTH
-   iters = self.irgn_par["start_iters"]
+    self.FT = self.NUFFT.fwd_NUFFT
+    self.FTH = self.NUFFT.adj_NUFFT
 
+    iters = self.irgn_par["start_iters"]
+    self.r = np.zeros_like(self.data,dtype=DTYPE)
+    self.z1 = np.zeros(([self.unknowns,self.NSlice,self.dimY,self.dimX,4]),dtype=DTYPE)
 
-   self.r = np.zeros_like(self.data,dtype=DTYPE)
-   self.z1 = np.zeros(([self.unknowns,self.NSlice,self.dimY,self.dimX,4]),dtype=DTYPE)
+    self.result = np.zeros((self.irgn_par["max_gn_it"]+1,self.unknowns,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
+    self.result[0,:,:,:,:] = np.copy(self.model.guess)
 
+    self.Coils3D = self.C
+    result = np.copy(self.model.guess)
 
-   self.result = np.zeros((self.irgn_par["max_gn_it"]+1,self.unknowns,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
-   self.result[0,:,:,:,:] = np.copy(self.model.guess)
-
-   self.Coils3D = self.C
-   result = np.copy(self.model.guess)
-
-   if TV==1:
-      for i in range(self.irgn_par["max_gn_it"]):
-        start = time.time()
-
-
-        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
-        scale = np.reshape(self.grad_x,(self.unknowns,self.NScan*self.NSlice*self.dimY*self.dimX))
-        scale = np.linalg.norm(scale,axis=-1)
-        scale /= np.max(scale)
-        scale = 1/scale
-        print(scale)
-        for uk in range(self.unknowns):
-          self.model.constraints[uk].update(scale[uk])
-          result[uk,...] *= self.model.uk_scale[uk]
-          self.grad_x[uk] /= self.model.uk_scale[uk]
-          self.model.uk_scale[uk]*=scale[uk]
-          result[uk,...] /= self.model.uk_scale[uk]
-          self.grad_x[uk] *= self.model.uk_scale[uk]
-
-        self.step_val = np.nan_to_num(self.model.execute_forward(result))
-#        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
-        self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x.data)
-        self.conj_grad_x = np.nan_to_num(np.conj(self.grad_x))
-
-        result = self.irgn_solve_3D(result, iters, self.data,TV)
-        self.result[i+1,...] = self.model.rescale(result)
-
-        iters = np.fmin(iters*2,self.irgn_par["max_iters"])
-        self.irgn_par["gamma"] = np.maximum(self.irgn_par["gamma"]*self.irgn_par["gamma_dec"],self.irgn_par["gamma_min"])
-        self.irgn_par["delta"] = np.minimum(self.irgn_par["delta"]*self.irgn_par["delta_inc"],self.irgn_par["delta_max"])
-        self.irgn_par["omega"] = np.maximum(self.irgn_par["omega"]*self.irgn_par["omega_dec"],self.irgn_par["omega_min"])
-
-        end = time.time()-start
-        self.gn_res.append(self.fval)
-        print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
-        print("-"*80)
-        if (np.abs(self.fval_min-self.fval) < self.irgn_par["lambd"]*self.irgn_par["tol"]) and i>0:
-          print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/(self.irgn_par["lambd"]*self.NSlice)))
-          break
-        if i==0:
-          self.fval_min = self.fval
-        self.fval_min = np.minimum(self.fval,self.fval_min)
-
-   elif TV==0:
+    if TV==1:
+      self.tau = np.float32(1/np.sqrt(8))
+      self.beta_line = 400
+      self.theta_line = np.float32(1.0)
+      pass
+    elif TV==0:
+      L = np.float32(0.5*(18.0 + np.sqrt(33)))
+      self.tau = np.float32(1/np.sqrt(L))
+      self.beta_line = 400
+      self.theta_line = np.float32(1.0)
       self.v = np.zeros(([self.unknowns_TGV,self.NSlice,self.dimY,self.dimX,4]),dtype=DTYPE)
       self.z2 = np.zeros(([self.unknowns_TGV,self.NSlice,self.dimY,self.dimX,8]),dtype=DTYPE)
-      for i in range(self.irgn_par["max_gn_it"]):
-        start = time.time()
-
-
-        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
-        scale = np.reshape(self.grad_x,(self.unknowns,self.NScan*self.NSlice*self.dimY*self.dimX))
-        scale = np.linalg.norm(scale,axis=-1)
-        scale /= np.max(scale)
-        scale = 1/scale
-        print(scale)
-        for uk in range(self.unknowns):
-          self.model.constraints[uk].update(scale[uk])
-          result[uk,...] *= self.model.uk_scale[uk]
-          self.grad_x[uk] /= self.model.uk_scale[uk]
-          self.model.uk_scale[uk]*=scale[uk]
-          result[uk,...] /= self.model.uk_scale[uk]
-          self.grad_x[uk] *= self.model.uk_scale[uk]
-
-        self.step_val = np.nan_to_num(self.model.execute_forward(result))
-#        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
-        self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x.data)
-
-        self.set_scale(result)
-
-        result = self.irgn_solve_3D(result, iters, self.data,TV)
-        self.result[i+1,...] = self.model.rescale(result)
-
-
-        iters = np.fmin(iters*2,self.irgn_par["max_iters"])
-        self.irgn_par["gamma"] = np.maximum(self.irgn_par["gamma"]*self.irgn_par["gamma_dec"],self.irgn_par["gamma_min"])
-        self.irgn_par["delta"] = np.minimum(self.irgn_par["delta"]*self.irgn_par["delta_inc"],self.irgn_par["delta_max"])
-        self.irgn_par["omega"] = np.maximum(self.irgn_par["omega"]*self.irgn_par["omega_dec"],self.irgn_par["omega_min"])
-
-        end = time.time()-start
-        self.gn_res.append(self.fval)
-        print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
-        print("-"*80)
-        if (np.abs(self.fval_min-self.fval) < self.irgn_par["lambd"]*self.irgn_par["tol"]) and i>0:
-          print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/(self.irgn_par["lambd"]*self.NSlice)))
-          break
-        if i==0:
-          self.fval_min = self.fval
-        self.fval_min = np.minimum(self.fval,self.fval_min)
-   else:
+    else:
       self.v = np.zeros(([self.unknowns,self.NSlice,self.dimY,self.dimX,4]),dtype=DTYPE)
       self.z2 = np.zeros(([self.unknowns,self.NSlice,self.dimY,self.dimX,8]),dtype=DTYPE)
-      for i in range(self.irgn_par["max_gn_it"]):
-        start = time.time()
+
+    for i in range(self.irgn_par["max_gn_it"]):
+      start = time.time()
+      self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
+      scale = np.reshape(self.grad_x,(self.unknowns,self.NScan*self.NSlice*self.dimY*self.dimX))
+      scale = np.linalg.norm(scale,axis=-1)
+      scale /= np.max(scale)
+      scale = 1/scale
+      print(scale)
+      for uk in range(self.unknowns):
+        self.model.constraints[uk].update(scale[uk])
+        result[uk,...] *= self.model.uk_scale[uk]
+        self.grad_x[uk] /= self.model.uk_scale[uk]
+        self.model.uk_scale[uk]*=scale[uk]
+        result[uk,...] /= self.model.uk_scale[uk]
+        self.grad_x[uk] *= self.model.uk_scale[uk]
+      self.irgn_par["lambd"] /=scale[0]**2
+
+      self.step_val = np.nan_to_num(self.model.execute_forward(result))
+      self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x.data)
+
+      self.set_scale(result)
+
+      result = self.irgn_solve_3D(result, iters, self.data,TV)
+      self.result[i+1,...] = self.model.rescale(result)
 
 
-        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
-        scale = np.reshape(self.grad_x,(self.unknowns,self.NScan*self.NSlice*self.dimY*self.dimX))
-        scale = np.linalg.norm(scale,axis=-1)
-        scale /= np.max(scale)
-        scale = 1/scale
-        print(scale)
-        for uk in range(self.unknowns):
-          self.model.constraints[uk].update(scale[uk])
-          result[uk,...] *= self.model.uk_scale[uk]
-          self.grad_x[uk] /= self.model.uk_scale[uk]
-          self.model.uk_scale[uk]*=scale[uk]
-          result[uk,...] /= self.model.uk_scale[uk]
-          self.grad_x[uk] *= self.model.uk_scale[uk]
+      iters = np.fmin(iters*2,self.irgn_par["max_iters"])
+      self.irgn_par["gamma"] = np.maximum(self.irgn_par["gamma"]*self.irgn_par["gamma_dec"],self.irgn_par["gamma_min"])
+      self.irgn_par["delta"] = np.minimum(self.irgn_par["delta"]*self.irgn_par["delta_inc"],self.irgn_par["delta_max"])
+      self.irgn_par["omega"] = np.maximum(self.irgn_par["omega"]*self.irgn_par["omega_dec"],self.irgn_par["omega_min"])
 
-        self.step_val = np.nan_to_num(self.model.execute_forward(result))
-#        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
-        self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x.data)
-        self.conj_grad_x = np.nan_to_num(np.conj(self.grad_x))
-
-        result = self.irgn_solve_3D(result, iters, self.data,TV)
-        self.result[i+1,...] = self.model.rescale(result)
-
-        iters = np.fmin(iters*2,self.irgn_par["max_iters"])
-        self.irgn_par["gamma"] = np.maximum(self.irgn_par["gamma"]*self.irgn_par["gamma_dec"],self.irgn_par["gamma_min"])
-        self.irgn_par["delta"] = np.minimum(self.irgn_par["delta"]*self.irgn_par["delta_inc"],self.irgn_par["delta_max"])
-        self.irgn_par["omega"] = np.maximum(self.irgn_par["omega"]*self.irgn_par["omega_dec"],self.irgn_par["omega_min"])
-
-        end = time.time()-start
-        self.gn_res.append(self.fval)
-        print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
-        print("-"*80)
-        if (np.abs(self.fval_min-self.fval) < self.irgn_par["lambd"]*self.irgn_par["tol"]) and i>0:
-          print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/(self.irgn_par["lambd"]*self.NSlice)))
-          break
-        if i==0:
-          self.fval_min = self.fval
-        self.fval_min = np.minimum(self.fval,self.fval_min)
-
+      end = time.time()-start
+      self.gn_res.append(self.fval)
+      print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
+      print("-"*80)
+      if (np.abs(self.fval_min-self.fval) < self.irgn_par["lambd"]*self.irgn_par["tol"]) and i>0:
+        print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/(self.irgn_par["lambd"]*self.NSlice)))
+        break
+      if i==0:
+        self.fval_min = self.fval
+      self.fval_min = np.minimum(self.fval,self.fval_min)
 
 ################################################################################
 ### Precompute constant terms of the GN linearization step #####################
@@ -372,15 +296,12 @@ class Model_Reco:
 ################################################################################
 ################################################################################
   def irgn_solve_3D(self,x,iters, data, TV=0):
+
     x_old = x
     x = clarray.to_device(self.queue,np.require(x,requirements="C"))
-    b = clarray.zeros(self.queue, data.shape,dtype=DTYPE)
-
+    b = clarray.empty(self.queue, data.shape,dtype=DTYPE)
     self.FT(b,clarray.to_device(self.queue,self.step_val[:,None,...]*self.Coils3D)).wait()
-
-
     res = data - b.get() + self.operator_forward(x).get()
-
 
     if TV==1:
       x = self.tv_solve_3D(x.get(),res,iters)
@@ -396,19 +317,11 @@ class Model_Reco:
               +self.irgn_par["omega"]/2*np.linalg.norm(grad[self.unknowns_TGV:])**2)
     elif TV==0:
        x = self.tgv_solve_3D(x.get(),res,iters)
-
        x = clarray.to_device(self.queue,x)
        v = clarray.to_device(self.queue,self.v)
-
        grad = clarray.to_device(self.queue,np.zeros_like(self.z1))
-
-
        sym_grad = clarray.to_device(self.queue,np.zeros_like(self.z2))
-
-
        grad.add_event(self.f_grad(grad,x,wait_for=grad.events+x.events))
-
-
        sym_grad.add_event(self.sym_grad(sym_grad,v,wait_for=sym_grad.events+v.events))
        x = x.get()
        grad = grad.get()
@@ -445,34 +358,37 @@ class Model_Reco:
     alpha = self.irgn_par["gamma"]
     beta = self.irgn_par["gamma"]*2
 
-    L = np.float32(0.5*(18.0 + np.sqrt(33)))
-    print('L: %f'%(L))
+#    L = np.float32(0.5*(18.0 + np.sqrt(33)))
+#    print('L: %f'%(L))
 
 
-    tau = np.float32(1/np.sqrt(L))
+    tau = self.tau#np.float32(1/np.sqrt(L))
+    print("Tau: ",tau)
     tau_new =np.float32(0)
 
 
     x = clarray.to_device(self.queue,x)
     xk = x.copy()
-    x_new = clarray.zeros_like(x)#x.copy()
+    x_new = clarray.empty_like(x)
 
-    r = clarray.to_device(self.queue,np.zeros_like(self.r))#np.zeros_like(res,dtype=DTYPE)
-    r_new = r.copy()#clarray.zeros_like(r)
-    z1 = clarray.to_device(self.queue,np.zeros_like(self.z1))#np.zeros(([self.unknowns,2,self.dimY,self.dimX]),dtype=DTYPE)
-    z1_new = z1.copy()#clarray.zeros_like(z1)#np.zeros(([self.unknowns,2,self.dimY,self.dimX]),dtype=DTYPE)
-    z2 = clarray.to_device(self.queue,np.zeros_like(self.z2))#np.zeros(([self.unknowns,3,self.dimY,self.dimX]),dtype=DTYPE)
-    z2_new = z2.copy()#clarray.zeros_like(z2)
-    v = clarray.to_device(self.queue,np.zeros_like(self.v))#np.zeros(([self.unknowns,2,self.dimY,self.dimX]),dtype=DTYPE)
-    v_new = v.copy()#clarray.zeros_like(v)
+    r = clarray.to_device(self.queue,np.zeros_like(self.r))
+    r_new = clarray.empty_like(r)
+    z1 = clarray.to_device(self.queue,np.zeros_like(self.z1))
+    z1_new = clarray.empty_like(z1)
+    z2 = clarray.to_device(self.queue,np.zeros_like(self.z2))
+    z2_new = clarray.empty_like(z2)
+    v = clarray.to_device(self.queue,np.zeros_like(self.v))
+    v_new = clarray.empty_like(v)
     res = clarray.to_device(self.queue, res.astype(DTYPE))
 
 
     delta = self.irgn_par["delta"]
     mu = 1/delta
 
-    theta_line = np.float32(1.0)
-    beta_line = np.float32(400)
+    theta_line = self.theta_line#np.float32(1.0)
+    print("Theta: ",theta_line)
+    beta_line = self.beta_line#np.float32(400)
+    print("Beta: ",beta_line)
     beta_new = np.float32(0)
     mu_line =np.float32( 0.5)
     delta_line = np.float32(1)
@@ -485,17 +401,17 @@ class Model_Reco:
     gap = np.float32(0.0)
     self.eval_const()
 
-    Kyk1 = clarray.zeros_like(x)
-    Kyk1_new = clarray.zeros_like(x)
-    Kyk2 = clarray.zeros_like(z1)
-    Kyk2_new = clarray.zeros_like(z1)
-    gradx = clarray.zeros_like(z1)
-    gradx_xold = clarray.zeros_like(z1)
-    symgrad_v = clarray.zeros_like(z2)
-    symgrad_v_vold = clarray.zeros_like(z2)
+    Kyk1 = clarray.empty_like(x)
+    Kyk1_new = clarray.empty_like(x)
+    Kyk2 = clarray.empty_like(z1)
+    Kyk2_new = clarray.empty_like(z1)
+    gradx = clarray.empty_like(z1)
+    gradx_xold = clarray.empty_like(z1)
+    symgrad_v = clarray.empty_like(z2)
+    symgrad_v_vold = clarray.empty_like(z2)
 
-    Axold = clarray.zeros_like(res)
-    Ax = clarray.zeros_like(res)
+    Axold = clarray.empty_like(res)
+    Ax = clarray.empty_like(res)
 
     Axold.add_event(self.operator_forward_full(Axold,x))   #### Q1
     Kyk1.add_event(self.operator_adjoint_full(Kyk1,r,z1))    #### Q2
@@ -539,7 +455,7 @@ class Model_Reco:
 
       (Kyk1, Kyk1_new, Kyk2, Kyk2_new, Axold, Ax, z1, z1_new, z2, z2_new, r, r_new) =\
       (Kyk1_new, Kyk1, Kyk2_new, Kyk2, Ax, Axold, z1_new, z1, z2_new, z2, r_new, r)
-      tau =  (tau_new)
+      tau =  np.copy(tau_new)
 
 
       if not np.mod(i,50):
@@ -593,6 +509,9 @@ class Model_Reco:
     self.r = r.get()
     self.z1 = z1.get()
     self.z2 = z2.get()
+    self.tau = tau
+    self.beta_line = beta_line
+    self.theta_line = theta_line
     return x.get()
 
   def tv_solve_3D(self, x,res, iters):
@@ -608,12 +527,12 @@ class Model_Reco:
     self.set_scale(x)
     x = clarray.to_device(self.queue,x)
     xk = x.copy()
-    x_new = clarray.zeros_like(x)
+    x_new = clarray.empty_like(x)
 
     r = clarray.to_device(self.queue,np.zeros_like(self.r))#np.zeros_like(res,dtype=DTYPE)
-    r_new  = clarray.zeros_like(r)
+    r_new  = clarray.empty_like(r)
     z1 = clarray.to_device(self.queue,np.zeros_like(self.z1))#np.zeros(([self.unknowns,2,self.dimY,self.dimX]),dtype=DTYPE)
-    z1_new = clarray.zeros_like(z1)#np.zeros(([self.unknowns,2,self.dimY,self.dimX]),dtype=DTYPE)
+    z1_new = clarray.empty_like(z1)#np.zeros(([self.unknowns,2,self.dimY,self.dimX]),dtype=DTYPE)
     res = clarray.to_device(self.queue, res.astype(DTYPE))
 
 
@@ -634,12 +553,12 @@ class Model_Reco:
     gap = np.float32(0.0)
     self.eval_const()
 
-    Kyk1 = clarray.zeros_like(x)
-    Kyk1_new = clarray.zeros_like(x)
-    gradx = clarray.zeros_like(z1)
-    gradx_xold = clarray.zeros_like(z1)
-    Axold = clarray.zeros_like(res)
-    Ax = clarray.zeros_like(res)
+    Kyk1 = clarray.empty_like(x)
+    Kyk1_new = clarray.empty_like(x)
+    gradx = clarray.empty_like(z1)
+    gradx_xold = clarray.empty_like(z1)
+    Axold = clarray.empty_like(res)
+    Ax = clarray.empty_like(res)
 
 
 
@@ -728,15 +647,15 @@ class Model_Reco:
     self.set_scale(x)
     x = clarray.to_device(self.queue,x)
     xk = x.copy()
-    x_new = clarray.zeros_like(x)
-    ATd = clarray.zeros_like(x)
+    x_new = clarray.empty_like(x)
+    ATd = clarray.empty_like(x)
 
     z1 = clarray.to_device(self.queue,self.z1)#np.zeros(([self.unknowns,2,self.dimY,self.dimX]),dtype=DTYPE)
-    z1_new = clarray.zeros_like(z1)#np.zeros(([self.unknowns,2,self.dimY,self.dimX]),dtype=DTYPE)
+    z1_new = clarray.empty_like(z1)#np.zeros(([self.unknowns,2,self.dimY,self.dimX]),dtype=DTYPE)
     z2 = clarray.to_device(self.queue,self.z2)#np.zeros(([self.unknowns,3,self.dimY,self.dimX]),dtype=DTYPE)
-    z2_new = clarray.zeros_like(z2)
+    z2_new = clarray.empty_like(z2)
     v = clarray.to_device(self.queue,self.v)#np.zeros(([self.unknowns,2,self.dimY,self.dimX]),dtype=DTYPE)
-    v_new = clarray.zeros_like(v)
+    v_new = clarray.empty_like(v)
     res = clarray.to_device(self.queue, res.astype(DTYPE))
 
 
@@ -763,16 +682,16 @@ class Model_Reco:
     gap = np.float32(0.0)
     self.eval_const()
 
-    Kyk1 = clarray.zeros_like(x)
-    Kyk1_new = clarray.zeros_like(x)
-    Kyk2 = clarray.zeros_like(z1)
-    Kyk2_new = clarray.zeros_like(z1)
-    gradx = clarray.zeros_like(z1)
-    gradx_xold = clarray.zeros_like(z1)
-    symgrad_v = clarray.zeros_like(z2)
-    symgrad_v_vold = clarray.zeros_like(z2)
+    Kyk1 = clarray.empty_like(x)
+    Kyk1_new = clarray.empty_like(x)
+    Kyk2 = clarray.empty_like(z1)
+    Kyk2_new = clarray.empty_like(z1)
+    gradx = clarray.empty_like(z1)
+    gradx_xold = clarray.empty_like(z1)
+    symgrad_v = clarray.empty_like(z2)
+    symgrad_v_vold = clarray.empty_like(z2)
 
-    AT = clarray.zeros_like(res)
+    AT = clarray.empty_like(res)
 
     AT.add_event(self.operator_forward_full(AT,x))   #### Q1
     ATd.add_event(self.operator_adjoint(ATd,res))

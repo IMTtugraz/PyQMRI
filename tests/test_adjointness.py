@@ -7,18 +7,19 @@ Created on Tue Jan 23 10:02:51 2018
 """
 import numpy as np
 
+
 DTYPE = np.complex64
 
-x = np.ones((10,6,20,216,216))
-data = np.ones((10,6,5,216,216))
+x = np.ones((10,2,256,256,4))
+data = np.ones((10,2,256,256,8))#,np.ones((10, 5, 10, 34, 512))
 
 
 xx = np.array((np.random.random_sample(np.shape(x))+1j*np.random.random_sample(np.shape(x)))).astype(DTYPE)
 ##xx[...,3:] = 0
 yy = np.array((np.random.random_sample(np.shape(data))+1j*np.random.random_sample(np.shape(data)))).astype(DTYPE)
 ##yy[...,6:] = 0
-#test1 = np.zeros_like(xx)
-#test2 = np.zeros_like(yy)
+test1 = np.zeros_like(xx)
+test2 = np.zeros_like(yy)
 
 
 #opt.operator_forward_full(test1,yy)
@@ -26,19 +27,19 @@ yy = np.array((np.random.random_sample(np.shape(data))+1j*np.random.random_sampl
 
 
 
-#test3 = gd.fdiv_3(np.transpose(yy,(1,-1,0,2,3)))
-#test4 = gd.sym_bgrad_3(np.transpose(xx,(1,-1,0,2,3)))
+opt.symgrad_streamed(test2,xx)
+opt.symdiv_streamed(test1,yy)
 
 #test3 = gd.bdiv_3(np.transpose(yy,(1,-1,0,2,3)))
 #test4 = gd.fgrad_3(np.transpose(xx,(1,0,2,3)))
 #
 #
 #
-##b = np.sum(np.conj((test2[...,0:3]))*yy[...,0:3]+2*np.conj(test2[...,3:6])*yy[...,3:6])
-#a = np.vdot(xx[...].flatten(),(-test1[...]).flatten())
+b = np.sum(np.conj((test2[...,0:3]))*yy[...,0:3]+2*np.conj(test2[...,3:6])*yy[...,3:6])
+a = np.vdot(xx[...].flatten(),(-test1[...]).flatten())
 #b = np.vdot(test2.flatten(),yy.flatten())
-#test = np.abs(a-b)
-#print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,(test)))
+test = np.abs(a-b)
+print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,(test)))
 #
 #test4 = np.transpose(test4,(2,0,3,4,1))
 #test3 = np.transpose(test3,(1,0,2,3))
