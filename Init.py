@@ -21,7 +21,7 @@ from helper_fun import utils
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
-def main(args):
+def main(args,myiter):
     sig_model = importlib.import_module("Models."+str(args.sig_model))
     if int(args.streamed)==1:
       import IRGN.Model_Reco_OpenCL_streamed as Model_Reco
@@ -73,7 +73,7 @@ def main(args):
 ##
 #    del par["file"]['Coils']
 ##
-##    data = data+np.max(np.abs(data))*0.0001*(np.random.standard_normal(data.shape).astype(DTYPE_real)+1j*np.random.standard_normal(data.shape).astype(DTYPE_real))
+    data = data+np.max(np.abs(data))*0.0001*(np.random.standard_normal(data.shape).astype(DTYPE_real)+1j*np.random.standard_normal(data.shape).astype(DTYPE_real))
 #
 ##    norm_coils = par["file"]["GT/sensitivities/real_dat"][2:] + 1j*par["file"]["GT/sensitivities/imag_dat"][2:]
 #    norm_coils = par["file"]["Coils_real"][...] + 1j*par["file"]["Coils_imag"][...]
@@ -211,7 +211,7 @@ def main(args):
 
     par["ctx"] = []
     par["queue"] = []
-    num_dev = len(platforms[par["Platform_Indx"]].get_devices())
+    num_dev = 1#len(platforms[par["Platform_Indx"]].get_devices())
     par["num_dev"] = num_dev
     for device in range(num_dev):
 #      tmp = cl.Context(
@@ -219,19 +219,19 @@ def main(args):
 #              properties=[(cl.context_properties.PLATFORM, \
 #                           platforms[par["Platform_Indx"]])])
       dev=[]
-      dev.append(platforms[par["Platform_Indx"]].get_devices()[device])
+      dev.append(platforms[par["Platform_Indx"]].get_devices()[device+1])
       tmp = cl.Context(dev)
       par["ctx"].append(tmp)
       par["queue"].append(cl.CommandQueue(tmp,\
-         platforms[par["Platform_Indx"]].get_devices()[device],\
+         platforms[par["Platform_Indx"]].get_devices()[device+1],\
          properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE |\
          cl.command_queue_properties.PROFILING_ENABLE))
       par["queue"].append(cl.CommandQueue(tmp, \
-         platforms[par["Platform_Indx"]].get_devices()[device],\
+         platforms[par["Platform_Indx"]].get_devices()[device+1],\
          properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE |\
          cl.command_queue_properties.PROFILING_ENABLE))
       par["queue"].append(cl.CommandQueue(tmp, \
-         platforms[par["Platform_Indx"]].get_devices()[device],\
+         platforms[par["Platform_Indx"]].get_devices()[device+1],\
          properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE |\
          cl.command_queue_properties.PROFILING_ENABLE))
 ################################################################################
@@ -341,24 +341,25 @@ def main(args):
 ################################################################################
 ## New .hdf5 save files ########################################################
 ################################################################################
-    outdir = time.strftime("%Y-%m-%d  %H-%M-%S_MRI_"+args.reg+"_"+args.type+"_"
-                           +name[:-3])
+#    outdir = time.strftime("%Y-%m-%d  %H-%M-%S_MRI_"+args.reg+"_"+args.type+"_"
+#                           +name[:-3])
+    outdir = "noise_prop_test"
     if not os.path.exists('./output'):
         os.makedirs('./output')
     os.makedirs("output/"+ outdir)
 
     os.chdir("output/"+ outdir)
     f = h5py.File("output_"+name,"w")
-    f.create_dataset("images_ifft",images.shape,dtype=DTYPE,data=images)
+    f.create_dataset("images_ifft_"+str(myiter),images.shape,dtype=DTYPE,data=images)
     if "TGV" in args.reg or args.reg=='all':
       for i in range(len(result_tgv)):
-        f.create_dataset("tgv_full_result_"+str(i),result_tgv[i].shape,\
+        f.create_dataset("tgv_full_result_"+str(myiter),result_tgv[i].shape,\
                                      dtype=DTYPE,data=result_tgv[i])
-        f.attrs['res_tgv'] = res_tgv
+        f.attrs['res_tgv'+str(myiter)] = res_tgv
         for j in range(len(model.uk_scale)):
           model.uk_scale[j] = 1
         image_final = model.execute_forward(result_tgv[i][-1,...])
-        f.create_dataset("sim_images_"+str(i),image_final.shape,\
+        f.create_dataset("sim_images_"+str(myiter),image_final.shape,\
                                      dtype=DTYPE,data=image_final)
     if "TV" in args.reg or args.reg=='all':
       for i in range(len(result_tv)):
@@ -385,10 +386,10 @@ if __name__ == '__main__':
     parser.add_argument('--recon_type', default='3D', dest='type', help='Choose reconstruction type (currently only 3D)')
     parser.add_argument('--reg_type', default='TGV', dest='reg',  help="Choose regularization type (default: TGV) options are: TGV, TV, all")
     parser.add_argument('--slices',default=1, dest='slices', type=int,  help='Number of reconstructed slices (default=40). Symmetrical around the center slice.')
-    parser.add_argument('--trafo', default=0, dest='trafo', type=int, help='Choos between radial (1, default) and Cartesian (0) sampling. ')
+    parser.add_argument('--trafo', default=1, dest='trafo', type=int, help='Choos between radial (1, default) and Cartesian (0) sampling. ')
     parser.add_argument('--streamed', default=0, dest='streamed', type=int, help='Enable streaming of large data arrays (>10 slices).')
     parser.add_argument('--data',default='',dest='file', help='Full path to input data. If not provided, a file dialog will open.')
-    parser.add_argument('--model',default='VFA_michael',dest='sig_model', help='Name of the signal model to use. Defaults to VFA. \
+    parser.add_argument('--model',default='VFA',dest='sig_model', help='Name of the signal model to use. Defaults to VFA. \
           Please put your signal model file in the Model subfolder.')
     parser.add_argument('--config',default='test',dest='config', help='Name of config file to use (assumed to be in the same folder). \
           If not specified, use default parameters.')
@@ -397,5 +398,5 @@ if __name__ == '__main__':
     parser.add_argument('--imagespace',default=1,dest='imagespace',type=int, help='Select if Reco is performed on images (1) or on kspace (0) data. \
           Defaults to 0')
     args = parser.parse_args()
-
-    main(args)
+    for i in range(100):
+      main(args,i)
