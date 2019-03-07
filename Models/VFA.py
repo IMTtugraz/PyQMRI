@@ -53,6 +53,14 @@ class Model(BaseModel):
     self.constraints.append(constraints(np.exp(-self.TR/(50))/self.uk_scale[1],np.exp(-self.TR/(5500))/self.uk_scale[1],True))
 
 
+  def rescale(self,x):
+    tmp_x = np.copy(x)
+    for i in range(x.shape[0]):
+      tmp_x[i]*=self.uk_scale[i]
+    tmp_x[1] = -self.TR/np.log(tmp_x[1])
+    return tmp_x
+
+
   def _execute_forward_2D(self,x,islice):
     print('uk_scale[1]: ',self.uk_scale[1])
     E1 = x[1,...]*self.uk_scale[1]

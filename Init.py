@@ -21,7 +21,7 @@ from helper_fun import utils
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
-def main(args,myiter):
+def main(args):
     sig_model = importlib.import_module("Models."+str(args.sig_model))
     if int(args.streamed)==1:
       import IRGN.Model_Reco_OpenCL_streamed as Model_Reco
@@ -73,7 +73,9 @@ def main(args,myiter):
 ##
 #    del par["file"]['Coils']
 ##
-    data = data+np.max(np.abs(data))*0.0001*(np.random.standard_normal(data.shape).astype(DTYPE_real)+1j*np.random.standard_normal(data.shape).astype(DTYPE_real))
+    data = data+np.max(np.abs(data))*0.0003*(np.random.standard_normal(data.shape).astype(DTYPE_real)+1j*np.random.standard_normal(data.shape).astype(DTYPE_real))
+    for j in range(data.shape[1]):
+      data[:,j,...] = data[:,j,...]+np.max(np.abs(data))*0.0003*(np.random.standard_normal(data[:,0].shape).astype(DTYPE_real)+1j*np.random.standard_normal(data[:,0].shape).astype(DTYPE_real))
 #
 ##    norm_coils = par["file"]["GT/sensitivities/real_dat"][2:] + 1j*par["file"]["GT/sensitivities/imag_dat"][2:]
 #    norm_coils = par["file"]["Coils_real"][...] + 1j*par["file"]["Coils_imag"][...]
@@ -342,23 +344,24 @@ def main(args,myiter):
 ################################################################################
 #    outdir = time.strftime("%Y-%m-%d  %H-%M-%S_MRI_"+args.reg+"_"+args.type+"_"
 #                           +name[:-3])
-    outdir = "noise_prop_test"
+    outdir = "noise_prop_test_coils"
     if not os.path.exists('./output'):
         os.makedirs('./output')
-    os.makedirs("output/"+ outdir)
-
+    if not os.path.exists('./output/'+ outdir):
+        os.makedirs("output/"+ outdir)
+    cwd = os.getcwd()
     os.chdir("output/"+ outdir)
-    f = h5py.File("output_"+name,"w")
-    f.create_dataset("images_ifft_"+str(myiter),images.shape,dtype=DTYPE,data=images)
+    f = h5py.File("output_"+name)
+    f.create_dataset("images_ifft_"+str(args.iter),images.shape,dtype=DTYPE,data=images)
     if "TGV" in args.reg or args.reg=='all':
       for i in range(len(result_tgv)):
-        f.create_dataset("tgv_full_result_"+str(myiter),result_tgv[i].shape,\
+        f.create_dataset("tgv_full_result_"+str(args.iter),result_tgv[i].shape,\
                                      dtype=DTYPE,data=result_tgv[i])
-        f.attrs['res_tgv'+str(myiter)] = res_tgv
+        f.attrs['res_tgv'+str(args.iter)] = res_tgv
         for j in range(len(model.uk_scale)):
           model.uk_scale[j] = 1
         image_final = model.execute_forward(result_tgv[i][-1,...])
-        f.create_dataset("sim_images_"+str(myiter),image_final.shape,\
+        f.create_dataset("sim_images_"+str(args.iter),image_final.shape,\
                                      dtype=DTYPE,data=image_final)
     if "TV" in args.reg or args.reg=='all':
       for i in range(len(result_tv)):
@@ -374,9 +377,7 @@ def main(args,myiter):
       f.attrs['data_norm'] = dscale
       f.flush()
     f.close()
-
-    os.chdir('..')
-    os.chdir('..')
+    os.chdir(cwd)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='T1 quantification from VFA \
@@ -396,6 +397,6 @@ if __name__ == '__main__':
           Can only be used with Cartesian sampling.')
     parser.add_argument('--imagespace',default=0,dest='imagespace',type=int, help='Select if Reco is performed on images (1) or on kspace (0) data. \
           Defaults to 0')
+    parser.add_argument('--iter',default=0,dest='iter',type=int,help="Iteration number from a bash script. Only for statistical analysis")
     args = parser.parse_args()
-    for i in range(100):
-      main(args,i)
+    main(args)
