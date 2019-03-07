@@ -61,10 +61,10 @@ class Model(BaseModel):
 
     self.constraints.append(constraints(0,1e6/self.uk_scale[0],False)  )
     self.constraints.append(constraints(0/self.uk_scale[1],100/self.uk_scale[1],True))
-    self.constraints.append(constraints(1/60/self.uk_scale[2],20/self.uk_scale[2],True))
+    self.constraints.append(constraints((self.TR/60)/self.uk_scale[2],20/self.uk_scale[2],True))
     self.constraints.append(constraints(1e-4/self.uk_scale[3],3/self.uk_scale[3],True))
 
-    self.constraints.append(constraints(1/60/self.uk_scale[4],3/self.uk_scale[4],True))
+    self.constraints.append(constraints((self.TR/60)/self.uk_scale[4],3/self.uk_scale[4],True))
     self.constraints.append(constraints(0/self.uk_scale[5],1/self.uk_scale[5],True))
 #    self.constraints.append(constraints(1e-4/self.uk_scale[6],3/self.uk_scale[6],True))
 #    self.constraints.append(constraints(0/self.uk_scale[7],100/self.uk_scale[7],True))
@@ -286,9 +286,9 @@ class Model(BaseModel):
            plt.pause(1e-10)
 
 
-           self.time_course = self.ax[57].plot(self.t,np.abs(images[:,0,40,26]),'r')[0]
-           self.time_course_ref = self.ax[57].plot(self.t,np.abs(self.images[:,0,40,26]),'g')[0]
-           self.ax[57].set_ylim(np.abs(self.images[:,0,40,26]).min()-np.abs(self.images[:,0,40,26]).min()*0.01, np.abs(self.images[:,0,40,26]).max()+np.abs(self.images[:,0,40,26]).max()*0.01)
+           self.time_course = self.ax[57].plot(self.t,np.abs(images[:,0,82,52]),'r')[0]
+           self.time_course_ref = self.ax[57].plot(self.t,np.abs(self.images[:,0,82,52]),'g')[0]
+           self.ax[57].set_ylim(np.abs(self.images[:,0,82,52]).min()-np.abs(self.images[:,0,82,52]).min()*0.01, np.abs(self.images[:,0,82,52]).max()+np.abs(self.images[:,0,82,52]).max()*0.01)
            plt.draw()
            plt.pause(1e-10)
 
@@ -343,8 +343,8 @@ class Model(BaseModel):
            self.tau_plot_cor.set_clim([tau_min,tau_max])
 
 
-           self.time_course.set_ydata(np.abs(images[:,0,40,26]))
-           self.ax[57].set_ylim(np.abs(self.images[:,0,40,26]).min()-np.abs(self.images[:,0,40,26]).min()*0.01, np.abs(self.images[:,0,40,26]).max()+np.abs(self.images[:,0,40,26]).max()*0.01)
+           self.time_course.set_ydata(np.abs(images[:,0,82,52]))
+           self.ax[57].set_ylim(np.abs(self.images[:,0,82,52]).min()-np.abs(self.images[:,0,82,52]).min()*0.01, np.abs(self.images[:,0,82,52]).max()+np.abs(self.images[:,0,82,52]).max()*0.01)
            plt.draw()
            plt.pause(1e-10)
 
@@ -660,19 +660,20 @@ class Model(BaseModel):
     self.mask[self.tau<1e-4] = 0
 
 
-    test_M0 =0.3*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask
+#    test_M0 =0.3*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask
+    test_M0 =0.01*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask
 #    print(0.01*dscale**2*self.dimX)
 
-    FP = 0.1*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
+    FP = 0.5*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
     Te = 1*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[6][...]#5*np.ones((NSlice,dimY,dimX),dtype=DTYPE)#
 #    Te[Te<1/60] = 1/60
-    alpha = 0.7*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[7][...]#
+    alpha = 0.2*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[7][...]#
 #    alpha[alpha<1e-4] = 1e-4
 #    A_B = 50000*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
 #    mu_B = 10*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
 #    A_G = 500*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
 #    mu_G = 0.1*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
-    Tc = 0.3*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
+    Tc = 1/6*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
     tau = 0.5*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
 
     x = np.array([test_M0,FP,Te,alpha,Tc,tau],dtype=DTYPE)

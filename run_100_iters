@@ -1,0 +1,6 @@
+#!/bin/bash
+((iter=0;iter<100;iter++))
+{
+  python Init.py --data=./data/VFA_noise_noise_test.h5 --slices=1 --model=VFA --trafo=1 --iter=iter
+}
+

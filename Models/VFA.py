@@ -39,9 +39,9 @@ class Model(BaseModel):
     self.sin_phi = np.sin(phi_corr)
     self.cos_phi = np.cos(phi_corr)
 
-    self.uk_scale.append(1/np.median(np.abs(images)))
+#    self.uk_scale.append(1/np.median(np.abs(images)))
 #    self.uk_scale.append(50)
-    for j in range(unknowns_TGV+unknowns_H1-1):
+    for j in range(unknowns_TGV+unknowns_H1):
       self.uk_scale.append(1)
 
     self.guess = self._set_init_scales(images)
@@ -50,8 +50,8 @@ class Model(BaseModel):
 
 
     self.constraints.append(constraints(1e-4/self.uk_scale[0],10/self.uk_scale[0],False)  )
-    self.constraints.append(constraints(np.exp(-self.TR/(50))/self.uk_scale[1],np.exp(-self.TR/(5500))/self.uk_scale[1],True))
-
+#    self.constraints.append(constraints(np.exp(-self.TR/(50))/self.uk_scale[1],np.exp(-self.TR/(5500))/self.uk_scale[1],True))
+    self.constraints.append(constraints(50/self.uk_scale[1],5500/self.uk_scale[1],True))
 
   def _execute_forward_2D(self,x,islice):
     print('uk_scale[1]: ',self.uk_scale[1])
@@ -72,20 +72,40 @@ class Model(BaseModel):
 #    print('Grad Scaling', np.linalg.norm(np.abs(grad_M0))/np.linalg.norm(np.abs(grad_T1)))
     return grad
 
+#  def _execute_forward_3D(self,x):
+##    print('uk_scale[1]: ',self.uk_scale[1])
+#    E1 = x[1,...]*self.uk_scale[1]
+#    S = x[0,:,:]*self.uk_scale[0]*(-E1 + 1)*self.sin_phi/(-E1*self.cos_phi + 1)
+#    S[~np.isfinite(S)] = 1e-20
+#    S = np.array(S,dtype=DTYPE)
+#    return S
+#  def _execute_gradient_3D(self,x):
+#    E1 = x[1,:,:]*self.uk_scale[1]
+#    M0 = x[0,...]
+#    E1[~np.isfinite(E1)] = 0
+#    grad_M0 = self.uk_scale[0]*(-E1 + 1)*self.sin_phi/(-E1*self.cos_phi + 1)
+#    grad_T1 = M0*self.uk_scale[0]*self.uk_scale[1]*(-E1 + 1)*self.sin_phi*self.cos_phi/(-E1*self.cos_phi + 1)**2 -\
+#    M0*self.uk_scale[0]*self.uk_scale[1]*self.sin_phi/(-E1*self.cos_phi + 1)
+#    grad = np.array([grad_M0,grad_T1],dtype=DTYPE)
+#    grad[~np.isfinite(grad)] = 1e-20
+##    print('Grad Scaling', np.linalg.norm(np.abs(grad_M0))/np.linalg.norm(np.abs(grad_T1)))
+#    return grad
+
+
   def _execute_forward_3D(self,x):
 #    print('uk_scale[1]: ',self.uk_scale[1])
-    E1 = x[1,...]*self.uk_scale[1]
+    E1 = np.exp(-self.TR/(x[1,...]*self.uk_scale[1]))
     S = x[0,:,:]*self.uk_scale[0]*(-E1 + 1)*self.sin_phi/(-E1*self.cos_phi + 1)
     S[~np.isfinite(S)] = 1e-20
     S = np.array(S,dtype=DTYPE)
     return S
   def _execute_gradient_3D(self,x):
-    E1 = x[1,:,:]*self.uk_scale[1]
+    E1 = np.exp(-self.TR/(x[1,...]*self.uk_scale[1]))
     M0 = x[0,...]
     E1[~np.isfinite(E1)] = 0
     grad_M0 = self.uk_scale[0]*(-E1 + 1)*self.sin_phi/(-E1*self.cos_phi + 1)
-    grad_T1 = M0*self.uk_scale[0]*self.uk_scale[1]*(-E1 + 1)*self.sin_phi*self.cos_phi/(-E1*self.cos_phi + 1)**2 -\
-    M0*self.uk_scale[0]*self.uk_scale[1]*self.sin_phi/(-E1*self.cos_phi + 1)
+    grad_T1 = -M0*self.uk_scale[0]*self.TR*E1*self.sin_phi/(self.uk_scale[1]*x[1,...]**2*(1 - E1*self.cos_phi)) +\
+               M0*self.uk_scale[0]*self.TR*(1 - E1)*E1*self.sin_phi*self.cos_phi/(self.uk_scale[1]*x[1,...]**2*(1 - E1*self.cos_phi)**2)
     grad = np.array([grad_M0,grad_T1],dtype=DTYPE)
     grad[~np.isfinite(grad)] = 1e-20
 #    print('Grad Scaling', np.linalg.norm(np.abs(grad_M0))/np.linalg.norm(np.abs(grad_T1)))
@@ -94,7 +114,8 @@ class Model(BaseModel):
 
   def plot_unknowns(self,x,dim_2D=False):
       M0 = np.abs(x[0,...]*self.uk_scale[0])
-      T1 = np.abs(-self.TR/np.log(x[1,...]*self.uk_scale[1]))
+#      T1 = np.abs(-self.TR/np.log(x[1,...]*self.uk_scale[1]))
+      T1 = np.abs(x[1,...]*self.uk_scale[1])
       M0_min = M0.min()
       M0_max = M0.max()
       T1_min = T1.min()
@@ -185,8 +206,8 @@ class Model(BaseModel):
 
   def _set_init_scales(self,images):
     test_T1 = 1500*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)#np.reshape(np.linspace(50,5500,self.dimX*self.dimY*self.NSlice),(self.NSlice,self.dimX,self.dimY))
-    test_M0 = np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
-    test_T1 = np.exp(-self.TR/(test_T1))
+    test_M0 = 1/np.median(np.abs(images))*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
+#    test_T1 = np.exp(-self.TR/(test_T1))
 
 
 #    G_x = self._execute_forward_3D(np.array([test_M0,test_T1],dtype=DTYPE))

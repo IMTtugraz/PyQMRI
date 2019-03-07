@@ -792,135 +792,78 @@ class Model_Reco:
 ### output: optimal value of x #################################################
 ################################################################################
   def execute_3D_imagespace(self, TV=0):
-   iters = self.irgn_par["start_iters"]
-   self.NC=1
-   self.N = self.dimX
-   self.Nproj = self.dimY
+    iters = self.irgn_par["start_iters"]
+    self.NC=1
+    self.N = self.dimX
+    self.Nproj = self.dimY
 
 
-   self.r = np.zeros_like(self.data,dtype=DTYPE)
-   self.z1 = np.zeros(([self.unknowns,self.NSlice,self.dimY,self.dimX,4]),dtype=DTYPE)
+    self.r = np.zeros_like(self.data,dtype=DTYPE)
+    self.z1 = np.zeros(([self.unknowns,self.NSlice,self.dimY,self.dimX,4]),dtype=DTYPE)
 
 
-   self.result = np.zeros((self.irgn_par["max_gn_it"]+1,self.unknowns,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
-   self.result[0,:,:,:,:] = np.copy(self.model.guess)
+    self.result = np.zeros((self.irgn_par["max_gn_it"]+1,self.unknowns,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
+    self.result[0,:,:,:,:] = self.model.rescale(self.model.guess)
 
-   result = np.copy(self.model.guess)
-   if TV==1:
-      for i in range(self.irgn_par["max_gn_it"]):
-        start = time.time()
-        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
+    result = np.copy(self.model.guess)
 
-        for uk in range(self.unknowns-1):
-          scale = np.linalg.norm(np.abs(self.grad_x[0,...]))/np.linalg.norm(np.abs(self.grad_x[uk+1,...]))
-          self.model.constraints[uk+1].update(scale)
-          result[uk+1,...] = result[uk+1,...]*self.model.uk_scale[uk+1]
-          self.model.uk_scale[uk+1] = self.model.uk_scale[uk+1]*scale
-          result[uk+1,...] = result[uk+1,...]/self.model.uk_scale[uk+1]
-
-        self.step_val = np.nan_to_num(self.model.execute_forward(result))
-        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
-        self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x.data)
-
-        result = self.irgn_solve_3D_imagespace(result, iters, self.data,TV)
-        self.result[i+1,...] = self.model.rescale(result)
-
-        iters = np.fmin(iters*2,self.irgn_par["max_iters"])
-        self.irgn_par["gamma"] = np.maximum(self.irgn_par["gamma"]*self.irgn_par["gamma_dec"],self.irgn_par["gamma_min"])
-        self.irgn_par["delta"] = np.minimum(self.irgn_par["delta"]*self.irgn_par["delta_inc"],self.irgn_par["delta_max"])
-        self.irgn_par["omega"] = np.maximum(self.irgn_par["omega"]*self.irgn_par["omega_dec"],self.irgn_par["omega_min"])
-
-        end = time.time()-start
-        self.gn_res.append(self.fval)
-        print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
-        print("-"*80)
-        if (np.abs(self.fval_min-self.fval) < self.irgn_par["lambd"]*self.irgn_par["tol"]) and i>0:
-          print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/(self.irgn_par["lambd"]*self.NSlice)))
-          break
-        if i==0:
-          self.fval_min = self.fval
-        self.fval_min = np.minimum(self.fval,self.fval_min)
-
-   elif TV==0:
+    if TV==1:
+      self.tau = np.float32(1/np.sqrt(8))
+      self.beta_line = 400
+      self.theta_line = np.float32(1.0)
+      pass
+    elif TV==0:
+      L = np.float32(0.5*(18.0 + np.sqrt(33)))
+      self.tau = np.float32(1/np.sqrt(L))
+      self.beta_line = 400
+      self.theta_line = np.float32(1.0)
       self.v = np.zeros(([self.unknowns_TGV,self.NSlice,self.dimY,self.dimX,4]),dtype=DTYPE)
       self.z2 = np.zeros(([self.unknowns_TGV,self.NSlice,self.dimY,self.dimX,8]),dtype=DTYPE)
-      for i in range(self.irgn_par["max_gn_it"]):
-        start = time.time()
-
-
-        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
-
-        for uk in range(self.unknowns-1):
-          scale = np.linalg.norm(np.abs(self.grad_x[0,...].flatten()))/np.linalg.norm(np.abs(self.grad_x[uk+1,...].flatten()))
-          self.model.constraints[uk+1].update(scale)
-          result[uk+1,...] *= self.model.uk_scale[uk+1]
-          self.model.uk_scale[uk+1]*=scale
-          result[uk+1,...] /= self.model.uk_scale[uk+1]
-
-        self.step_val = np.nan_to_num(self.model.execute_forward(result))
-        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
-        self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x.data)
-
-        self.set_scale(result)
-
-        result = self.irgn_solve_3D_imagespace(result, iters, self.data,TV)
-        self.result[i+1,...] = self.model.rescale(result)
-
-
-        iters = np.fmin(iters*2,self.irgn_par["max_iters"])
-        self.irgn_par["gamma"] = np.maximum(self.irgn_par["gamma"]*self.irgn_par["gamma_dec"],self.irgn_par["gamma_min"])
-        self.irgn_par["delta"] = np.minimum(self.irgn_par["delta"]*self.irgn_par["delta_inc"],self.irgn_par["delta_max"])
-        self.irgn_par["omega"] = np.maximum(self.irgn_par["omega"]*self.irgn_par["omega_dec"],self.irgn_par["omega_min"])
-
-        end = time.time()-start
-        self.gn_res.append(self.fval)
-        print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
-        print("-"*80)
-        if (np.abs(self.fval_min-self.fval) < self.irgn_par["lambd"]*self.irgn_par["tol"]) and i>0:
-          print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/(self.irgn_par["lambd"]*self.NSlice)))
-          break
-        if i==0:
-          self.fval_min = self.fval
-        self.fval_min = np.minimum(self.fval,self.fval_min)
-   else:
+    else:
       self.v = np.zeros(([self.unknowns,self.NSlice,self.dimY,self.dimX,4]),dtype=DTYPE)
       self.z2 = np.zeros(([self.unknowns,self.NSlice,self.dimY,self.dimX,8]),dtype=DTYPE)
-      for i in range(self.irgn_par["max_gn_it"]):
-        start = time.time()
-        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
+
+    for i in range(self.irgn_par["max_gn_it"]):
+      start = time.time()
+      self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
+      scale = np.reshape(self.grad_x,(self.unknowns,self.NScan*self.NSlice*self.dimY*self.dimX))
+      scale = np.linalg.norm(scale,axis=-1)
+      scale /= np.max(scale)
+      scale = 1/scale
+      print(scale)
+      for uk in range(self.unknowns):
+        self.model.constraints[uk].update(scale[uk])
+        result[uk,...] *= self.model.uk_scale[uk]
+        self.grad_x[uk] /= self.model.uk_scale[uk]
+        self.model.uk_scale[uk]*=scale[uk]
+        result[uk,...] /= self.model.uk_scale[uk]
+        self.grad_x[uk] *= self.model.uk_scale[uk]
+      self.irgn_par["lambd"] /=scale[0]**2
+
+      self.step_val = np.nan_to_num(self.model.execute_forward(result))
+      self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x.data)
+
+      self.set_scale(result)
+
+      result = self.irgn_solve_3D_imagespace(result, iters, self.data,TV)
+      self.result[i+1,...] = self.model.rescale(result)
 
 
-        for j in range(len(self.model.constraints)-1):
-          scale = np.linalg.norm(np.abs(self.grad_x[0,...]))/np.linalg.norm(np.abs(self.grad_x[j+1,...]))
-          self.model.constraints[j+1].update(scale)
-          result[j+1,...] = result[j+1,...]*self.model.T1_sc
-          self.model.T1_sc = self.model.T1_sc*(scale)
-          result[j+1,...] = result[j+1,...]/self.model.T1_sc
+      iters = np.fmin(iters*2,self.irgn_par["max_iters"])
+      self.irgn_par["gamma"] = np.maximum(self.irgn_par["gamma"]*self.irgn_par["gamma_dec"],self.irgn_par["gamma_min"])
+      self.irgn_par["delta"] = np.minimum(self.irgn_par["delta"]*self.irgn_par["delta_inc"],self.irgn_par["delta_max"])
+      self.irgn_par["omega"] = np.maximum(self.irgn_par["omega"]*self.irgn_par["omega_dec"],self.irgn_par["omega_min"])
 
-        self.step_val = np.nan_to_num(self.model.execute_forward(result))
-        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
-        self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x.data)
-        self.conj_grad_x = np.nan_to_num(np.conj(self.grad_x))
-
-        result = self.irgn_solve_3D_imagespace(result, iters, self.data,TV)
-        self.result[i+1,...] = self.model.rescale(result)
-
-        iters = np.fmin(iters*2,self.irgn_par["max_iters"])
-        self.irgn_par["gamma"] = np.maximum(self.irgn_par["gamma"]*self.irgn_par["gamma_dec"],self.irgn_par["gamma_min"])
-        self.irgn_par["delta"] = np.minimum(self.irgn_par["delta"]*self.irgn_par["delta_inc"],self.irgn_par["delta_max"])
-        self.irgn_par["omega"] = np.maximum(self.irgn_par["omega"]*self.irgn_par["omega_dec"],self.irgn_par["omega_min"])
-
-        end = time.time()-start
-        self.gn_res.append(self.fval)
-        print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
-        print("-"*80)
-        if (np.abs(self.fval_min-self.fval) < self.irgn_par["lambd"]*self.irgn_par["tol"]) and i>0:
-          print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/(self.irgn_par["lambd"]*self.NSlice)))
-          break
-        if i==0:
-          self.fval_min = self.fval
-        self.fval_min = np.minimum(self.fval,self.fval_min)
-
+      end = time.time()-start
+      self.gn_res.append(self.fval)
+      print("GN-Iter: %d  Elapsed time: %f seconds" %(i,end))
+      print("-"*80)
+      if (np.abs(self.fval_min-self.fval) < self.irgn_par["lambd"]*self.irgn_par["tol"]) and i>0:
+        print("Terminated at GN-iteration %d because the energy decrease was less than %.3e"%(i,np.abs(self.fval_min-self.fval)/(self.irgn_par["lambd"]*self.NSlice)))
+        break
+      if i==0:
+        self.fval_min = self.fval
+      self.fval_min = np.minimum(self.fval,self.fval_min)
 
 ################################################################################
 ### Precompute constant terms of the GN linearization step #####################

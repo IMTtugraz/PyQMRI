@@ -279,6 +279,7 @@ def main(args):
                        requirements='C')
     del FFT, nFTH
 
+    images = par["file"]["GT/SI"][()]
 
     opt = Model_Reco.Model_Reco(par,args.trafo,\
                                 imagespace=args.imagespace,SMS=args.sms)
@@ -393,7 +394,7 @@ if __name__ == '__main__':
           If not specified, use default parameters.')
     parser.add_argument('--sms',default=0, dest='sms', type=int,  help='Simultanious Multi Slice, defaults to off (0). \
           Can only be used with Cartesian sampling.')
-    parser.add_argument('--imagespace',default=0,dest='imagespace',type=int, help='Select if Reco is performed on images (1) or on kspace (0) data. \
+    parser.add_argument('--imagespace',default=1,dest='imagespace',type=int, help='Select if Reco is performed on images (1) or on kspace (0) data. \
           Defaults to 0')
     args = parser.parse_args()
 

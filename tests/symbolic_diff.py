@@ -14,8 +14,8 @@ M0, M0_sc, T1,T1_sc,T2,T2_sc,TR,fa,fa_corr,n,TE = symbols('M0,M0_sc,T1,R10,T2,T2
 #t, tau, mu_B,mu_G,A_G,Tc,alpha,Te,A_B,FP,FP_sc,Te_sc,alpha_sc = symbols('t, tau, mu_B,mu_G,A_G,Tc,alpha,Te,A_B,FP,FP_sc,Te_sc,alpha_sc')
 init_printing(use_unicode=True)
 
-T2 = TE*T1+T1_sc
-E1 = exp(-TR*T2)
+#T2 = TE*T1+T1_sc
+E1 = exp(-TR/(T1*T1_sc))
 #E2 = exp(-TR/(T2*T2_sc))
 #T1_star = (1/(T1*T1_sc)*cos(fa/2)**2+1/(T2*T2_sc)*sin(fa/2)**2)**(-1)
 #INV =  1 + (sin(fa/2)/sin(fa))*(((T1*T1_sc)/(T2*T2_sc)+1)-cos(fa)*((T1*T1_sc)/(T2*T2_sc)-1))
@@ -52,8 +52,8 @@ S = M0*M0_sc*sin(fa*fa_corr)*(1-E1)/(1-E1*cos(fa*fa_corr))
 #
 M0_grad = str((diff(S,M0)))
 E1_grad = str((diff(S,T1)))
-E2_grad = str((diff(S,T2)))
-f_grad = str((diff(S,f)))
+#E2_grad = str((diff(S,T2)))
+#f_grad = str((diff(S,f)))
 
 
 #
