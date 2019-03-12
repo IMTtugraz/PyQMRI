@@ -448,5 +448,9 @@ if __name__ == '__main__':
       '--imagespace', default=1, dest='imagespace', type=int,
       help='Select if Reco is performed on images (1) or on kspace (0) data. \
  Defaults to 0')
+    parser.add_argument(
+      '--OCL_CPU', default=0, dest='use_CPU', type=int,
+      help='Select if CPU or GPU should be used as OpenCL platform. \
+ Defaults to 0')
     args = parser.parse_args()
     main(args)
