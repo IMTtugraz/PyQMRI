@@ -66,7 +66,6 @@ class Model_Reco:
         self.tmp_sino = clarray.empty(self.queue,(self.NScan,self.NC,self.NSlice,self.Nproj,self.N),DTYPE,"C")
 
     self.prg = Program(self.ctx, open('./Kernels/OpenCL_Kernels.c').read())
-    print("Please Set Parameters, Data and Initial images")
 
   def eval_fwd_kspace(self,y,x,wait_for=[]):
 
@@ -259,7 +258,7 @@ class Model_Reco:
         self.model.uk_scale[uk]*=scale[uk]
         result[uk,...] /= self.model.uk_scale[uk]
         self.grad_x[uk] *= self.model.uk_scale[uk]
-      self.irgn_par["lambd"] /=scale[0]**2
+#      self.irgn_par["lambd"] /=scale[0]**2
 
       self.step_val = np.nan_to_num(self.model.execute_forward(result))
       self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x.data)
@@ -362,8 +361,7 @@ class Model_Reco:
 #    print('L: %f'%(L))
 
 
-    tau = self.tau#np.float32(1/np.sqrt(L))
-    print("Tau: ",tau)
+    tau = self.tau
     tau_new =np.float32(0)
 
 
@@ -385,10 +383,8 @@ class Model_Reco:
     delta = self.irgn_par["delta"]
     mu = 1/delta
 
-    theta_line = self.theta_line#np.float32(1.0)
-    print("Theta: ",theta_line)
-    beta_line = self.beta_line#np.float32(400)
-    print("Beta: ",beta_line)
+    theta_line = self.theta_line
+    beta_line = self.beta_line
     beta_new = np.float32(0)
     mu_line =np.float32( 0.5)
     delta_line = np.float32(1)
@@ -400,6 +396,8 @@ class Model_Reco:
     gap_min = np.float32(0.0)
     gap = np.float32(0.0)
     self.eval_const()
+
+    print("Tau: ",tau, "Theta: ",theta_line, "Beta: ",beta_line)
 
     Kyk1 = clarray.empty_like(x)
     Kyk1_new = clarray.empty_like(x)
@@ -413,13 +411,13 @@ class Model_Reco:
     Axold = clarray.empty_like(res)
     Ax = clarray.empty_like(res)
 
-    Axold.add_event(self.operator_forward_full(Axold,x))   #### Q1
-    Kyk1.add_event(self.operator_adjoint_full(Kyk1,r,z1))    #### Q2
-    Kyk2.add_event(self.update_Kyk2(Kyk2,z2,z1)) #### Q1
+    Axold.add_event(self.operator_forward_full(Axold,x))
+    Kyk1.add_event(self.operator_adjoint_full(Kyk1,r,z1))
+    Kyk2.add_event(self.update_Kyk2(Kyk2,z2,z1))
 
     for i in range(iters):
-      x_new.add_event(self.update_primal(x_new,x,Kyk1,xk,tau,delta)) ### Q2
-      v_new.add_event(self.update_v(v_new,v,Kyk2,tau)) ### Q1
+      x_new.add_event(self.update_primal(x_new,x,Kyk1,xk,tau,delta))
+      v_new.add_event(self.update_v(v_new,v,Kyk2,tau))
 
       beta_new = beta_line*(1+mu*tau)
       tau_new = tau*np.sqrt(beta_line/beta_new*(1+theta_line))
@@ -427,23 +425,23 @@ class Model_Reco:
       beta_line = beta_new
 
 
-      gradx.add_event(self.f_grad(gradx,x_new))  ### Q1
-      gradx_xold.add_event(self.f_grad(gradx_xold,x))  ### Q1
-      symgrad_v.add_event(self.sym_grad(symgrad_v,v_new))  ### Q2
-      symgrad_v_vold.add_event(self.sym_grad(symgrad_v_vold,v))  ### Q2
-      Ax.add_event(self.operator_forward_full(Ax,x_new))  ### Q1
+      gradx.add_event(self.f_grad(gradx,x_new))
+      gradx_xold.add_event(self.f_grad(gradx_xold,x))
+      symgrad_v.add_event(self.sym_grad(symgrad_v,v_new))
+      symgrad_v_vold.add_event(self.sym_grad(symgrad_v_vold,v))
+      Ax.add_event(self.operator_forward_full(Ax,x_new))
 
 
 
       while True:
 
         theta_line = tau_new/tau
-        z1_new.add_event(self.update_z1(z1_new,z1,gradx,gradx_xold,v_new,v, beta_line*tau_new, theta_line, alpha,self.irgn_par["omega"])) ### Q2
-        z2_new.add_event(self.update_z2(z2_new,z2,symgrad_v,symgrad_v_vold,beta_line*tau_new,theta_line,beta)) ### Q1
-        r_new.add_event(self.update_r(r_new,r,Ax,Axold,res,beta_line*tau_new,theta_line,self.irgn_par["lambd"])) ### Q1
+        z1_new.add_event(self.update_z1(z1_new,z1,gradx,gradx_xold,v_new,v, beta_line*tau_new, theta_line, alpha,self.irgn_par["omega"]))
+        z2_new.add_event(self.update_z2(z2_new,z2,symgrad_v,symgrad_v_vold,beta_line*tau_new,theta_line,beta))
+        r_new.add_event(self.update_r(r_new,r,Ax,Axold,res,beta_line*tau_new,theta_line,self.irgn_par["lambd"]))
 
-        Kyk1_new.add_event(self.operator_adjoint_full(Kyk1_new,r_new,z1_new))### Q2
-        Kyk2_new.add_event(self.update_Kyk2(Kyk2_new,z2_new,z1_new))### Q1
+        Kyk1_new.add_event(self.operator_adjoint_full(Kyk1_new,r_new,z1_new))
+        Kyk2_new.add_event(self.update_Kyk2(Kyk2_new,z2_new,z1_new))
 
         ynorm = ((clarray.vdot(r_new-r,r_new-r)+clarray.vdot(z1_new-z1,z1_new-z1)+clarray.vdot(z2_new-z2,z2_new-z2))**(1/2)).real
         lhs = np.sqrt(beta_line)*tau_new*((clarray.vdot(Kyk1_new-Kyk1,Kyk1_new-Kyk1)+clarray.vdot(Kyk2_new-Kyk2,Kyk2_new-Kyk2))**(1/2)).real
@@ -453,9 +451,8 @@ class Model_Reco:
         else:
           tau_new = tau_new*mu_line
 
-      (Kyk1, Kyk1_new, Kyk2, Kyk2_new, Axold, Ax, z1, z1_new, z2, z2_new, r, r_new) =\
-      (Kyk1_new, Kyk1, Kyk2_new, Kyk2, Ax, Axold, z1_new, z1, z2_new, z2, r_new, r)
-      tau =  np.copy(tau_new)
+      (Kyk1, Kyk1_new, Kyk2, Kyk2_new, Axold, Ax, z1, z1_new, z2, z2_new, r, r_new, tau, tau_new) =\
+      (Kyk1_new, Kyk1, Kyk2_new, Kyk2, Ax, Axold, z1_new, z1, z2_new, z2, r_new, r, tau_new, tau)
 
 
       if not np.mod(i,50):
@@ -499,7 +496,7 @@ class Model_Reco:
           return x_new.get()
         primal = primal_new
         gap_min = np.minimum(gap,gap_min)
-        sys.stdout.write("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f \r"%(i,primal.get()/(self.irgn_par["lambd"]*self.NSlice),dual.get()/(self.irgn_par["lambd"]*self.NSlice),gap.get()/(self.irgn_par["lambd"]*self.NSlice)))
+        sys.stdout.write("Iteration: %04d ---- Primal: %2.2e, Dual: %2.2e, Gap: %2.2e \r"%(i,primal.get()/(self.irgn_par["lambd"]*self.NSlice),dual.get()/(self.irgn_par["lambd"]*self.NSlice),gap.get()/(self.irgn_par["lambd"]*self.NSlice)))
         sys.stdout.flush()
 
       (x, x_new) = (x_new, x)
@@ -591,9 +588,8 @@ class Model_Reco:
         else:
           tau_new = tau_new*mu_line
 
-      (Kyk1, Kyk1_new,  Axold, Ax, z1, z1_new, r, r_new) =\
-      (Kyk1_new, Kyk1,  Ax, Axold, z1_new, z1, r_new, r)
-      tau =  (tau_new)
+      (Kyk1, Kyk1_new,  Axold, Ax, z1, z1_new, r, r_new, tau, tau_new) =\
+      (Kyk1_new, Kyk1,  Ax, Axold, z1_new, z1, r_new, r, tau_new, tau)
 
 
       if not np.mod(i,50):
@@ -809,13 +805,13 @@ class Model_Reco:
 
     if TV==1:
       self.tau = np.float32(1/np.sqrt(8))
-      self.beta_line = 400
+      self.beta_line = 1
       self.theta_line = np.float32(1.0)
       pass
     elif TV==0:
       L = np.float32(0.5*(18.0 + np.sqrt(33)))
       self.tau = np.float32(1/np.sqrt(L))
-      self.beta_line = 400
+      self.beta_line = 1
       self.theta_line = np.float32(1.0)
       self.v = np.zeros(([self.unknowns_TGV,self.NSlice,self.dimY,self.dimX,4]),dtype=DTYPE)
       self.z2 = np.zeros(([self.unknowns_TGV,self.NSlice,self.dimY,self.dimX,8]),dtype=DTYPE)
@@ -826,19 +822,20 @@ class Model_Reco:
     for i in range(self.irgn_par["max_gn_it"]):
       start = time.time()
       self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
-      scale = np.reshape(self.grad_x,(self.unknowns,self.NScan*self.NSlice*self.dimY*self.dimX))
-      scale = np.linalg.norm(scale,axis=-1)
-      scale /= np.max(scale)
-      scale = 1/scale
-      print(scale)
-      for uk in range(self.unknowns):
-        self.model.constraints[uk].update(scale[uk])
-        result[uk,...] *= self.model.uk_scale[uk]
-        self.grad_x[uk] /= self.model.uk_scale[uk]
-        self.model.uk_scale[uk]*=scale[uk]
-        result[uk,...] /= self.model.uk_scale[uk]
-        self.grad_x[uk] *= self.model.uk_scale[uk]
-      self.irgn_par["lambd"] /=scale[0]**2
+      if i==0:
+          scale = np.reshape(self.grad_x,(self.unknowns,self.NScan*self.NSlice*self.dimY*self.dimX))
+          scale = np.linalg.norm(scale,axis=-1)
+          scale /= np.max(scale)
+          scale = 1/scale
+          print("Inverse Scale of the model Gradients w.r.t the maximum: \n", scale)
+          for uk in range(self.unknowns):
+            self.model.constraints[uk].update(scale[uk])
+            result[uk,...] *= self.model.uk_scale[uk]
+            self.grad_x[uk] /= self.model.uk_scale[uk]
+            self.model.uk_scale[uk]*=scale[uk]
+            result[uk,...] /= self.model.uk_scale[uk]
+            self.grad_x[uk] *= self.model.uk_scale[uk]
+              #      self.irgn_par["lambd"] /=scale[0]**2
 
       self.step_val = np.nan_to_num(self.model.execute_forward(result))
       self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x.data)
