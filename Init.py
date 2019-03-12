@@ -210,18 +210,30 @@ def main(args):
     platforms = cl.get_platforms()
     par["GPU"] = False
     par["Platform_Indx"] = 0
-    for j in range(len(platforms)):
-        if platforms[j].get_devices(device_type=cl.device_type.GPU):
-            print("GPU OpenCL platform <%s> found\
- with %i device(s) and OpenCL-version <%s>"
-                  % (str(platforms[j].get_info(cl.platform_info.NAME)),
-                     len(platforms[j].get_devices(
-                        device_type=cl.device_type.GPU)),
-                     str(platforms[j].get_info(cl.platform_info.VERSION))))
-            par["GPU"] = True
-            par["Platform_Indx"] = j
+    if not args.use_CPU:
+        for j in range(len(platforms)):
+            if platforms[j].get_devices(device_type=cl.device_type.GPU):
+                print("GPU OpenCL platform <%s> found\
+     with %i device(s) and OpenCL-version <%s>"
+                      % (str(platforms[j].get_info(cl.platform_info.NAME)),
+                         len(platforms[j].get_devices(
+                            device_type=cl.device_type.GPU)),
+                         str(platforms[j].get_info(cl.platform_info.VERSION))))
+                par["GPU"] = True
+                par["Platform_Indx"] = j
     if not par["GPU"]:
-        print("No GPU OpenCL platform found. Falling back to CPU.")
+        if not args.use_CPU:
+            print("No GPU OpenCL platform found. Falling back to CPU.")
+        for j in range(len(platforms)):
+            if platforms[j].get_devices(device_type=cl.device_type.CPU):
+                print("CPU OpenCL platform <%s> found\
+     with %i device(s) and OpenCL-version <%s>"
+                      % (str(platforms[j].get_info(cl.platform_info.NAME)),
+                         len(platforms[j].get_devices(
+                            device_type=cl.device_type.GPU)),
+                         str(platforms[j].get_info(cl.platform_info.VERSION))))
+                par["GPU"] = True
+                par["Platform_Indx"] = j
 
     par["ctx"] = []
     par["queue"] = []
