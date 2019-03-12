@@ -21,7 +21,6 @@ from helper_fun import utils
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
-
 def main(args):
     sig_model = importlib.import_module("Models."+str(args.sig_model))
     if int(args.streamed) == 1:
@@ -407,7 +406,6 @@ def main(args):
         f.flush()
     f.close()
     os.chdir(cwd)
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='T1 quantification from VFA \

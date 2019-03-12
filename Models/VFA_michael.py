@@ -663,8 +663,8 @@ class Model(BaseModel):
 #    test_M0 =0.3*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask
     test_M0 =0.2*1.3085805*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#*0.9785314
 
-    FP = 0.1*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
-    Te = 1*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[6][...]#5*np.ones((NSlice,dimY,dimX),dtype=DTYPE)#
+    FP = 0.5*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
+    Te = 2.5*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[6][...]#5*np.ones((NSlice,dimY,dimX),dtype=DTYPE)#
 #    Te[Te<1/60] = 1/60
     alpha = 0.2*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[7][...]#
 #    alpha[alpha<1e-4] = 1e-4
