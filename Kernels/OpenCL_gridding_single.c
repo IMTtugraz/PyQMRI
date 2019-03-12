@@ -58,6 +58,7 @@
   __kernel void zero_tmp(__global float2 *tmp)
   {
     size_t x = get_global_id(0);
+
     tmp[x] = 0.0f;
 
   }

@@ -232,7 +232,7 @@ def main(args):
                          len(platforms[j].get_devices(
                             device_type=cl.device_type.GPU)),
                          str(platforms[j].get_info(cl.platform_info.VERSION))))
-                par["GPU"] = True
+                par["GPU"] = False
                 par["Platform_Indx"] = j
 
     par["ctx"] = []
@@ -313,10 +313,10 @@ def main(args):
     opt = Model_Reco.Model_Reco(par, args.trafo,
                                 imagespace=args.imagespace, SMS=args.sms)
 
-    images = par["file"]["GT/SI"][()].astype(DTYPE)
-    dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2*1e3)) /\
-        (np.linalg.norm(images.flatten()))
-    images *= dscale
+#    images = par["file"]["GT/SI"][()].astype(DTYPE)
+#    dscale = np.sqrt(NSlice)*DTYPE(np.sqrt(2*1e3)) /\
+#        (np.linalg.norm(images.flatten()))
+#    images *= dscale
     if args.imagespace:
         opt.data = images
     else:
@@ -334,6 +334,7 @@ def main(args):
         #######################################################################
         model = sig_model.Model(par, images)
         # Close File after everything was read
+        print(np.max(np.abs(images))/np.max(np.abs(model.execute_forward(model.guess))))
         par["file"].close()
         #######################################################################
         # IRGN - TGV Reco #####################################################
@@ -433,7 +434,7 @@ if __name__ == '__main__':
       help='Full path to input data. \
       If not provided, a file dialog will open.')
     parser.add_argument(
-      '--model', default='VFA', dest='sig_model',
+      '--model', default='VFA_michael_phase', dest='sig_model',
       help='Name of the signal model to use. Defaults to VFA. \
  Please put your signal model file in the Model subfolder.')
     parser.add_argument(
@@ -445,7 +446,7 @@ if __name__ == '__main__':
       help='Simultanious Multi Slice, defaults to off (0). \
       Can only be used with Cartesian sampling.')
     parser.add_argument(
-      '--imagespace', default=1, dest='imagespace', type=int,
+      '--imagespace', default=0, dest='imagespace', type=int,
       help='Select if Reco is performed on images (1) or on kspace (0) data. \
  Defaults to 0')
     parser.add_argument(

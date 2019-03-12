@@ -10,8 +10,8 @@ import numpy as np
 
 DTYPE = np.complex64
 
-x = np.ones((10,2,256,256,4))
-data = np.ones((10,2,256,256,8))#,np.ones((10, 5, 10, 34, 512))
+x = np.ones((par["NScan"],par["NC"],par["NSlice"],par["dimY"],par["dimX"]))
+data = np.ones((par["NScan"],par["NC"],par["NSlice"],par["dimY"],par["dimX"]))
 
 
 xx = np.array((np.random.random_sample(np.shape(x))+1j*np.random.random_sample(np.shape(x)))).astype(DTYPE)
@@ -27,8 +27,8 @@ test2 = np.zeros_like(yy)
 
 
 
-opt.symgrad_streamed(test2,xx)
-opt.symdiv_streamed(test1,yy)
+opt.NUFFT.FFT(test2,xx)
+opt.NUFFT.FFTH(test1,yy)
 
 #test3 = gd.bdiv_3(np.transpose(yy,(1,-1,0,2,3)))
 #test4 = gd.fgrad_3(np.transpose(xx,(1,0,2,3)))
@@ -55,8 +55,8 @@ print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi
 import pyopencl.array as clarray
 #xx = clarray.to_device(queue[0],np.random.randn(12,2,256,256)+1j*np.random.randn(12,2,256,256)).astype(DTYPE)
 #yy =clarray.to_device(queue[0],np.random.randn(12,2,256,256,4)+1j*np.random.randn(12,2,256,256,4)).astype(DTYPE)
-xx = clarray.to_device(queue[0],xx)
-yy = clarray.to_device(queue[0],yy)
+xx = clarray.to_device(par["queue"][0],xx)
+yy = clarray.to_device(par["queue"][0],yy)
 test2 = clarray.zeros_like(yy)
 test1 =  clarray.zeros_like(xx)
 #
@@ -78,8 +78,8 @@ xx = xx.get()
 #
 
 #b = np.sum(np.conj((test5[...,0:3]))*yy[...,0:3]+2*np.conj(test5[...,3:6])*yy[...,3:6])
-a = np.vdot(xx.flatten(),(test5).flatten())
-b = np.vdot(test6.flatten(),yy.flatten())
+a = np.vdot(xx[0].flatten(),(test5[0]).flatten())
+b = np.vdot(test6[0].flatten(),yy[0].flatten())
 test = np.abs(a-b)
 
 #
