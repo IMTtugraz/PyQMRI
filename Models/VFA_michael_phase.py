@@ -15,7 +15,7 @@ import matplotlib.gridspec as gridspec
 from Models.Model import BaseModel, constraints, DTYPE, DTYPE_real
 matplotlib.use("Qt5agg")
 plt.ion()
-unknowns_TGV = 4
+unknowns_TGV = 6
 unknowns_H1 = 0
 
 
@@ -27,7 +27,7 @@ class Model(BaseModel):
     parameters = par["file"]["GT/parameters"]
 #    print(list(par["file"].keys()))
 
-    self.mask = par["file"]["image_mask"][()]
+#    self.mask = par["file"]["image_mask"][()]
 
     self.A_B = (parameters[0][...].astype(DTYPE_real))
     self.mu_B  = (parameters[1][...].astype(DTYPE_real))
@@ -40,6 +40,11 @@ class Model(BaseModel):
     self.Te = (parameters[6][...].astype(DTYPE_real))
     self.Te[self.Te<1/6] = 1/6
     self.alpha = (parameters[7][...].astype(DTYPE_real))
+
+    self.mask = np.ones_like(self.FP)
+    self.mask[self.FP==0] = 0
+
+    self.M0 = 0.2*1.3085805*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask
 
 #    par["C"] = par["file"]["GT/sensitivities/real_dat"][()] + 1j*par["file"]["GT/sensitivities/imag_dat"][()]
 #    sumSqrC = np.sqrt(np.sum((par["C"] * np.conj(par["C"])),0))
@@ -61,13 +66,13 @@ class Model(BaseModel):
     self.guess = self._set_init_scales(par["dscale"])
 
 #    self.constraints.append(constraints(0,1e6/self.uk_scale[0],False)  )
-    self.constraints.append(constraints(0,0.2*1.3085805/self.uk_scale[0],False)  )
+    self.constraints.append(constraints(1,1,False)  )
     self.constraints.append(constraints(1e-3/self.uk_scale[1],100/self.uk_scale[1],True))
     self.constraints.append(constraints((self.TR/60*par["dimY"])/self.uk_scale[2],100/self.uk_scale[2],True))
     self.constraints.append(constraints(1e-4/self.uk_scale[3],3/self.uk_scale[3],True))
 
-#    self.constraints.append(constraints((self.TR/60)/self.uk_scale[4],3/self.uk_scale[4],True))
-#    self.constraints.append(constraints(0/self.uk_scale[5],1/self.uk_scale[5],True))
+    self.constraints.append(constraints((self.TR/60*par["dimY"])/self.uk_scale[4],3/self.uk_scale[4],True))
+    self.constraints.append(constraints(0/self.uk_scale[5],1/self.uk_scale[5],True))
 #    self.constraints.append(constraints(1e-4/self.uk_scale[6],3/self.uk_scale[6],True))
 #    self.constraints.append(constraints(0/self.uk_scale[7],100/self.uk_scale[7],True))
 #    self.constraints.append(constraints(1/6/self.uk_scale[8],20/self.uk_scale[8],True))
@@ -86,7 +91,7 @@ class Model(BaseModel):
     R =self.r*C+self.R10
 
     E1 = np.exp(-self.TR*R)
-    S = x[0]*self.uk_scale[0]*(-E1 + 1)*self.sin_phi/(-E1*self.cos_phi + 1)
+    S = self.M0*x[0]*self.uk_scale[0]*(-E1 + 1)*self.sin_phi/(-E1*self.cos_phi + 1)
 
     S = np.array(S,dtype=DTYPE)
     S[~np.isfinite(S)] = 1e-20
@@ -100,16 +105,16 @@ class Model(BaseModel):
     E1 = np.exp(-self.TR*R)
 
 
-    grad_M0 = self.uk_scale[0]*(-E1 + 1)*self.sin_phi/(-E1*self.cos_phi + 1)
+    grad_M0 = self.M0*self.uk_scale[0]*(-E1 + 1)*self.sin_phi/(-E1*self.cos_phi + 1)
 
-    grad_T1 = self.r*M0*M0_sc*(self.TR*E1*self.sin_phi/(1 -E1*self.cos_phi) -\
-              self.TR*(1 -E1)*E1*self.sin_phi*self.cos_phi/(1 -E1*self.cos_phi)**2)
+    grad_T1 = self.M0*(self.r*M0*M0_sc*(self.TR*E1*self.sin_phi/(1 -E1*self.cos_phi) -\
+              self.TR*(1 -E1)*E1*self.sin_phi*self.cos_phi/(1 -E1*self.cos_phi)**2))
     grad_T1 = grad_T1*dC
     grad = np.concatenate((grad_M0[None,...],grad_T1))
     grad[~np.isfinite(grad)] = 1e-20
-    print('Grad Scaling FP', np.linalg.norm(np.abs(grad[0]))/np.linalg.norm(np.abs(grad[1])))
-    print('Grad Scaling Te', np.linalg.norm(np.abs(grad[0]))/np.linalg.norm(np.abs(grad[2])))
-    print('Grad Scaling alpha', np.linalg.norm(np.abs(grad[0]))/np.linalg.norm(np.abs(grad[3])))
+#    print('Grad Scaling FP', np.linalg.norm(np.abs(grad[0]))/np.linalg.norm(np.abs(grad[1])))
+#    print('Grad Scaling Te', np.linalg.norm(np.abs(grad[0]))/np.linalg.norm(np.abs(grad[2])))
+#    print('Grad Scaling alpha', np.linalg.norm(np.abs(grad[0]))/np.linalg.norm(np.abs(grad[3])))
 #    print('Grad Scaling Tc', np.linalg.norm(np.abs(grad[0]))/np.linalg.norm(np.abs(grad[4])))
 #    print('Grad Scaling tau', np.linalg.norm(np.abs(grad[0]))/np.linalg.norm(np.abs(grad[5])))
     return grad.astype(DTYPE)
@@ -133,12 +138,12 @@ class Model(BaseModel):
       Te_max = 5#Te.max()
       alpha_min = alpha.min()
       alpha_max = alpha.max()
-#      Tc = np.concatenate((np.abs(x[4,...]*self.uk_scale[4]),self.Tc),axis=-1)
-#      tau = np.concatenate((np.abs(x[5,...]*self.uk_scale[5]),self.tau),axis=-1)
-#      Tc_min = Tc.min()
-#      Tc_max = Tc.max()
-#      tau_min = tau.min()
-#      tau_max = tau.max()
+      Tc = np.concatenate((np.abs(x[4,...]*self.uk_scale[4]),self.Tc),axis=-1)
+      tau = np.concatenate((np.abs(x[5,...]*self.uk_scale[5]),self.tau),axis=-1)
+      Tc_min = Tc.min()
+      Tc_max = Tc.max()
+      tau_min = tau.min()
+      tau_max = tau.max()
 
       if dim_2D:
          if not self.figure:
@@ -238,36 +243,36 @@ class Model(BaseModel):
            plt.draw()
            plt.pause(1e-10)
 
-#           self.Tc_plot=self.ax[37].imshow((Tc[int(self.NSlice/2),...]))
-#           self.Tc_plot_cor=self.ax[43].imshow((Tc[:,int(Tc.shape[1]/2),...]))
-#           self.Tc_plot_sag=self.ax[38].imshow(np.flip((Tc[:,:,int(Tc.shape[-1]/2)]).T,1))
-#           self.ax[37].set_title('Tc',color='white')
-#           self.ax[37].set_anchor('SE')
-#           self.ax[38].set_anchor('SW')
-#           self.ax[43].set_anchor('NE')
-#           cax = plt.subplot(self.gs[6:8,0])
-#           cbar = self.figure.colorbar(self.Tc_plot, cax=cax)
-#           cbar.ax.tick_params(labelsize=12,colors='white')
-#           cax.yaxis.set_ticks_position('left')
-#           for spine in cbar.ax.spines:
-#            cbar.ax.spines[spine].set_color('white')
-#           plt.draw()
-#           plt.pause(1e-10)
-#
-#           self.tau_plot=self.ax[39].imshow((tau[int(self.NSlice/2),...]))
-#           self.tau_plot_cor=self.ax[45].imshow((tau[:,int(tau.shape[1]/2),...]))
-#           self.tau_plot_sag=self.ax[40].imshow(np.flip((tau[:,:,int(tau.shape[-1]/2)]).T,1))
-#           self.ax[39].set_title('tau',color='white')
-#           self.ax[39].set_anchor('SE')
-#           self.ax[40].set_anchor('SW')
-#           self.ax[45].set_anchor('NE')
-#           cax = plt.subplot(self.gs[6:8,5])
-#           cbar = self.figure.colorbar(self.tau_plot, cax=cax)
-#           cbar.ax.tick_params(labelsize=12,colors='white')
-#           for spine in cbar.ax.spines:
-#            cbar.ax.spines[spine].set_color('white')
-#           plt.draw()
-#           plt.pause(1e-10)
+           self.Tc_plot=self.ax[37].imshow((Tc[int(self.NSlice/2),...]))
+           self.Tc_plot_cor=self.ax[43].imshow((Tc[:,int(Tc.shape[1]/2),...]))
+           self.Tc_plot_sag=self.ax[38].imshow(np.flip((Tc[:,:,int(Tc.shape[-1]/2)]).T,1))
+           self.ax[37].set_title('Tc',color='white')
+           self.ax[37].set_anchor('SE')
+           self.ax[38].set_anchor('SW')
+           self.ax[43].set_anchor('NE')
+           cax = plt.subplot(self.gs[6:8,0])
+           cbar = self.figure.colorbar(self.Tc_plot, cax=cax)
+           cbar.ax.tick_params(labelsize=12,colors='white')
+           cax.yaxis.set_ticks_position('left')
+           for spine in cbar.ax.spines:
+            cbar.ax.spines[spine].set_color('white')
+           plt.draw()
+           plt.pause(1e-10)
+
+           self.tau_plot=self.ax[39].imshow((tau[int(self.NSlice/2),...]))
+           self.tau_plot_cor=self.ax[45].imshow((tau[:,int(tau.shape[1]/2),...]))
+           self.tau_plot_sag=self.ax[40].imshow(np.flip((tau[:,:,int(tau.shape[-1]/2)]).T,1))
+           self.ax[39].set_title('tau',color='white')
+           self.ax[39].set_anchor('SE')
+           self.ax[40].set_anchor('SW')
+           self.ax[45].set_anchor('NE')
+           cax = plt.subplot(self.gs[6:8,5])
+           cbar = self.figure.colorbar(self.tau_plot, cax=cax)
+           cbar.ax.tick_params(labelsize=12,colors='white')
+           for spine in cbar.ax.spines:
+            cbar.ax.spines[spine].set_color('white')
+           plt.draw()
+           plt.pause(1e-10)
 
 
            self.time_err_plot=self.ax[55].imshow((time_err[int(self.NSlice/2),...]))
@@ -328,20 +333,20 @@ class Model(BaseModel):
            self.time_err_plot.set_clim([time_err_min,time_err_max])
            self.time_err_plot_sag.set_clim([time_err_min,time_err_max])
            self.time_err_plot_cor.set_clim([time_err_min,time_err_max])
-#
-#           self.Tc_plot.set_data((Tc[int(self.NSlice/2),...]))
-#           self.Tc_plot_cor.set_data((Tc[:,int(Tc.shape[1]/2),...]))
-#           self.Tc_plot_sag.set_data(np.flip((Tc[:,:,int(Tc.shape[-1]/2)]).T,1))
-#           self.Tc_plot.set_clim([Tc_min,Tc_max])
-#           self.Tc_plot_cor.set_clim([Tc_min,Tc_max])
-#           self.Tc_plot_sag.set_clim([Tc_min,Tc_max])
-#
-#           self.tau_plot.set_data((tau[int(self.NSlice/2),...]))
-#           self.tau_plot_cor.set_data((tau[:,int(tau.shape[1]/2),...]))
-#           self.tau_plot_sag.set_data(np.flip((tau[:,:,int(tau.shape[-1]/2)]).T,1))
-#           self.tau_plot.set_clim([tau_min,tau_max])
-#           self.tau_plot_sag.set_clim([tau_min,tau_max])
-#           self.tau_plot_cor.set_clim([tau_min,tau_max])
+
+           self.Tc_plot.set_data((Tc[int(self.NSlice/2),...]))
+           self.Tc_plot_cor.set_data((Tc[:,int(Tc.shape[1]/2),...]))
+           self.Tc_plot_sag.set_data(np.flip((Tc[:,:,int(Tc.shape[-1]/2)]).T,1))
+           self.Tc_plot.set_clim([Tc_min,Tc_max])
+           self.Tc_plot_cor.set_clim([Tc_min,Tc_max])
+           self.Tc_plot_sag.set_clim([Tc_min,Tc_max])
+
+           self.tau_plot.set_data((tau[int(self.NSlice/2),...]))
+           self.tau_plot_cor.set_data((tau[:,int(tau.shape[1]/2),...]))
+           self.tau_plot_sag.set_data(np.flip((tau[:,:,int(tau.shape[-1]/2)]).T,1))
+           self.tau_plot.set_clim([tau_min,tau_max])
+           self.tau_plot_sag.set_clim([tau_min,tau_max])
+           self.tau_plot_cor.set_clim([tau_min,tau_max])
 
 
            self.time_course.set_ydata(np.abs(images[:,0,82,52]))
@@ -355,8 +360,8 @@ class Model(BaseModel):
     mu_B  = self.mu_B
     A_G = self.A_G
     mu_G = self.mu_G
-    tau = self.tau
-    Tc = self.Tc
+#    tau = self.tau
+#    Tc = self.Tc
 
     Fp = x[1]*self.uk_scale[1]
     Te = x[2]*self.uk_scale[2]
@@ -366,8 +371,8 @@ class Model(BaseModel):
 #    mu_B  = x[5]*self.uk_scale[5]
 #    A_G = x[6]*self.uk_scale[6]
 #    mu_G = x[7]*self.uk_scale[7]
-#    Tc = x[4]*self.uk_scale[4]
-#    tau = x[5]*self.uk_scale[5]
+    Tc = x[4]*self.uk_scale[4]
+    tau = x[5]*self.uk_scale[5]
 
     C_fit = np.zeros((self.t.size,x.shape[1],x.shape[2],x.shape[3]),dtype=DTYPE)
 
@@ -470,8 +475,8 @@ class Model(BaseModel):
     mu_B  = self.mu_B
     A_G = self.A_G
     mu_G = self.mu_G
-    tau = self.tau
-    Tc = self.Tc
+#    tau = self.tau
+#    Tc = self.Tc
 
     Fp = x[1]*self.uk_scale[1]
     Te = x[2]*self.uk_scale[2]
@@ -481,8 +486,8 @@ class Model(BaseModel):
 #    mu_B  = x[5]*self.uk_scale[5]
 #    A_G = x[6]*self.uk_scale[6]
 #    mu_G = x[7]*self.uk_scale[7]
-#    Tc = x[4]*self.uk_scale[4]
-#    tau = x[5]*self.uk_scale[5]
+    Tc = x[4]*self.uk_scale[4]
+    tau = x[5]*self.uk_scale[5]
 
     dC_fit=np.zeros((x.shape[0]-1,self.t.size,x.shape[1],x.shape[2],x.shape[3]),dtype=DTYPE)
     C_fit=np.zeros((self.t.size,x.shape[1],x.shape[2],x.shape[3]),dtype=DTYPE)
@@ -534,7 +539,7 @@ class Model(BaseModel):
 #        dC_fit[4,j,ind]=(t44+t45-A_B[ind]*t30*2.0+A_G*t6-A_G*t38[ind])*self.uk_scale[5]
 #        dC_fit[5,j,ind]=(-t3+t4+t8-t32)*self.uk_scale[6]
 #        dC_fit[6,j,ind]=(t53-A_G[ind]*t33)*self.uk_scale[7]
-#        dC_fit[-1,j,ind]=(t65+t73-A_B[ind]*mu_B[ind]*t5*t29)*self.uk_scale[5]
+        dC_fit[-1,j,ind]=(t65+t73-A_B[ind]*mu_B[ind]*t5*t29)*self.uk_scale[5]
 
     for j in range(len(self.t)):
       ind = self.t[j]>(tau+Tc)
@@ -636,14 +641,14 @@ class Model(BaseModel):
         dC_fit[:,j,ind]=np.array((
             A_B[ind],##replaced later but saving memory allocations this way
             self.uk_scale[2]*(-t13*(A_G[ind]*(t13*t16*t23*t25*t54-t13*t16*t27*t49*t54)-A_B[ind]*t23*(t13*t16*t39*t54*2.0-t13*t14*t16*t25*t54)-A_G[ind]*t24*(t13*t16*t25*t54-t13*t16*t49*t54)+A_B[ind]*t13*t16*t24*t39*t54*2.0+A_B[ind]*t13*t14*t16*t24*t25*t54-A_G[ind]*t13*t14*t16*t24*t47*t54)),
-            self.uk_scale[3]*(t12*(t63+A_G[ind]*(t46-t62)-A_B[ind]*t23*t34-A_G[ind]*t24*t47)-t13*(A_G[ind]*(t23*t25*t58-t27*t49*t58)-A_G[ind]*t24*(t25*t58-t49*t58)-A_B[ind]*t23*(t39*t58*2.0-t14*t25*t58)+A_B[ind]*t24*t25*t61+A_B[ind]*t24*t39*t58*2.0-A_G[ind]*t24*t47*t61))))#,
+            self.uk_scale[3]*(t12*(t63+A_G[ind]*(t46-t62)-A_B[ind]*t23*t34-A_G[ind]*t24*t47)-t13*(A_G[ind]*(t23*t25*t58-t27*t49*t58)-A_G[ind]*t24*(t25*t58-t49*t58)-A_B[ind]*t23*(t39*t58*2.0-t14*t25*t58)+A_B[ind]*t24*t25*t61+A_B[ind]*t24*t39*t58*2.0-A_G[ind]*t24*t47*t61)),
 #            self.uk_scale[4]*(-t5*t29-t13*(t24*t25-t23*t34)+t23*(t6-t3*t14)),
 #            self.uk_scale[5]*(t44+t45+A_G[ind]*(t6*t23-t3*t14*t23)-A_G[ind]*t38+t13*(A_G[ind]*(t23*t25-t14*t19*t23)+\
 #                  A_B[ind]*t24*t39*2.0-A_G[ind]*t24*t25-A_B[ind]*t23*(t39*2.0-t14*t25)+A_B[ind]*t14*t23*t34)-A_B[ind]*t23*(t41-t6*t14)+A_B[ind]*t14*t23*(t6-t3*t14)),
 #            self.uk_scale[6]*(t8-t32-t48+t4*t27+t13*(-t46+t62+t24*t47)),
 #            self.uk_scale[7]*(t53-A_G[ind]*(t27*t33-t4*t14*t27)-t13*(A_G[ind]*(t27*t49-t14*t21*t27)-A_G[ind]*t24*t49)),
-#            self.uk_scale[4]*(t74-A_G[ind]*t72-t13*t71-A_B[ind]*t3*t23),
-#            self.uk_scale[5]*(t65+t73+t74-A_G[ind]*t72-t13*t71-A_B[ind]*t3*t23-A_B[ind]*mu_B[ind]*t5*t29)))
+            self.uk_scale[4]*(t74-A_G[ind]*t72-t13*t71-A_B[ind]*t3*t23),
+            self.uk_scale[5]*(t65+t73+t74-A_G[ind]*t72-t13*t71-A_B[ind]*t3*t23-A_B[ind]*mu_B[ind]*t5*t29)))
 
 
     dC_fit=dC_fit*Fp
@@ -653,12 +658,9 @@ class Model(BaseModel):
 
   def _set_init_scales(self,dscale):
 
-    self.mask = np.ones_like(self.tau)
-    self.mask[self.tau<1e-4] = 0
-
 
 #    test_M0 =0.3*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask
-    test_M0 =0.2*1.3085805*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#*0.9785314
+    test_M0 = np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)#*0.9785314
 
     FP = 0.1*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
     Te = 1*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[6][...]#5*np.ones((NSlice,dimY,dimX),dtype=DTYPE)#
@@ -669,10 +671,10 @@ class Model(BaseModel):
 #    mu_B = 10*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
 #    A_G = 500*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
 #    mu_G = 0.1*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
-#    Tc = 1/6*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
-#    tau = 0.5*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
+    Tc = 1/6*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
+    tau = 0.5*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
 
-    x = np.array([test_M0,FP,Te,alpha],dtype=DTYPE)
+    x = np.array([test_M0,FP,Te,alpha,Tc,tau],dtype=DTYPE)
 
 #    G_x = self._execute_forward_3D(x)
 #    self.uk_scale[0]*=np.median(np.abs(self.images[0]))/np.median(np.abs(G_x[0]))

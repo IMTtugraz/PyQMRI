@@ -210,11 +210,11 @@ def main(args):
     platforms = cl.get_platforms()
     par["GPU"] = False
     par["Platform_Indx"] = 0
-    if not args.use_CPU:
+    if args.use_GPU:
         for j in range(len(platforms)):
             if platforms[j].get_devices(device_type=cl.device_type.GPU):
                 print("GPU OpenCL platform <%s> found\
-     with %i device(s) and OpenCL-version <%s>"
+ with %i device(s) and OpenCL-version <%s>"
                       % (str(platforms[j].get_info(cl.platform_info.NAME)),
                          len(platforms[j].get_devices(
                             device_type=cl.device_type.GPU)),
@@ -222,12 +222,12 @@ def main(args):
                 par["GPU"] = True
                 par["Platform_Indx"] = j
     if not par["GPU"]:
-        if not args.use_CPU:
+        if args.use_GPU:
             print("No GPU OpenCL platform found. Falling back to CPU.")
         for j in range(len(platforms)):
             if platforms[j].get_devices(device_type=cl.device_type.CPU):
                 print("CPU OpenCL platform <%s> found\
-     with %i device(s) and OpenCL-version <%s>"
+ with %i device(s) and OpenCL-version <%s>"
                       % (str(platforms[j].get_info(cl.platform_info.NAME)),
                          len(platforms[j].get_devices(
                             device_type=cl.device_type.GPU)),
@@ -433,7 +433,7 @@ if __name__ == '__main__':
       help='Full path to input data. \
       If not provided, a file dialog will open.')
     parser.add_argument(
-      '--model', default='VFA_michael_norho', dest='sig_model',
+      '--model', default='VFA', dest='sig_model',
       help='Name of the signal model to use. Defaults to VFA. \
  Please put your signal model file in the Model subfolder.')
     parser.add_argument(
@@ -449,8 +449,8 @@ if __name__ == '__main__':
       help='Select if Reco is performed on images (1) or on kspace (0) data. \
  Defaults to 0')
     parser.add_argument(
-      '--OCL_CPU', default=0, dest='use_CPU', type=int,
+      '--OCL_GPU', default=1, dest='use_GPU', type=int,
       help='Select if CPU or GPU should be used as OpenCL platform. \
- Defaults to 0')
+ Defaults to GPU (1)')
     args = parser.parse_args()
     main(args)

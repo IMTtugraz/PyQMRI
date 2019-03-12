@@ -822,20 +822,19 @@ class Model_Reco:
     for i in range(self.irgn_par["max_gn_it"]):
       start = time.time()
       self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
-      if i==0:
-          scale = np.reshape(self.grad_x,(self.unknowns,self.NScan*self.NSlice*self.dimY*self.dimX))
-          scale = np.linalg.norm(scale,axis=-1)
-          scale /= np.max(scale)
-          scale = 1/scale
-          print("Inverse Scale of the model Gradients w.r.t the maximum: \n", scale)
-          for uk in range(self.unknowns):
-            self.model.constraints[uk].update(scale[uk])
-            result[uk,...] *= self.model.uk_scale[uk]
-            self.grad_x[uk] /= self.model.uk_scale[uk]
-            self.model.uk_scale[uk]*=scale[uk]
-            result[uk,...] /= self.model.uk_scale[uk]
-            self.grad_x[uk] *= self.model.uk_scale[uk]
-              #      self.irgn_par["lambd"] /=scale[0]**2
+      scale = np.reshape(self.grad_x,(self.unknowns,self.NScan*self.NSlice*self.dimY*self.dimX))
+      scale = np.linalg.norm(scale,axis=-1)
+      scale /= np.max(scale)
+      scale = 1/scale
+      print("Inverse Scale of the model Gradients w.r.t the maximum: \n", scale)
+      for uk in range(self.unknowns):
+        self.model.constraints[uk].update(scale[uk])
+        result[uk,...] *= self.model.uk_scale[uk]
+        self.grad_x[uk] /= self.model.uk_scale[uk]
+        self.model.uk_scale[uk]*=scale[uk]
+        result[uk,...] /= self.model.uk_scale[uk]
+        self.grad_x[uk] *= self.model.uk_scale[uk]
+      self.irgn_par["lambd"] /=scale[0]**2
 
       self.step_val = np.nan_to_num(self.model.execute_forward(result))
       self.grad_buf = cl.Buffer(self.queue.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.grad_x.data)
