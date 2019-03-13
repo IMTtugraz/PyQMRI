@@ -65,7 +65,7 @@ class Model(BaseModel):
     self.guess = self._set_init_scales(par["dscale"])
 
 #    self.constraints.append(constraints(0,1e6/self.uk_scale[0],False)  )
-    self.constraints.append(constraints(0,0.2*1.3085805/self.uk_scale[0],False)  )
+    self.constraints.append(constraints(0,10/self.uk_scale[0],False)  )
     self.constraints.append(constraints(1e-3/self.uk_scale[1],100/self.uk_scale[1],True))
     self.constraints.append(constraints((self.TR/60*par["dimY"])/self.uk_scale[2],100/self.uk_scale[2],True))
     self.constraints.append(constraints(1e-4/self.uk_scale[3],3/self.uk_scale[3],True))

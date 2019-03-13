@@ -24,22 +24,22 @@ test2 = np.zeros_like(yy)
 
 #opt.operator_forward_full(test1,yy)
 #opt.operator_adjoint_full(test2,xx)
-
-
-
-opt.NUFFT.FFT(test2,xx)
-opt.NUFFT.FFTH(test1,yy)
-
-#test3 = gd.bdiv_3(np.transpose(yy,(1,-1,0,2,3)))
-#test4 = gd.fgrad_3(np.transpose(xx,(1,0,2,3)))
 #
 #
 #
-b = np.sum(np.conj((test2[...,0:3]))*yy[...,0:3]+2*np.conj(test2[...,3:6])*yy[...,3:6])
-a = np.vdot(xx[...].flatten(),(-test1[...]).flatten())
-#b = np.vdot(test2.flatten(),yy.flatten())
-test = np.abs(a-b)
-print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,(test)))
+#opt.NUFFT.FFT(test2,xx)
+#opt.NUFFT.FFTH(test1,yy)
+#
+##test3 = gd.bdiv_3(np.transpose(yy,(1,-1,0,2,3)))
+##test4 = gd.fgrad_3(np.transpose(xx,(1,0,2,3)))
+##
+##
+##
+#b = np.sum(np.conj((test2[...,0:3]))*yy[...,0:3]+2*np.conj(test2[...,3:6])*yy[...,3:6])
+#a = np.vdot(xx[...].flatten(),(-test1[...]).flatten())
+##b = np.vdot(test2.flatten(),yy.flatten())
+#test = np.abs(a-b)
+#print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,(test)))
 #
 #test4 = np.transpose(test4,(2,0,3,4,1))
 #test3 = np.transpose(test3,(1,0,2,3))
@@ -63,8 +63,8 @@ test1 =  clarray.zeros_like(xx)
 #
 ##opt.NUFFT[0].fwd_NUFFT(test1,xx)
 ##opt.NUFFT[0].adj_NUFFT(test2,yy)
-opt.NUFFT.adj_NUFFT(test1,yy)
-opt.NUFFT.fwd_NUFFT(test2,xx)
+print(opt.NUFFT.adj_NUFFT(test1,yy))
+print(opt.NUFFT.fwd_NUFFT(test2,xx))
 
 #
 #opt.f_grad(test1,xx)

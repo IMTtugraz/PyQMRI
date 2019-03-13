@@ -21,6 +21,7 @@ from helper_fun import utils
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
+
 def main(args):
     sig_model = importlib.import_module("Models."+str(args.sig_model))
     if int(args.streamed) == 1:
@@ -407,6 +408,7 @@ def main(args):
     f.close()
     os.chdir(cwd)
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='T1 quantification from VFA \
  data. By default runs 3D regularization for TGV and TV.')
@@ -432,7 +434,7 @@ if __name__ == '__main__':
       help='Full path to input data. \
       If not provided, a file dialog will open.')
     parser.add_argument(
-      '--model', default='VFA_michael_phase', dest='sig_model',
+      '--model', default='VFA_michael', dest='sig_model',
       help='Name of the signal model to use. Defaults to VFA. \
  Please put your signal model file in the Model subfolder.')
     parser.add_argument(
