@@ -334,7 +334,7 @@ def main(args):
         #######################################################################
         model = sig_model.Model(par, images)
         # Close File after everything was read
-        print(np.max(np.abs(images))/np.max(np.abs(model.execute_forward(model.guess))))
+#        print(np.max(np.abs(images))/np.max(np.abs(model.execute_forward(model.guess))))
         par["file"].close()
         #######################################################################
         # IRGN - TGV Reco #####################################################
@@ -446,12 +446,12 @@ if __name__ == '__main__':
       help='Simultanious Multi Slice, defaults to off (0). \
       Can only be used with Cartesian sampling.')
     parser.add_argument(
-      '--imagespace', default=0, dest='imagespace', type=int,
+      '--imagespace', default=1, dest='imagespace', type=int,
       help='Select if Reco is performed on images (1) or on kspace (0) data. \
  Defaults to 0')
     parser.add_argument(
       '--OCL_GPU', default=1, dest='use_GPU', type=int,
       help='Select if CPU or GPU should be used as OpenCL platform. \
- Defaults to GPU (1)')
+ Defaults to GPU (1). CAVE: CPU FFT not working')
     args = parser.parse_args()
     main(args)

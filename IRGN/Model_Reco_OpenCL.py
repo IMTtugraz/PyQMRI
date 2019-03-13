@@ -246,12 +246,12 @@ class Model_Reco:
     for i in range(self.irgn_par["max_gn_it"]):
       start = time.time()
       self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
-      if i==0:
+      if not np.mod(i,1):
         scale = np.reshape(self.grad_x,(self.unknowns,self.NScan*self.NSlice*self.dimY*self.dimX))
         scale = np.linalg.norm(scale,axis=-1)
         scale /= np.max(scale)
         scale = 1/scale
-        print(scale)
+        print("Inverse Scale of the model Gradients w.r.t the maximum: \n", scale)
         for uk in range(self.unknowns):
           self.model.constraints[uk].update(scale[uk])
           result[uk,...] *= self.model.uk_scale[uk]
@@ -358,10 +358,6 @@ class Model_Reco:
     alpha = self.irgn_par["gamma"]
     beta = self.irgn_par["gamma"]*2
 
-#    L = np.float32(0.5*(18.0 + np.sqrt(33)))
-#    print('L: %f'%(L))
-
-
     tau = self.tau
     tau_new =np.float32(0)
 
@@ -387,7 +383,7 @@ class Model_Reco:
     theta_line = self.theta_line
     beta_line = self.beta_line
     beta_new = np.float32(0)
-    mu_line =np.float32( 0.5)
+    mu_line =np.float32(0.9)
     delta_line = np.float32(1)
     ynorm = np.float32(0.0)
     lhs = np.float32(0.0)
@@ -507,9 +503,9 @@ class Model_Reco:
     self.r = r.get()
     self.z1 = z1.get()
     self.z2 = z2.get()
-    self.tau = tau
-    self.beta_line = beta_line
-    self.theta_line = theta_line
+#    self.tau = tau
+#    self.beta_line = beta_line
+#    self.theta_line = theta_line
     return x.get()
 
   def tv_solve_3D(self, x,res, iters):
@@ -823,7 +819,7 @@ class Model_Reco:
     for i in range(self.irgn_par["max_gn_it"]):
       start = time.time()
       self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
-      if i==0:
+      if not np.mod(i,1):
         scale = np.reshape(self.grad_x,(self.unknowns,self.NScan*self.NSlice*self.dimY*self.dimX))
         scale = np.linalg.norm(scale,axis=-1)
         scale /= np.max(scale)

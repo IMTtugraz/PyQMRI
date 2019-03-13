@@ -665,8 +665,10 @@ class Model(BaseModel):
 
     FP = 0.5*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
     Te = 2.5*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[6][...]#5*np.ones((NSlice,dimY,dimX),dtype=DTYPE)#
+
 #    Te[Te<1/60] = 1/60
     alpha = 0.2*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[7][...]#
+
 #    alpha[alpha<1e-4] = 1e-4
 #    A_B = 50000*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
 #    mu_B = 10*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
@@ -674,6 +676,12 @@ class Model(BaseModel):
 #    mu_G = 0.1*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
     Tc = 1/6*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
     tau = 0.5*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
+
+#    FP[:,:int(int(self.dimY/2)),:] = self.FP[:,:int(self.dimY/2),:]
+#    Te[:,:int(self.dimY/2),:] = self.Te[:,:int(self.dimY/2),:]
+#    alpha[:,:int(self.dimY/2),:] = self.alpha[:,:int(self.dimY/2),:]
+#    tau[:,:int(self.dimY/2),:] = self.tau[:,:int(self.dimY/2),:]
+#    Tc[:,:int(self.dimY/2),:] = self.Tc[:,:int(self.dimY/2),:]
 
     x = np.array([test_M0,FP,Te,alpha,Tc,tau],dtype=DTYPE)
 
