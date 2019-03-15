@@ -32,18 +32,16 @@ class Model(BaseModel):
       self.NScan = par["b_value"].size
       for i in range(self.NScan):
         self.TE[i,...] = par["b_value"][i]*np.ones((1,1,1))
-
     self.uk_scale = []
     for i in range(unknowns_TGV+unknowns_H1):
       self.uk_scale.append(1)
-    self.uk_scale[0] = 1/np.median(np.abs(images))
+#    self.uk_scale[0] = 1/np.median(np.abs(images))
 
-
-    test_M0, ADC = self._set_init_scales()
-    result = np.array([np.mean(test_M0)*np.ones_like(test_M0)/self.uk_scale[0],np.mean(ADC)*np.ones_like(ADC)/self.uk_scale[1]],dtype=DTYPE)
-    self.guess = result
-    self.constraints.append(constraints(1e-5/self.uk_scale[0],100/self.uk_scale[0],False)  )
-    self.constraints.append(constraints((1e-4/self.uk_scale[1]),(1e-1/self.uk_scale[1]),True))
+    self.guess = self._set_init_scales(images)
+#    result = np.array([np.mean(test_M0)*np.ones_like(test_M0)/self.uk_scale[0],np.mean(ADC)*np.ones_like(ADC)/self.uk_scale[1]],dtype=DTYPE)
+#    self.guess = result
+    self.constraints.append(constraints(0/self.uk_scale[0],100/self.uk_scale[0],True)  )
+    self.constraints.append(constraints((1e-1/self.uk_scale[1]),(5e0/self.uk_scale[1]),True))
 
 
   def _execute_forward_2D(self,x,islice):
@@ -169,19 +167,21 @@ class Model(BaseModel):
 
 
 
-  def _set_init_scales(self):
+  def _set_init_scales(self,images):
     ADC = np.reshape(np.linspace(1e-4,1e-2,self.dimX*self.dimY*self.NSlice),(self.NSlice,self.dimX,self.dimY))
-    test_M0 = np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
-    ADC = 1/self.uk_scale[1]*ADC*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
+    test_M0 = 1*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
+    ADC = np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
 
-    G_x = self._execute_forward_3D(np.array([test_M0/self.uk_scale[0],ADC],dtype=DTYPE))
+    x = np.array((test_M0,ADC))
 
-    self.uk_scale[0] *= 1/np.max(np.abs(G_x))
-
-
-    DG_x =  self._execute_gradient_3D(np.array([test_M0/self.uk_scale[0],ADC],dtype=DTYPE))
-    self.uk_scale[1] = self.uk_scale[1]*np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...]))
-
-    print('ADC scale: ',self.uk_scale[1])
-    print('M0 scale: ',self.uk_scale[0])
-    return test_M0, ADC
+#    G_x = self._execute_forward_3D(np.array([test_M0/self.uk_scale[0],ADC],dtype=DTYPE))
+#
+#    self.uk_scale[0] *= 1/np.max(np.abs(G_x))
+#
+#
+#    DG_x =  self._execute_gradient_3D(np.array([test_M0/self.uk_scale[0],ADC],dtype=DTYPE))
+#    self.uk_scale[1] = self.uk_scale[1]*np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...]))
+#
+#    print('ADC scale: ',self.uk_scale[1])
+#    print('M0 scale: ',self.uk_scale[0])
+    return x#test_M0, ADC

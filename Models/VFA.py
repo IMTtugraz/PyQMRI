@@ -49,8 +49,8 @@ class Model(BaseModel):
                         10/self.uk_scale[0],
                         False))
         self.constraints.append(
-            constraints(np.exp(-self.TR/(50))/self.uk_scale[1],
-                        np.exp(-self.TR/(5500))/self.uk_scale[1],
+            constraints(np.exp(-self.TR/(50)),
+                        np.exp(-self.TR/(5500)),
                         True))
     #    self.constraints.append(constraints(50/self.uk_scale[1],5500/self.uk_scale[1],True))
 
