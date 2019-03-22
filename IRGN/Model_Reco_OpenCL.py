@@ -508,7 +508,7 @@ class Model_Reco:
           self.r = r.get()
           self.z1 = z1.get()
           self.z2 = z2.get()
-          print("Terminated at iteration %d because the relative energy decrease of the PD gap was less than %.3e"%(i,abs(gap/gap_min).get()))
+          print("Terminated at iteration %d because the relative energy decrease of the PD gap was less than %.3e"%(i,abs((gap-gap_old)/gap_min).get()))
           return x_new.get()
         primal = primal_new
         gap_old = gap
