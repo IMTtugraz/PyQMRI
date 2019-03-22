@@ -403,8 +403,8 @@ def main(args):
                              result_tgv[i].shape,
                              dtype=DTYPE, data=result_tgv[i])
             f.attrs['imagespace_tgv'] = res_tgv
-        f.attrs['data_norm'] = dscale
         f.flush()
+    f.attrs['data_norm'] = dscale
     f.close()
     os.chdir(cwd)
 
