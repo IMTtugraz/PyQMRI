@@ -318,8 +318,12 @@ def main(args):
 #        (np.linalg.norm(images.flatten()))
 #    images *= dscale
     if args.imagespace:
+#        Coils = par["file"]["GT/sensitivities/real_dat"][()] + 1j*par["file"]["GT/sensitivities/imag_dat"][()]
+#        scale = (np.median(np.abs(np.sum(np.conj(par['C'])*Coils,0))))
         images = np.abs(images)
-        tmp = images/(0.2*1.3085805*np.sin(par["flip_angle(s)"]*np.pi/180))
+#        M0 = np.abs(np.sum(np.conj(par['C'])*Coils,0))*0.2*1.3085805*1.0406453791820893/scale  ###  for 4 Coils multiply with 1.498949673073827
+        M0 = par['file']['PD_est'][()].astype(DTYPE)[None,...]*dscale
+        tmp = images/(M0*np.sin(par["flip_angle(s)"]*np.pi/180))
         images = (1-tmp)/(1-tmp*np.cos(par["flip_angle(s)"]*np.pi/180))
         del tmp
         images = (np.log(images)/(-par["TR"]/1000*3.2))*par["file"]["image_mask"][()].astype(DTYPE)
@@ -329,7 +333,7 @@ def main(args):
                     (DTYPE(np.sqrt(2*1e3)) / (np.linalg.norm(images.flatten())))
         par["dscale"] = dscale
         images *= dscale
-        print(dscale)
+#        print(dscale)
         opt.data = images
     else:
         opt.data = data
@@ -448,7 +452,7 @@ if __name__ == '__main__':
       help='Full path to input data. \
       If not provided, a file dialog will open.')
     parser.add_argument(
-      '--model', default='VFA_michael', dest='sig_model',
+      '--model', default='Con_michael', dest='sig_model',
       help='Name of the signal model to use. Defaults to VFA. \
  Please put your signal model file in the Model subfolder.')
     parser.add_argument(

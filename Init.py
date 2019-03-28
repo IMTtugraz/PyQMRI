@@ -282,10 +282,17 @@ def main(args):
 ###############################################################################
 # generate nFFT  ##############################################################
 ###############################################################################
+
+    Coils = par["file"]["GT/sensitivities/real_dat"][()] + 1j*par["file"]["GT/sensitivities/imag_dat"][()]
+    gain = np.sqrt(np.sum(np.conj(Coils)*Coils,0))
+    par['C'] = Coils/gain
+
     if NC == 1:
         par['C'] = np.ones((data[0, ...].shape), dtype=DTYPE)
     else:
         par['C'] = par['C'].astype(DTYPE)
+
+
 
     FFT = utils.NUFFT(par, trafo=args.trafo, SMS=args.sms)
 
@@ -309,7 +316,7 @@ def main(args):
                                (np.conj(par["C"])), axis=1),
                         requirements='C')
     del FFT, nFTH
-
+#    par['C'] = par["file"]["GT/sensitivities/real_dat"][()] + 1j*par["file"]["GT/sensitivities/imag_dat"][()]
     opt = Model_Reco.Model_Reco(par, args.trafo,
                                 imagespace=args.imagespace, SMS=args.sms)
 
@@ -334,7 +341,12 @@ def main(args):
         #######################################################################
         model = sig_model.Model(par, images)
         # Close File after everything was read
-#        print(np.max(np.abs(images))/np.max(np.abs(model.execute_forward(model.guess))))
+#        test = model.execute_forward(model.guess)
+#        ratio = np.mean((images[:20]))/np.mean((test[:20]))
+#        print(ratio.real)
+#        model.guess[0] *= ratio.real
+#        test = model.execute_forward(model.guess)
+#        print((np.mean((images[:20]))/np.mean((test[:20]))).real)
         par["file"].close()
         #######################################################################
         # IRGN - TGV Reco #####################################################
@@ -446,7 +458,7 @@ if __name__ == '__main__':
       help='Simultanious Multi Slice, defaults to off (0). \
       Can only be used with Cartesian sampling.')
     parser.add_argument(
-      '--imagespace', default=1, dest='imagespace', type=int,
+      '--imagespace', default=0, dest='imagespace', type=int,
       help='Select if Reco is performed on images (1) or on kspace (0) data. \
  Defaults to 0')
     parser.add_argument(

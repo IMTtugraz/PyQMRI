@@ -25,7 +25,7 @@ def est_coils(data,par,file,args):
 ### Initiate parallel interface ################################################
 ################################################################################
   c = ipp.Client()
-  nlinvNewtonSteps = 6
+  nlinvNewtonSteps = 9
   nlinvRealConstr  = False
   try:
     if not file['Coils'][()].shape[1] >= par["NSlice"] and not args.sms:

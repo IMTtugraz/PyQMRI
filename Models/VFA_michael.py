@@ -43,11 +43,14 @@ class Model(BaseModel):
 
     self.mask = np.ones_like(self.FP)
     self.mask[self.FP==0] = 0
+    self.mask = self.mask.astype(int)
 
 
     Coils = par["file"]["GT/sensitivities/real_dat"][()] + 1j*par["file"]["GT/sensitivities/imag_dat"][()]
-#    sumSqrC = np.sqrt(np.sum((par["C"] * np.conj(par["C"])),0))
-#    par["C"] = par["C"] / np.tile(sumSqrC, (par["NC"],1,1,1))
+#    Coils = par['C']
+    scale = 1#(np.quantile(np.abs(np.sum(np.conj(par['C'])*Coils,0)),0.65))
+#    sumSqrC = np.sqrt(np.sum((Coils * np.conj(Coils)),0)) #4, 9, 128, 128
+#    Coils = Coils / np.tile(sumSqrC, (par["NC"],1,1,1))
 
     self.r = 3.2
     self.R10 = 1
@@ -62,7 +65,7 @@ class Model(BaseModel):
       self.uk_scale.append(1)
 #    self.uk_scale[0] = 1
 
-    self.guess = self._set_init_scales(par["dscale"],Coils)
+    self.guess = self._set_init_scales(par["dscale"],Coils,par,scale)
 
 #    self.constraints.append(constraints(0,1e6/self.uk_scale[0],False)  )
     self.constraints.append(constraints(0,10/self.uk_scale[0],False)  )
@@ -289,12 +292,12 @@ class Model(BaseModel):
            plt.draw()
            plt.pause(1e-10)
 
-
-           self.time_course = self.ax[57].plot(self.t,np.abs(images[:,0,82,52]),'r')[0]
            self.time_course_ref = self.ax[57].plot(self.t,np.abs(self.images[:,0,82,52]),'g')[0]
+           self.time_course = self.ax[57].plot(self.t,np.abs(images[:,0,82,52]),'r')[0]
            self.ax[57].set_ylim(np.abs(self.images[:,0,82,52]).min()-np.abs(self.images[:,0,82,52]).min()*0.01, np.abs(self.images[:,0,82,52]).max()+np.abs(self.images[:,0,82,52]).max()*0.01)
            plt.draw()
-           plt.pause(1e-10)
+           plt.show()
+           plt.pause(1e-4)
 
          else:
            self.M0_plot.set_data((M0[int(self.NSlice/2),...]))
@@ -654,16 +657,23 @@ class Model(BaseModel):
     dC_fit[~np.isfinite(dC_fit)] = 0
     return (C_fit*Fp,dC_fit)
 
-  def _set_init_scales(self,dscale,Coils):
+  def _set_init_scales(self,dscale,Coils,par,scale):
 
 #    mask = np.ones_like(self.tau)
 #    mask[self.tau<1e-4] = 0
 
 
 #    test_M0 =0.2*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask
-    test_M0 = 0.2*1.3085805*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#*0.9785314
+#    test_M0 = dscale*0.01*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#*0.9785314 ### 0.2*1.3085805
+#    test_M0 = np.sum(test_M0*Coils,0)/Coils.shape[0]
+#    print(scale)
+    gain = np.sqrt(np.sum(np.conj(Coils)*Coils,0))
+#    gain = par["gain"]
+#    gain = np.abs(np.sum(np.conj(par['C'])*Coils,0))
+    test_M0 = gain*0.01*128*self.mask
+#    test_M0 = par['file']['PD_est'][()].astype(DTYPE)[None,...]*dscale#2Coil 1.0290821 #### 4 Coil 1.0189297
 
-    FP = 0.5*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]#
+    FP = 0.1*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[4][...]# 0.5
     Te = 2.5*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask#parameters[6][...]#5*np.ones((NSlice,dimY,dimX),dtype=DTYPE)#
 
 #    Te[Te<1/60] = 1/60

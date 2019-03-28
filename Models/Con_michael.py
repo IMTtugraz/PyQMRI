@@ -45,9 +45,12 @@ class Model(BaseModel):
     self.mask[self.FP==0] = 0
     self.dscale = par["dscale"]
 
-    self.M0 = 0.2*1.3085805*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask
 
-#    par["C"] = par["file"]["GT/sensitivities/real_dat"][()] + 1j*par["file"]["GT/sensitivities/imag_dat"][()]
+
+#    Coils = par["file"]["GT/sensitivities/real_dat"][()] + 1j*par["file"]["GT/sensitivities/imag_dat"][()]
+
+    self.M0 = np.sqrt(np.sum((par["C"]*0.2*1.3085805*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)*self.mask)**2,0))
+
 #    sumSqrC = np.sqrt(np.sum((par["C"] * np.conj(par["C"])),0))
 #    par["C"] = par["C"] / np.tile(sumSqrC, (par["NC"],1,1,1))
 

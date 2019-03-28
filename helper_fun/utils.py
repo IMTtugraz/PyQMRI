@@ -55,20 +55,20 @@ def gen_default_config():
   config['DEFAULT']["gamma_dec"] = '0.7'
 
   config['3D_TGV'] = {}
-  config['3D_TGV']["max_iters"] = '300'
+  config['3D_TGV']["max_iters"] = '1000'
   config['3D_TGV']["start_iters"] = '100'
-  config['3D_TGV']["max_gn_it"] = '13'
-  config['3D_TGV']["lambd"] = '1e2'
-  config['3D_TGV']["gamma"] = '2e-3'
+  config['3D_TGV']["max_gn_it"] = '50'
+  config['3D_TGV']["lambd"] = '1e6'
+  config['3D_TGV']["gamma"] = '1e-1'
   config['3D_TGV']["delta"] = '1e-1'
-  config['3D_TGV']["omega"] = '1e-1'
-  config['3D_TGV']["display_iterations"] = 'True'
-  config['3D_TGV']["gamma_min"] = '0.8e-3'
-  config['3D_TGV']["omega_min"] = '0.8e-3'
+  config['3D_TGV']["omega"] = '0'
+  config['3D_TGV']["display_iterations"] = '1'
+  config['3D_TGV']["gamma_min"] = '1e-4'
   config['3D_TGV']["delta_max"] = '1e2'
+  config['3D_TGV']["omega_min"] = '0'
   config['3D_TGV']["tol"] = '5e-3'
-  config['3D_TGV']["stag"] = '1'
-  config['3D_TGV']["delta_inc"] = '2'
+  config['3D_TGV']["stag"] = '1e10'
+  config['3D_TGV']["delta_inc"] = '5'
   config['3D_TGV']["gamma_dec"] = '0.7'
   config['3D_TGV']["omega_dec"] = '0.7'
 
@@ -93,11 +93,15 @@ def gen_default_config():
 def read_config(conf_file,reg_type="DEFAULT"):
   config = configparser.ConfigParser()
   try:
-    config.read(conf_file+".ini")
+    with open(conf_file+'.ini','r') as f:
+      config.read_file(f)
+#    config.read(conf_file+".ini")
   except:
     print("Config file not readable or not found. Falling back to default.")
     gen_default_config()
-  else:
+    with open(conf_file+'.ini','r') as f:
+      config.read_file(f)
+  finally:
     params = {}
     for key in config[reg_type]:
       if key in {'max_gn_it','max_iters','start_iters'}:

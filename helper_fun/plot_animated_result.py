@@ -42,7 +42,7 @@ def run():
 
   data = file[res_name[2]][()]
   file.close()
-  data = data[-1,:,:]
+  data = data[5,:,:]
 
   #data[:,:5]=0
   ##

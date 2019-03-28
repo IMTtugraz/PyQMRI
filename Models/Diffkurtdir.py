@@ -51,20 +51,24 @@ class Model(BaseModel):
 
     self.guess = self._set_init_scales(images)
 
-    self.constraints.append(constraints(0/self.uk_scale[0],100/self.uk_scale[0],False))
-    self.constraints.append(constraints((0/self.uk_scale[1]),(5e0/self.uk_scale[1]),True))
-    self.constraints.append(constraints((-5e0/self.uk_scale[2]),(5e0/self.uk_scale[2]),True))
-    self.constraints.append(constraints((0/self.uk_scale[3]),(5e0/self.uk_scale[3]),True))
-    self.constraints.append(constraints((-5e0/self.uk_scale[4]),(5e0/self.uk_scale[4]),True))
-    self.constraints.append(constraints((0/self.uk_scale[5]),(5e0/self.uk_scale[5]),True))
-    self.constraints.append(constraints((-5e0/self.uk_scale[6]),(5e0/self.uk_scale[6]),True))
+    self.constraints.append(constraints(0/self.uk_scale[0],10/self.uk_scale[0],False))
+    self.constraints.append(constraints((0/self.uk_scale[1]),(3e0/self.uk_scale[1]),True))
+    self.constraints.append(constraints((-1e0/self.uk_scale[2]),(1e0/self.uk_scale[2]),True))
+    self.constraints.append(constraints((0/self.uk_scale[3]),(3e0/self.uk_scale[3]),True))
+    self.constraints.append(constraints((-1e0/self.uk_scale[4]),(1e0/self.uk_scale[4]),True))
+    self.constraints.append(constraints((0/self.uk_scale[5]),(3e0/self.uk_scale[5]),True))
+    self.constraints.append(constraints((-1e0/self.uk_scale[6]),(1e0/self.uk_scale[6]),True))
 
-    self.constraints.append(constraints((0/self.uk_scale[7]),(100/self.uk_scale[7]),True))
-    self.constraints.append(constraints((0/self.uk_scale[8]),(100/self.uk_scale[8]),True))
-    self.constraints.append(constraints((0/self.uk_scale[9]),(100/self.uk_scale[9]),True))
+    self.constraints.append(constraints((0/self.uk_scale[7]),(3/self.uk_scale[7]),True))
+    self.constraints.append(constraints((0/self.uk_scale[8]),(3/self.uk_scale[8]),True))
+    self.constraints.append(constraints((0/self.uk_scale[9]),(3/self.uk_scale[9]),True))
 
-    for j in range(12):
-      self.constraints.append(constraints((-100/self.uk_scale[j+10]),(100/self.uk_scale[j+10]),True))
+    for j in range(6):
+      self.constraints.append(constraints((-3/self.uk_scale[j+10]),(3/self.uk_scale[j+10]),True))
+    for j in range(3):
+      self.constraints.append(constraints((0/self.uk_scale[j+10]),(3/self.uk_scale[j+10]),True))
+    for j in range(3):
+      self.constraints.append(constraints((-3/self.uk_scale[j+10]),(3/self.uk_scale[j+10]),True))
     for j in range(phase_maps):
       self.constraints.append(constraints((-np.pi/self.uk_scale[-phase_maps+j]),(np.pi/self.uk_scale[-phase_maps+j]),True))
 
@@ -76,6 +80,7 @@ class Model(BaseModel):
     raise NotImplementedError
 
   def _execute_forward_3D(self,x):
+    x = x.astype(np.complex128)
 
     ADC = x[1,...]*self.uk_scale[1]*self.dir[...,0]**2+x[3,...]*self.uk_scale[3]*self.dir[...,1]**2+x[5,...]*self.uk_scale[5]*self.dir[...,2]**2+\
           2*x[2,...]*self.uk_scale[2]*self.dir[...,0]*self.dir[...,1]+2*x[4,...]*self.uk_scale[4]*self.dir[...,0]*self.dir[...,2]+\
@@ -100,17 +105,17 @@ class Model(BaseModel):
 
     S = (x[0,...]*self.uk_scale[0]*np.exp(1/6*meanADC**2*self.b**2*kurt -ADC*self.b)).astype(DTYPE)
 
-    phase = np.zeros((phase_maps,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
-    for j in range(phase_maps):
-      phase[j,...] = np.exp(1j*x[22+j,...]*self.uk_scale[22+j])
-      S[int(j*(self.NScan-1)/phase_maps)+1:int((j+1)*(self.NScan-1)/phase_maps)+1,...]*=phase[j]
+#    phase = np.zeros((phase_maps,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
+#    for j in range(phase_maps):
+#      phase[j,...] = np.exp(1j*x[22+j,...]*self.uk_scale[22+j])
+#      S[int(j*(self.NScan-1)/phase_maps)+1:int((j+1)*(self.NScan-1)/phase_maps)+1,...]*=phase[j]
 
 
     S[~np.isfinite(S)] = 1e-20
     return S
 
   def _execute_gradient_3D(self,x):
-
+    x = x.astype(np.complex128)
     ADC = x[1,...]*self.uk_scale[1]*self.dir[...,0]**2+x[3,...]*self.uk_scale[3]*self.dir[...,1]**2+x[5,...]*self.uk_scale[5]*self.dir[...,2]**2+\
           2*x[2,...]*self.uk_scale[2]*self.dir[...,0]*self.dir[...,1]+2*x[4,...]* self.uk_scale[4]*self.dir[...,0]*self.dir[...,2]+\
           2*x[6,...]*self.uk_scale[6]*self.dir[...,1]*self.dir[...,2]
@@ -134,15 +139,15 @@ class Model(BaseModel):
            12*x[21,...]*self.uk_scale[21]*self.dir[...,0]*self.dir[...,1]*self.dir[...,2]**2
 
 
-    diffexp = np.exp(1/6*meanADC**2*self.b**2*kurt -ADC*self.b)
+    diffexp = np.exp(1/6*meanADC**2*self.b**2*kurt - ADC*self.b)
 
 
-    phase = np.zeros((phase_maps,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
-    grad_phase = np.zeros((phase_maps,self.NScan,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
+#    phase = np.zeros((phase_maps,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
+#    grad_phase = np.zeros((phase_maps,self.NScan,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
     grad_M0 = self.uk_scale[0]*diffexp
-    for j in range(phase_maps):
-      phase[j,...] = np.exp(1j*x[22+j,...]*self.uk_scale[22+j])
-      grad_M0[int(j*(self.NScan-1)/phase_maps)+1:int((j+1)*(self.NScan-1)/phase_maps)+1,...] *= phase[j]
+#    for j in range(phase_maps):
+#      phase[j,...] = np.exp(1j*x[22+j,...]*self.uk_scale[22+j])
+#      grad_M0[int(j*(self.NScan-1)/phase_maps)+1:int((j+1)*(self.NScan-1)/phase_maps)+1,...] *= phase[j]
 
     M0_scaled = x[0,...]*grad_M0
 
@@ -175,13 +180,16 @@ class Model(BaseModel):
     grad_kurt_xyyz= (mean_squared*self.uk_scale[20]*12*self.dir[...,0]*self.dir[...,1]**2*self.dir[...,2])
     grad_kurt_xyzz= (mean_squared*self.uk_scale[21]*12*self.dir[...,0]*self.dir[...,1]*self.dir[...,2]**2)
 
-    for j in range(phase_maps):
-      grad_phase[j,...] = 1j*self.uk_scale[22+j]*M0_scaled
+#    for j in range(phase_maps):
+#      grad_phase[j,...] = 1j*self.uk_scale[22+j]*M0_scaled
 
 
-    grad = np.concatenate((np.array([grad_M0,grad_ADC_x,grad_ADC_xy,grad_ADC_y,grad_ADC_xz,grad_ADC_z,grad_ADC_yz,grad_kurt_xxxx,grad_kurt_yyyy,grad_kurt_zzzz,grad_kurt_xxxy,
+#    grad = np.concatenate((np.array([grad_M0,grad_ADC_x,grad_ADC_xy,grad_ADC_y,grad_ADC_xz,grad_ADC_z,grad_ADC_yz,grad_kurt_xxxx,grad_kurt_yyyy,grad_kurt_zzzz,grad_kurt_xxxy,
+#                     grad_kurt_xxxz,grad_kurt_xyyy,grad_kurt_yyyz,grad_kurt_xzzz,grad_kurt_yzzz,grad_kurt_xxyy,grad_kurt_xxzz,grad_kurt_yyzz,
+#                     grad_kurt_xxyz,grad_kurt_xyyz,grad_kurt_xyzz],dtype=DTYPE),grad_phase))
+    grad = np.array([grad_M0,grad_ADC_x,grad_ADC_xy,grad_ADC_y,grad_ADC_xz,grad_ADC_z,grad_ADC_yz,grad_kurt_xxxx,grad_kurt_yyyy,grad_kurt_zzzz,grad_kurt_xxxy,
                      grad_kurt_xxxz,grad_kurt_xyyy,grad_kurt_yyyz,grad_kurt_xzzz,grad_kurt_yzzz,grad_kurt_xxyy,grad_kurt_xxzz,grad_kurt_yyzz,
-                     grad_kurt_xxyz,grad_kurt_xyyz,grad_kurt_xyzz],dtype=DTYPE),grad_phase))
+                     grad_kurt_xxyz,grad_kurt_xyyz,grad_kurt_xyzz],dtype=DTYPE)
     grad[~np.isfinite(grad)] = 1e-20
     return grad
 
@@ -223,6 +231,21 @@ class Model(BaseModel):
       kurt_zzzz_min = kurt_zzzz.min()
       kurt_zzzz_max = kurt_zzzz.max()
 
+      kurt = []
+      kurt_min = []
+      kurt_max = []
+
+#           self.M0_plot=self.ax[1].imshow((M0[int(self.NSlice/2),...]))
+#           self.M0_plot_cor=self.ax[11].imshow((M0[:,int(M0.shape[1]/2),...]))
+#           self.M0_plot_sag=self.ax[2].imshow(np.flip((M0[:,:,int(M0.shape[-1]/2)]).T,1))
+
+      for j in range(12):
+        tmp = np.real(np.real(x[10+j,...]*self.uk_scale[10+j]))
+        tmp1 = np.concatenate((tmp[int(self.NSlice/2),...],tmp[:,int(tmp.shape[1]/2),...].T),-1)
+        tmp2 = np.concatenate((np.flip((tmp[:,:,int(tmp.shape[-1]/2)]),1),np.zeros((tmp.shape[0],tmp.shape[0]))),-1)
+        kurt.append(np.concatenate((tmp1,tmp2),0))
+        kurt_min.append(kurt[j].min())
+        kurt_max.append(kurt[j].max())
 
       DT = np.zeros((M0.shape[-3],M0.shape[-1],M0.shape[-1],3,3),dtype=np.float32)
       DT[...,0,0] = ADC_x.real
@@ -274,6 +297,7 @@ class Model(BaseModel):
          [z,y,x] = M0.shape
          self.ax = []
          self.ax_phase = []
+         self.ax_kurt = []
          if not self.figure:
            plt.ion()
            self.figure = plt.figure(figsize = (12,6))
@@ -441,8 +465,32 @@ class Model(BaseModel):
            plt.draw()
            plt.pause(1e-10)
 
-           plot_dim = int(np.ceil(np.sqrt(len(phase))))
+           self.figure.canvas.draw_idle()
 
+           plot_dim = int(np.ceil(np.sqrt(len(kurt))))
+           plt.ion()
+           self.figure_kurt = plt.figure(figsize = (12,6))
+           self.figure_kurt.subplots_adjust(hspace=0.3, wspace=0)
+           wd_ratio = np.tile([1,1/20,1/(5)],plot_dim)
+           self.gs_kurt = gridspec.GridSpec(plot_dim,3*plot_dim,width_ratios=wd_ratio,hspace=0.3,wspace=0)
+           self.figure_kurt.tight_layout()
+           self.figure_kurt.patch.set_facecolor(plt.cm.viridis.colors[0])
+           for grid in self.gs_kurt:
+             self.ax_kurt.append(plt.subplot(grid))
+             self.ax_kurt[-1].axis('off')
+           self.kurt_plot = []
+           for j in range(len(kurt)):
+             self.kurt_plot.append(self.ax_kurt[3*j].imshow((kurt[j])))
+             self.ax_kurt[3*j].set_title('Kurtosis of dir: '+str(j),color='white')
+             self.ax_kurt[3*j+1].axis('on')
+             cbar = self.figure.colorbar(self.kurt_plot[j], cax=self.ax_kurt[3*j+1])
+             cbar.ax.tick_params(labelsize=12,colors='white')
+             for spine in cbar.ax.spines:
+               cbar.ax.spines[spine].set_color('white')
+             plt.draw()
+             plt.pause(1e-10)
+
+           plot_dim = int(np.ceil(np.sqrt(len(phase))))
            plt.ion()
            if phase_maps:
              self.figure_phase = plt.figure(figsize = (12,6))
@@ -548,6 +596,14 @@ class Model(BaseModel):
            self.FA_plot_sag.set_clim([FA_min,FA_max])
            self.FA_plot_cor.set_clim([FA_min,FA_max])
 
+           self.figure.canvas.draw_idle()
+
+           for j in range(len(kurt)):
+             self.kurt_plot[j].set_data((kurt[j]))
+             self.kurt_plot[j].set_clim([kurt_min[j],kurt_max[j]])
+
+           self.figure_kurt.canvas.draw_idle()
+
            for j in range(phase_maps):
              self.phase_plot[j].set_data((phase[j][int(self.NSlice/2),...]))
              self.phase_plot[j].set_clim([phase_min,phase_max])
@@ -561,8 +617,8 @@ class Model(BaseModel):
 #    ADC = np.reshape(np.linspace(1e-6,1e-2,self.dimX*self.dimY*self.NSlice),(self.NSlice,self.dimX,self.dimY))
     phase = np.zeros((phase_maps,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
 #    kurt = np.reshape(np.linspace(0,2,self.dimX*self.dimY*self.NSlice),(self.NSlice,self.dimX,self.dimY))
-    test_M0 = np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
-    ADC_x = 1*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
+    test_M0 = 0.1*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
+    ADC_x = 0.5*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
     kurt_xxxx = 0*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
 
     x = np.concatenate((np.array([test_M0/self.uk_scale[0],ADC_x,0*ADC_x
