@@ -32,22 +32,14 @@ def kb(u,w,beta,G):
   if (np.size(w) > 1):
     	raise('w should be a single scalar value.');
 
-
-
   y = 0*u # Allocate space.
-  uz = np.where(np.abs(u)< w/(2*G))			# Indices where u<w/2.
+  uz = np.where(np.abs(u)<= w/(2*G))			# Indices where u<w/2.
 
   if (np.size(uz) > 0):			# Calculate y at indices uz.
-    	x = beta*np.sqrt(1-(2*G*u[uz]/w)**2);	# Argument - see Jackson '91.
+    	x = beta*np.sqrt(1-(2*u[uz]*G/w)**2);	# Argument - see Jackson '91.
     	y[uz] = G*np.i0(x)/w;
 
-  ft_y = np.flip(y,0)
-  ft_y = np.concatenate((ft_y,y),0)
-  ft_y = np.pad(ft_y,int(G*u.size/w),'constant')
-  ft_y = np.fft.ifftshift(np.fft.ifft(np.fft.fftshift(ft_y)))
-  ft_y = ft_y[int(ft_y.size/2-G/4):int(ft_y.size/2+G/4)]
-  ft_y = np.abs(ft_y/np.max(np.abs(ft_y)))
-  return (y,ft_y)
+  return (y)
 
 
 

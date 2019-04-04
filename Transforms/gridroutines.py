@@ -18,7 +18,7 @@ class Program(object):
 
 
 class gridding:
-  def __init__(self, ctx,queue, par,kwidth=4,overgridfactor=2,fft_dim=(1,2),klength=10000,DTYPE=np.complex64,DTYPE_real=np.float32, radial=True, SMS=False):
+  def __init__(self, ctx,queue, par,kwidth=5,overgridfactor=2,fft_dim=(1,2),klength=200,DTYPE=np.complex64,DTYPE_real=np.float32, radial=True, SMS=False):
     self.radial = radial
     self.DTYPE = DTYPE
     self.DTYPE_real = DTYPE_real
@@ -30,7 +30,7 @@ class gridding:
     if self.radial:
       (self.kerneltable,self.kerneltable_FT,self.u) = calckbkernel(kwidth,overgridfactor,par["N"],klength)
       self.kernelpoints = self.kerneltable.size
-#      self.api = cluda.ocl_api()
+      self.overgridfactor=overgridfactor
       self.fft_scale = DTYPE_real(np.sqrt(np.prod(self.fft_shape[fft_dim[0]:])))
       self.deapo = 1/self.kerneltable_FT.astype(DTYPE_real)
       self.kwidth = kwidth/2
@@ -121,7 +121,7 @@ class gridding:
       self.tmp_fft_array.add_event(self.fft2[idx].enqueue_arrays(data=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],result=self.tmp_fft_array[j*self.par_fft:(j+1)*self.par_fft,...],forward=False)[0])
     self.tmp_fft_array.add_event(self.prg.fftshift(queue,(self.fft_shape[0],self.fft_shape[1],self.fft_shape[2]),None,self.tmp_fft_array.data,self.check.data))
 #    self.tmp_fft_array.add_event(self.fftshift[idx](self.tmp_fft_array,self.tmp_fft_array)[0])
-    return self.prg.deapo_adj(queue,(sg.shape[0]*sg.shape[1]*sg.shape[2],sg.shape[3],sg.shape[4]),None,sg.data,self.tmp_fft_array.data,self.deapo_cl, np.int32(self.tmp_fft_array[idx].shape[-1]),self.DTYPE_real(self.fft_scale)
+    return self.prg.deapo_adj(queue,(sg.shape[0]*sg.shape[1]*sg.shape[2],sg.shape[3],sg.shape[4]),None,sg.data,self.tmp_fft_array.data,self.deapo_cl, np.int32(self.tmp_fft_array[idx].shape[-1]),self.DTYPE_real(self.fft_scale),self.DTYPE_real(self.overgridfactor)
                                 ,wait_for=wait_for+sg.events+s.events+self.tmp_fft_array.events)
 
 
@@ -137,7 +137,7 @@ class gridding:
 
     self.tmp_fft_array.add_event(self.prg.zero_tmp(queue, (self.tmp_fft_array.size,),None,self.tmp_fft_array.data,wait_for=s.events+sg.events+self.tmp_fft_array.events+wait_for))
     ### Deapodization and Scaling
-    self.tmp_fft_array.add_event(self.prg.deapo_fwd(queue,(sg.shape[0]*sg.shape[1]*sg.shape[2],sg.shape[3],sg.shape[4]),None,self.tmp_fft_array.data,sg.data,self.deapo_cl, np.int32(self.tmp_fft_array.shape[-1]),self.DTYPE_real(1/self.fft_scale),
+    self.tmp_fft_array.add_event(self.prg.deapo_fwd(queue,(sg.shape[0]*sg.shape[1]*sg.shape[2],sg.shape[3],sg.shape[4]),None,self.tmp_fft_array.data,sg.data,self.deapo_cl, np.int32(self.tmp_fft_array.shape[-1]),self.DTYPE_real(1/self.fft_scale),self.DTYPE_real(self.overgridfactor),
                                                     wait_for = wait_for+sg.events+self.tmp_fft_array.events))
     ### FFT
 #    self.tmp_fft_array.add_event(self.fftshift[idx](self.tmp_fft_array,self.tmp_fft_array)[0])

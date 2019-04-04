@@ -12,7 +12,11 @@ from helper_fun import  goldcomp as goldcomp
 import ipyparallel as ipp
 import pyopencl.array as clarray
 from helper_fun import utils
+import os
 
+path = os.environ["TOOLBOX_PATH"] + "/python/";
+sys.path.append(path);
+from bart import bart
 
 #% Estimates sensitivities and complex image.
 #%(see Martin Uecker: Image reconstruction by regularized nonlinear
@@ -25,7 +29,7 @@ def est_coils(data,par,file,args):
 ### Initiate parallel interface ################################################
 ################################################################################
   c = ipp.Client()
-  nlinvNewtonSteps = 6
+  nlinvNewtonSteps = 9
   nlinvRealConstr  = False
   try:
     if not file['Coils'][()].shape[1] >= par["NSlice"] and not args.sms:

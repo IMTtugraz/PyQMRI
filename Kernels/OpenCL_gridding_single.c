@@ -1,19 +1,4 @@
 
- void AtomicAdd(volatile __global float *source, const float operand) {
-    union {
-        unsigned int intVal;
-        float floatVal;
-    } newVal;
-    union {
-        unsigned int intVal;
-        float floatVal;
-    } prevVal;
-    do {
-        prevVal.floatVal = *source;
-        newVal.floatVal = prevVal.floatVal + operand;
-    } while (atomic_cmpxchg((volatile __global unsigned int *)source, prevVal.intVal, newVal.intVal) != prevVal.intVal);
-}
-
   __kernel void make_complex(__global float2 *out,__global float *re, __global float* im)
   {
     size_t k = get_global_id(0);
@@ -22,7 +7,20 @@
     out[k].s1 = im[k];
 
   }
-  __kernel void deapo_adj(__global float2 *out, __global float2 *in, __constant float *deapo, const int dim, const float scale)
+ void AtomicAdd(volatile __global float *addr, float val) {
+  union {
+           unsigned int u32;
+           float        f32;
+       } next, expected, current;
+   	current.f32    = *addr;
+       do {
+   	   expected.f32 = current.f32;
+           next.f32     = expected.f32 + val;
+   		current.u32  = atomic_cmpxchg( (volatile __global unsigned int *)addr,
+                               expected.u32, next.u32);
+       } while( current.u32 != expected.u32 );
+}
+  __kernel void deapo_adj(__global float2 *out, __global float2 *in, __constant float *deapo, const int dim, const float scale, const float ogf)
   {
     size_t x = get_global_id(2);
     size_t X = get_global_size(2);
@@ -30,15 +28,15 @@
     size_t Y = get_global_size(1);
     size_t k = get_global_id(0);
 
-    size_t m = x+dim/4;
+    size_t m = x+(int)(dim-X)/2;
     size_t M = dim;
-    size_t n = y+dim/4;
+    size_t n = y+(int)(dim-Y)/2;
     size_t N = dim;
 
     out[k*X*Y+y*X+x] = in[k*N*M+n*M+m] * deapo[y]* deapo[x] * scale;
 
   }
-  __kernel void deapo_fwd(__global float2 *out, __global float2 *in, __constant float *deapo, const int dim, const float scale)
+  __kernel void deapo_fwd(__global float2 *out, __global float2 *in, __constant float *deapo, const int dim, const float scale, const float ogf)
   {
     size_t x = get_global_id(2);
     size_t X = get_global_size(2);
@@ -46,9 +44,9 @@
     size_t Y = get_global_size(1);
     size_t k = get_global_id(0);
 
-    size_t m = x+dim/4;
+    size_t m = x+(int)(dim-X)/2;
     size_t M = dim;
-    size_t n = y+dim/4;
+    size_t n = y+(int)(dim-Y)/2;
     size_t N = dim;
 
 
@@ -71,7 +69,7 @@
     size_t NDim = get_global_size(1);
     size_t scan = get_global_id(0);
 
-    int ixmin, ixmax, iymin, iymax, gridcenter, gptr_cinc, kernelind;
+    int ixmin, ixmax, iymin, iymax, gridcenter, gptr_cinc, kernelind, indx, indy;
     float kx, ky;
     float fracind, dkx, dky, dk, fracdk, kern;
     gridcenter = gridsize/2;
@@ -87,21 +85,17 @@
 
 
     ixmin =  (int)((kx-kwidth)*gridsize +gridcenter);
-    if (ixmin < 0)
-      ixmin=0;
     ixmax = (int)((kx+kwidth)*gridsize +gridcenter)+1;
-    if (ixmax >= gridsize)
-      ixmax=gridsize-1;
     iymin = (int)((ky-kwidth)*gridsize +gridcenter);
-    if (iymin < 0)
-      iymin=0;
     iymax =  (int)((ky+kwidth)*gridsize +gridcenter)+1;
-    if (iymax >= gridsize)
-      iymax=gridsize-1;
+
 
   	for (int gcount1 = ixmin; gcount1 <= ixmax; gcount1++)
     {
   		dkx = (float)(gcount1-gridcenter) / (float)gridsize  - kx;
+    indx = gcount1;
+  		if (indx < 0)	indx+=gridsize;
+    if (indx >= gridsize)	indx-=gridsize;
   		for (int gcount2 = iymin; gcount2 <= iymax; gcount2++)
   			{
           dky = (float)(gcount2-gridcenter) / (float)gridsize - ky;
@@ -115,11 +109,15 @@
   			    kernelind = (int)fracind;
   			    fracdk = fracind-(float)kernelind;
 
-  			    kern = kerneltable[(int)kernelind]*(1-fracdk)+
-  			    		kerneltable[(int)kernelind+1]*fracdk;
+  			    kern = kerneltable[kernelind]*(1-fracdk)+
+  			    		kerneltable[kernelind+1]*fracdk;
 
-             AtomicAdd(&(sg[2*(gcount1*gridsize+gcount2+(gridsize*gridsize)*n+(gridsize*gridsize)*NDim*scan)]),(kern * kdat.s0));
-             AtomicAdd(&(sg[2*(gcount1*gridsize+gcount2+(gridsize*gridsize)*n+(gridsize*gridsize)*NDim*scan)+1]),(kern * kdat.s1));
+  			    	indy = gcount2;
+          if (indy < 0)	indy+=gridsize;
+          if (indy >= gridsize)	indy-=gridsize;
+
+             AtomicAdd(&(sg[2*(indx*gridsize+indy+(gridsize*gridsize)*n+(gridsize*gridsize)*NDim*scan)]),(kern * kdat.s0));
+             AtomicAdd(&(sg[2*(indx*gridsize+indy+(gridsize*gridsize)*n+(gridsize*gridsize)*NDim*scan)+1]),(kern * kdat.s1));
   			    }
   			}
   		}
@@ -134,7 +132,7 @@
     size_t NDim = get_global_size(1);
     size_t scan = get_global_id(0);
 
-    int ixmin, ixmax, iymin, iymax, gridcenter, gptr_cinc, kernelind;
+    int ixmin, ixmax, iymin, iymax, gridcenter, gptr_cinc, kernelind, indx, indy;
     float kx, ky;
     float fracind, dkx, dky, dk, fracdk, kern;
     gridcenter = gridsize/2;
@@ -146,21 +144,16 @@
     ky = (kpos[k+kDim*scan]).s1;
 
     ixmin =  (int)((kx-kwidth)*gridsize +gridcenter);
-    if (ixmin < 0)
-      ixmin=0;
     ixmax = (int)((kx+kwidth)*gridsize +gridcenter)+1;
-    if (ixmax >= gridsize)
-      ixmax=gridsize-1;
     iymin = (int)((ky-kwidth)*gridsize +gridcenter);
-    if (iymin < 0)
-      iymin=0;
     iymax =  (int)((ky+kwidth)*gridsize +gridcenter)+1;
-    if (iymax >= gridsize)
-      iymax=gridsize-1;
 
   	for (int gcount1 = ixmin; gcount1 <= ixmax; gcount1++)
     {
   		dkx = (float)(gcount1-gridcenter) / (float)gridsize  - kx;
+  		indx = gcount1;
+    if (indx < 0)	indx+=gridsize;
+    if (indx >= gridsize)	indx-=gridsize;
   		for (int gcount2 = iymin; gcount2 <= iymax; gcount2++)
   			{
           dky = (float)(gcount2-gridcenter) / (float)gridsize - ky;
@@ -174,10 +167,14 @@
   			    kernelind = (int)fracind;
   			    fracdk = fracind-(float)kernelind;
 
-  			    kern = kerneltable[(int)kernelind]*(1-fracdk)+
-  			    		kerneltable[(int)kernelind+1]*fracdk;
+  			    kern = kerneltable[kernelind]*(1-fracdk)+
+  			    		kerneltable[kernelind+1]*fracdk;
 
-             tmp_dat += (float2)(kern,kern)*sg[gcount1*gridsize+gcount2+(gridsize*gridsize)*n+(gridsize*gridsize)*NDim*scan];
+  			    	indy = gcount2;
+          if (indy < 0)	indy+=gridsize;
+          if (indy >= gridsize)	indy-=gridsize;
+
+             tmp_dat += (float2)(kern,kern)*sg[indx*gridsize+indy+(gridsize*gridsize)*n+(gridsize*gridsize)*NDim*scan];
   			    }
   			}
   		}

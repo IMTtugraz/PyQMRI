@@ -33,7 +33,7 @@ class Model_Reco:
   def __init__(self,par,trafo=1,imagespace=False, SMS=False):
 
 
-    par["par_slices"] = 20
+    par["par_slices"] = 15
     par["overlap"] = 1
     self.overlap = par["overlap"]
     self.par_slices = par["par_slices"]
@@ -184,20 +184,21 @@ class Model_Reco:
 ### Scale before gradient ######################################################
 ################################################################################
   def set_scale(self,x):
-    for i in range(self.num_dev):
-      for j in range(self.unknowns):
-        self.ukscale[i][j] = np.linalg.norm(x[:,j,...])
-      grad = clarray.to_device(self.queue[3*i],np.zeros_like(self.z1))
-      x = clarray.to_device(self.queue[3*i],x)
-      grad.add_event(self.f_grad(grad,x,idx=i,wait_for=grad.events+x.events))
-      grad = grad.get()
-      scale = np.reshape(np.transpose(grad,(1,0,2,3,4)),(self.unknowns,self.NSlice*self.dimY*self.dimX*4))
-      scale = np.linalg.norm(scale,axis=-1)
-      scale /= np.max(scale)
-      for j in range(self.unknowns):
-  #      scale = np.linalg.norm(grad[j,...].get())/np.linalg.norm(grad[0,...].get())
-        if np.isfinite(scale[j]) and scale[j]>1e-4:
-          self.ratio[i][j] = scale[j]
+    pass
+#    for i in range(self.num_dev):
+#      for j in range(self.unknowns):
+#        self.ukscale[i][j] = np.linalg.norm(x[:,j,...])
+#      grad = clarray.to_device(self.queue[3*i],np.zeros_like(self.z1))
+#      x = clarray.to_device(self.queue[3*i],x)
+#      grad.add_event(self.f_grad(grad,x,idx=i,wait_for=grad.events+x.events))
+#      grad = grad.get()
+#      scale = np.reshape(np.transpose(grad,(1,0,2,3,4)),(self.unknowns,self.NSlice*self.dimY*self.dimX*4))
+#      scale = np.linalg.norm(scale,axis=-1)
+#      scale /= np.max(scale)
+#      for j in range(self.unknowns):
+#  #      scale = np.linalg.norm(grad[j,...].get())/np.linalg.norm(grad[0,...].get())
+#        if np.isfinite(scale[j]) and scale[j]>1e-4:
+#          self.ratio[i][j] = scale[j]
 
 
 
@@ -222,35 +223,55 @@ class Model_Reco:
    self.result[0,:,:,:,:] = np.copy(self.model.guess)
 
    result = np.copy(self.model.guess)
+
    if TV==1:
-     pass
+      self.tau = np.float32(1/np.sqrt(8))
+      self.beta_line = 400
+      self.theta_line = np.float32(1.0)
    elif TV==0:
-     self.v = np.zeros(([self.NSlice,self.unknowns,self.dimY,self.dimX,4]),dtype=DTYPE)
-     self.z2 = np.zeros(([self.NSlice,self.unknowns,self.dimY,self.dimX,8]),dtype=DTYPE)
+      L = np.float32(0.5*(18.0 + np.sqrt(33)))
+      self.tau = np.float32(1/np.sqrt(L))
+      self.beta_line = 400
+      self.theta_line = np.float32(1.0)
+      self.v = np.zeros(([self.NSlice,self.unknowns,self.dimY,self.dimX,4]),dtype=DTYPE)
+      self.z2 = np.zeros(([self.NSlice,self.unknowns,self.dimY,self.dimX,8]),dtype=DTYPE)
    else:
      print("Not implemented")
      return
    for i in range(self.irgn_par["max_gn_it"]):
     start = time.time()
     self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
-    scale = np.reshape(self.grad_x,(self.unknowns,self.NScan*self.NSlice*self.dimY*self.dimX))
-    scale = np.linalg.norm(scale,axis=-1)
-    scale /= np.max(scale)
-    scale = 1/scale
-    print(scale)
-    for uk in range(self.unknowns):
-      self.model.constraints[uk].update(scale[uk])
-      result[uk,...] *= self.model.uk_scale[uk]
-      self.grad_x[uk] /= self.model.uk_scale[uk]
-      self.model.uk_scale[uk]*=scale[uk]
-      result[uk,...] /= self.model.uk_scale[uk]
-      self.grad_x[uk] *= self.model.uk_scale[uk]
+    if not np.mod(i,1):
+      scale = np.reshape(self.grad_x,(self.unknowns,self.NScan*self.NSlice*self.dimY*self.dimX))
+      scale = np.linalg.norm(scale,axis=-1)
+      scale /= np.max(scale)
+      scale = 1/scale
+      print("Inverse Scale of the model Gradients w.r.t the maximum: \n", scale)
+      tmp_sum = 0
+      for uk in range(self.unknowns):
+        self.model.constraints[uk].update(scale[uk])
+        result[uk,...] *= self.model.uk_scale[uk]
+        self.grad_x[uk] /= self.model.uk_scale[uk]
+        self.model.uk_scale[uk]*=scale[uk]
+        result[uk,...] /= self.model.uk_scale[uk]
+        self.grad_x[uk] *= self.model.uk_scale[uk]
+        tmp_sum += self.model.uk_scale[uk]
+      for uk in range(self.unknowns):
+        self.model.constraints[uk].update(1/tmp_sum)
+        result[uk,...] *= self.model.uk_scale[uk]
+        self.grad_x[uk] /= self.model.uk_scale[uk]
+        self.model.uk_scale[uk]/=tmp_sum
+        result[uk,...] /= self.model.uk_scale[uk]
+        self.grad_x[uk] *= self.model.uk_scale[uk]
+
     self.step_val = np.nan_to_num(self.model.execute_forward(result))
     self.step_val = np.require(np.transpose(self.step_val,[1,0,2,3]),requirements='C')
     self.grad_x = np.require(np.transpose(self.grad_x,[2,0,1,3,4]),requirements='C')
     self.set_scale(np.require(np.transpose(result,[1,0,2,3]),requirements='C'))
+
     result = self.irgn_solve_3D(result, iters, self.data,TV)
     self.result[i+1,...] = self.model.rescale(result)
+
     iters = np.fmin(iters*2,self.irgn_par["max_iters"])
     self.irgn_par["gamma"] = np.maximum(self.irgn_par["gamma"]*self.irgn_par["gamma_dec"],self.irgn_par["gamma_min"])
     self.irgn_par["delta"] = np.minimum(self.irgn_par["delta"]*self.irgn_par["delta_inc"],self.irgn_par["delta_max"])
@@ -319,16 +340,10 @@ class Model_Reco:
     return x
 
   def tgv_solve_3D(self, x,res, iters):
-
     alpha = self.irgn_par["gamma"]
     beta = self.irgn_par["gamma"]*2
 
-
-    L = np.float32(0.5*(18.0 + np.sqrt(33)))
-#    print('L: %f'%(L))
-
-
-    tau = np.float32(1/np.sqrt(L))
+    tau = self.tau
     tau_new =np.float32(0)
 
     xk = x.copy()
@@ -347,8 +362,9 @@ class Model_Reco:
 
     delta = self.irgn_par["delta"]
     mu = 1/delta
-    theta_line = np.float32(1.0)
-    beta_line = np.float32(400)
+
+    theta_line = self.theta_line
+    beta_line = self.beta_line
     beta_new = np.float32(0)
     mu_line =np.float32( 0.5)
     delta_line = np.float32(1)
@@ -358,7 +374,7 @@ class Model_Reco:
     primal_new = np.float32(0)
     dual = np.float32(0.0)
     gap_min = np.float32(0.0)
-
+    gap_old = np.float32(0.0)
 
 
     self.eval_const()
@@ -430,30 +446,29 @@ class Model_Reco:
         if myit==0:
           gap_min = gap
         if np.abs(primal-primal_new)<(self.irgn_par["lambd"]*self.NSlice)*self.irgn_par["tol"]:
-          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(myit,abs(primal-primal_new)/(self.irgn_par["lambd"]*self.NSlice)))
-          self.v = v_new
-          self.r = r
-          self.z1 = z1
-          self.z2 = z2
-          return x_new
+          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(myit,abs(primal-primal_new).get()/(self.irgn_par["lambd"]*self.NSlice)))
+          self.v = v_new.get()
+          self.r = r.get()
+          self.z1 = z1.get()
+          self.z2 = z2.get()
+          return x_new.get()
         if (gap > gap_min*self.irgn_par["stag"]) and myit>1:
-          self.v = v_new
-          self.r = r
-          self.z1 = z1
-          self.z2 = z2
+          self.v = v_new.get()
+          self.r = r.get()
+          self.z1 = z1.get()
+          self.z2 = z2.get()
           print("Terminated at iteration %d because the method stagnated"%(myit))
-          return x_new
-        if np.abs(gap - gap_min)<(self.irgn_par["lambd"]*self.NSlice)*self.irgn_par["tol"] and myit>1:
-          self.v = v_new
-          self.r = r
-          self.z1 = z1
-          self.z2 = z2
-          print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(myit,abs(gap - gap_min)/(self.irgn_par["lambd"]*self.NSlice)))
-          return x_new
+          return x_new.get()
+        if np.abs((gap-gap_old)/gap_min)<self.irgn_par["tol"] and myit>1:
+          self.v = v_new.get()
+          self.r = r.get()
+          self.z1 = z1.get()
+          self.z2 = z2.get()
+          print("Terminated at iteration %d because the relative energy decrease of the PD gap was less than %.3e"%(myit,abs((gap-gap_old)/gap_min).get()))
+          return x_new.get()
         primal = primal_new
-        gap_min = np.minimum(gap,gap_min)
-        sys.stdout.write("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f    \r" \
-                       %(myit,primal/(self.irgn_par["lambd"]*self.NSlice),dual/(self.irgn_par["lambd"]*self.NSlice),gap/(self.irgn_par["lambd"]*self.NSlice)))
+        gap_old = gap
+        sys.stdout.write("Iteration: %04d ---- Primal: %2.2e, Dual: %2.2e, Gap: %2.2e \r"%(myit,primal.get()/(self.irgn_par["lambd"]*self.NSlice),dual.get()/(self.irgn_par["lambd"]*self.NSlice),gap.get()/(self.irgn_par["lambd"]*self.NSlice)))
         sys.stdout.flush()
 
       (x, x_new) = (x_new, x)
@@ -500,6 +515,7 @@ class Model_Reco:
     primal_new = np.float32(0)
     dual = np.float32(0.0)
     gap_min = np.float32(0.0)
+    gap_old = np.float32(0.0)
 
 
 
@@ -566,24 +582,23 @@ class Model_Reco:
         if myit==0:
           gap_min = gap
         if np.abs(primal-primal_new)<(self.irgn_par["lambd"]*self.NSlice)*self.irgn_par["tol"]:
-          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(myit,abs(primal-primal_new)/(self.irgn_par["lambd"]*self.NSlice)))
-          self.r = r
-          self.z1 = z1
-          return x_new
+          print("Terminated at iteration %d because the energy decrease in the primal problem was less than %.3e"%(myit,abs(primal-primal_new).get()/(self.irgn_par["lambd"]*self.NSlice)))
+          self.r = r.get()
+          self.z1 = z1.get()
+          return x_new.get()
         if (gap > gap_min*self.irgn_par["stag"]) and myit>1:
-          self.r = r
-          self.z1 = z1
+          self.r = r.get()
+          self.z1 = z1.get()
           print("Terminated at iteration %d because the method stagnated"%(myit))
-          return x
-        if np.abs(gap - gap_min)<(self.irgn_par["lambd"]*self.NSlice)*self.irgn_par["tol"] and myit>1:
-          self.r = r
-          self.z1 = z1
-          print("Terminated at iteration %d because the energy decrease in the PD gap was less than %.3e"%(myit,abs(gap - gap_min)/(self.irgn_par["lambd"]*self.NSlice)))
-          return x_new
+          return x_new.get()
+        if np.abs((gap-gap_old)/gap_min)<self.irgn_par["tol"] and myit>1:
+          self.r = r.get()
+          self.z1 = z1.get()
+          print("Terminated at iteration %d because the relative energy decrease of the PD gap was less than %.3e"%(myit,abs((gap-gap_old)/gap_min).get()))
+          return x_new.get()
         primal = primal_new
-        gap_min = np.minimum(gap,gap_min)
-        sys.stdout.write("Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f    \r" \
-                       %(myit,primal/(self.irgn_par["lambd"]*self.NSlice),dual/(self.irgn_par["lambd"]*self.NSlice),gap/(self.irgn_par["lambd"]*self.NSlice)))
+        gap_old = gap
+        sys.stdout.write("Iteration: %04d ---- Primal: %2.2e, Dual: %2.2e, Gap: %2.2e \r"%(myit,primal.get()/(self.irgn_par["lambd"]*self.NSlice),dual.get()/(self.irgn_par["lambd"]*self.NSlice),gap.get()/(self.irgn_par["lambd"]*self.NSlice)))
         sys.stdout.flush()
 
       (x, x_new) = (x_new, x)
