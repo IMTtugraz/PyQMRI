@@ -10,20 +10,20 @@ import numpy as np
 
 DTYPE = np.complex64
 
-x = np.ones((par["NScan"],par["NC"],par["NSlice"],par["dimY"],par["dimX"]))
-data = np.ones((par["NScan"],par["NC"],par["NSlice"],par["dimY"],par["dimX"]))
+x = np.ones((par["NSlice"],par["NScan"],par["NC"],par["dimY"],par["dimX"]))
+data = np.ones((par["NSlice"],par["NScan"],par["NC"],par["dimY"],par["dimX"]))
 
 
 xx = np.array((np.random.random_sample(np.shape(x))+1j*np.random.random_sample(np.shape(x)))).astype(DTYPE)
-##xx[...,3:] = 0
+
 yy = np.array((np.random.random_sample(np.shape(data))+1j*np.random.random_sample(np.shape(data)))).astype(DTYPE)
 ##yy[...,6:] = 0
 test1 = np.zeros_like(xx)
 test2 = np.zeros_like(yy)
 
 
-#opt.operator_forward_full(test1,yy)
-#opt.operator_adjoint_full(test2,xx)
+opt.operator_forward_full(test1,yy)
+opt.operator_adjoint_full(test2,xx)
 #
 #
 #
@@ -50,38 +50,38 @@ test2 = np.zeros_like(yy)
 #print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,(test)))
 #
 
-
-
-import pyopencl.array as clarray
-#xx = clarray.to_device(queue[0],np.random.randn(12,2,256,256)+1j*np.random.randn(12,2,256,256)).astype(DTYPE)
-#yy =clarray.to_device(queue[0],np.random.randn(12,2,256,256,4)+1j*np.random.randn(12,2,256,256,4)).astype(DTYPE)
-xx = clarray.to_device(par["queue"][0],xx)
-yy = clarray.to_device(par["queue"][0],yy)
-test2 = clarray.zeros_like(yy)
-test1 =  clarray.zeros_like(xx)
 #
 #
-##opt.NUFFT[0].fwd_NUFFT(test1,xx)
-##opt.NUFFT[0].adj_NUFFT(test2,yy)
-print(opt.NUFFT.adj_NUFFT(test1,yy))
-print(opt.NUFFT.fwd_NUFFT(test2,xx))
-
+#import pyopencl.array as clarray
+##xx = clarray.to_device(queue[0],np.random.randn(12,2,256,256)+1j*np.random.randn(12,2,256,256)).astype(DTYPE)
+##yy =clarray.to_device(queue[0],np.random.randn(12,2,256,256,4)+1j*np.random.randn(12,2,256,256,4)).astype(DTYPE)
+#xx = clarray.to_device(par["queue"][0],xx)
+#yy = clarray.to_device(par["queue"][0],yy)
+#test2 = clarray.zeros_like(yy)
+#test1 =  clarray.zeros_like(xx)
+##
+##
+###opt.NUFFT[0].fwd_NUFFT(test1,xx)
+###opt.NUFFT[0].adj_NUFFT(test2,yy)
+#print(opt.NUFFT.adj_NUFFT(test1,yy))
+#print(opt.NUFFT.fwd_NUFFT(test2,xx))
 #
-#opt.f_grad(test1,xx)
-#opt.bdiv(test2,yy)
+##
+##opt.f_grad(test1,xx)
+##opt.bdiv(test2,yy)
+##
+##
+#test5 = test1.get()
+#test6 = test2.get()
+#yy = yy.get()
+#xx = xx.get()
+##
 #
+##b = np.sum(np.conj((test5[...,0:3]))*yy[...,0:3]+2*np.conj(test5[...,3:6])*yy[...,3:6])
+#a = np.vdot(xx[0].flatten(),(test5[0]).flatten())
+#b = np.vdot(test6[0].flatten(),yy[0].flatten())
+#test = np.abs(a-b)
 #
-test5 = test1.get()
-test6 = test2.get()
-yy = yy.get()
-xx = xx.get()
+##
+#print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,(test)))
 #
-
-#b = np.sum(np.conj((test5[...,0:3]))*yy[...,0:3]+2*np.conj(test5[...,3:6])*yy[...,3:6])
-a = np.vdot(xx[0].flatten(),(test5[0]).flatten())
-b = np.vdot(test6[0].flatten(),yy[0].flatten())
-test = np.abs(a-b)
-
-#
-print("test deriv-op-adjointness:\n <xx,DGHyy>=%05f %05fi\n <DGxx,yy>=%05f %05fi  \n adj: %.2E"  % (a.real,a.imag,b.real,b.imag,(test)))
-

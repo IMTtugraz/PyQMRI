@@ -1,6 +1,6 @@
-#import helper_fun.calckbkernel  
+#import helper_fun.calckbkernel
 #from helper_fun import Compute_mask as Compute_mask
-#import helper_fun.compute_mask 
+#import helper_fun.compute_mask
 #import helper_fun.fftshift2
 #import helper_fun.fftshift3
 #import helper_fun.fibonacci

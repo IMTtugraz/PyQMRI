@@ -293,11 +293,11 @@ def main(args):
         siz = np.shape(x)
         result = np.zeros((par["NC"], par["NSlice"], par["NScan"],
                            par["dimY"], par["dimX"]), dtype=DTYPE)
-        tmp_result = clarray.empty(fft.queue[0], (par["NScan"], 1, 1,
+        tmp_result = clarray.empty(fft.queue, (par["NScan"], 1, 1,
                                    par["dimY"], par["dimX"]), dtype=DTYPE)
         for j in range(siz[1]):
             for k in range(siz[2]):
-                inp = clarray.to_device(fft.queue[0],
+                inp = clarray.to_device(fft.queue,
                                         np.require(x[:, j, k, ...]
                                         [:, None, None, ...],
                                         requirements='C'))
@@ -318,22 +318,21 @@ def main(args):
 #        (np.linalg.norm(images.flatten()))
 #    images *= dscale
     if args.imagespace:
-#        Coils = par["file"]["GT/sensitivities/real_dat"][()] + 1j*par["file"]["GT/sensitivities/imag_dat"][()]
-#        scale = (np.median(np.abs(np.sum(np.conj(par['C'])*Coils,0))))
         images = np.abs(images)
-#        M0 = np.abs(np.sum(np.conj(par['C'])*Coils,0))*0.2*1.3085805*1.0406453791820893/scale  ###  for 4 Coils multiply with 1.498949673073827
         M0 = par['file']['PD_est'][()].astype(DTYPE)[None,...]*dscale
+#        M0 = 0.262
         tmp = images/(M0*np.sin(par["flip_angle(s)"]*np.pi/180))
         images = (1-tmp)/(1-tmp*np.cos(par["flip_angle(s)"]*np.pi/180))
         del tmp
         images = (np.log(images)/(-par["TR"]/1000*3.2))*par["file"]["image_mask"][()].astype(DTYPE)
         images = images - 1/3.2
         images[~np.isfinite(images)] = 0
+        mean = np.mean(images[:20],0)
+        images -= mean
         dscale = np.sqrt(NSlice) * \
                     (DTYPE(np.sqrt(2*1e3)) / (np.linalg.norm(images.flatten())))
         par["dscale"] = dscale
         images *= dscale
-#        print(dscale)
         opt.data = images
     else:
         opt.data = data
@@ -421,8 +420,8 @@ def main(args):
                              result_tgv[i].shape,
                              dtype=DTYPE, data=result_tgv[i])
             f.attrs['imagespace_tgv'] = res_tgv
-        f.attrs['data_norm'] = par["dscale"]
-        f.flush()
+    f.attrs['data_norm'] = par["dscale"]
+    f.flush()
     f.close()
     os.chdir(cwd)
 

@@ -45,6 +45,7 @@ import numpy as np
 
 __all__ = ['phantom', 'shepp_logan', 'modified_shepp_logan', 'yu_ye_wang']
 
+
 def phantom(shape, parameters_list, dtype=np.float64):
     """
     Generate a cube of given shape using a list of ellipsoid
@@ -87,6 +88,7 @@ def phantom(shape, parameters_list, dtype=np.float64):
         ellipsoid(parameters, out=cube, coordinates=coordinates)
     return cube
 
+
 def ellipsoid(parameters, shape=None, out=None, coordinates=None):
     """
     Generate a cube containing an ellipsoid defined by its parameters.
@@ -121,6 +123,7 @@ def ellipsoid(parameters, shape=None, out=None, coordinates=None):
     out[(x ** 2 + y ** 2 + z ** 2) <= 1.] += parameters['A']
     return out
 
+
 def rotation_matrix(p):
     """
     Defines an Euler rotation matrix from angles phi, theta and psi.
@@ -139,12 +142,13 @@ def rotation_matrix(p):
               cpsi * sphi + ctheta * cphi * spsi,
               spsi * stheta],
              [-spsi * cphi - ctheta * sphi * cpsi,
-               -spsi * sphi + ctheta * cphi * cpsi,
-               cpsi * stheta],
+              -spsi * sphi + ctheta * cphi * cpsi,
+              cpsi * stheta],
              [stheta * sphi,
               -stheta * cphi,
               ctheta]]
     return np.asarray(alpha)
+
 
 def define_coordinates(shape):
     """
@@ -154,6 +158,7 @@ def define_coordinates(shape):
     cshape = np.asarray(1j) * shape
     x, y, z = mgrid[-1:1:cshape[0], -1:1:cshape[1], -1:1:cshape[2]]
     return x, y, z
+
 
 def transform(coordinates, p):
     """
@@ -172,38 +177,51 @@ def transform(coordinates, p):
 
 # specific phantom parameters
 
+
 # mandatory parameters to define an ellipsoid
-parameters_tuple = ['A', 'a', 'b', 'c', 'x0', 'y0', 'z0', 'phi', 'theta', 'psi']
+parameters_tuple = [
+    'A',
+    'a',
+    'b',
+    'c',
+    'x0',
+    'y0',
+    'z0',
+    'phi',
+    'theta',
+    'psi']
 
 # arrays
 modified_shepp_logan_array = [
-    [  1,  .6900,  .920,  .810,    0.,      0.,     0,     0,     0,     0],
-    [-.8,  .6624,  .874,  .780,    0.,  -.0184,     0,     0,     0,     0],
-    [-.2,  .1100,  .310,  .220,   .22,      0.,     0,   -18,     0,    10],
-    [-.2,  .1600,  .410,  .280,  -.22,      0.,     0,    18,     0,    10],
-    [ .1,  .2100,  .250,  .410,    0.,     .35,  -.15,     0,     0,     0],
-    [ .1,  .0460,  .046,  .050,    0.,      .1,   .25,     0,     0,     0],
-    [ .1,  .0460,  .046,  .050,    0.,     -.1,   .25,     0,     0,     0],
-    [ .1,  .0460,  .023,  .050,  -.08,   -.605,     0,     0,     0,     0],
-    [ .1,  .0230,  .023,  .020,    0.,   -.606,     0,     0,     0,     0],
-    [ .1,  .0230,  .046,  .020,   .06,   -.605,     0,     0,     0,     0]]
+    [1, .6900, .920, .810, 0., 0., 0, 0, 0, 0],
+    [-.8, .6624, .874, .780, 0., -.0184, 0, 0, 0, 0],
+    [-.2, .1100, .310, .220, .22, 0., 0, -18, 0, 10],
+    [-.2, .1600, .410, .280, -.22, 0., 0, 18, 0, 10],
+    [.1, .2100, .250, .410, 0., .35, -.15, 0, 0, 0],
+    [.1, .0460, .046, .050, 0., .1, .25, 0, 0, 0],
+    [.1, .0460, .046, .050, 0., -.1, .25, 0, 0, 0],
+    [.1, .0460, .023, .050, -.08, -.605, 0, 0, 0, 0],
+    [.1, .0230, .023, .020, 0., -.606, 0, 0, 0, 0],
+    [.1, .0230, .046, .020, .06, -.605, 0, 0, 0, 0]]
 
 shepp_logan_array = np.copy(modified_shepp_logan_array)
 shepp_logan_array[0] = [1, -.98, -.02, -.02, .01, .01, .01, .01, .01, .01]
 
 yu_ye_wang_array = [
-    [  1,  .6900,  .920,  .900,     0,      0,      0,     0,     0,     0],
-    [-.8,  .6624,  .874,  .880,     0,      0,      0,     0,     0,     0],
-    [-.2,  .4100,  .160,  .210,  -.22,      0,   -.25,   108,     0,     0],
-    [-.2,  .3100,  .110,  .220,   .22,      0,   -.25,    72,     0,     0],
-    [ .2,  .2100,  .250,  .500,     0,    .35,   -.25,     0,     0,     0],
-    [ .2,  .0460,  .046,  .046,     0,     .1,   -.25,     0,     0,     0],
-    [ .1,  .0460,  .023,  .020,  -.08,   -.65,   -.25,     0,     0,     0],
-    [ .1,  .0460,  .023,  .020,   .06,   -.65,   -.25,    90,     0,     0],
-    [ .2,  .0560,  .040,  .100,   .06,  -.105,   .625,    90,     0,     0],
-    [-.2,  .0560,  .056,  .100,     0,   .100,   .625,     0,     0,     0]]
+    [1, .6900, .920, .900, 0, 0, 0, 0, 0, 0],
+    [-.8, .6624, .874, .880, 0, 0, 0, 0, 0, 0],
+    [-.2, .4100, .160, .210, -.22, 0, -.25, 108, 0, 0],
+    [-.2, .3100, .110, .220, .22, 0, -.25, 72, 0, 0],
+    [.2, .2100, .250, .500, 0, .35, -.25, 0, 0, 0],
+    [.2, .0460, .046, .046, 0, .1, -.25, 0, 0, 0],
+    [.1, .0460, .023, .020, -.08, -.65, -.25, 0, 0, 0],
+    [.1, .0460, .023, .020, .06, -.65, -.25, 90, 0, 0],
+    [.2, .0560, .040, .100, .06, -.105, .625, 90, 0, 0],
+    [-.2, .0560, .056, .100, 0, .100, .625, 0, 0, 0]]
 
 # to convert to list of dicts
+
+
 def _array_to_parameters(array):
     array = np.asarray(array)
     out = []
@@ -214,19 +232,26 @@ def _array_to_parameters(array):
         out.append(tmp)
     return out
 
-modified_shepp_logan_parameters = _array_to_parameters(modified_shepp_logan_array)
+
+modified_shepp_logan_parameters = _array_to_parameters(
+    modified_shepp_logan_array)
 shepp_logan_parameters = _array_to_parameters(shepp_logan_array)
 yu_ye_wang_parameters = _array_to_parameters(yu_ye_wang_array)
 
 # define specific functions
+
+
 def modified_shepp_logan(shape, **kargs):
     return phantom(shape, modified_shepp_logan_parameters, **kargs)
+
 
 def shepp_logan(shape, **kargs):
     return phantom(shape, shepp_logan_parameters, **kargs)
 
+
 def yu_ye_wang(shape, **kargs):
     return phantom(shape, yu_ye_wang_parameters, **kargs)
+
 
 # add docstrings to specific phantoms
 common_docstring = """
@@ -247,7 +272,8 @@ common_docstring = """
 
 """
 
-modified_shepp_logan_docstring = common_docstring % {'name': 'Modified Shepp-Logan'}
+modified_shepp_logan_docstring = common_docstring % {
+    'name': 'Modified Shepp-Logan'}
 shepp_logan_docstring = common_docstring % {'name': 'Shepp-Logan'}
 yu_ye_wang_docstring = common_docstring % {'name': 'Yu Ye Wang'}
 
