@@ -194,6 +194,9 @@ def est_coils(data, par, file, args):
                 else:
                     par["C"] = par["C"] / \
                         np.tile(sumSqrC, (par["NC"], 1, 1, 1))
+                del file['Coils']
+                del file['InScale']
+                del FFT
             file.create_dataset(
                 "Coils",
                 par["C"].shape,

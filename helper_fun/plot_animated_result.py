@@ -47,7 +47,7 @@ def run():
 
     data = file[res_name[2]][()]
     file.close()
-    data = data[-3, :, :]
+    data = data[-1, :, :]
 
     [z, y, x] = data[0].shape
     M0 = np.abs(data[0])

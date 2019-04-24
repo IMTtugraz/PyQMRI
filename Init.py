@@ -66,6 +66,7 @@ def main(args):
     name = file.split('/')[-1]
 
     par["file"] = h5py.File(file)
+
 ###############################################################################
 # Read Data ###################################################################
 ###############################################################################
@@ -405,18 +406,18 @@ if __name__ == '__main__':
       '--recon_type', default='3D', dest='type',
       help='Choose reconstruction type (currently only 3D)')
     parser.add_argument(
-      '--reg_type', default='TV', dest='reg',
+      '--reg_type', default='TGV', dest='reg',
       help="Choose regularization type (default: TGV) "
            "options are: TGV, TV, all")
     parser.add_argument(
-      '--slices', default=4, dest='slices', type=int,
+      '--slices', default=1, dest='slices', type=int,
       help="Number of reconstructed slices (default=40). "
            "Symmetrical around the center slice.")
     parser.add_argument(
       '--trafo', default=1, dest='trafo', type=int,
       help='Choos between radial (1, default) and Cartesian (0) sampling. ')
     parser.add_argument(
-      '--streamed', default=1, dest='streamed', type=int,
+      '--streamed', default=0, dest='streamed', type=int,
       help='Enable streaming of large data arrays (>10 slices).')
     parser.add_argument(
       '--data', default='', dest='file',
