@@ -15,8 +15,8 @@
 # Adapted for Python by O. Maier
 import numpy as np
 import time
-from helper_fun.fftshift2 import fftshift2
 import pyfftw
+from mbpq._helper_fun._fftshift2 import fftshift2
 
 
 def nlinvns(Y, n, *arg):  # *returnProfiles,**realConstr):

@@ -21,8 +21,8 @@ import numpy as np
 import pyopencl as cl
 import pyopencl.array as clarray
 from gpyfft.fft import FFT
-
-from helper_fun.calckbkernel import calckbkernel
+from pkg_resources import resource_filename
+from mbpq._helper_fun._calckbkernel import calckbkernel
 
 
 class Program(object):
@@ -34,7 +34,7 @@ class Program(object):
             self.__dict__[kernel.function_name] = kernel
 
 
-class gridding:
+class PyOpenCLNUFFT:
     def __init__(
             self,
             ctx,
@@ -131,11 +131,15 @@ class gridding:
         if DTYPE == np.complex128:
             print('Using double precission')
             self.prg = Program(
-                self.ctx, open('./Kernels/OpenCL_gridding_double.c').read())
+                self.ctx,
+                open(resource_filename('mbpq', 'kernels/OpenCL_gridding_double.c')).read())
+#                self.ctx, open('./Kernels/OpenCL_gridding_double.c').read())
         else:
             print('Using single precission')
             self.prg = Program(
-                self.ctx, open('./Kernels/OpenCL_gridding_single.c').read())
+                self.ctx,
+                open(resource_filename('mbpq', 'kernels/OpenCL_gridding_single.c')).read())
+#                self.ctx, open('./Kernels/OpenCL_gridding_single.c').read())
 
     def __del__(self):
         if self.radial:

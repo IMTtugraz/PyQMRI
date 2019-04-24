@@ -1,0 +1,4 @@
+prune data*
+prune output*
+recursive-exclude data *
+recursive-exclude output *

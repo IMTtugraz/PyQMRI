@@ -33,20 +33,25 @@ import pyopencl.array as clarray
 
 import argparse
 
-from helper_fun import goldcomp as goldcomp
-from helper_fun.est_coils import est_coils
-from helper_fun import utils
+from mbpq._helper_fun import _goldcomp as goldcomp
+from mbpq._helper_fun._est_coils import est_coils
+from mbpq._helper_fun import _utils as utils
 
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
 
-def main(args):
-    sig_model = importlib.import_module("Models."+str(args.sig_model))
-    if int(args.streamed) == 1:
-        import IRGN.Model_Reco_OpenCL_streamed as Model_Reco
+def start_recon(args):
+    sig_model_path = os.path.normpath(args.sig_model)
+    if len(sig_model_path.split(os.sep)) > 1:
+        sig_model = importlib.import_module(sig_model_path)
     else:
-        import IRGN.Model_Reco_OpenCL as Model_Reco
+        sig_model = importlib.import_module(
+            "mbpq._models."+str(sig_model_path))
+    if int(args.streamed) == 1:
+        import mbpq._irgn._reco_streamed as optimizer
+    else:
+        import mbpq._irgn._reco as optimizer
     np.seterr(divide='ignore', invalid='ignore')
 
 # Create par struct to store everyting
@@ -63,10 +68,11 @@ def main(args):
     else:
         file = args.file
 
-    name = file.split('/')[-1]
+    name = os.path.normpath(file)
+    fname = name.split(os.sep)[-1]
 
     par["file"] = h5py.File(file)
-
+#    del par["file"]["Coils"], par["file"]["InScale"]
 ###############################################################################
 # Read Data ###################################################################
 ###############################################################################
@@ -295,8 +301,8 @@ def main(args):
                                (np.conj(par["C"])), axis=1),
                         requirements='C')
     del FFT, nFTH
-    opt = Model_Reco.Model_Reco(par, args.trafo,
-                                imagespace=args.imagespace, SMS=args.sms)
+    opt = optimizer.ModelReco(par, args.trafo,
+                              imagespace=args.imagespace, SMS=args.sms)
 ###############################################################################
 # Scale data norm  ############################################################
 ###############################################################################
@@ -367,7 +373,7 @@ def main(args):
         os.makedirs("output/" + outdir)
     cwd = os.getcwd()
     os.chdir("output/" + outdir)
-    f = h5py.File("output_" + name, "w")
+    f = h5py.File("output_" + fname, "w")
     f.create_dataset("images_ifft_", images.shape, dtype=DTYPE, data=images)
     if "TGV" in args.reg or args.reg == 'all':
         for i in range(len(result_tgv)):
@@ -395,6 +401,56 @@ def main(args):
     f.attrs['data_norm'] = dscale
     f.close()
     os.chdir(cwd)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="T1 quantification from VFA "
+                                                 "data. By default runs 3D "
+                                                 "regularization for TGV and "
+                                                 "TV.")
+    parser.add_argument(
+      '--recon_type', default='3D', dest='type',
+      help='Choose reconstruction type (currently only 3D)')
+    parser.add_argument(
+      '--reg_type', default='TGV', dest='reg',
+      help="Choose regularization type (default: TGV) "
+           "options are: TGV, TV, all")
+    parser.add_argument(
+      '--slices', default=1, dest='slices', type=int,
+      help="Number of reconstructed slices (default=40). "
+           "Symmetrical around the center slice.")
+    parser.add_argument(
+      '--trafo', default=1, dest='trafo', type=int,
+      help='Choos between radial (1, default) and Cartesian (0) sampling. ')
+    parser.add_argument(
+      '--streamed', default=0, dest='streamed', type=int,
+      help='Enable streaming of large data arrays (>10 slices).')
+    parser.add_argument(
+      '--data', default='', dest='file',
+      help="Full path to input data. "
+           "If not provided, a file dialog will open.")
+    parser.add_argument(
+      '--model', default='VFA', dest='sig_model',
+      help="Name of the signal model to use. Defaults to VFA. "
+           "Please put your signal model file in the Model subfolder.")
+    parser.add_argument(
+      '--config', default='test', dest='config',
+      help="Name of config file to use (assumed to be in the same folder). "
+           "If not specified, use default parameters.")
+    parser.add_argument(
+      '--sms', default=0, dest='sms', type=int,
+      help="Simultanious Multi Slice, defaults to off (0). "
+           "Can only be used with Cartesian sampling.")
+    parser.add_argument(
+      '--imagespace', default=0, dest='imagespace', type=int,
+      help="Select if Reco is performed on images (1) or on kspace (0) data. "
+           "Defaults to 0")
+    parser.add_argument(
+      '--OCL_GPU', default=1, dest='use_GPU', type=int,
+      help="Select if CPU or GPU should be used as OpenCL platform. "
+           "Defaults to GPU (1). CAVE: CPU FFT not working")
+    args = parser.parse_args()
+    start_recon(args)
 
 
 if __name__ == '__main__':
@@ -444,4 +500,4 @@ if __name__ == '__main__':
       help="Select if CPU or GPU should be used as OpenCL platform. "
            "Defaults to GPU (1). CAVE: CPU FFT not working")
     args = parser.parse_args()
-    main(args)
+    start_recon(args)

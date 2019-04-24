@@ -25,3 +25,5 @@ bSSFPVFA/
 SMS/
 data/
 *.ini
+dist*
+*egg*

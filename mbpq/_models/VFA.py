@@ -11,7 +11,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
-from Models.Model import BaseModel, constraints, DTYPE
+from mbpq._models.template import BaseModel, constraints, DTYPE
 
 matplotlib.use("Qt5agg")
 plt.ion()

@@ -8,9 +8,9 @@ Created on Wed Nov 15 16:55:39 2017
 import matplotlib.pyplot as plt
 import numpy as np
 
-##########################################################################
-### 3D viewer  ##########s################################################
-##########################################################################
+###############################################################################
+# 3D viewer  ##########s#######################################################
+###############################################################################
 
 
 def imshow(volume, vmin=None, vmax=None):
@@ -37,7 +37,8 @@ def imshow(volume, vmin=None, vmax=None):
                     ax[i + ni * j].volume = volume[i + (j * ni)]
                     ax[i + ni * j].index = volume[i + (j * ni)].shape[0] // 2
                     ax[i + ni * j].imshow(volume[i + (j * ni),
-                                                 ax[i + ni * j].index], vmin=vmin, vmax=vmax)
+                                                 ax[i + ni * j].index],
+                                          vmin=vmin, vmax=vmax)
     else:
         raise NameError('Unsupported Dimensions')
     fig.canvas.mpl_connect('scroll_event', process_scroll)

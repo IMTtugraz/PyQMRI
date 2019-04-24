@@ -22,11 +22,11 @@ limitations under the License.
 """
 import numpy as np
 import sys
-from helper_fun import nlinvns_maier as nlinvns
-from helper_fun import goldcomp as goldcomp
 import ipyparallel as ipp
 import pyopencl.array as clarray
-from helper_fun import utils
+from mbpq._helper_fun import _nlinvns as nlinvns
+from mbpq._helper_fun import _goldcomp as goldcomp
+from mbpq._helper_fun import _utils as utils
 
 
 # % Estimates sensitivities and complex image.

@@ -7,7 +7,7 @@ Created on Wed Jan 30 11:10:07 2019
 """
 import numpy as np
 import configparser
-from Transforms.gridroutines import gridding
+from mbpq._transforms._pyopencl_nufft import PyOpenCLNUFFT
 
 DTYPE = np.complex64
 DTYPE_real = np.float32
@@ -32,7 +32,8 @@ def NUFFT(par, trafo=1, SMS=0):
     NSlice = par["NSlice"]
     par["NC"] = 1
     par["NSlice"] = 1
-    FFT = gridding(par["ctx"][0], par["queue"][0], par, radial=trafo, SMS=SMS)
+    FFT = PyOpenCLNUFFT(par["ctx"][0], par["queue"][0], par,
+                        radial=trafo, SMS=SMS)
     par["NC"] = NC
     par["NSlice"] = NSlice
     return FFT
@@ -100,10 +101,10 @@ def read_config(conf_file, reg_type="DEFAULT"):
         with open(conf_file + '.ini', 'r') as f:
             config.read_file(f)
     except BaseException:
-        print("Config file not readable or not found. \
-              Falling back to default.")
+        print("Config file not readable or not found. "
+              "Falling back to default.")
         gen_default_config()
-        with open(conf_file + '.ini', 'r') as f:
+        with open('default.ini', 'r') as f:
             config.read_file(f)
     finally:
         params = {}

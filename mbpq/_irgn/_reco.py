@@ -21,11 +21,11 @@ from __future__ import division
 import numpy as np
 import time
 import sys
-
+from pkg_resources import resource_filename
 import pyopencl as cl
 import pyopencl.array as clarray
 
-import Transforms.gridroutines as NUFFT
+import mbpq._transforms._pyopencl_nufft as NUFFT
 
 DTYPE = np.complex64
 DTYPE_real = np.float32
@@ -40,7 +40,7 @@ class Program(object):
             self.__dict__[kernel.function_name] = kernel
 
 
-class Model_Reco:
+class ModelReco:
     def __init__(self, par, trafo=1, imagespace=False, SMS=0):
         self.C = par["C"]
         self.traj = par["traj"]
@@ -90,8 +90,8 @@ class Model_Reco:
                 self.queue,
                 (self.NScan, self.NC, self.NSlice, self.dimY, self.dimX),
                 DTYPE, "C")
-            self.NUFFT = NUFFT.gridding(self.ctx, self.queue,
-                                        par, radial=trafo, SMS=SMS)
+            self.NUFFT = NUFFT.PyOpenCLNUFFT(self.ctx, self.queue,
+                                             par, radial=trafo, SMS=SMS)
             if SMS:
                 self.tmp_sino = clarray.empty(
                     self.queue,
@@ -103,7 +103,10 @@ class Model_Reco:
                     (self.NScan, self.NC, self.NSlice, self.Nproj, self.N),
                     DTYPE, "C")
 
-        self.prg = Program(self.ctx, open('./Kernels/OpenCL_Kernels.c').read())
+        self.prg = Program(
+            self.ctx,
+            open(resource_filename('mbpq', 'kernels/OpenCL_Kernels.c')).read())
+#            open('./Kernels/OpenCL_Kernels.c').read())
 
     def operator_forward_kspace(self, x, out=None, wait_for=[]):
         self.tmp_result.add_event(
@@ -967,7 +970,8 @@ class Model_Reco:
                 primal = primal_new
                 gap_old = gap
                 sys.stdout.write(
-                    "Iteration: %04d ---- Primal: %2.2e, Dual: %2.2e, Gap: %2.2e \r" %
+                    "Iteration: %04d ---- Primal: %2.2e, "
+                    "Dual: %2.2e, Gap: %2.2e \r" %
                     (i, primal.get() / (self.irgn_par["lambd"] * self.NSlice),
                      dual.get() / (self.irgn_par["lambd"] * self.NSlice),
                      gap.get() / (self.irgn_par["lambd"] * self.NSlice)))
@@ -1280,7 +1284,8 @@ class Model_Reco:
                 primal = primal_new
                 gap_old = gap
                 sys.stdout.write(
-                    "Iteration: %04d ---- Primal: %2.2e, Dual: %2.2e, Gap: %2.2e \r" %
+                    "Iteration: %04d ---- Primal: %2.2e, "
+                    "Dual: %2.2e, Gap: %2.2e \r" %
                     (i, primal.get() / (self.irgn_par["lambd"] * self.NSlice),
                      dual.get() / (self.irgn_par["lambd"] * self.NSlice),
                      gap.get() / (self.irgn_par["lambd"] * self.NSlice)))

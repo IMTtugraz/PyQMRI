@@ -21,11 +21,11 @@ from __future__ import division
 import numpy as np
 import time
 import sys
-
+from pkg_resources import resource_filename
 import pyopencl as cl
 import pyopencl.array as clarray
 
-import Transforms.gridroutines_slicefirst as NUFFT
+import mbpq._transforms._pyopencl_nufft_slicefirst as NUFFT
 
 DTYPE = np.complex64
 DTYPE_real = np.float32
@@ -51,7 +51,7 @@ class Program(object):
                 self.__dict__[kernel.function_name] = kernel
 
 
-class Model_Reco:
+class ModelReco:
     def __init__(self, par, trafo=1, imagespace=False, SMS=False):
         par["par_slices"] = 1
         par["overlap"] = 1
@@ -118,9 +118,9 @@ class Model_Reco:
                          self.NC, self.dimY, self.dimX),
                         DTYPE, "C"))
                 self.NUFFT.append(
-                    NUFFT.gridding(self.ctx[j],
-                                   self.queue[3*j+i], par,
-                                   radial=trafo, SMS=SMS))
+                    NUFFT.PyOpenCLNUFFT(self.ctx[j],
+                                        self.queue[3*j+i], par,
+                                        radial=trafo, SMS=SMS))
                 self.ukscale.append(
                     clarray.to_device(
                         self.queue[3*j+i],
@@ -128,7 +128,8 @@ class Model_Reco:
             self.prg.append(
                 Program(
                     self.ctx[j],
-                    open('./Kernels/OpenCL_Kernels_streamed.c').read()))
+                    open(resource_filename('mbpq', 'kernels/OpenCL_Kernels_streamed.c')).read()))
+#                    open('./Kernels/OpenCL_Kernels_streamed.c').read()))
 
     def operator_forward_full(self, out, x, idx=0, idxq=0, wait_for=[]):
         self.tmp_img[2*idx+idxq].add_event(
