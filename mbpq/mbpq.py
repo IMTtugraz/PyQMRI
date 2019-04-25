@@ -67,7 +67,6 @@ def start_recon(args):
             root.update()
             file = filedialog.askopenfilename()
             root.destroy()
-            print(file)
             if not file == () and \
                not file.endswith((('.h5'), ('.hdf5'))):
                 print("Please specify a h5 file. Press cancel to exit.")
@@ -419,7 +418,7 @@ def start_recon(args):
 
 def main(recon_type='3D', reg_type='TGV', slices=1, trafo=1, streamed=0,
          par_slices=1, data='', model='VFA', config='default', imagespace=0,
-         OCL_GPU=1):
+         OCL_GPU=1, sms=0):
     """
     Start a 3D model based reconstruction. Data can also be selected at
     start up. \n\n
@@ -482,6 +481,9 @@ def main(recon_type='3D', reg_type='TGV', slices=1, trafo=1, streamed=0,
       help="Select if Reco is performed on images (1) or on kspace (0) data. "
            "Defaults to 0")
     parser.add_argument(
+      '--sms', default=sms, dest='sms', type=int,
+      help="Switch to SMS reconstruction")
+    parser.add_argument(
       '--OCL_GPU', default=OCL_GPU, dest='use_GPU', type=int,
       help="Select if CPU or GPU should be used as OpenCL platform. "
            "Defaults to GPU (1). CAVE: CPU FFT not working")
@@ -502,14 +504,14 @@ if __name__ == '__main__':
       help="Choose regularization type (default: TGV) "
            "options are: TGV, TV, all")
     parser.add_argument(
-      '--slices', default=1, dest='slices', type=int,
+      '--slices', default=60, dest='slices', type=int,
       help="Number of reconstructed slices (default=40). "
            "Symmetrical around the center slice.")
     parser.add_argument(
-      '--trafo', default=1, dest='trafo', type=int,
+      '--trafo', default=0, dest='trafo', type=int,
       help='Choos between radial (1, default) and Cartesian (0) sampling. ')
     parser.add_argument(
-      '--streamed', default=0, dest='streamed', type=int,
+      '--streamed', default=1, dest='streamed', type=int,
       help='Enable streaming of large data arrays (>10 slices).')
     parser.add_argument(
       '--par_slices', default=1, dest='par_slices', type=int,
@@ -520,7 +522,7 @@ if __name__ == '__main__':
       help="Full path to input data. "
            "If not provided, a file dialog will open.")
     parser.add_argument(
-      '--model', default='VFA', dest='sig_model',
+      '--model', default='Diffkurtdir', dest='sig_model',
       help="Name of the signal model to use. Defaults to VFA. "
            "Please put your signal model file in the Model subfolder.")
     parser.add_argument(
@@ -531,6 +533,9 @@ if __name__ == '__main__':
       '--imagespace', default=0, dest='imagespace', type=int,
       help="Select if Reco is performed on images (1) or on kspace (0) data. "
            "Defaults to 0")
+    parser.add_argument(
+      '--sms', default=0, dest='sms', type=int,
+      help="Switch to SMS reconstruction")
     parser.add_argument(
       '--OCL_GPU', default=1, dest='use_GPU', type=int,
       help="Select if CPU or GPU should be used as OpenCL platform. "

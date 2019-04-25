@@ -6,7 +6,7 @@ Created on Tue May 30 11:42:42 2017
 @author: omaier
 """
 
-from Models.Model import BaseModel, constraints, DTYPE
+from mbpq._models.template import BaseModel, constraints, DTYPE
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
@@ -36,17 +36,15 @@ class Model(BaseModel):
 
         if np.max(self.b) > 100:
             self.b /= 1000
-        print(np.max(self.b))
+#        print(np.max(self.b))
 #    print(par["b_value"]*1000)
 #    self.b_x = self.b*(self.dir[:,0][:,None,None,None])
 #    self.b_y = self.b*(self.dir[:,1][:,None,None,None])
 #    self.b_z = self.b*(self.dir[:,2][:,None,None,None])
 
         self.dir = self.dir[:, None, None, None, :]
-#    print(self.dir.shape)
 
         self.uk_scale = []
-#    self.uk_scale.append(1/np.max(np.abs(images)))
         for j in range(unknowns_TGV + unknowns_H1):
             self.uk_scale.append(1)
 
@@ -111,10 +109,12 @@ class Model(BaseModel):
 
         for j in range(12):
             self.constraints.append(constraints(
-                (-Kmax / self.uk_scale[j + 10]), (Kmax / self.uk_scale[j + 10]), True))
+                (-Kmax / self.uk_scale[j + 10]),
+                (Kmax / self.uk_scale[j + 10]), True))
         for j in range(phase_maps):
             self.constraints.append(constraints(
-                (-np.pi / self.uk_scale[-phase_maps + j]), (np.pi / self.uk_scale[-phase_maps + j]), True))
+                (-np.pi / self.uk_scale[-phase_maps + j]),
+                (np.pi / self.uk_scale[-phase_maps + j]), True))
 
     def _execute_forward_2D(self, x, islice):
         print("2D Functions not implemented")
@@ -362,9 +362,12 @@ class Model(BaseModel):
         for j in range(12):
             tmp = np.real(np.real(x[10 + j, ...] * self.uk_scale[10 + j]))
             tmp1 = np.concatenate(
-                (tmp[int(self.NSlice / 2), ...], tmp[:, int(tmp.shape[1] / 2), ...].T), -1)
-            tmp2 = np.concatenate((np.flip(
-                (tmp[:, :, int(tmp.shape[-1] / 2)]), 1), np.zeros((tmp.shape[0], tmp.shape[0]))), -1)
+                (tmp[int(self.NSlice / 2), ...],
+                 tmp[:, int(tmp.shape[1] / 2), ...].T), -1)
+            tmp2 = np.concatenate(
+                (np.flip(
+                    (tmp[:, :, int(tmp.shape[-1] / 2)]), 1),
+                np.zeros((tmp.shape[0], tmp.shape[0]))), -1)
             kurt.append(np.concatenate((tmp1, tmp2), 0))
             kurt_min.append(kurt[j].min())
             kurt_max.append(kurt[j].max())
@@ -381,16 +384,11 @@ class Model(BaseModel):
         DT[..., 2, 1] = ADC_yz.real
         DT[..., 2, 2] = ADC_z.real
         DT_eig = np.linalg.eigh(DT)[0]
-        FA = np.sqrt(((DT_eig[...,
-                              0] - DT_eig[...,
-                                          1])**2 + (DT_eig[...,
-                                                           1] - DT_eig[...,
-                                                                       2])**2 + (DT_eig[...,
-                                                                                        0] - DT_eig[...,
-                                                                                                    2])**2) / 2 * (DT_eig[...,
-                                                                                                                          0]**2 + DT_eig[...,
-                                                                                                                                         1]**2 + DT_eig[...,
-                                                                                                                                                        2]**2))
+        FA = np.sqrt(((DT_eig[..., 0] - DT_eig[..., 1])**2 +
+                      (DT_eig[..., 1] - DT_eig[..., 2])**2 +
+                      (DT_eig[..., 0] - DT_eig[..., 2])**2) / 2 *
+                     (DT_eig[..., 0]**2 + DT_eig[..., 1]**2 +
+                      DT_eig[..., 2]**2))
         FA_min = FA.min()
         FA_max = FA.max()
 
@@ -828,14 +826,12 @@ class Model(BaseModel):
                 plt.pause(1e-10)
 
     def _set_init_scales(self, images):
-        #    ADC = np.reshape(np.linspace(1e-6,1e-2,self.dimX*self.dimY*self.NSlice),(self.NSlice,self.dimX,self.dimY))
         phase = np.zeros(
             (phase_maps,
              self.NSlice,
              self.dimY,
              self.dimX),
             dtype=DTYPE)
-#    kurt = np.reshape(np.linspace(0,2,self.dimX*self.dimY*self.NSlice),(self.NSlice,self.dimX,self.dimY))
         test_M0 = np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         ADC_x = 1 * np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         kurt_yyyy = 0 * np.ones((self.NSlice, self.dimY,
@@ -871,35 +867,4 @@ class Model(BaseModel):
                 dtype=DTYPE),
                 phase),
             axis=0)
-
-
-#    G_x = self.execute_forward(x)
-#
-#    self.uk_scale[0] *= 1/np.max(np.abs(G_x))
-#
-#    x[0] /= self.uk_scale[0]
-##
-#
-#
-#    DG_x =  self.execute_gradient(x)
-#
-#
-#    for j in np.arange(1,unknowns_TGV+unknowns_H1):
-#      self.uk_scale[j] = self.uk_scale[j]*np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[j,...]))
-#      x[j] /= self.uk_scale[j]
-#
-#
-#    for j in range(phase_maps):
-#      phase[j]/=self.uk_scale[-phase_maps+j]
-
-#    DG_x =  self.execute_gradient_3D(np.concatenate((np.array([test_M0/self.uk_scale[0],ADC_x/self.uk_scale[1],ADC_x/self.uk_scale[2],ADC_x/self.uk_scale[3],ADC_x/self.uk_scale[4],ADC_x/self.uk_scale[5],ADC_x/self.uk_scale[6],kurt_xxxx/self.uk_scale[7],kurt_xxxx/self.uk_scale[8],kurt_xxxx/self.uk_scale[9],kurt_xxxx/self.uk_scale[10],kurt_xxxx/self.uk_scale[11],kurt_xxxx/self.uk_scale[12],
-#                                            kurt_xxxx/self.uk_scale[13],kurt_xxxx/self.uk_scale[14],kurt_xxxx/self.uk_scale[15],kurt_xxxx/self.uk_scale[16],kurt_xxxx/self.uk_scale[17],kurt_xxxx/self.uk_scale[18],kurt_xxxx/self.uk_scale[19],kurt_xxxx/self.uk_scale[20],kurt_xxxx/self.uk_scale[21]],dtype=DTYPE),phase)))
-
-
-#    guess = np.concatenate((np.array([np.ones_like(test_M0)/self.uk_scale[0],
-#                       np.mean(ADC_x)*np.ones_like(ADC_x)/self.uk_scale[1],np.mean(ADC_x)*np.ones_like(ADC_x)/self.uk_scale[2],
-#                       np.mean(ADC_x)*np.ones_like(ADC_x)/self.uk_scale[3],np.mean(ADC_x)*np.ones_like(ADC_x)/self.uk_scale[4],
-#                       np.mean(ADC_x)*np.ones_like(ADC_x)/self.uk_scale[5],np.mean(ADC_x)*np.ones_like(ADC_x)/self.uk_scale[6],np.zeros_like(kurt),np.zeros_like(kurt),np.zeros_like(kurt),np.zeros_like(kurt),np.zeros_like(kurt),np.zeros_like(kurt),np.zeros_like(kurt),np.zeros_like(kurt),np.zeros_like(kurt),np.zeros_like(kurt),np.zeros_like(kurt),np.zeros_like(kurt),np.zeros_like(kurt),np.zeros_like(kurt),np.zeros_like(kurt)],dtype=DTYPE)
-#      ,phase))
-
-        return x  # guess
+        return x

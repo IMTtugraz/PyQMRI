@@ -44,7 +44,7 @@ def est_coils(data, par, file, args):
     nlinvNewtonSteps = 6
     nlinvRealConstr = False
     try:
-        if not file['Coils'][()].shape[1] >= par["NSlice"] and not args.sms:
+        if not file['Coils'][()].shape[1] >= par["NSlice"]:
             if args.trafo:
 
                 traj_coil = np.reshape(
@@ -218,9 +218,9 @@ def est_coils(data, par, file, args):
                 par["C"] = \
                     file['Coils'][:, int(slices_coils / 2) - int(np.floor(
                     (par["NSlice"]) / 2)):int(slices_coils / 2) + int(np.ceil(par["NSlice"] / 2)), ...]
-                par["InScale"] = \
-                    file['InScale'][int(slices_coils / 2) - int(np.floor(
-                    (par["NSlice"]) / 2)):int(slices_coils / 2) + int(np.ceil(par["NSlice"] / 2)), ...]
+#                par["InScale"] = \
+#                    file['InScale'][int(slices_coils / 2) - int(np.floor(
+#                    (par["NSlice"]) / 2)):int(slices_coils / 2) + int(np.ceil(par["NSlice"] / 2)), ...]
 
     except BaseException:
         if args.trafo:

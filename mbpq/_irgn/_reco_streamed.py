@@ -80,8 +80,8 @@ class ModelReco:
         self.num_dev = par["num_dev"]
         if np.mod(self.NSlice/(self.par_slices*self.num_dev), 2):
             raise ValueError(
-                'Number of Slices devided by parallel \
-                computed slices and devices needs to be an even number')
+                "Number of Slices devided by parallel "
+                "computed slices and devices needs to be an even number")
         self.NUFFT = []
         self.ukscale = []
         self.prg = []
