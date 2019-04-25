@@ -128,8 +128,10 @@ class ModelReco:
             self.prg.append(
                 Program(
                     self.ctx[j],
-                    open(resource_filename('mbpq', 'kernels/OpenCL_Kernels_streamed.c')).read()))
-#                    open('./Kernels/OpenCL_Kernels_streamed.c').read()))
+                    open(
+                        resource_filename(
+                            'mbpq',
+                            'kernels/OpenCL_Kernels_streamed.c')).read()))
 
     def operator_forward_full(self, out, x, idx=0, idxq=0, wait_for=[]):
         self.tmp_img[2*idx+idxq].add_event(

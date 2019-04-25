@@ -14,8 +14,15 @@ import numpy as np
 
 
 def imshow(volume, vmin=None, vmax=None):
-
-    if volume.ndim <= 3:
+    """
+    Volumetric imageviewer for python (up to 4D).
+    """
+    if volume.ndim == 2:
+        fig, ax = plt.subplots()
+        ax.volume = volume
+        ax.index = None
+        ax.imshow(volume, vmin=vmin, vmax=vmax)
+    elif volume.ndim == 3:
         fig, ax = plt.subplots()
         ax.volume = volume
         ax.index = volume.shape[0] // 2
@@ -48,11 +55,12 @@ def process_scroll(event):
     fig = event.canvas.figure
     ax = fig.axes
     for i in range(len(ax)):
-        volume = ax[i].volume
-        if (int((ax[i].index - event.step) >= volume.shape[0]) or
-                int((ax[i].index - event.step) < 0)):
-            pass
-        else:
-            ax[i].index = int((ax[i].index - event.step) % volume.shape[0])
-            ax[i].images[0].set_array(volume[ax[i].index])
-            fig.canvas.draw()
+        if ax[i].index is not None:
+            volume = ax[i].volume
+            if (int((ax[i].index - event.step) >= volume.shape[0]) or
+                    int((ax[i].index - event.step) < 0)):
+                pass
+            else:
+                ax[i].index = int((ax[i].index - event.step) % volume.shape[0])
+                ax[i].images[0].set_array(volume[ax[i].index])
+                fig.canvas.draw()

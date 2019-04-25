@@ -106,7 +106,6 @@ class ModelReco:
         self.prg = Program(
             self.ctx,
             open(resource_filename('mbpq', 'kernels/OpenCL_Kernels.c')).read())
-#            open('./Kernels/OpenCL_Kernels.c').read())
 
     def operator_forward_kspace(self, x, out=None, wait_for=[]):
         self.tmp_result.add_event(

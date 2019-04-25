@@ -403,50 +403,51 @@ def start_recon(args):
     os.chdir(cwd)
 
 
-def main():
+def main(recon='3D', reg_TYPE='TGV', slices=1, trafo=1, streamed=0, data='',
+         model='VFA', config='test', sms=0, imagespace=0, OCL_GPU=1):
     parser = argparse.ArgumentParser(description="T1 quantification from VFA "
                                                  "data. By default runs 3D "
                                                  "regularization for TGV and "
                                                  "TV.")
     parser.add_argument(
-      '--recon_type', default='3D', dest='type',
+      '--recon_type', default=recon, dest='type',
       help='Choose reconstruction type (currently only 3D)')
     parser.add_argument(
-      '--reg_type', default='TGV', dest='reg',
+      '--reg_type', default=reg_TYPE, dest='reg',
       help="Choose regularization type (default: TGV) "
            "options are: TGV, TV, all")
     parser.add_argument(
-      '--slices', default=1, dest='slices', type=int,
+      '--slices', default=slices, dest='slices', type=int,
       help="Number of reconstructed slices (default=40). "
            "Symmetrical around the center slice.")
     parser.add_argument(
-      '--trafo', default=1, dest='trafo', type=int,
+      '--trafo', default=trafo, dest='trafo', type=int,
       help='Choos between radial (1, default) and Cartesian (0) sampling. ')
     parser.add_argument(
-      '--streamed', default=0, dest='streamed', type=int,
+      '--streamed', default=streamed, dest='streamed', type=int,
       help='Enable streaming of large data arrays (>10 slices).')
     parser.add_argument(
-      '--data', default='', dest='file',
+      '--data', default=data, dest='file',
       help="Full path to input data. "
            "If not provided, a file dialog will open.")
     parser.add_argument(
-      '--model', default='VFA', dest='sig_model',
+      '--model', default=model, dest='sig_model',
       help="Name of the signal model to use. Defaults to VFA. "
            "Please put your signal model file in the Model subfolder.")
     parser.add_argument(
-      '--config', default='test', dest='config',
+      '--config', default=config, dest='config',
       help="Name of config file to use (assumed to be in the same folder). "
            "If not specified, use default parameters.")
     parser.add_argument(
-      '--sms', default=0, dest='sms', type=int,
+      '--sms', default=sms, dest='sms', type=int,
       help="Simultanious Multi Slice, defaults to off (0). "
            "Can only be used with Cartesian sampling.")
     parser.add_argument(
-      '--imagespace', default=0, dest='imagespace', type=int,
+      '--imagespace', default=imagespace, dest='imagespace', type=int,
       help="Select if Reco is performed on images (1) or on kspace (0) data. "
            "Defaults to 0")
     parser.add_argument(
-      '--OCL_GPU', default=1, dest='use_GPU', type=int,
+      '--OCL_GPU', default=OCL_GPU, dest='use_GPU', type=int,
       help="Select if CPU or GPU should be used as OpenCL platform. "
            "Defaults to GPU (1). CAVE: CPU FFT not working")
     args = parser.parse_args()

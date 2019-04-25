@@ -132,14 +132,19 @@ class PyOpenCLNUFFT:
             print('Using double precission')
             self.prg = Program(
                 self.ctx,
-                open(resource_filename('mbpq', 'kernels/OpenCL_gridding_double.c')).read())
-#                self.ctx, open('./Kernels/OpenCL_gridding_double.c').read())
+                open(
+                    resource_filename(
+                        'mbpq',
+                        'kernels/OpenCL_gridding_double.c')).read())
+
         else:
             print('Using single precission')
             self.prg = Program(
                 self.ctx,
-                open(resource_filename('mbpq', 'kernels/OpenCL_gridding_single.c')).read())
-#                self.ctx, open('./Kernels/OpenCL_gridding_single.c').read())
+                open(
+                    resource_filename(
+                        'mbpq',
+                        'kernels/OpenCL_gridding_single.c')).read())
 
     def __del__(self):
         if self.radial:
