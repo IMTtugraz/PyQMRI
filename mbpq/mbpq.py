@@ -60,12 +60,26 @@ def start_recon(args):
 # Select input file ###########################################################
 ###############################################################################
     if args.file == '':
-        root = Tk()
-        root.withdraw()
-        root.update()
-        file = filedialog.askopenfilename()
-        root.destroy()
+        select_file = True
+        while select_file is True:
+            root = Tk()
+            root.withdraw()
+            root.update()
+            file = filedialog.askopenfilename()
+            root.destroy()
+            print(file)
+            if not file == () and \
+               not file.endswith((('.h5'), ('.hdf5'))):
+                print("Please specify a h5 file. Press cancel to exit.")
+            elif file == ():
+                print("Exiting...")
+                return 0
+            else:
+                select_file = False
     else:
+        if not file.endswith((('.h5'), ('.hdf5'))):
+            print("Please specify a h5 file. ")
+            return 0
         file = args.file
 
     name = os.path.normpath(file)
@@ -403,17 +417,38 @@ def start_recon(args):
     os.chdir(cwd)
 
 
-def main(recon='3D', reg_TYPE='TGV', slices=1, trafo=1, streamed=0, data='',
-         model='VFA', config='test', sms=0, imagespace=0, OCL_GPU=1):
+def main(recon_type='3D', reg_type='TGV', slices=1, trafo=1, streamed=0,
+         par_slices=1, data='', model='VFA', config='default', imagespace=0,
+         OCL_GPU=1):
+    """
+    Start a 3D model based reconstruction. Data can also be selected at
+    start up. \n\n
+    recon_type: 3D (2D currently not supported but 3D works on one slice also)
+    \n
+    reg_type: TGV (default) or TV\n
+    slices: 1 (pass -1 for all). Slices are picked symmetrically from
+    the volume center\n
+    trafo: 1 (radial, default), 0 Cartesian\n
+    streamed: 0 (default, everything on the GPU), 1 streamed packages\n
+    par_slices: 1 number of slices per package. Volume devided by GPU's and
+    par_slices must be an even number!
+    (Stream packages to the GPU)\n
+    data: '' (Select at start) or pass the full path to the .h5 raw data\n
+    model: 'VFA' or pass the path to your own model file.\n
+    config: 'default' or the name of your own .ini\n
+    (Assumed to be in the current folder)\n
+    imagespace: 0 (perform k-space reconstruction, default) or 1\n
+    OCL_GPU: 1 (Use GPU, default, CAVE: CPU FFT not working)\n
+    """
     parser = argparse.ArgumentParser(description="T1 quantification from VFA "
                                                  "data. By default runs 3D "
                                                  "regularization for TGV and "
                                                  "TV.")
     parser.add_argument(
-      '--recon_type', default=recon, dest='type',
+      '--recon_type', default=recon_type, dest='type',
       help='Choose reconstruction type (currently only 3D)')
     parser.add_argument(
-      '--reg_type', default=reg_TYPE, dest='reg',
+      '--reg_type', default=reg_type, dest='reg',
       help="Choose regularization type (default: TGV) "
            "options are: TGV, TV, all")
     parser.add_argument(
@@ -427,6 +462,10 @@ def main(recon='3D', reg_TYPE='TGV', slices=1, trafo=1, streamed=0, data='',
       '--streamed', default=streamed, dest='streamed', type=int,
       help='Enable streaming of large data arrays (>10 slices).')
     parser.add_argument(
+      '--par_slices', default=par_slices, dest='par_slices', type=int,
+      help='number of slices per package. Volume devided by GPU\'s and'
+           ' par_slices must be an even number!')
+    parser.add_argument(
       '--data', default=data, dest='file',
       help="Full path to input data. "
            "If not provided, a file dialog will open.")
@@ -438,10 +477,6 @@ def main(recon='3D', reg_TYPE='TGV', slices=1, trafo=1, streamed=0, data='',
       '--config', default=config, dest='config',
       help="Name of config file to use (assumed to be in the same folder). "
            "If not specified, use default parameters.")
-    parser.add_argument(
-      '--sms', default=sms, dest='sms', type=int,
-      help="Simultanious Multi Slice, defaults to off (0). "
-           "Can only be used with Cartesian sampling.")
     parser.add_argument(
       '--imagespace', default=imagespace, dest='imagespace', type=int,
       help="Select if Reco is performed on images (1) or on kspace (0) data. "
@@ -477,6 +512,10 @@ if __name__ == '__main__':
       '--streamed', default=0, dest='streamed', type=int,
       help='Enable streaming of large data arrays (>10 slices).')
     parser.add_argument(
+      '--par_slices', default=1, dest='par_slices', type=int,
+      help='number of slices per package. Volume devided by GPU\'s and'
+           ' par_slices must be an even number!')
+    parser.add_argument(
       '--data', default='', dest='file',
       help="Full path to input data. "
            "If not provided, a file dialog will open.")
@@ -488,10 +527,6 @@ if __name__ == '__main__':
       '--config', default='test', dest='config',
       help="Name of config file to use (assumed to be in the same folder). "
            "If not specified, use default parameters.")
-    parser.add_argument(
-      '--sms', default=0, dest='sms', type=int,
-      help="Simultanious Multi Slice, defaults to off (0). "
-           "Can only be used with Cartesian sampling.")
     parser.add_argument(
       '--imagespace', default=0, dest='imagespace', type=int,
       help="Select if Reco is performed on images (1) or on kspace (0) data. "
