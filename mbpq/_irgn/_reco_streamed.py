@@ -1475,7 +1475,6 @@ class ModelReco:
                            (2*self.num_dev-1))):
             for i in range(self.num_dev):
                 # Get Data
-                self.queue[4*i].finish()
                 self.queue[4*(self.num_dev-1)+3].finish()
                 if i > 1:
                     self.queue[4*(i-1)+2].finish()
@@ -1562,7 +1561,6 @@ class ModelReco:
                     self.operator_adjoint_full(
                         Kyk1_part[i], r_part[i], z1_part[i], i, 0, last))
             for i in range(self.num_dev):
-                self.queue[4*i+1].finish()
                 self.queue[4*(self.num_dev-1)+2].finish()
                 if i > 1:
                     self.queue[4*(i-1)+3].finish()
@@ -1672,7 +1670,6 @@ class ModelReco:
         else:
             j += 1
         for i in range(self.num_dev):
-            self.queue[4*i].finish()
             self.queue[4*(self.num_dev-1)+3].finish()
             if i > 1:
                 self.queue[4*(i-1)+2].finish()
@@ -1704,7 +1701,6 @@ class ModelReco:
                         wait_for=symgrad_v_vold_part[i].events,
                         is_blocking=False))
         for i in range(self.num_dev):
-            self.queue[4*i+1].finish()
             self.queue[4*(self.num_dev-1)+2].finish()
             if i > 1:
                 self.queue[4*(i-1)+3].finish()
@@ -1818,7 +1814,6 @@ class ModelReco:
                            (2*self.num_dev-1))):
             for i in range(self.num_dev):
                 # Get Data
-                self.queue[4*i].finish()
                 self.queue[4*(self.num_dev-1)+3].finish()
                 if i > 1:
                     self.queue[4*(i-1)+2].finish()
@@ -1873,7 +1868,6 @@ class ModelReco:
                     self.f_grad(
                         gradx_xold_part[i], x_part[i], i, 0))
             for i in range(self.num_dev):
-                self.queue[4*i+1].finish()
                 self.queue[4*(self.num_dev-1)+2].finish()
                 if i > 1:
                     self.queue[4*(i-1)+3].finish()
@@ -1943,7 +1937,6 @@ class ModelReco:
         else:
             j += 1
         for i in range(self.num_dev):
-            self.queue[4*i].finish()
             self.queue[4*(self.num_dev-1)+3].finish()
             if i > 1:
                 self.queue[4*(i-1)+2].finish()
@@ -1965,7 +1958,6 @@ class ModelReco:
                     gradx_xold_part[i].data,
                     wait_for=gradx_xold_part[i].events, is_blocking=False))
         for i in range(self.num_dev):
-            self.queue[4*i+1].finish()
             self.queue[4*(self.num_dev-1)+2].finish()
             if i > 1:
                 self.queue[4*(i-1)+3].finish()
@@ -2100,7 +2092,6 @@ class ModelReco:
                            (2*self.num_dev-1))):
             for i in range(self.num_dev):
                 # Get Data
-                self.queue[4*i].finish()
                 self.queue[4*(self.num_dev-1)+3].finish()
                 if i > 1:
                     self.queue[4*(i-1)+2].finish()
@@ -2172,7 +2163,6 @@ class ModelReco:
                     self.operator_forward_full(
                         Ax_part[i], x_new_part[i], i, 0))
             for i in range(self.num_dev):
-                self.queue[4*i+1].finish()
                 self.queue[4*(self.num_dev-1)+2].finish()
                 if i > 1:
                     self.queue[4*(i-1)+3].finish()
@@ -2263,7 +2253,6 @@ class ModelReco:
         else:
             j += 1
         for i in range(self.num_dev):
-            self.queue[4*i].finish()
             self.queue[4*(self.num_dev-1)+3].finish()
             if i > 1:
                 self.queue[4*(i-1)+2].finish()
@@ -2288,7 +2277,6 @@ class ModelReco:
                     Ax_part[i].data,
                     wait_for=Ax_part[i].events, is_blocking=False))
         for i in range(self.num_dev):
-            self.queue[4*i+1].finish()
             self.queue[4*(self.num_dev-1)+2].finish()
             if i > 1:
                 self.queue[4*(i-1)+3].finish()
@@ -2378,7 +2366,6 @@ class ModelReco:
                                (2*self.num_dev-1))):
                 for i in range(self.num_dev):
                     # Get Data
-                    self.queue[4*i].finish()
                     self.queue[4*(self.num_dev-1)+3].finish()
                     if i > 1:
                         self.queue[4*(i-1)+2].finish()
@@ -2435,7 +2422,6 @@ class ModelReco:
                         self.sym_grad(
                             symgrad_v_part[i], v_new_part[i], i, 0))
                 for i in range(self.num_dev):
-                    self.queue[4*i+1].finish()
                     self.queue[4*(self.num_dev-1)+2].finish()
                     if i > 1:
                         self.queue[4*(i-1)+3].finish()
@@ -2502,7 +2488,6 @@ class ModelReco:
             else:
                 j += 1
             for i in range(self.num_dev):
-                self.queue[4*i].finish()
                 self.queue[4*(self.num_dev-1)+3].finish()
                 if i > 1:
                     self.queue[4*(i-1)+2].finish()
@@ -2528,7 +2513,6 @@ class ModelReco:
                         wait_for=symgrad_v_part[i].events,
                         is_blocking=False))
             for i in range(self.num_dev):
-                self.queue[4*i+1].finish()
                 self.queue[4*(self.num_dev-1)+2].finish()
                 if i > 1:
                     self.queue[4*(i-1)+3].finish()
@@ -2785,7 +2769,6 @@ class ModelReco:
                            (2*self.num_dev-1))):
             for i in range(self.num_dev):
                 # Get Data
-                self.queue[4*i].finish()
                 self.queue[4*(self.num_dev-1)+3].finish()
                 if i > 1:
                     self.queue[4*(i-1)+2].finish()
@@ -2927,7 +2910,6 @@ class ModelReco:
                         i, 0, last))
             for i in range(self.num_dev):
                 # Get Data
-                self.queue[4*i+1].finish()
                 self.queue[4*(self.num_dev-1)+2].finish()
                 if i > 1:
                     self.queue[4*(i-1)+3].finish()
@@ -3102,7 +3084,6 @@ class ModelReco:
         else:
             j += 1
         for i in range(self.num_dev):
-            self.queue[4*i].finish()
             self.queue[4*(self.num_dev-1)+3].finish()
             if i > 1:
                 self.queue[4*(i-1)+2].finish()
@@ -3146,7 +3127,6 @@ class ModelReco:
                              Kyk1_part[i][self.overlap:, ...],
                              queue=self.queue[4*i]))).get()
         for i in range(self.num_dev):
-            self.queue[4*i+1].finish()
             self.queue[4*(self.num_dev-1)+2].finish()
             if i > 1:
                 self.queue[4*(i-1)+3].finish()
@@ -3325,7 +3305,6 @@ class ModelReco:
                                (2*self.num_dev-1))):
                 for i in range(self.num_dev):
                     # Get Data
-                    self.queue[4*i].finish()
                     self.queue[4*(self.num_dev-1)+3].finish()
                     if i > 1:
                         self.queue[4*(i-1)+2].finish()
@@ -3410,7 +3389,6 @@ class ModelReco:
                             z1_new_part[i], i, 0, first))
                 for i in range(self.num_dev):
                     # Get Data
-                    self.queue[4*i+1].finish()
                     self.queue[4*(self.num_dev-1)+2].finish()
                     if i > 1:
                         self.queue[4*(i-1)+3].finish()
@@ -3511,7 +3489,6 @@ class ModelReco:
             else:
                 j += 1
             for i in range(self.num_dev):
-                self.queue[4*i].finish()
                 self.queue[4*(self.num_dev-1)+3].finish()
                 if i > 1:
                     self.queue[4*(i-1)+2].finish()
@@ -3547,7 +3524,6 @@ class ModelReco:
                         Kyk2_part[i][:self.par_slices, ...],
                         queue=self.queue[4*i]))).get()
             for i in range(self.num_dev):
-                self.queue[4*i+1].finish()
                 self.queue[4*(self.num_dev-1)+2].finish()
                 if i > 1:
                     self.queue[4*(i-1)+3].finish()
@@ -3603,6 +3579,8 @@ class ModelReco:
                         wait_for=Kyk2_new_part[i+self.num_dev].events,
                         is_blocking=False))
             for i in range(self.num_dev):
+                self.queue[4*i].finish()
+                self.queue[4*i+1].finish()
                 self.queue[4*i+2].finish()
                 self.queue[4*i+3].finish()
         return (ynorm, lhs)
