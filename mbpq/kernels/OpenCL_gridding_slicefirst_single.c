@@ -1,4 +1,3 @@
-
  void AtomicAdd(volatile __global float *addr, float val) {
   union {
            unsigned int u32;
@@ -12,7 +11,6 @@
                                expected.u32, next.u32);
        } while( current.u32 != expected.u32 );
 }
-
   __kernel void make_complex(__global float2 *out,__global float *re, __global float* im)
   {
     size_t k = get_global_id(0);

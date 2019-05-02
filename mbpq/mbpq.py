@@ -44,7 +44,10 @@ DTYPE_real = np.float32
 def start_recon(args):
     sig_model_path = os.path.normpath(args.sig_model)
     if len(sig_model_path.split(os.sep)) > 1:
-        sig_model = importlib.import_module(sig_model_path)
+        spec = importlib.util.spec_from_file_location(
+            sig_model_path.split(os.sep)[-1], sig_model_path)
+        sig_model = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(sig_model)
     else:
         sig_model = importlib.import_module(
             "mbpq._models."+str(sig_model_path))
@@ -85,6 +88,7 @@ def start_recon(args):
     fname = name.split(os.sep)[-1]
 
     par["file"] = h5py.File(file)
+#    del par["file"]["Coils"]
 ###############################################################################
 # Read Data ###################################################################
 ###############################################################################
@@ -333,23 +337,58 @@ def start_recon(args):
                                (np.conj(par["C"])), axis=1),
                         requirements='C')
     del FFT, nFTH
-    opt = optimizer.ModelReco(par, args.trafo,
-                              imagespace=args.imagespace)
+
 ###############################################################################
 # Scale data norm  ############################################################
 ###############################################################################
     if args.imagespace:
-        dscale = np.sqrt(NSlice) * \
-                        (DTYPE(np.sqrt(2*1e3)) /
-                         (np.linalg.norm(images.flatten())))
+        dscale = DTYPE_real(np.sqrt(2*1e3*NSlice) /
+                            (np.linalg.norm(images.flatten())))
         par["dscale"] = dscale
-        opt.data = images*dscale
+        images = images*dscale
     else:
-        dscale = np.sqrt(NSlice) * \
-                        (DTYPE(np.sqrt(2*1e3)) /
-                         (np.linalg.norm(data.flatten())))
+        dscale = (DTYPE_real(np.sqrt(2*1e3*NSlice)) /
+                  (np.linalg.norm(data.flatten())))
         par["dscale"] = dscale
-        opt.data = data*dscale
+        data = data*dscale
+
+    if args.trafo:
+        center = int(N*0.1)
+        sig = []
+        noise = []
+        ind = np.zeros((N), dtype=bool)
+        ind[int(par["N"]/2-center):int(par["N"]/2+center)] = 1
+        for j in range(Nproj):
+            sig.append(np.sum(data[..., int(NSlice/2), j, ind] *
+                              np.conj(data[..., int(NSlice/2), j, ind])))
+            noise.append(np.sum(data[..., int(NSlice/2), j, ~ind] *
+                                np.conj(data[..., int(NSlice/2), j, ~ind])))
+        sig = (np.sum(np.array(sig)))/np.sum(ind)
+        noise = (np.sum(np.array(noise)))/np.sum(~ind)
+        SNR_est = np.abs(sig/noise)
+        par["SNR_est"] = SNR_est
+        print("Estimated SNR from kspace", SNR_est)
+    else:
+        center = int(N*0.1)
+        ind = np.zeros((dimY, dimX), dtype=bool)
+        ind[int(par["N"]/2-center):int(par["N"]/2+center),
+            int(par["N"]/2-center):int(par["N"]/2+center)] = 1
+        ind = np.fft.fftshift(ind)
+        sig = np.sum(data[..., int(NSlice/2), ind] *
+                     np.conj(data[..., int(NSlice/2), ind]))/np.sum(ind)
+        noise = np.sum(data[..., int(NSlice/2), ~ind] *
+                       np.conj(data[..., int(NSlice/2), ~ind]))/np.sum(~ind)
+        SNR_est = np.abs(sig/noise)
+        par["SNR_est"] = SNR_est
+        print("Estimated SNR from kspace", SNR_est)
+
+    opt = optimizer.ModelReco(par, args.trafo,
+                              imagespace=args.imagespace)
+
+    if args.imagespace:
+        opt.data = images
+    else:
+        opt.data = data
 ###############################################################################
 # ratio of z direction to x,y, important for finite differences ###############
 ###############################################################################

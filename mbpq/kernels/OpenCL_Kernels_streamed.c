@@ -40,16 +40,16 @@ __kernel void update_z2(__global float16 *z_new, __global float16 *z, __global f
 }
 __kernel void update_z1(__global float8 *z_new, __global float8 *z, __global float8 *gx,__global float8 *gx_,
                           __global float8 *vx,__global float8 *vx_, const float sigma, const float theta, const float alphainv,
-                          const int NUk) {
+                          const int NUk_tgv, const int NUk_H1, const float h1inv) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
   size_t x = get_global_id(2), y = get_global_id(1);
   size_t k = get_global_id(0);
-  size_t i = k*Nx*Ny*NUk+Nx*y + x;
+  size_t i = k*Nx*Ny*NUk_tgv+Nx*y + x;
 
   float fac = 0.0f;
 
-  for (int uk=0; uk<NUk; uk++)
+  for (int uk=0; uk<NUk_tgv; uk++)
   {
      z_new[i] = z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]-(1+theta)*vx[i]+theta*vx_[i]);
 
@@ -57,25 +57,31 @@ __kernel void update_z1(__global float8 *z_new, __global float8 *z, __global flo
      fac = hypot(fac,hypot(hypot(z_new[i].s0,z_new[i].s1), hypot(hypot(z_new[i].s2,z_new[i].s3),hypot(z_new[i].s4,z_new[i].s5)))*alphainv);
      i+=Nx*Ny;
   }
-  i = k*Nx*Ny*NUk+Nx*y + x;
-  for (int uk=0; uk<NUk; uk++)
+  i = k*Nx*Ny*NUk_tgv+Nx*y + x;
+  for (int uk=0; uk<NUk_tgv; uk++)
   {
     if (fac > 1.0f) {z_new[i] /=fac;}
     i+=Nx*Ny;
   }
+  i = k*Nx*Ny*NUk_tgv + Nx*Ny*NUk_tgv + Nx*y + x;
+  for (int uk=NUk_tgv; uk<(NUk_tgv+NUk_H1); uk++)
+  {
+    z_new[i] = (z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]))*h1inv;
+    i += Nx*Ny;
+  }
 }
   __kernel void update_z1_tv(__global float8 *z_new, __global float8 *z, __global float8 *gx,__global float8 *gx_,
                           const float sigma, const float theta, const float alphainv,
-                          const int NUk) {
+                          const int NUk_tgv, const int NUk_H1, const float h1inv) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
   size_t x = get_global_id(2), y = get_global_id(1);
   size_t k = get_global_id(0);
-  size_t i = k*Nx*Ny*NUk+Nx*y + x;
+  size_t i = k*Nx*Ny*NUk_tgv+Nx*y + x;
 
   float fac = 0.0f;
 
-  for (int uk=0; uk<NUk; uk++)
+  for (int uk=0; uk<NUk_tgv; uk++)
   {
      z_new[i] = z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]);
 
@@ -83,11 +89,17 @@ __kernel void update_z1(__global float8 *z_new, __global float8 *z, __global flo
      fac = hypot(fac,hypot(hypot(z_new[i].s0,z_new[i].s1), hypot(hypot(z_new[i].s2,z_new[i].s3),hypot(z_new[i].s4,z_new[i].s5)))*alphainv);
      i+=Nx*Ny;
   }
-  i = k*Nx*Ny*NUk+Nx*y + x;
-  for (int uk=0; uk<NUk; uk++)
+  i = k*Nx*Ny*NUk_tgv+Nx*y + x;
+  for (int uk=0; uk<NUk_tgv; uk++)
   {
     if (fac > 1.0f) z_new[i] /=fac;
     i+=Nx*Ny;
+  }
+  i = k*Nx*Ny*NUk_tgv + Nx*Ny*NUk_tgv + Nx*y + x;
+  for (int uk=NUk_tgv; uk<(NUk_tgv+NUk_H1); uk++)
+  {
+    z_new[i] = (z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]))*h1inv;
+    i += Nx*Ny;
   }
 }
 __kernel void update_primal(__global float2 *u_new, __global float2 *u, __global float2 *Kyk,__global float2 *u_k, const float tau, const float tauinv, float div, __global float* min, __global float* max, __global int* real, const int NUk) {
@@ -127,15 +139,12 @@ __kernel void update_primal(__global float2 *u_new, __global float2 *u, __global
             u_new[i].s0 *= 1/norm*max[uk];
             u_new[i].s1 *= 1/norm*max[uk];
          }
-//         if(u_new[i].s0 < 0 && pos_real[uk])
-//           u_new[i] = -u_new[i];
-
      }
      i+=Nx*Ny;
   }
 }
 
-__kernel void gradient(__global float8 *grad, __global float2 *u, const int NUk, __global float* scale, const float maxscal, __global float* ratio, const float dz) {
+__kernel void gradient(__global float8 *grad, __global float2 *u, const int NUk, __global float* ratio, const float dz) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
   size_t x = get_global_id(2), y = get_global_id(1);
@@ -202,7 +211,7 @@ __kernel void sym_grad(__global float16 *sym, __global float8 *w, const int NUk,
    }
 }
 __kernel void divergence(__global float2 *div, __global float8 *p, const int NUk,
-                         __global float* scale, const float maxscal, __global float* ratio, const int last, const float dz) {
+                         __global float* ratio, const int last, const float dz) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
   size_t x = get_global_id(2), y = get_global_id(1);
@@ -409,10 +418,11 @@ __kernel void update_Kyk2(__global float8 *w, __global float16 *q, __global floa
 
 __kernel void operator_fwd(__global float2 *out, __global float2 *in,
                        __global float2 *coils, __global float2 *grad, const int NCo,
-                       const int NSl, const int NScan, const int Nuk)
+                       const int NScan, const int Nuk)
 {
   size_t X = get_global_size(2);
   size_t Y = get_global_size(1);
+  size_t NSl = get_global_size(0);
 
   size_t x = get_global_id(2);
   size_t y = get_global_id(1);
@@ -448,10 +458,12 @@ __kernel void operator_fwd(__global float2 *out, __global float2 *in,
 }
 __kernel void operator_ad(__global float2 *out, __global float2 *in,
                        __global float2 *coils, __global float2 *grad, const int NCo,
-                       const int NSl, const int NScan, const int Nuk)
+                       const int NScan, const int Nuk)
 {
   size_t X = get_global_size(2);
   size_t Y = get_global_size(1);
+  size_t NSl = get_global_size(0);
+
   size_t x = get_global_id(2);
   size_t y = get_global_id(1);
   size_t k = get_global_id(0);
@@ -492,14 +504,16 @@ __kernel void operator_ad(__global float2 *out, __global float2 *in,
 
 __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
                        __global float2 *coils, __global float2 *grad, __global float8 *p, const int NCo,
-                       const int NScan, __global float* scale, const float maxscal,__global float* ratio, const int Nuk,const int last, const float dz)
+                       const int NScan, __global float* ratio, const int Nuk, const int last, const float dz)
 {
   size_t X = get_global_size(2);
   size_t Y = get_global_size(1);
   size_t NSl = get_global_size(0);
+
   size_t x = get_global_id(2);
   size_t y = get_global_id(1);
   size_t k = get_global_id(0);
+
   size_t i = k*X*Y*Nuk+X*y + x;
 
   float2 tmp_in = 0.0f;
@@ -578,7 +592,6 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
        val.s5 -= p[i-X*Y*Nuk].s5;
    }
    // scale gradients
-   //{val*=(maxscal/(scale[uk]))*ratio[uk];}
    {val*=ratio[uk];}
 
   out[i] = sum - (val.s01+val.s23+val.s45/dz);
@@ -587,51 +600,147 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
   }
 
 }
-/*__kernel void update_primal_explicit(__global float2 *u_new, __global float2 *u, __global float2 *Kyk, __global float2 *u_k,
-__global float2* ATd, const float tau, const float delta_inv, const float lambd, __global float* mmin, __global float* mmax, __global int* real, const int NUk) {
-  size_t Nx = get_global_size(2), Ny = get_global_size(1);
+__kernel void operator_fwd_imagespace(__global float2 *out, __global float2 *in, __global float2 *grad, const int NScan, const int Nuk)
+{
+  size_t X = get_global_size(2);
+  size_t Y = get_global_size(1);
   size_t NSl = get_global_size(0);
-  size_t x = get_global_id(2), y = get_global_id(1);
+  size_t x = get_global_id(2);
+  size_t y = get_global_id(1);
   size_t k = get_global_id(0);
-  size_t i = k*Nx*Ny*NUk+Nx*y + x;
+
+  float2 tmp_in = 0.0f;
+  float2 tmp_grad = 0.0f;
+
+    for (int scan=0; scan<NScan; scan++)
+    {
+        float2 sum = 0.0f;
+        for (int uk=0; uk<Nuk; uk++)
+        {
+          tmp_grad = grad[k*Nuk*NScan*X*Y+uk*NScan*X*Y+scan*X*Y + y*X + x];
+          tmp_in = in[k*Nuk*X*Y+uk*X*Y+y*X+x];
+
+          sum += (float2)(tmp_in.x*tmp_grad.x-tmp_in.y*tmp_grad.y,tmp_in.x*tmp_grad.y+tmp_in.y*tmp_grad.x);
+
+        }
+        out[k*NScan*X*Y+scan*X*Y+ y*X + x] = sum;
+    }
 
 
-  for (int uk=0; uk<NUk; uk++)
+}
+__kernel void operator_ad_imagespace(__global float2 *out, __global float2 *in,
+                      __global float2 *grad,
+                       const int NScan, const int Nuk)
+{
+  size_t X = get_global_size(2);
+  size_t Y = get_global_size(1);
+  size_t NSl = get_global_size(0);
+  size_t x = get_global_id(2);
+  size_t y = get_global_id(1);
+  size_t k = get_global_id(0);
+
+
+  float2 tmp_in = 0.0f;
+  float2 conj_grad = 0.0f;
+
+
+
+  for (int uk=0; uk<Nuk; uk++)
   {
-     u_new[i] = u[i]-tau*(lambd*u_new[i]-lambd*ATd[i]+delta_inv*u[i]-delta_inv*u_k[i]-Kyk[i]);
+  float2 sum = (float2) 0.0f;
+  for (int scan=0; scan<NScan; scan++)
+  {
+    conj_grad = (float2) (grad[k*Nuk*NScan*X*Y+uk*NScan*X*Y+scan*X*Y + y*X + x].x,
+                          -grad[k*Nuk*NScan*X*Y+uk*NScan*X*Y+scan*X*Y + y*X + x].y);
+    tmp_in = in[k*NScan*X*Y + scan*X*Y+ y*X + x];
+    sum += (float2)(tmp_in.x*conj_grad.x-tmp_in.y*conj_grad.y,tmp_in.x*conj_grad.y+tmp_in.y*conj_grad.x);
 
-     if(real[uk]>0)
-     {
-         u_new[i].s1 = 0;
-         if (u_new[i].s0<mmin[uk])
-         {
-             u_new[i].s0 = mmin[uk];
-         }
-         if(u_new[i].s0>mmax[uk])
-         {
-             u_new[i].s0 = mmax[uk];
-         }
-     }
-     else
-     {
-         if (u_new[i].s0<mmin[uk])
-         {
-             u_new[i].s0 = mmin[uk];
-         }
-         if(u_new[i].s0>mmax[uk])
-         {
-             u_new[i].s0 = mmax[uk];
-         }
-         if (u_new[i].s1<mmin[uk])
-         {
-             u_new[i].s1 = mmin[uk];
-         }
-         if(u_new[i].s1>mmax[uk])
-         {
-             u_new[i].s1 = mmax[uk];
-         }
-     }
-     i += Nx*Ny;
+  }
+  out[k*Nuk*X*Y+uk*X*Y+y*X+x] = sum;
+  }
+
+}
+
+
+
+__kernel void update_Kyk1_imagespace(__global float2 *out, __global float2 *in,
+                       __global float2 *grad, __global float8 *p,
+                       const int NScan, __global float* ratio, const int Nuk, const int last, const float dz)
+{
+  size_t X = get_global_size(2);
+  size_t Y = get_global_size(1);
+  size_t NSl = get_global_size(0);
+  size_t x = get_global_id(2);
+  size_t y = get_global_id(1);
+  size_t k = get_global_id(0);
+
+  size_t i = k*X*Y*Nuk+X*y + x;
+
+  float2 tmp_in = 0.0f;
+  float2 conj_grad = 0.0f;
+
+
+  for (int uk=0; uk<Nuk; uk++)
+  {
+  float2 sum = (float2) 0.0f;
+  for (int scan=0; scan<NScan; scan++)
+  {
+    conj_grad = (float2) (grad[k*Nuk*NScan*X*Y+uk*NScan*X*Y+scan*X*Y + y*X + x].x,
+                          -grad[k*Nuk*NScan*X*Y+uk*NScan*X*Y+scan*X*Y + y*X + x].y);
+    tmp_in = in[k*NScan*X*Y+scan*X*Y+ y*X + x];
+    sum += (float2)(tmp_in.x*conj_grad.x-tmp_in.y*conj_grad.y,tmp_in.x*conj_grad.y+tmp_in.y*conj_grad.x);
+  }
+
+   // divergence
+   float8 val = p[i];
+   if (x == X-1)
+   {
+       //real
+       val.s0 = 0.0f;
+       //imag
+       val.s1 = 0.0f;
+   }
+   if (x > 0)
+   {
+       //real
+       val.s0 -= p[i-1].s0;
+       //imag
+       val.s1 -= p[i-1].s1;
+   }
+   if (y == Y-1)
+   {
+       //real
+       val.s2 = 0.0f;
+       //imag
+       val.s3 = 0.0f;
+   }
+   if (y > 0)
+   {
+       //real
+       val.s2 -= p[i-X].s2;
+       //imag
+       val.s3 -= p[i-X].s3;
+   }
+   if (last == 1)
+   {
+    if (k == NSl-1)
+    {  //real
+       val.s4 = 0.0f;
+       //imag
+       val.s5 = 0.0f;
+    }
+   }
+   if (k > 0)
+   {
+       //real
+       val.s4 -= p[i-X*Y*Nuk].s4;
+       //imag
+       val.s5 -= p[i-X*Y*Nuk].s5;
+   }
+   // scale gradients
+   {val*=ratio[uk];}
+
+  out[i] = sum - (val.s01+val.s23+val.s45/dz);
+  i += X*Y;
   }
 }
-*/

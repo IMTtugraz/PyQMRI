@@ -12,6 +12,7 @@ setup(name='mbpq',
       exclude_package_data = {'': ['data*','output*']},
       packages=find_packages(exclude=("output*","data*")),
       setup_requires=["cython"],
+      python_requires ='>=3.6',
       install_requires=[
         'cython',
         'pyopencl',
