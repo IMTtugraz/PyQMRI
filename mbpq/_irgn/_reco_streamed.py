@@ -73,6 +73,7 @@ class ModelReco:
         self.dz = 1
         self.fval_min = 0
         self.fval = 0
+        self.SNR_est = par["SNR_est"]
         self.ctx = par["ctx"]
         self.queue = par["queue"]
         self.gn_res = []
@@ -308,21 +309,30 @@ class ModelReco:
 # Scale before gradient #######################################################
 ###############################################################################
     def set_scale(self, x):
-        pass
-#        scale = np.reshape(x, (self.unknowns, self.NSlice*self.dimY*self.dimX))
-#        scale = np.nanmax(np.array(
-#            (np.abs(np.quantile(scale.real, 0.90, axis=-1) -
-#                    np.quantile(scale.real, 0.10, axis=-1)),
-#             np.abs(np.quantile(scale.imag, 0.90, axis=-1) -
-#                    np.quantile(scale.imag, 0.10, axis=-1)))), 0)
-#        scale /= np.max(scale)
-#        scale = 1/scale
-#        scale[~np.isfinite(scale)] = 1
-#        print("Ratio: ", scale)
-#        sum_scale = np.sum(scale)
-#        for i in range(self.num_dev):
-#            for j in range(self.unknowns):
-#                self.ratio[i][j] = scale[j]/sum_scale
+        x = clarray.to_device(self.queue[0], x)
+        grad = clarray.to_device(self.queue[0], np.zeros_like(self.z1))
+        grad.add_event(
+            self.f_grad(
+                grad,
+                x,
+                wait_for=grad.events +
+                x.events))
+        x = x.get()
+        grad = grad.get()
+        scale = np.reshape(
+            x, (self.unknowns, self.NSlice * self.dimY * self.dimX))
+        grad = np.reshape(
+            grad, (self.unknowns, self.NSlice * self.dimY * self.dimX * 4))
+        print("Diff between x: ", np.linalg.norm(scale,axis=-1))
+        print("Diff between grad x: ", np.linalg.norm(grad,axis=-1))
+        scale = np.linalg.norm(grad,axis=-1)
+        scale = np.max(scale)/scale
+        scale[~np.isfinite(scale)] = 1
+        sum_scale = np.linalg.norm(scale,2)/1000
+        for i in range(self.num_dev):
+            for j in range(self.unknowns):
+                self.ratio[i][j] = scale[j] / sum_scale
+        print("Ratio: ", self.ratio[0])
 
 ###############################################################################
 # Start a 3D Reconstruction, set TV to True to perform TV instead of TGV#######
@@ -371,30 +381,37 @@ class ModelReco:
         for i in range(self.irgn_par["max_gn_it"]):
             start = time.time()
             self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
+            scale = np.reshape(
+                self.grad_x,
+                (self.unknowns,
+                 self.NScan * self.NSlice * self.dimY * self.dimX))
+            scale = np.linalg.norm(scale, axis=-1)
+            print("Initial norm of the model Gradient: \n", scale)
+            scale = 1000 / np.sqrt(self.unknowns) / scale
+            print("Scalefactor of the model Gradient: \n", scale)
             if not np.mod(i, 1):
-                scale = np.reshape(
-                    self.grad_x,
-                    (self.unknowns,
-                     self.NScan*self.NSlice*self.dimY*self.dimX))
-                scale = np.linalg.norm(scale, axis=-1)
-                scale = 1000*np.sqrt(self.unknowns) *\
-                        np.sqrt(self.NSlice) / scale
-                print("Scale of the model Gradient: \n", scale)
-            for uk in range(self.unknowns):
-                self.model.constraints[uk].update(scale[uk])
-                result[uk, ...] *= self.model.uk_scale[uk]
-                self.grad_x[uk] /= self.model.uk_scale[uk]
-                self.model.uk_scale[uk] *= scale[uk]
-                result[uk, ...] /= self.model.uk_scale[uk]
-                self.grad_x[uk] *= self.model.uk_scale[uk]
+                for uk in range(self.unknowns):
+                    self.model.constraints[uk].update(scale[uk])
+                    result[uk, ...] *= self.model.uk_scale[uk]
+                    self.grad_x[uk] /= self.model.uk_scale[uk]
+                    self.model.uk_scale[uk] *= scale[uk]
+                    result[uk, ...] /= self.model.uk_scale[uk]
+                    self.grad_x[uk] *= self.model.uk_scale[uk]
+            scale = np.reshape(
+                self.grad_x,
+                (self.unknowns,
+                 self.NScan * self.NSlice * self.dimY * self.dimX))
+            scale = np.linalg.norm(scale, axis=-1)
+            print("Model Scaling Factors: \n", self.model.uk_scale)
+            print("Scale of the model Gradient: \n", scale)
+            self.set_scale(np.require(result, requirements='C'))
 
             self.step_val = np.nan_to_num(self.model.execute_forward(result))
             self.step_val = np.require(
                 np.transpose(self.step_val, [1, 0, 2, 3]), requirements='C')
             self.grad_x = np.require(
                 np.transpose(self.grad_x, [2, 0, 1, 3, 4]), requirements='C')
-            self.set_scale(np.require(
-                np.transpose(result, [1, 0, 2, 3]), requirements='C'))
+
 
             result = self.irgn_solve_3D(result, iters, self.data, TV)
             self.result[i+1, ...] = self.model.rescale(result)
@@ -803,6 +820,7 @@ class ModelReco:
                   "3D can be used with a single slice.")
             return
         else:
+            self.irgn_par["lambd"] *= self.SNR_est
             if imagespace:
                 print("Streamed imagespace "
                       "operation is currently not implemented.")
@@ -850,8 +868,6 @@ class ModelReco:
                        int(self.NSlice/(2*self.par_slices*self.num_dev) +
                            (2*self.num_dev-1))):
             for i in range(self.num_dev):
-                self.queue[4*i].finish()
-                self.queue[4*i+3].finish()
                 idx_start = i*self.par_slices+(
                     2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
                 idx_stop = (i+1)*self.par_slices+(
@@ -863,6 +879,7 @@ class ModelReco:
                         outp[idx_start:idx_stop, ...],
                         cl_out[2*i].data,
                         wait_for=cl_out[2*i].events, is_blocking=False))
+            for i in range(self.num_dev):
                 idx_start = i*self.par_slices+(
                     2*self.num_dev*(j-2*self.num_dev+1)*self.par_slices)
                 idx_stop = ((i+1)*self.par_slices+(
@@ -873,11 +890,10 @@ class ModelReco:
                         self.queue[4*i], cl_data[i].data,
                         inp[idx_start:idx_stop, ...],
                         wait_for=cl_data[i].events, is_blocking=False))
+            for i in range(self.num_dev):
                 cl_out[2*i].add_event(
                     self.NUFFT[2*i].fwd_NUFFT(cl_out[2*i], cl_data[i]))
             for i in range(self.num_dev):
-                self.queue[4*i+1].finish()
-                self.queue[4*i+2].finish()
                 idx_start = i*self.par_slices+(
                     2*self.num_dev*(j-2*self.num_dev)+self.num_dev) *\
                     self.par_slices
@@ -889,6 +905,7 @@ class ModelReco:
                         self.queue[4*i+3], outp[idx_start:idx_stop, ...],
                         cl_out[2*i+1].data, wait_for=cl_out[2*i+1].events,
                         is_blocking=False))
+            for i in range(self.num_dev):
                 idx_start = i*self.par_slices+(
                     2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev) *\
                     self.par_slices
@@ -905,6 +922,7 @@ class ModelReco:
                         inp[idx_start:idx_stop, ...],
                         wait_for=cl_data[i+self.num_dev].events,
                         is_blocking=False))
+            for i in range(self.num_dev):
                 cl_out[2*i+1].add_event(
                     self.NUFFT[2*i+1].fwd_NUFFT(
                         cl_out[2*i+1], cl_data[i+self.num_dev]))
@@ -913,8 +931,6 @@ class ModelReco:
         else:
             j += 1
         for i in range(self.num_dev):
-            self.queue[4*i].finish()
-            self.queue[4*i+3].finish()
             idx_start = i*self.par_slices+(
                 2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
             idx_stop = (i+1)*self.par_slices+(
@@ -932,8 +948,6 @@ class ModelReco:
                 idx_start -= self.overlap
             else:
                 idx_stop += self.overlap
-            self.queue[4*i+1].finish()
-            self.queue[4*i+2].finish()
             cl_out[2*i+1].add_event(
                 cl.enqueue_copy(
                     self.queue[4*i+3], outp[idx_start:idx_stop, ...],
@@ -1036,16 +1050,17 @@ class ModelReco:
                        int(self.NSlice/(2*self.par_slices*self.num_dev) +
                            (2*self.num_dev-1))):
             for i in range(self.num_dev):
-                self.queue[4*i].finish()
-                self.queue[4*i+3].finish()
                 idx_start = i*self.par_slices+(
                     2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
                 idx_stop = (i+1)*self.par_slices+(
                     2*self.num_dev*(j-2*self.num_dev))*self.par_slices
-                cl_out[2*i].get(queue=self.queue[4*i+2], ary=self.tmp_FT)
-                outp[idx_start:idx_stop, ...] = self.tmp_FT[
-                    :self.par_slices, ...]
-
+                cl_out[2*i].add_event(
+                    cl.enqueue_copy(
+                        self.queue[4*i+2],
+                        outp[idx_start:idx_stop, ...],
+                        cl_out[2*i].data,
+                        wait_for=cl_out[2*i].events, is_blocking=False))
+            for i in range(self.num_dev):
                 idx_start = i*self.par_slices+(
                     2*self.num_dev*(j-2*self.num_dev+1)*self.par_slices)
                 idx_stop = ((i+1)*self.par_slices+(
@@ -1057,6 +1072,7 @@ class ModelReco:
                     self.queue[4*i], self.C[idx_start:idx_stop, ...]))
                 self.grad_buf_part[i] = (clarray.to_device(
                     self.queue[4*i], self.grad_x[idx_start:idx_stop, ...]))
+            for i in range(self.num_dev):
                 cl_tmp[2*i].add_event(
                     self.eval_fwd_streamed(
                         cl_tmp[2*i], cl_data[i], idx=i, idxq=0,
@@ -1068,19 +1084,18 @@ class ModelReco:
                         cl_out[2*i], cl_tmp[2*i],
                         wait_for=cl_tmp[2*i].events+cl_out[2*i].events))
             for i in range(self.num_dev):
-                self.queue[4*i+1].finish()
-                self.queue[4*i+2].finish()
                 idx_start = i*self.par_slices+(
                     2*self.num_dev*(j-2*self.num_dev)+self.num_dev) *\
                     self.par_slices
                 idx_stop = (i+1)*self.par_slices+(
                     2*self.num_dev*(j-2*self.num_dev)+self.num_dev) *\
                     self.par_slices
-
-                cl_out[2*i+1].get(queue=self.queue[4*i+3], ary=self.tmp_FT)
-                outp[idx_start:idx_stop, ...] = self.tmp_FT[
-                    :self.par_slices, ...]
-
+                cl_out[2*i+1].add_event(
+                    cl.enqueue_copy(
+                        self.queue[4*i+3], outp[idx_start:idx_stop, ...],
+                        cl_out[2*i+1].data, wait_for=cl_out[2*i+1].events,
+                        is_blocking=False))
+            for i in range(self.num_dev):
                 idx_start = i*self.par_slices+(
                     2*self.num_dev*(j-2*self.num_dev+1)+self.num_dev) *\
                     self.par_slices
@@ -1091,7 +1106,6 @@ class ModelReco:
                     idx_start -= self.overlap
                 else:
                     idx_stop += self.overlap
-
                 cl_data[i+self.num_dev] = clarray.to_device(
                     self.queue[4*i+1], inp[idx_start:idx_stop, ...])
                 self.coil_buf_part[self.num_dev+i] = (
@@ -1100,6 +1114,7 @@ class ModelReco:
                 self.grad_buf_part[self.num_dev+i] = (
                     clarray.to_device(self.queue[4*i+1],
                                       self.grad_x[idx_start:idx_stop, ...]))
+            for i in range(self.num_dev):
                 cl_tmp[2*i+1].add_event(self.eval_fwd_streamed(
                     cl_tmp[2*i+1], cl_data[self.num_dev+i], idx=i, idxq=1,
                     wait_for=(cl_tmp[2*i+1].events +
@@ -1115,26 +1130,29 @@ class ModelReco:
         else:
             j += 1
         for i in range(self.num_dev):
-            self.queue[4*i].finish()
-            self.queue[4*i+3].finish()
             idx_start = i*self.par_slices+(
                 2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
             idx_stop = (i+1)*self.par_slices+(
                 2*self.num_dev*(j-2*self.num_dev))*self.par_slices
-            cl_out[2*i].get(queue=self.queue[4*i+2], ary=self.tmp_FT)
-            outp[idx_start:idx_stop, ...] = self.tmp_FT[:self.par_slices, ...]
-            self.queue[4*i+1].finish()
-            self.queue[4*i+2].finish()
+            cl_out[2*i].add_event(
+                cl.enqueue_copy(
+                    self.queue[4*i+2], outp[idx_start:idx_stop, ...],
+                    cl_out[2*i].data, wait_for=cl_out[2*i].events,
+                    is_blocking=False))
             idx_start = i*self.par_slices+(
                 2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
             idx_stop = (i+1)*self.par_slices+(
                 2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
             cl_out[2*i+1].get(queue=self.queue[4*i+3], ary=self.tmp_FT)
             if idx_stop == self.NSlice:
-                outp[idx_start:idx_stop, ...] = self.tmp_FT[self.overlap:, ...]
+                idx_start -= self.overlap
             else:
-                outp[idx_start:idx_stop, ...] = \
-                  self.tmp_FT[:self.par_slices, ...]
+                idx_stop += self.overlap
+            cl_out[2*i+1].add_event(
+                cl.enqueue_copy(
+                    self.queue[4*i+3], outp[idx_start:idx_stop, ...],
+                    cl_out[2*i+1].data, wait_for=cl_out[2*i+1].events,
+                    is_blocking=False))
         for i in range(self.num_dev):
             self.queue[4*i+2].finish()
             self.queue[4*i+3].finish()

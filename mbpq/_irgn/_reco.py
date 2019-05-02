@@ -54,6 +54,7 @@ class ModelReco:
         self.NC = par["NC"]
         self.fval_min = 0
         self.fval = 0
+        self.SNR_est = par["SNR_est"]
         self.ctx = par["ctx"][0]
         self.queue = par["queue"][0]
         self.ratio = clarray.to_device(
@@ -324,22 +325,29 @@ class ModelReco:
 # Scale before gradient #######################################################
 ###############################################################################
     def set_scale(self, x):
-        pass
-#        scale = np.reshape(
-#            x, (self.unknowns, self.NSlice * self.dimY * self.dimX))
-#        scale = np.nanmax(np.array(
-#            (np.abs(np.quantile(scale.real, 0.90, axis=-1) -
-#                    np.quantile(scale.real, 0.10, axis=-1)),
-#             np.abs(np.quantile(scale.imag, 0.90, axis=-1) -
-#                    np.quantile(scale.imag, 0.10, axis=-1)))), 0)
-#        scale /= np.max(scale)
-#        scale = 1 / scale
-#        scale[~np.isfinite(scale)] = 1
-#        print("Ratio: ", scale)
-#        sum_scale = np.sum(scale)
-#        for j in range(x.shape[0]):
-#            self.ratio[j] = scale[j] / sum_scale
-
+        x = clarray.to_device(self.queue, x)
+        grad = clarray.to_device(self.queue, np.zeros_like(self.z1))
+        grad.add_event(
+            self.f_grad(
+                grad,
+                x,
+                wait_for=grad.events +
+                x.events))
+        x = x.get()
+        grad = grad.get()
+        scale = np.reshape(
+            x, (self.unknowns, self.NSlice * self.dimY * self.dimX))
+        grad = np.reshape(
+            grad, (self.unknowns, self.NSlice * self.dimY * self.dimX * 4))
+        print("Diff between x: ", np.linalg.norm(scale,axis=-1))
+        print("Diff between grad x: ", np.linalg.norm(grad,axis=-1))
+        scale = np.linalg.norm(grad,axis=-1)
+        scale = np.max(scale)/scale
+        scale[~np.isfinite(scale)] = 1
+        sum_scale = np.linalg.norm(scale,2)/1000
+        for j in range(x.shape[0]):
+            self.ratio[j] = scale[j] / sum_scale
+        print("Ratio: ", self.ratio)
 ###############################################################################
 # Start a 3D Reconstruction, set TV to True to perform TV instead of TGV#######
 # Precompute Model and Gradient values for xk #################################
@@ -393,15 +401,16 @@ class ModelReco:
         for i in range(self.irgn_par["max_gn_it"]):
             start = time.time()
             self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
+
+            scale = np.reshape(
+                self.grad_x,
+                (self.unknowns,
+                 self.NScan * self.NSlice * self.dimY * self.dimX))
+            scale = np.linalg.norm(scale, axis=-1)
+            print("Initial norm of the model Gradient: \n", scale)
+            scale = 1000 / np.sqrt(self.unknowns) / scale
+            print("Scalefactor of the model Gradient: \n", scale)
             if not np.mod(i, 1):
-                scale = np.reshape(
-                    self.grad_x,
-                    (self.unknowns,
-                     self.NScan * self.NSlice * self.dimY * self.dimX))
-                scale = np.linalg.norm(scale, axis=-1)
-                scale = 1000*np.sqrt(self.unknowns) *\
-                        np.sqrt(self.NSlice) / scale
-                print("Scale of the model Gradient: \n", scale)
                 for uk in range(self.unknowns):
                     self.model.constraints[uk].update(scale[uk])
                     result[uk, ...] *= self.model.uk_scale[uk]
@@ -409,13 +418,21 @@ class ModelReco:
                     self.model.uk_scale[uk] *= scale[uk]
                     result[uk, ...] /= self.model.uk_scale[uk]
                     self.grad_x[uk] *= self.model.uk_scale[uk]
+            scale = np.reshape(
+                self.grad_x,
+                (self.unknowns,
+                 self.NScan * self.NSlice * self.dimY * self.dimX))
+            scale = np.linalg.norm(scale, axis=-1)
+            print("Model Scaling Factors: \n", self.model.uk_scale)
+            print("Scale of the model Gradient: \n", scale)
+            self.set_scale(result)
+
             self.step_val = np.nan_to_num(self.model.execute_forward(result))
             self.grad_buf = cl.Buffer(self.queue.context,
                                       cl.mem_flags.READ_ONLY |
                                       cl.mem_flags.COPY_HOST_PTR,
                                       hostbuf=self.grad_x.data)
 
-            self.set_scale(result)
 
             result = self.irgn_solve_3D(result, iters, self.data, TV)
             self.result[i + 1, ...] = self.model.rescale(result)
@@ -435,8 +452,8 @@ class ModelReco:
             self.gn_res.append(self.fval)
             print("GN-Iter: %d  Elapsed time: %f seconds" % (i, end))
             print("-" * 75)
-            if np.abs(self.fval_min - self.fval <
-                      self.irgn_par["lambd"] * self.irgn_par["tol"]) and i > 0:
+            if np.abs(self.fval_min - self.fval) < \
+                      self.irgn_par["lambd"] * self.irgn_par["tol"] and i > 0:
                 print("Terminated at GN-iteration %d because "
                       "the energy decrease was less than %.3e" %
                       (i, np.abs(self.fval_min - self.fval) /
@@ -620,16 +637,15 @@ class ModelReco:
         for i in range(self.irgn_par["max_gn_it"]):
             start = time.time()
             self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
+            scale = np.reshape(
+                self.grad_x,
+                (self.unknowns,
+                 self.NScan * self.NSlice * self.dimY * self.dimX))
+            scale = np.linalg.norm(scale, axis=-1)
+            print("Initial norm of the model Gradient: \n", scale)
+            scale = 1000 / np.sqrt(self.unknowns) / scale
+            print("Scalefactor of the model Gradient: \n", scale)
             if not np.mod(i, 1):
-                scale = np.reshape(
-                    self.grad_x,
-                    (self.unknowns,
-                     self.NScan * self.NSlice * self.dimY * self.dimX))
-                scale = np.linalg.norm(scale, axis=-1)
-                scale = 1 / scale
-                scale = 1000*np.sqrt(self.unknowns) *\
-                        np.sqrt(self.NSlice) / scale
-                print("Scale of the model Gradient: \n", scale)
                 for uk in range(self.unknowns):
                     self.model.constraints[uk].update(scale[uk])
                     result[uk, ...] *= self.model.uk_scale[uk]
@@ -637,13 +653,20 @@ class ModelReco:
                     self.model.uk_scale[uk] *= scale[uk]
                     result[uk, ...] /= self.model.uk_scale[uk]
                     self.grad_x[uk] *= self.model.uk_scale[uk]
+            scale = np.reshape(
+                self.grad_x,
+                (self.unknowns,
+                 self.NScan * self.NSlice * self.dimY * self.dimX))
+            scale = np.linalg.norm(scale, axis=-1)
+            print("Model Scaling Factors: \n", self.model.uk_scale)
+            print("Scale of the model Gradient: \n", scale)
+            self.set_scale(result)
+
             self.step_val = np.nan_to_num(self.model.execute_forward(result))
             self.grad_buf = cl.Buffer(self.queue.context,
                                       cl.mem_flags.READ_ONLY |
                                       cl.mem_flags.COPY_HOST_PTR,
                                       hostbuf=self.grad_x.data)
-            if i > 0:
-                self.set_scale(result)
 
             result = self.irgn_solve_3D_imagespace(result, iters,
                                                    self.data, TV)
@@ -1282,6 +1305,7 @@ class ModelReco:
                   3D can be used with a single slice.")
             raise NotImplementedError
         else:
+            self.irgn_par["lambd"] *= self.SNR_est
             if imagespace:
                 self.execute_3D_imagespace(TV)
             else:
