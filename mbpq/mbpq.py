@@ -345,7 +345,7 @@ def start_recon(args):
         par["dscale"] = dscale
         images = images*dscale
     else:
-        dscale =  (DTYPE_real(np.sqrt(2*1e3*NSlice*NScan)) / (np.linalg.norm(data.flatten())))
+        dscale =  (DTYPE_real(np.sqrt(2*1e3*NSlice)) / (np.linalg.norm(data.flatten())))
         par["dscale"] = dscale
         data = data*dscale
 
@@ -362,7 +362,7 @@ def start_recon(args):
                                 np.conj(data[...,int(NSlice/2),j,~ind])))
         sig = (np.sum(np.array(sig)))/np.sum(ind)
         noise = (np.sum(np.array(noise)))/np.sum(~ind)
-        SNR_est =  np.abs(sig/noise)
+        SNR_est =  np.abs(sig/noise)*np.sqrt(NScan)
         par["SNR_est"] = SNR_est
         print("Estimated SNR from kspace", SNR_est)
     else:
