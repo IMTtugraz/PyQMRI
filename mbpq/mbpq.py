@@ -340,15 +340,12 @@ def start_recon(args):
 
 
     if args.imagespace:
-        dscale = np.sqrt(NSlice) * \
-                        (DTYPE(np.sqrt(2*1e3)) /
+        dscale =  DTYPE_real(np.sqrt(2*1e3*NSlice) /
                          (np.linalg.norm(images.flatten())))
         par["dscale"] = dscale
         images = images*dscale
     else:
-        dscale = np.sqrt(NSlice) * \
-                        (DTYPE(np.sqrt(2*1e3)) /
-                         (np.linalg.norm(data.flatten())))
+        dscale =  (DTYPE_real(np.sqrt(2*1e3*NSlice)) / (np.linalg.norm(data.flatten())))
         par["dscale"] = dscale
         data = data*dscale
 
@@ -356,16 +353,31 @@ def start_recon(args):
         center = int(N*0.2)
         sig = []
         noise = []
+        ind = np.zeros((N),dtype=bool)
+        ind[int(par["N"]/2-center):int(par["N"]/2+center)] = 1
         for j in range(Nproj):
-            sig.append(np.sum(data[:,:,int(NSlice/2),j,int(par["N"]/2-center):int(par["N"]/2+center)]*np.conj(data[:,:,int(NSlice/2),j,int(par["N"]/2-center):int(par["N"]/2+center)])))
-            noise_lower = np.sum(data[:,:,int(NSlice/2),j,:int(par["N"]/2-center)]*np.conj(data[:,:,int(NSlice/2),j,:int(par["N"]/2-center)]))
-            noise_upper = np.sum(data[:,:,int(NSlice/2),j,int(par["N"]/2+center):]*np.conj(data[:,:,int(NSlice/2),j,int(par["N"]/2+center):]))
-            noise.append(noise_lower+noise_upper)
-        sig = (np.sum(np.array(sig)))
-        noise = (np.sum(np.array(noise)))
-        SNR_est =  np.abs(sig/noise)*np.sqrt(NSlice)
+            sig.append(np.sum(data[...,int(NSlice/2),j,ind] *
+                              np.conj(data[...,int(NSlice/2),j,ind])))
+            noise.append(np.sum(data[...,int(NSlice/2),j,~ind] *
+                                np.conj(data[...,int(NSlice/2),j,~ind])))
+        sig = (np.sum(np.array(sig)))/np.sum(ind)
+        noise = (np.sum(np.array(noise)))/np.sum(~ind)
+        SNR_est =  np.abs(sig/noise)
         par["SNR_est"] = SNR_est
         print("Estimated SNR from kspace", SNR_est)
+    else:
+        center = int(N*0.2)
+        ind = np.zeros((dimY,dimX),dtype=bool)
+        ind[int(par["N"]/2-center):int(par["N"]/2+center),
+            int(par["N"]/2-center):int(par["N"]/2+center)] = 1
+        sig = np.sum(data[...,int(NSlice/2),ind] *
+                     np.conj(data[...,int(NSlice/2),ind]))
+        noise = np.sum(data[...,int(NSlice/2),~ind] *
+                       np.conj(data[...,int(NSlice/2),~ind]))
+        SNR_est =  np.abs(sig/noise)
+        par["SNR_est"] = SNR_est
+        print("Estimated SNR from kspace", SNR_est)
+
 
     opt = optimizer.ModelReco(par, args.trafo,
                               imagespace=args.imagespace)

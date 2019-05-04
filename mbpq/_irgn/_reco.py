@@ -52,8 +52,9 @@ class ModelReco:
         self.dimX = par["dimX"]
         self.dimY = par["dimY"]
         self.NC = par["NC"]
-        self.fval_min = 0
+        self.fval_old = 0
         self.fval = 0
+        self.fval_init = 0
         self.SNR_est = par["SNR_est"]
         self.ctx = par["ctx"][0]
         self.queue = par["queue"][0]
@@ -93,10 +94,6 @@ class ModelReco:
                 DTYPE, "C")
             self.NUFFT = NUFFT.PyOpenCLNUFFT(self.ctx, self.queue,
                                              par, radial=trafo)
-            self.tmp_sino = clarray.empty(
-                self.queue,
-                (self.NScan, self.NC, self.NSlice, self.Nproj, self.N),
-                DTYPE, "C")
 
         self.prg = Program(
             self.ctx,
@@ -369,9 +366,8 @@ class ModelReco:
             (self.irgn_par["max_gn_it"] + 1, self.unknowns, self.NSlice,
              self.dimY, self.dimX),
             dtype=DTYPE)
-        self.result[0, :, :, :, :] = np.copy(self.model.guess)
+        self.result[0, ...] = np.copy(self.model.guess)
 
-        self.Coils3D = self.C
         result = np.copy(self.model.guess)
 
         if TV == 1:
@@ -391,24 +387,19 @@ class ModelReco:
                 ([self.unknowns_TGV, self.NSlice, self.dimY, self.dimX, 8]),
                 dtype=DTYPE)
         else:
-            self.v = np.zeros(
-                ([self.unknowns, self.NSlice, self.dimY, self.dimX, 4]),
-                dtype=DTYPE)
-            self.z2 = np.zeros(
-                ([self.unknowns, self.NSlice, self.dimY, self.dimX, 8]),
-                dtype=DTYPE)
+            print("Not implemented")
+            return
 
         for i in range(self.irgn_par["max_gn_it"]):
             start = time.time()
             self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
-
             scale = np.reshape(
                 self.grad_x,
                 (self.unknowns,
                  self.NScan * self.NSlice * self.dimY * self.dimX))
-            scale = np.linalg.norm(scale, axis=-1)
+            scale = np.linalg.norm(scale, axis=-1)/np.sqrt(self.NSlice)
             print("Initial norm of the model Gradient: \n", scale)
-            scale = 1000 / np.sqrt(self.unknowns) / scale
+            scale = 1e3 * np.sqrt(self.NSlice) / np.sqrt(self.unknowns) / scale
             print("Scalefactor of the model Gradient: \n", scale)
             if not np.mod(i, 1):
                 for uk in range(self.unknowns):
@@ -423,7 +414,6 @@ class ModelReco:
                 (self.unknowns,
                  self.NScan * self.NSlice * self.dimY * self.dimX))
             scale = np.linalg.norm(scale, axis=-1)
-            print("Model Scaling Factors: \n", self.model.uk_scale)
             print("Scale of the model Gradient: \n", scale)
             self.set_scale(result)
 
@@ -434,7 +424,7 @@ class ModelReco:
                                       hostbuf=self.grad_x.data)
 
 
-            result = self.irgn_solve_3D(result, iters, self.data, TV)
+            result = self.irgn_solve_3D(result, iters, self.data, i, TV)
             self.result[i + 1, ...] = self.model.rescale(result)
 
             iters = np.fmin(iters * 2, self.irgn_par["max_iters"])
@@ -450,19 +440,16 @@ class ModelReco:
 
             end = time.time() - start
             self.gn_res.append(self.fval)
+            print("-" * 75)
             print("GN-Iter: %d  Elapsed time: %f seconds" % (i, end))
             print("-" * 75)
-            if np.abs(self.fval_min - self.fval) < \
-                      self.irgn_par["lambd"] * self.irgn_par["tol"] and i > 0:
+            if np.abs(self.fval_old - self.fval) / self.fval_init < \
+                      self.irgn_par["tol"]:
                 print("Terminated at GN-iteration %d because "
                       "the energy decrease was less than %.3e" %
-                      (i, np.abs(self.fval_min - self.fval) /
-                       (self.irgn_par["lambd"] * self.NSlice)))
+                      (i,  np.abs(self.fval_old - self.fval) / self.fval_init))
                 break
-            if i == 0:
-                self.fval_min = self.fval
-            self.fval_min = np.minimum(self.fval, self.fval_min)
-
+            self.fval_old = self.fval
 ###############################################################################
 # Precompute constant terms of the GN linearization step ######################
 # input: linearization point x ################################################
@@ -472,17 +459,15 @@ class ModelReco:
 # output: optimal value of x for the inner GN step ############################
 ###############################################################################
 ###############################################################################
-    def irgn_solve_3D(self, x, iters, data, TV=0):
+    def irgn_solve_3D(self, x, iters, data, GN_it, TV=0):
         x_old = x
         x = clarray.to_device(self.queue, np.require(x, requirements="C"))
         b = clarray.empty(self.queue, data.shape, dtype=DTYPE)
         self.FT(b, clarray.to_device(
-            self.queue, self.step_val[:, None, ...] * self.Coils3D)).wait()
+            self.queue, self.step_val[:, None, ...] * self.C)).wait()
         res = data - b.get() + self.operator_forward(x).get()
 
         if TV == 1:
-            x = self.tv_solve_3D(x.get(), res, iters)
-            x = clarray.to_device(self.queue, x)
             grad = clarray.to_device(self.queue, np.zeros_like(self.z1))
             grad.add_event(
                 self.f_grad(
@@ -494,7 +479,7 @@ class ModelReco:
             self.FT(b, clarray.to_device(
                 self.queue,
                 (self.model.execute_forward(x)[:, None, ...] *
-                 self.Coils3D))).wait()
+                 self.C))).wait()
             grad = grad.get()
             self.fval = (self.irgn_par["lambd"] / 2 *
                          np.linalg.norm(data - b.get())**2 +
@@ -504,9 +489,8 @@ class ModelReco:
                          np.linalg.norm((x - x_old).flatten())**2 +
                          self.irgn_par["omega"] / 2 *
                          np.linalg.norm(grad[self.unknowns_TGV:])**2)
+            del grad, b
         elif TV == 0:
-            x = self.tgv_solve_3D(x.get(), res, iters)
-            x = clarray.to_device(self.queue, x)
             v = clarray.to_device(self.queue, self.v)
             grad = clarray.to_device(self.queue, np.zeros_like(self.z1))
             sym_grad = clarray.to_device(self.queue, np.zeros_like(self.z2))
@@ -524,13 +508,12 @@ class ModelReco:
                     v.events))
             x = x.get()
             grad = grad.get()
-            test = self.model.execute_forward(x)[:, None, ...]
             self.FT(
                 b,
                 clarray.to_device(
                     self.queue,
-                    test *
-                    self.Coils3D)).wait()
+                    self.model.execute_forward(x)[:, None, ...] *
+                    self.C)).wait()
             self.fval = (self.irgn_par["lambd"] / 2 *
                          np.linalg.norm(data - b.get())**2 +
                          self.irgn_par["gamma"] *
@@ -541,43 +524,22 @@ class ModelReco:
                          np.linalg.norm((x - x_old).flatten())**2 +
                          self.irgn_par["omega"] / 2 *
                          np.linalg.norm(grad[self.unknowns_TGV:])**2)
+            del grad, symgrad, v, b
         else:
-            x = self.tgv_solve_3D_explicit(x.get(), res, iters)
-            x = clarray.to_device(self.queue, x)
-            v = clarray.to_device(self.queue, self.v)
-            grad = clarray.to_device(self.queue, np.zeros_like(self.z1))
-            sym_grad = clarray.to_device(self.queue, np.zeros_like(self.z2))
-            grad.add_event(
-                self.f_grad(
-                    grad,
-                    x,
-                    wait_for=grad.events +
-                    x.events))
-            sym_grad.add_event(
-                self.sym_grad(
-                    sym_grad,
-                    v,
-                    wait_for=sym_grad.events +
-                    v.events))
-            x = x.get()
-            grad = grad.get()
-            self.FT(b, clarray.to_device(
-                self.queue, (self.model.execute_forward(x)[:, None, ...] *
-                             self.Coils3D))).wait()
-            self.fval = (self.irgn_par["lambd"] / 2 *
-                         np.linalg.norm(data - b.get())**2 +
-                         self.irgn_par["gamma"] *
-                         np.sum(np.abs(grad[:self.unknowns_TGV] - self.v)) +
-                         self.irgn_par["gamma"] *
-                         2 * np.sum(np.abs(sym_grad.get())) +
-                         1 / (2 * self.irgn_par["delta"]) *
-                         np.linalg.norm((x - x_old).flatten())**2 +
-                         self.irgn_par["omega"] / 2 *
-                         np.linalg.norm(grad[self.unknowns_TGV:])**2)
-
+            print("Not implemented")
+            return
+        if GN_it == 0:
+          self.fval_init = self.fval
         print("-" * 75)
-        print("Function value after GN-Step: %f" %
-              (self.fval / (self.irgn_par["lambd"] * self.NSlice)))
+        print("Function value at GN-Step %i: %f" %
+              (GN_it, 1e3*self.fval / self.fval_init))
+        print("-" * 75)
+
+        if TV == 1:
+            x = self.tv_solve_3D(x, res, iters)
+        elif TV == 0:
+            x = self.tgv_solve_3D(x, res, iters)
+
         return x
 
 ###############################################################################
@@ -602,7 +564,7 @@ class ModelReco:
             (self.irgn_par["max_gn_it"] + 1, self.unknowns,
              self.NSlice, self.dimY, self.dimX),
             dtype=DTYPE)
-        self.result[0, :, :, :, :] = self.model.rescale(self.model.guess)
+        self.result[0, ...] = self.model.rescale(self.model.guess)
 
         result = np.copy(self.model.guess)
 
@@ -623,16 +585,8 @@ class ModelReco:
                 ([self.unknowns_TGV, self.NSlice, self.dimY, self.dimX, 8]),
                 dtype=DTYPE)
         else:
-            L = np.float32(0.5 * (18.0 + np.sqrt(33)))
-            self.tau = np.float32(1 / np.sqrt(L))
-            self.beta_line = 1
-            self.theta_line = np.float32(1.0)
-            self.v = np.zeros(
-                ([self.unknowns, self.NSlice, self.dimY, self.dimX, 4]),
-                dtype=DTYPE)
-            self.z2 = np.zeros(
-                ([self.unknowns, self.NSlice, self.dimY, self.dimX, 8]),
-                dtype=DTYPE)
+            print("Not implemented")
+            return
 
         for i in range(self.irgn_par["max_gn_it"]):
             start = time.time()
@@ -641,9 +595,9 @@ class ModelReco:
                 self.grad_x,
                 (self.unknowns,
                  self.NScan * self.NSlice * self.dimY * self.dimX))
-            scale = np.linalg.norm(scale, axis=-1)
+            scale = np.linalg.norm(scale, axis=-1)/np.sqrt(self.NSlice)
             print("Initial norm of the model Gradient: \n", scale)
-            scale = 1000 / np.sqrt(self.unknowns) / scale
+            scale = 1e3 * np.sqrt(self.NSlice) / np.sqrt(self.unknowns) / scale
             print("Scalefactor of the model Gradient: \n", scale)
             if not np.mod(i, 1):
                 for uk in range(self.unknowns):
@@ -658,7 +612,6 @@ class ModelReco:
                 (self.unknowns,
                  self.NScan * self.NSlice * self.dimY * self.dimX))
             scale = np.linalg.norm(scale, axis=-1)
-            print("Model Scaling Factors: \n", self.model.uk_scale)
             print("Scale of the model Gradient: \n", scale)
             self.set_scale(result)
 
@@ -669,7 +622,7 @@ class ModelReco:
                                       hostbuf=self.grad_x.data)
 
             result = self.irgn_solve_3D_imagespace(result, iters,
-                                                   self.data, TV)
+                                                   self.data, i, TV)
             self.result[i + 1, ...] = self.model.rescale(result)
 
             iters = np.fmin(iters * 2, self.irgn_par["max_iters"])
@@ -687,16 +640,13 @@ class ModelReco:
             self.gn_res.append(self.fval)
             print("GN-Iter: %d  Elapsed time: %f seconds" % (i, end))
             print("-" * 75)
-            if (np.abs(self.fval_min - self.fval) <
-                    self.irgn_par["lambd"] * self.irgn_par["tol"]) and i > 0:
+            if np.abs(self.fval_old - self.fval) / self.fval_init < \
+               self.irgn_par["tol"]:
                 print("Terminated at GN-iteration %d because the "
                       "energy decrease was less than %.3e" %
-                      (i, np.abs(self.fval_min - self.fval) /
-                       (self.irgn_par["lambd"] * self.NSlice)))
+                      (i, np.abs(self.fval_old - self.fval)))
                 break
-            if i == 0:
-                self.fval_min = self.fval
-            self.fval_min = np.minimum(self.fval, self.fval_min)
+            self.fval_old = self.fval
 
 ###############################################################################
 # Precompute constant terms of the GN linearization step ######################
@@ -707,14 +657,12 @@ class ModelReco:
 # output: optimal value of x for the inner GN step ############################
 ###############################################################################
 ###############################################################################
-    def irgn_solve_3D_imagespace(self, x, iters, data, TV=0):
+    def irgn_solve_3D_imagespace(self, x, iters, data, GN_it, TV=0):
         x_old = x
         x = clarray.to_device(self.queue, np.require(x, requirements="C"))
         res = data - self.step_val + self.operator_forward(x).get()
 
         if TV == 1:
-            x = self.tv_solve_3D(x.get(), res, iters)
-            x = clarray.to_device(self.queue, x)
             grad = clarray.to_device(self.queue, np.zeros_like(self.z1))
             grad.add_event(
                 self.f_grad(
@@ -726,17 +674,15 @@ class ModelReco:
             grad = grad.get()
             self.fval = (
                 self.irgn_par["lambd"] / 2 *
-                np.linalg.norm(data - self.model.execute_forward(x))**2 +
+                np.linalg.norm(data - self.step_val)**2 +
                 self.irgn_par["gamma"] *
                 np.sum(np.abs(grad[:self.unknowns_TGV])) +
                 1 / (2 * self.irgn_par["delta"]) *
                 np.linalg.norm((x - x_old).flatten())**2 +
                 self.irgn_par["omega"] / 2 *
                 np.linalg.norm(grad[self.unknowns_TGV:])**2)
+            del grad
         elif TV == 0:
-            x = self.tgv_solve_3D(x.get(), res, iters)
-
-            x = clarray.to_device(self.queue, x)
             v = clarray.to_device(self.queue, self.v)
             grad = clarray.to_device(self.queue, np.zeros_like(self.z1))
             sym_grad = clarray.to_device(self.queue, np.zeros_like(self.z2))
@@ -745,13 +691,11 @@ class ModelReco:
                 grad, x, wait_for=grad.events + x.events))
             sym_grad.add_event(self.sym_grad(
                 sym_grad, v, wait_for=sym_grad.events + v.events))
-
             x = x.get()
             grad = grad.get()
-
             self.fval = (
                 self.irgn_par["lambd"] / 2 *
-                np.linalg.norm(data - self.model.execute_forward(x))**2 +
+                np.linalg.norm(data - self.step_val)**2 +
                 self.irgn_par["gamma"] *
                 np.sum(np.abs(grad[:self.unknowns_TGV] - self.v)) +
                 self.irgn_par["gamma"] * (2) * np.sum(np.abs(sym_grad.get())) +
@@ -759,36 +703,24 @@ class ModelReco:
                 np.linalg.norm((x - x_old).flatten())**2 +
                 self.irgn_par["omega"] / 2 *
                 np.linalg.norm(grad[self.unknowns_TGV:])**2)
+            del grad, sym_grad, v
         else:
-            x = self.tgv_solve_3D_explicit(x.get(), res, iters)
-            x = clarray.to_device(self.queue, x)
-            v = clarray.to_device(self.queue, self.v)
-            grad = clarray.to_device(self.queue, np.zeros_like(self.z1))
-            sym_grad = clarray.to_device(self.queue, np.zeros_like(self.z2))
-            grad.add_event(
-                self.f_grad(
-                    grad,
-                    x,
-                    wait_for=grad.events +
-                    x.events))
-            sym_grad.add_event(self.sym_grad(
-                sym_grad, v, wait_for=sym_grad.events + v.events))
-            x = x.get()
-            grad = grad.get()
-            self.fval = (
-                self.irgn_par["lambd"] / 2 *
-                np.linalg.norm(data - self.model.execute_forward(x))**2 +
-                self.irgn_par["gamma"] *
-                np.sum(np.abs(grad[:self.unknowns_TGV] - self.v)) +
-                self.irgn_par["gamma"] * (2) * np.sum(np.abs(sym_grad.get())) +
-                1 / (2 * self.irgn_par["delta"]) *
-                np.linalg.norm((x - x_old).flatten())**2 +
-                self.irgn_par["omega"] / 2 *
-                np.linalg.norm(grad[self.unknowns_TGV:])**2)
+            print("Not implemented")
+            return
 
+        if GN_it == 0:
+          self.fval_init = self.fval
         print("-" * 75)
-        print("Function value after GN-Step: %f" %
-              (self.fval / (self.irgn_par["lambd"] * self.NSlice)))
+        print("Function value at GN-Step %i: %f" %
+              (GN_it, 1e3*self.fval / self.fval_init))
+        print("-" * 75)
+
+
+        if TV == 1:
+            x = self.tv_solve_3D(x, res, iters)
+        elif TV == 0:
+            x = self.tgv_solve_3D(x, res, iters)
+
         return x
 
     def tgv_solve_3D(self, x, res, iters):
@@ -818,14 +750,14 @@ class ModelReco:
         theta_line = self.theta_line
         beta_line = self.beta_line
         beta_new = np.float32(0)
-        mu_line = np.float32(0.9)
+        mu_line = np.float32(0.5)
         delta_line = np.float32(1)
         ynorm = np.float32(0.0)
         lhs = np.float32(0.0)
         primal = np.float32(0.0)
         primal_new = np.float32(0)
         dual = np.float32(0.0)
-        gap_min = np.float32(0.0)
+        gap_init = np.float32(0.0)
         gap_old = np.float32(0.0)
         gap = np.float32(0.0)
         self.eval_const()
@@ -838,13 +770,14 @@ class ModelReco:
         gradx_xold = clarray.empty_like(z1)
         symgrad_v = clarray.empty_like(z2)
         symgrad_v_vold = clarray.empty_like(z2)
-
         Axold = clarray.empty_like(res)
         Ax = clarray.empty_like(res)
 
         Axold.add_event(self.operator_forward(x, Axold))
         Kyk1.add_event(self.operator_adjoint(r, Kyk1, z1))
         Kyk2.add_event(self.update_Kyk2(Kyk2, z2, z1))
+        gradx_xold.add_event(self.f_grad(gradx_xold, x))
+        symgrad_v_vold.add_event(self.sym_grad(symgrad_v_vold, v))
 
         for i in range(iters):
             x_new.add_event(self.update_primal(x_new, x, Kyk1, xk, tau, delta))
@@ -852,13 +785,10 @@ class ModelReco:
 
             beta_new = beta_line * (1 + mu * tau)
             tau_new = tau * np.sqrt(beta_line / beta_new * (1 + theta_line))
-
             beta_line = beta_new
 
             gradx.add_event(self.f_grad(gradx, x_new))
-            gradx_xold.add_event(self.f_grad(gradx_xold, x))
             symgrad_v.add_event(self.sym_grad(symgrad_v, v_new))
-            symgrad_v_vold.add_event(self.sym_grad(symgrad_v_vold, v))
             Ax.add_event(self.operator_forward(x_new, Ax))
 
             while True:
@@ -891,10 +821,12 @@ class ModelReco:
                 else:
                     tau_new = tau_new * mu_line
 
-            (Kyk1, Kyk1_new, Kyk2, Kyk2_new, Axold, Ax,
-             z1, z1_new, z2, z2_new, r, r_new, tau, tau_new) =\
-                (Kyk1_new, Kyk1, Kyk2_new, Kyk2, Ax, Axold,
-                 z1_new, z1, z2_new, z2, r_new, r, tau_new, tau)
+            (Kyk1, Kyk1_new, Kyk2, Kyk2_new, Axold, Ax, z1, z1_new,
+             z2, z2_new, r, r_new, gradx_xold, gradx, symgrad_v_vold,
+             symgrad_v, tau) = (
+             Kyk1_new, Kyk1, Kyk2_new, Kyk2, Ax, Axold, z1_new, z1,
+             z2_new, z2, r_new, r, gradx, gradx_xold, symgrad_v,
+             symgrad_v_vold, tau_new)
 
             if not np.mod(i, 50):
                 if self.irgn_par["display_iterations"]:
@@ -938,19 +870,18 @@ class ModelReco:
 
                 gap = np.abs(primal_new - dual)
                 if i == 0:
-                    gap_min = gap
-                if np.abs(primal - primal_new) <\
-                   self.irgn_par["lambd"] * self.NSlice * self.irgn_par["tol"]:
+                    gap_init = gap
+                if np.abs(primal - primal_new)/self.fval_init <\
+                   self.irgn_par["tol"]:
                     print("Terminated at iteration %d because the energy "
                           "decrease in the primal problem was less than %.3e" %
-                          (i, abs(primal - primal_new).get() /
-                           (self.irgn_par["lambd"] * self.NSlice)))
+                          (i, np.abs(primal - primal_new).get()/self.fval_init))
                     self.v = v_new.get()
                     self.r = r.get()
                     self.z1 = z1.get()
                     self.z2 = z2.get()
                     return x_new.get()
-                if gap > gap_min * self.irgn_par["stag"] and i > 1:
+                if gap > gap_old * self.irgn_par["stag"] and i > 1:
                     self.v = v_new.get()
                     self.r = r.get()
                     self.z1 = z1.get()
@@ -958,8 +889,7 @@ class ModelReco:
                     print("Terminated at iteration %d "
                           "because the method stagnated" % (i))
                     return x_new.get()
-                if np.abs((gap - gap_old) / gap_min) < self.irgn_par["tol"]\
-                   and i > 1:
+                if np.abs((gap - gap_old) / gap_init) < self.irgn_par["tol"]:
                     self.v = v_new.get()
                     self.r = r.get()
                     self.z1 = z1.get()
@@ -967,16 +897,16 @@ class ModelReco:
                     print("Terminated at iteration %d because the "
                           "relative energy decrease of the PD gap was "
                           "less than %.3e"
-                          % (i, abs((gap - gap_old) / gap_min).get()))
+                          % (i, np.abs((gap - gap_old).get() / gap_init)))
                     return x_new.get()
                 primal = primal_new
                 gap_old = gap
                 sys.stdout.write(
                     "Iteration: %04d ---- Primal: %2.2e, "
                     "Dual: %2.2e, Gap: %2.2e \r" %
-                    (i, primal.get() / (self.irgn_par["lambd"] * self.NSlice),
-                     dual.get() / (self.irgn_par["lambd"] * self.NSlice),
-                     gap.get() / (self.irgn_par["lambd"] * self.NSlice)))
+                    (i, 1000*primal.get() / self.fval_init,
+                     1000*dual.get() / self.fval_init,
+                     1000*gap.get() / self.fval_init))
                 sys.stdout.flush()
 
             (x, x_new) = (x_new, x)
@@ -995,7 +925,6 @@ class ModelReco:
         tau = self.tau
         tau_new = np.float32(0)
 
-        self.set_scale(x)
         x = clarray.to_device(self.queue, x)
         xk = x.copy()
         x_new = clarray.empty_like(x)
@@ -1023,8 +952,9 @@ class ModelReco:
         primal = np.float32(0.0)
         primal_new = np.float32(0)
         dual = np.float32(0.0)
-        gap_min = np.float32(0.0)
+        gap_init = np.float32(0.0)
         gap = np.float32(0.0)
+        gap_old = np.float32(0.0)
         self.eval_const()
 
         Kyk1 = clarray.empty_like(x)
@@ -1109,45 +1039,40 @@ class ModelReco:
 
                 gap = np.abs(primal_new - dual)
                 if i == 0:
-                    gap_min = gap
-                if np.abs(primal - primal_new) <\
-                   (self.irgn_par["lambd"] * self.NSlice) * \
+                    gap_init = gap
+                if np.abs(primal - primal_new)/self.fval_init <\
                    self.irgn_par["tol"]:
                     print("Terminated at iteration %d because the energy "
                           "decrease in the primal problem was less than %.3e" %
-                          (i, abs(primal - primal_new).get() /
-                           (self.irgn_par["lambd"] * self.NSlice)))
+                          (i, np.abs(primal - primal_new).get()/self.fval_init))
                     self.v = v_new.get()
                     self.z1 = z1.get()
                     self.z2 = z2.get()
                     return x_new.get()
-                if (gap > gap_min * self.irgn_par["stag"]) and i > 1:
+                if gap > gap_old * self.irgn_par["stag"] and i > 1:
                     self.v = v_new.get()
                     self.z1 = z1.get()
                     self.z2 = z2.get()
                     print("Terminated at iteration %d "
                           "because the method stagnated" % (i))
-                    return x.get()
-                if np.abs(gap - gap_min) < \
-                   (self.irgn_par["lambd"] * self.NSlice) * \
-                   self.irgn_par["tol"] \
-                   and i > 1:
+                    return x_new.get()
+                if np.abs((gap - gap_old) / gap_init) < self.irgn_par["tol"]:
                     self.v = v_new.get()
                     self.z1 = z1.get()
                     self.z2 = z2.get()
-                    print("Terminated at iteration %d because the energy "
-                          "decrease in the PD gap was less than %.3e" %
-                          (i, abs(gap - gap_min).get() /
-                           (self.irgn_par["lambd"] * self.NSlice)))
+                    print("Terminated at iteration %d because the "
+                          "relative energy decrease of the PD gap was "
+                          "less than %.3e"
+                          % (i, np.abs((gap - gap_old).get() / gap_init)))
                     return x_new.get()
                 primal = primal_new
-                gap_min = np.minimum(gap, gap_min)
+                gap_old = gap
                 sys.stdout.write(
-                    "Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f \r" %
-                    (i,
-                     primal.get() / (self.irgn_par["lambd"] * self.NSlice),
-                     dual.get() / (self.irgn_par["lambd"] * self.NSlice),
-                     gap.get() / (self.irgn_par["lambd"] * self.NSlice)))
+                    "Iteration: %04d ---- Primal: %2.2e, "
+                    "Dual: %2.2e, Gap: %2.2e \r" %
+                    (i, 1000*primal.get() / self.fval_init,
+                     1000*dual.get() / self.fval_init,
+                     1000*gap.get() / self.fval_init))
                 sys.stdout.flush()
 
             (x, x_new) = (x_new, x)
@@ -1164,7 +1089,6 @@ class ModelReco:
         tau = self.tau
         tau_new = np.float32(0)
 
-        self.set_scale(x)
         x = clarray.to_device(self.queue, x)
         xk = x.copy()
         x_new = clarray.empty_like(x)
@@ -1188,7 +1112,7 @@ class ModelReco:
         primal = np.float32(0.0)
         primal_new = np.float32(0)
         dual = np.float32(0.0)
-        gap_min = np.float32(0.0)
+        gap_init = np.float32(0.0)
         gap_old = np.float32(0.0)
         gap = np.float32(0.0)
         self.eval_const()
@@ -1239,8 +1163,10 @@ class ModelReco:
                 else:
                     tau_new = tau_new * mu_line
 
-            (Kyk1, Kyk1_new, Axold, Ax, z1, z1_new, r, r_new, tau, tau_new) =\
-                (Kyk1_new, Kyk1, Ax, Axold, z1_new, z1, r_new, r, tau_new, tau)
+            (Kyk1, Kyk1_new,  Axold, Ax, z1, z1_new, r, r_new, gradx_xold,
+             gradx, tau) = (
+             Kyk1_new, Kyk1,  Ax, Axold, z1_new, z1, r_new, r, gradx,
+             gradx_xold, tau_new)
 
             if not np.mod(i, 50):
                 self.model.plot_unknowns(x_new.get())
@@ -1258,39 +1184,37 @@ class ModelReco:
                 gap = np.abs(primal_new - dual)
 
                 if i == 0:
-                    gap_min = gap
-                if np.abs(primal - primal_new) < \
-                   (self.irgn_par["lambd"] * self.NSlice) * \
+                    gap_init = gap
+                if np.abs(primal - primal_new)/self.fval_init < \
                    self.irgn_par["tol"]:
                     print("Terminated at iteration %d because the energy "
                           "decrease in the primal problem was less than %.3e" %
-                          (i, abs(primal - primal_new).get() /
-                           (self.irgn_par["lambd"] * self.NSlice)))
+                          (i, np.abs(primal - primal_new).get() /
+                              self.fval_init))
                     self.r = r.get()
                     self.z1 = z1.get()
                     return x_new.get()
-                if (gap > gap_min * self.irgn_par["stag"]) and i > 1:
+                if (gap > gap_old * self.irgn_par["stag"]) and i > 1:
                     self.r = r.get()
                     self.z1 = z1.get()
                     print("Terminated at iteration %d "
                           "because the method stagnated" % (i))
                     return x_new.get()
-                if np.abs((gap - gap_old) / gap_min) < self.irgn_par["tol"] \
-                   and i > 1:
+                if np.abs((gap - gap_old) / gap_init) < self.irgn_par["tol"]:
                     self.r = r.get()
                     self.z1 = z1.get()
                     print("Terminated at iteration %d because the relative "
                           "energy decrease of the PD gap was less than %.3e" %
-                          (i, abs((gap - gap_old) / gap_min).get()))
+                          (i, np.abs((gap - gap_old).get() / gap_init)))
                     return x_new.get()
                 primal = primal_new
                 gap_old = gap
                 sys.stdout.write(
                     "Iteration: %04d ---- Primal: %2.2e, "
                     "Dual: %2.2e, Gap: %2.2e \r" %
-                    (i, primal.get() / (self.irgn_par["lambd"] * self.NSlice),
-                     dual.get() / (self.irgn_par["lambd"] * self.NSlice),
-                     gap.get() / (self.irgn_par["lambd"] * self.NSlice)))
+                    (i, 1000 * primal.get() / self.fval_init,
+                     1000 * dual.get() / self.fval_init,
+                     1000 * gap.get() / self.fval_init))
                 sys.stdout.flush()
 
             (x, x_new) = (x_new, x)
@@ -1306,6 +1230,10 @@ class ModelReco:
             raise NotImplementedError
         else:
             self.irgn_par["lambd"] *= self.SNR_est
+            self.irgn_par["gamma"] *= np.sqrt(self.NSlice)
+            self.irgn_par["gamma_min"] *= np.sqrt(self.NSlice)
+            self.irgn_par["delta"] /= (self.NSlice)
+            self.irgn_par["delta_max"] /= (self.NSlice)
             if imagespace:
                 self.execute_3D_imagespace(TV)
             else:
