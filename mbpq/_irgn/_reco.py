@@ -524,7 +524,7 @@ class ModelReco:
                          np.linalg.norm((x - x_old).flatten())**2 +
                          self.irgn_par["omega"] / 2 *
                          np.linalg.norm(grad[self.unknowns_TGV:])**2)
-            del grad, symgrad, v, b
+            del grad, sym_grad, v, b
         else:
             print("Not implemented")
             return
