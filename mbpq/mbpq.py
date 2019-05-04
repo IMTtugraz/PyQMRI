@@ -356,13 +356,13 @@ def start_recon(args):
         ind = np.zeros((N),dtype=bool)
         ind[int(par["N"]/2-center):int(par["N"]/2+center)] = 1
         for j in range(Nproj):
-            sig.append(np.sum(data[...,int(NSlice/2),j,ind] *
-                              np.conj(data[...,int(NSlice/2),j,ind])))
-            noise.append(np.sum(data[...,int(NSlice/2),j,~ind] *
-                                np.conj(data[...,int(NSlice/2),j,~ind])))
+            sig.append(np.sum(data[0,...,int(NSlice/2),j,ind] *
+                              np.conj(data[0,...,int(NSlice/2),j,ind])))
+            noise.append(np.sum(data[0,...,int(NSlice/2),j,~ind] *
+                                np.conj(data[0,...,int(NSlice/2),j,~ind])))
         sig = (np.sum(np.array(sig)))/np.sum(ind)
         noise = (np.sum(np.array(noise)))/np.sum(~ind)
-        SNR_est =  np.abs(sig/noise)*np.sqrt(NScan)
+        SNR_est =  np.abs(sig/noise)
         par["SNR_est"] = SNR_est
         print("Estimated SNR from kspace", SNR_est)
     else:
