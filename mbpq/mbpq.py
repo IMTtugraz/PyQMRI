@@ -345,7 +345,7 @@ def start_recon(args):
         par["dscale"] = dscale
         images = images*dscale
     else:
-        dscale =  (DTYPE_real(np.sqrt(2*1e3*NSlice)) / (np.linalg.norm(data.flatten())))
+        dscale =  (DTYPE_real(np.sqrt(2*1e3*NScan*NC*NSlice*Nproj*N)) / (np.linalg.norm(data.flatten())))
         par["dscale"] = dscale
         data = data*dscale
 
@@ -356,10 +356,10 @@ def start_recon(args):
         ind = np.zeros((N),dtype=bool)
         ind[int(par["N"]/2-center):int(par["N"]/2+center)] = 1
         for j in range(Nproj):
-            sig.append(np.sum(data[0,...,int(NSlice/2),j,ind] *
-                              np.conj(data[0,...,int(NSlice/2),j,ind])))
-            noise.append(np.sum(data[0,...,int(NSlice/2),j,~ind] *
-                                np.conj(data[0,...,int(NSlice/2),j,~ind])))
+            sig.append(np.sum(data[...,int(NSlice/2),j,ind] *
+                              np.conj(data[...,int(NSlice/2),j,ind])))
+            noise.append(np.sum(data[...,int(NSlice/2),j,~ind] *
+                                np.conj(data[...,int(NSlice/2),j,~ind])))
         sig = (np.sum(np.array(sig)))/np.sum(ind)
         noise = (np.sum(np.array(noise)))/np.sum(~ind)
         SNR_est =  np.abs(sig/noise)
