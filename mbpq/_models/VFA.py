@@ -42,7 +42,7 @@ class Model(BaseModel):
 
         self.constraints.append(
             constraints(0 / self.uk_scale[0],
-                        5 / self.uk_scale[0],
+                        50 / self.uk_scale[0],
                         False))
         self.constraints.append(
             constraints(np.exp(-self.TR[0] / (50)),
