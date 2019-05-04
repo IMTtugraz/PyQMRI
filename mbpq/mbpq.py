@@ -345,7 +345,7 @@ def start_recon(args):
         par["dscale"] = dscale
         images = images*dscale
     else:
-        dscale =  (DTYPE_real(np.sqrt(2*1e3*NScan*NC*NSlice*Nproj*N)) / (np.linalg.norm(data.flatten())))
+        dscale =  (DTYPE_real(np.sqrt(2*1e3*NSlice)) / (np.linalg.norm(data.flatten())))
         par["dscale"] = dscale
         data = data*dscale
 
