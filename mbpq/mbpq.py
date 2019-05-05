@@ -44,7 +44,9 @@ DTYPE_real = np.float32
 def start_recon(args):
     sig_model_path = os.path.normpath(args.sig_model)
     if len(sig_model_path.split(os.sep)) > 1:
-        sig_model = importlib.import_module(sig_model_path)
+        spec = importlib.util.spec_from_file_location(sig_model_path.split(os.sep)[-1],sig_model_path)
+        sig_model = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(sig_model)
     else:
         sig_model = importlib.import_module(
             "mbpq._models."+str(sig_model_path))
@@ -345,7 +347,7 @@ def start_recon(args):
         par["dscale"] = dscale
         images = images*dscale
     else:
-        dscale =  (DTYPE_real(np.sqrt(2*1e3*NScan*NC*NSlice*Nproj*N)) / (np.linalg.norm(data.flatten())))
+        dscale =  (DTYPE_real(np.sqrt(2*1e3*NSlice)) / (np.linalg.norm(data.flatten())))
         par["dscale"] = dscale
         data = data*dscale
 
@@ -370,10 +372,11 @@ def start_recon(args):
         ind = np.zeros((dimY,dimX),dtype=bool)
         ind[int(par["N"]/2-center):int(par["N"]/2+center),
             int(par["N"]/2-center):int(par["N"]/2+center)] = 1
+        ind = np.fft.fftshift(ind)
         sig = np.sum(data[...,int(NSlice/2),ind] *
-                     np.conj(data[...,int(NSlice/2),ind]))
+                     np.conj(data[...,int(NSlice/2),ind]))/np.sum(ind)
         noise = np.sum(data[...,int(NSlice/2),~ind] *
-                       np.conj(data[...,int(NSlice/2),~ind]))
+                       np.conj(data[...,int(NSlice/2),~ind]))/np.sum(~ind)
         SNR_est =  np.abs(sig/noise)
         par["SNR_est"] = SNR_est
         print("Estimated SNR from kspace", SNR_est)

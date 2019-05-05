@@ -341,7 +341,7 @@ class ModelReco:
         scale = np.linalg.norm(grad,axis=-1)
         scale = np.max(scale)/scale
         scale[~np.isfinite(scale)] = 1
-        sum_scale = np.linalg.norm(scale,2)/1000
+        sum_scale = np.linalg.norm(scale,2)/(1000*self.NSlice)
         for j in range(x.shape[0]):
             self.ratio[j] = scale[j] / sum_scale
         print("Ratio: ", self.ratio)
@@ -638,13 +638,14 @@ class ModelReco:
 
             end = time.time() - start
             self.gn_res.append(self.fval)
+            print("-" * 75)
             print("GN-Iter: %d  Elapsed time: %f seconds" % (i, end))
             print("-" * 75)
             if np.abs(self.fval_old - self.fval) / self.fval_init < \
                self.irgn_par["tol"]:
                 print("Terminated at GN-iteration %d because the "
                       "energy decrease was less than %.3e" %
-                      (i, np.abs(self.fval_old - self.fval)))
+                      (i, np.abs(self.fval_old - self.fval) /  self.fval_init))
                 break
             self.fval_old = self.fval
 
@@ -870,7 +871,7 @@ class ModelReco:
 
                 gap = np.abs(primal_new - dual)
                 if i == 0:
-                    gap_init = gap
+                    gap_init = gap.get()
                 if np.abs(primal - primal_new)/self.fval_init <\
                    self.irgn_par["tol"]:
                     print("Terminated at iteration %d because the energy "
@@ -1039,7 +1040,7 @@ class ModelReco:
 
                 gap = np.abs(primal_new - dual)
                 if i == 0:
-                    gap_init = gap
+                    gap_init = gap.get()
                 if np.abs(primal - primal_new)/self.fval_init <\
                    self.irgn_par["tol"]:
                     print("Terminated at iteration %d because the energy "
@@ -1056,7 +1057,7 @@ class ModelReco:
                     print("Terminated at iteration %d "
                           "because the method stagnated" % (i))
                     return x_new.get()
-                if np.abs((gap - gap_old) / gap_init) < self.irgn_par["tol"]:
+                if np.abs((gap - gap_old).get() / gap_init) < self.irgn_par["tol"]:
                     self.v = v_new.get()
                     self.z1 = z1.get()
                     self.z2 = z2.get()
