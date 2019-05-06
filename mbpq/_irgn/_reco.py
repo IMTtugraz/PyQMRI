@@ -341,7 +341,7 @@ class ModelReco:
         scale = np.linalg.norm(grad,axis=-1)
         scale = np.max(scale)/scale
         scale[~np.isfinite(scale)] = 1
-        sum_scale = np.linalg.norm(scale,2)/(1000*self.NSlice)
+        sum_scale = np.linalg.norm(scale)/(1000/np.sqrt(self.NSlice))
         for j in range(x.shape[0]):
             self.ratio[j] = scale[j] / sum_scale
         print("Ratio: ", self.ratio)
@@ -397,9 +397,9 @@ class ModelReco:
                 self.grad_x,
                 (self.unknowns,
                  self.NScan * self.NSlice * self.dimY * self.dimX))
-            scale = np.linalg.norm(scale, axis=-1)/np.sqrt(self.NSlice)
+            scale = np.linalg.norm(scale, axis=-1)
             print("Initial norm of the model Gradient: \n", scale)
-            scale = 1e3 * np.sqrt(self.NSlice) / np.sqrt(self.unknowns) / scale
+            scale = 1e3 / np.sqrt(self.unknowns) / scale
             print("Scalefactor of the model Gradient: \n", scale)
             if not np.mod(i, 1):
                 for uk in range(self.unknowns):
@@ -423,7 +423,8 @@ class ModelReco:
                                       cl.mem_flags.COPY_HOST_PTR,
                                       hostbuf=self.grad_x.data)
 
-
+            self.irgn_par["delta_max"] = self.delta_max/1e3*np.linalg.norm(result)
+            self.irgn_par["delta"] = np.minimum(self.delta/1e3*np.linalg.norm(result)*self.irgn_par["delta_inc"]**i,self.irgn_par["delta_max"])
             result = self.irgn_solve_3D(result, iters, self.data, i, TV)
             self.result[i + 1, ...] = self.model.rescale(result)
 
@@ -1231,10 +1232,12 @@ class ModelReco:
             raise NotImplementedError
         else:
             self.irgn_par["lambd"] *= self.SNR_est
-            self.irgn_par["gamma"] *= np.sqrt(self.NSlice)
-            self.irgn_par["gamma_min"] *= np.sqrt(self.NSlice)
-            self.irgn_par["delta"] /= (self.NSlice)
-            self.irgn_par["delta_max"] /= (self.NSlice)
+#            self.irgn_par["gamma"] *= np.sqrt(self.NSlice)
+#            self.irgn_par["gamma_min"] *= np.sqrt(self.NSlice)
+#            self.irgn_par["delta"] /= (self.NSlice)
+#            self.irgn_par["delta_max"] /= (self.NSlice)
+            self.delta = self.irgn_par["delta"]
+            self.delta_max = self.irgn_par["delta_max"]
             if imagespace:
                 self.execute_3D_imagespace(TV)
             else:
