@@ -1091,10 +1091,6 @@ class ModelReco:
             raise NotImplementedError
         else:
             self.irgn_par["lambd"] *= self.SNR_est
-#            self.irgn_par["gamma"] *= np.sqrt(self.NSlice)
-#            self.irgn_par["gamma_min"] *= np.sqrt(self.NSlice)
-#            self.irgn_par["delta"] /= (self.NSlice)
-#            self.irgn_par["delta_max"] /= (self.NSlice)
             self.delta = self.irgn_par["delta"]
             self.delta_max = self.irgn_par["delta_max"]
             if imagespace:

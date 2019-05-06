@@ -151,7 +151,7 @@ class ModelReco:
             out.data, self.tmp_img[2*idx+idxq].data,
             self.coil_buf_part[idx+idxq*self.num_dev].data,
             self.grad_buf_part[idx+idxq*self.num_dev].data,
-            z.data, np.int32(self.NC),
+            z.data, np.int32(self.NC), np.int32(self.NScan),
             self.ratio[idx].data, np.int32(self.unknowns),
             np.int32(last), np.float32(self.dz),
             wait_for=(
@@ -1084,10 +1084,9 @@ class ModelReco:
             return
         else:
             self.irgn_par["lambd"] *= self.SNR_est
-            self.irgn_par["gamma"] *= np.sqrt(self.NSlice)
-            self.irgn_par["gamma_min"] *= np.sqrt(self.NSlice)
-            self.irgn_par["delta"] /= (self.NSlice)
-            self.irgn_par["delta_max"] /= (self.NSlice)
+            self.delta = self.irgn_par["delta"]
+            self.delta_max = self.irgn_par["delta_max"]
+
             if imagespace:
                 self.execute_3D_imagespace(TV)
             else:
@@ -2783,7 +2782,7 @@ class ModelReco:
              Kyk1_new_part, Kyk2_part, Kyk2_new_part,
              symgrad_v_part, symgrad_v_vold_part) = parts
         else:
-            (ynorm, lhs, beta_line, tau_new, alpha, theta_line) = pars
+            (ynorm, lhs, beta_line, tau_new, omega, alpha, theta_line) = pars
             (z1, gradx, gradx_xold, r, Ax, Axold, res, Kyk1,
              z1_new, r_new, Kyk1_new) = arrays
             (z1_part, z1_new_part, gradx_part, gradx_xold_part,

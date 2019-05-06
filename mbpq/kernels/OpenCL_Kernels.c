@@ -466,7 +466,7 @@ __kernel void operator_fwd(__global float2 *out, __global float2 *in,
 }
 __kernel void operator_ad(__global float2 *out, __global float2 *in,
                        __global float2 *coils, __global float2 *grad, const int NCo,
-                       const int NSl, const int NScan, const int Nuk)
+                       const int NScan, const int Nuk)
 {
   size_t X = get_global_size(2);
   size_t Y = get_global_size(1);
