@@ -83,7 +83,6 @@ class ModelReco:
                 "Number of Slices devided by parallel "
                 "computed slices and devices needs to be an even number")
         self.NUFFT = []
-        self.ukscale = []
         self.prg = []
         self.alloc = []
         self.ratio = []
@@ -97,11 +96,6 @@ class ModelReco:
                     clarray.to_device(
                         self.queue[4*j],
                         (np.ones(self.unknowns)).astype(dtype=DTYPE_real)))
-                for i in range(2):
-                    self.ukscale.append(
-                        clarray.to_device(
-                            self.queue[4*j+i],
-                            np.ones(self.unknowns, dtype=DTYPE_real)))
         else:
             self.operator_forward = self.operator_forward_kspace
             self.operator_adjoint = self.operator_adjoint_kspace
@@ -122,10 +116,6 @@ class ModelReco:
                         NUFFT.PyOpenCLNUFFT(self.ctx[j],
                                             self.queue[4*j+i], par,
                                             radial=trafo))
-                    self.ukscale.append(
-                        clarray.to_device(
-                            self.queue[4*j+i],
-                            np.ones(self.unknowns, dtype=DTYPE_real)))
         for j in range(self.num_dev):
             self.prg.append(
                 Program(
@@ -135,7 +125,6 @@ class ModelReco:
                             'mbpq',
                             'kernels/OpenCL_Kernels_streamed.c')).read()))
 
-
     def operator_forward_kspace(self, out, x, idx=0, idxq=0, wait_for=[]):
         self.tmp_img[2*idx+idxq].add_event(self.prg[idx].operator_fwd(
             self.queue[4*idx+idxq],
@@ -143,7 +132,7 @@ class ModelReco:
             self.tmp_img[2*idx+idxq].data, x.data,
             self.coil_buf_part[idx+idxq*self.num_dev].data,
             self.grad_buf_part[idx+idxq*self.num_dev].data,
-            np.int32(self.NC), np.int32(self.par_slices+self.overlap),
+            np.int32(self.NC),
             np.int32(self.NScan), np.int32(self.unknowns),
             wait_for=self.tmp_img[2*idx+idxq].events+x.events+wait_for))
         return self.NUFFT[2*idx+idxq].fwd_NUFFT(
@@ -151,7 +140,7 @@ class ModelReco:
             wait_for=out.events+wait_for+self.tmp_img[2*idx+idxq].events)
 
     def operator_adjoint_kspace(self, out, x, z,
-                              idx=0, idxq=0, last=0, wait_for=[]):
+                                idx=0, idxq=0, last=0, wait_for=[]):
         self.tmp_img[2*idx+idxq].add_event(
             self.NUFFT[2*idx+idxq].adj_NUFFT(
                 self.tmp_img[2*idx+idxq], x,
@@ -163,8 +152,6 @@ class ModelReco:
             self.coil_buf_part[idx+idxq*self.num_dev].data,
             self.grad_buf_part[idx+idxq*self.num_dev].data,
             z.data, np.int32(self.NC),
-            np.int32(self.NScan), self.ukscale[2*idx+idxq].data,
-            np.float32(np.amax(self.ukscale[2*idx+idxq].get())),
             self.ratio[idx].data, np.int32(self.unknowns),
             np.int32(last), np.float32(self.dz),
             wait_for=(
@@ -180,15 +167,14 @@ class ModelReco:
             wait_for=out.events+x.events+wait_for))
 
     def operator_adjoint_imagespace(self, out, x, z,
-                              idx=0, idxq=0, last=0, wait_for=[]):
+                                    idx=0, idxq=0, last=0, wait_for=[]):
         return self.prg[idx].update_Kyk1_imagespace(
             self.queue[4*idx+idxq],
             (self.par_slices+self.overlap, self.dimY, self.dimX), None,
             out.data, x.data,
             self.grad_buf_part[idx+idxq*self.num_dev].data,
             z.data,
-            np.int32(self.NScan), self.ukscale[2*idx+idxq].data,
-            np.float32(np.amax(self.ukscale[2*idx+idxq].get())),
+            np.int32(self.NScan),
             self.ratio[idx].data, np.int32(self.unknowns),
             np.int32(last), np.float32(self.dz),
             wait_for=(x.events+out.events+z.events+wait_for))
@@ -199,8 +185,6 @@ class ModelReco:
             (self.overlap+self.par_slices, self.dimY, self.dimX),
             None, grad.data, u.data,
             np.int32(self.unknowns),
-            self.ukscale[2*idx+idxq].data,
-            np.float32(np.amax(self.ukscale[2*idx+idxq].get())),
             self.ratio[idx].data, np.float32(self.dz),
             wait_for=grad.events + u.events + wait_for)
 
@@ -209,8 +193,6 @@ class ModelReco:
             self.queue[4*idx+idxq],
             (self.overlap+self.par_slices, self.dimY, self.dimX), None,
             div.data, u.data, np.int32(self.unknowns),
-            self.ukscale[2*idx+idxq].data,
-            np.float32(np.amax(self.ukscale[2*idx+idxq].get())),
             self.ratio[idx].data, np.int32(last), np.float32(self.dz),
             wait_for=div.events + u.events + wait_for)
 
@@ -249,24 +231,26 @@ class ModelReco:
             wait_for=x_new.events+x.events+Kyk.events+xk.events+wait_for)
 
     def update_z1(self, z_new, z, gx, gx_, vx, vx_,
-                  sigma, theta, alpha, idx=0, idxq=0, wait_for=[]):
+                  sigma, theta, alpha, omega, idx=0, idxq=0, wait_for=[]):
         return self.prg[idx].update_z1(
             self.queue[4*idx+idxq],
             (self.overlap+self.par_slices, self.dimY, self.dimX), None,
             z_new.data, z.data, gx.data, gx_.data, vx.data, vx_.data,
             np.float32(sigma), np.float32(theta),
-            np.float32(1/alpha), np.int32(self.unknowns),
+            np.float32(1/alpha), np.int32(self.unknowns_TGV),
+            np.int32(self.unknowns_H1), np.float32(1 / (1 + sigma / omega)),
             wait_for=(z_new.events+z.events+gx.events +
                       gx_.events+vx.events+vx_.events+wait_for))
 
     def update_z1_tv(self, z_new, z, gx, gx_,
-                     sigma, theta, alpha,  idx=0, idxq=0, wait_for=[]):
+                     sigma, theta, alpha, omega, idx=0, idxq=0, wait_for=[]):
         return self.prg[idx].update_z1_tv(
             self.queue[4*idx+idxq],
             (self.overlap+self.par_slices, self.dimY, self.dimX), None,
             z_new.data, z.data, gx.data, gx_.data, np.float32(sigma),
             np.float32(theta),
-            np.float32(1/alpha), np.int32(self.unknowns),
+            np.float32(1/alpha), np.int32(self.unknowns_TGV),
+            np.int32(self.unknowns_H1), np.float32(1 / (1 + sigma / omega)),
             wait_for=z_new.events+z.events+gx.events+gx_.events+wait_for)
 
     def update_z2(self, z_new, z, gx, gx_,
@@ -338,18 +322,18 @@ class ModelReco:
                 x,
                 wait_for=grad.events +
                 x.events))
-        x = np.transpose(x.get(),[1,0,2,3])
-        grad = np.transpose(grad.get(),[1,0,2,3,4])
+        x = np.transpose(x.get(), [1, 0, 2, 3])
+        grad = np.transpose(grad.get(), [1, 0, 2, 3, 4])
         scale = np.reshape(
             x, (self.unknowns, self.NSlice * self.dimY * self.dimX))
         grad = np.reshape(
             grad, (self.unknowns, self.NSlice * self.dimY * self.dimX * 4))
-        print("Diff between x: ", np.linalg.norm(scale,axis=-1))
-        print("Diff between grad x: ", np.linalg.norm(grad,axis=-1))
-        scale = np.linalg.norm(grad,axis=-1)
+        print("Diff between x: ", np.linalg.norm(scale, axis=-1))
+        print("Diff between grad x: ", np.linalg.norm(grad, axis=-1))
+        scale = np.linalg.norm(grad, axis=-1)
         scale = np.max(scale)/scale
         scale[~np.isfinite(scale)] = 1
-        sum_scale = np.linalg.norm(scale,2)/1000
+        sum_scale = np.linalg.norm(scale)/(1000/np.sqrt(self.NSlice))
         for i in range(self.num_dev):
             for j in range(self.unknowns):
                 self.ratio[i][j] = scale[j] / sum_scale
@@ -408,7 +392,7 @@ class ModelReco:
                  self.NScan * self.NSlice * self.dimY * self.dimX))
             scale = np.linalg.norm(scale, axis=-1)/np.sqrt(self.NSlice)
             print("Initial norm of the model Gradient: \n", scale)
-            scale = 1000 * np.sqrt(self.NSlice) / np.sqrt(self.unknowns) / scale
+            scale = 1e3 / np.sqrt(self.unknowns) / scale
             print("Scalefactor of the model Gradient: \n", scale)
             if not np.mod(i, 1):
                 for uk in range(self.unknowns):
@@ -423,8 +407,8 @@ class ModelReco:
                 (self.unknowns,
                  self.NScan * self.NSlice * self.dimY * self.dimX))
             scale = np.linalg.norm(scale, axis=-1)
-            print("Model Scaling Factors: \n", self.model.uk_scale)
             print("Scale of the model Gradient: \n", scale)
+
             self.set_scale(np.require(
                 np.transpose(result, [1, 0, 2, 3]), requirements='C'))
 
@@ -434,6 +418,12 @@ class ModelReco:
             self.grad_x = np.require(
                 np.transpose(self.grad_x, [2, 0, 1, 3, 4]), requirements='C')
 
+            self.irgn_par["delta_max"] = self.delta_max / \
+                                         1e3*np.linalg.norm(result)
+            self.irgn_par["delta"] = np.minimum(
+                self.delta /
+                1e3*np.linalg.norm(result)*self.irgn_par["delta_inc"]**i,
+                self.irgn_par["delta_max"])
 
             result = self.irgn_solve_3D(result, iters, self.data, i, TV)
             self.result[i + 1, ...] = self.model.rescale(result)
@@ -442,9 +432,6 @@ class ModelReco:
             self.irgn_par["gamma"] = np.maximum(
                 self.irgn_par["gamma"] * self.irgn_par["gamma_dec"],
                 self.irgn_par["gamma_min"])
-            self.irgn_par["delta"] = np.minimum(
-                self.irgn_par["delta"] * self.irgn_par["delta_inc"],
-                self.irgn_par["delta_max"])
             self.irgn_par["omega"] = np.maximum(
                 self.irgn_par["omega"] * self.irgn_par["omega_dec"],
                 self.irgn_par["omega_min"])
@@ -455,7 +442,7 @@ class ModelReco:
             print("GN-Iter: %d  Elapsed time: %f seconds" % (i, end))
             print("-" * 75)
             if np.abs(self.fval_old - self.fval) / self.fval_init < \
-                      self.irgn_par["tol"]:
+               self.irgn_par["tol"]:
                 print("Terminated at GN-iteration %d because "
                       "the energy decrease was less than %.3e" %
                       (i, np.abs(self.fval_old - self.fval) / self.fval_init))
@@ -496,9 +483,12 @@ class ModelReco:
                     [:, :, None, ...]*self.C[:, None, ...])
             self.fval = (
                 self.irgn_par["lambd"]/2*np.linalg.norm(data - b)**2 +
-                self.irgn_par["gamma"]*np.sum(np.abs(grad.get())) +
+                self.irgn_par["gamma"]*np.sum(np.abs(
+                    grad.get()[:, :self.unknowns_TGV])) +
                 1/(2*self.irgn_par["delta"]) *
-                np.linalg.norm((x-x_old).flatten())**2)
+                np.linalg.norm((x-x_old).flatten())**2 +
+                self.irgn_par["omega"] / 2 *
+                np.linalg.norm(grad[:, self.unknowns_TGV:])**2)
             del grad, b
         elif TV == 0:
             x = clarray.to_device(self.queue[0], x)
@@ -519,16 +509,19 @@ class ModelReco:
                     [:, :, None, ...]*self.C[:, None, ...])
             self.fval = (
                 self.irgn_par["lambd"]/2*np.linalg.norm(data - b)**2 +
-                self.irgn_par["gamma"]*np.sum(np.abs(grad.get()-self.v)) +
+                self.irgn_par["gamma"]*np.sum(np.abs(
+                    grad.get()[:, :self.unknowns_TGV]-self.v)) +
                 self.irgn_par["gamma"]*(2)*np.sum(np.abs(sym_grad.get())) +
                 1/(2*self.irgn_par["delta"]) *
-                np.linalg.norm((x-x_old).flatten())**2)
+                np.linalg.norm((x-x_old).flatten())**2 +
+                self.irgn_par["omega"] / 2 *
+                np.linalg.norm(grad[:, self.unknowns_TGV:])**2)
             del grad, sym_grad, v, b
         else:
             print("Not implemented")
             return
         if GN_it == 0:
-          self.fval_init = self.fval
+            self.fval_init = self.fval
         print("-" * 75)
         print("Function value at GN-Step %i: %f" %
               (GN_it, 1e3*self.fval / self.fval_init))
@@ -541,6 +534,7 @@ class ModelReco:
             x = self.tgv_solve_3D(x, res, iters)
         x = np.require(np.transpose(x, [1, 0, 2, 3]), requirements='C')
         return x
+
 ###############################################################################
 # Start a 3D Reconstruction, set TV to True to perform TV instead of TGV#######
 # Precompute Model and Gradient values for xk #################################
@@ -597,7 +591,7 @@ class ModelReco:
                  self.NScan * self.NSlice * self.dimY * self.dimX))
             scale = np.linalg.norm(scale, axis=-1)/np.sqrt(self.NSlice)
             print("Initial norm of the model Gradient: \n", scale)
-            scale = 1000 * np.sqrt(self.NSlice) / np.sqrt(self.unknowns) / scale
+            scale = 1e3 / np.sqrt(self.unknowns) / scale
             print("Scalefactor of the model Gradient: \n", scale)
             if not np.mod(i, 1):
                 for uk in range(self.unknowns):
@@ -612,8 +606,8 @@ class ModelReco:
                 (self.unknowns,
                  self.NScan * self.NSlice * self.dimY * self.dimX))
             scale = np.linalg.norm(scale, axis=-1)
-            print("Model Scaling Factors: \n", self.model.uk_scale)
             print("Scale of the model Gradient: \n", scale)
+
             self.set_scale(np.require(
                 np.transpose(result, [1, 0, 2, 3]), requirements='C'))
 
@@ -623,6 +617,12 @@ class ModelReco:
             self.grad_x = np.require(
                 np.transpose(self.grad_x, [2, 0, 1, 3, 4]), requirements='C')
 
+            self.irgn_par["delta_max"] = self.delta_max / \
+                                         1e3*np.linalg.norm(result)
+            self.irgn_par["delta"] = np.minimum(
+                self.delta /
+                1e3*np.linalg.norm(result)*self.irgn_par["delta_inc"]**i,
+                self.irgn_par["delta_max"])
 
             result = self.irgn_solve_3D_imagespace(result, iters,
                                                    self.data, i, TV)
@@ -632,9 +632,6 @@ class ModelReco:
             self.irgn_par["gamma"] = np.maximum(
                 self.irgn_par["gamma"] * self.irgn_par["gamma_dec"],
                 self.irgn_par["gamma_min"])
-            self.irgn_par["delta"] = np.minimum(
-                self.irgn_par["delta"] * self.irgn_par["delta_inc"],
-                self.irgn_par["delta_max"])
             self.irgn_par["omega"] = np.maximum(
                 self.irgn_par["omega"] * self.irgn_par["omega_dec"],
                 self.irgn_par["omega_min"])
@@ -645,7 +642,7 @@ class ModelReco:
             print("GN-Iter: %d  Elapsed time: %f seconds" % (i, end))
             print("-" * 75)
             if np.abs(self.fval_old - self.fval) / self.fval_init < \
-                      self.irgn_par["tol"]:
+               self.irgn_par["tol"]:
                 print("Terminated at GN-iteration %d because "
                       "the energy decrease was less than %.3e" %
                       (i, np.abs(self.fval_old - self.fval) / self.fval_init))
@@ -680,9 +677,12 @@ class ModelReco:
             self.fval = (
                 self.irgn_par["lambd"]/2 *
                 np.linalg.norm(data - self.step_val)**2 +
-                self.irgn_par["gamma"]*np.sum(np.abs(grad.get())) +
+                self.irgn_par["gamma"]*np.sum(
+                    np.abs(grad.get()[:, :self.unknowns_TGV])) +
                 1/(2*self.irgn_par["delta"]) *
-                np.linalg.norm((x-x_old).flatten())**2)
+                np.linalg.norm((x-x_old).flatten())**2 +
+                self.irgn_par["omega"] / 2 *
+                np.linalg.norm(grad[:, self.unknowns_TGV:])**2)
             del grad
         elif TV == 0:
             x = clarray.to_device(self.queue[0], x)
@@ -698,17 +698,20 @@ class ModelReco:
             self.fval = (
                 self.irgn_par["lambd"]/2 *
                 np.linalg.norm(data - self.step_val)**2 +
-                self.irgn_par["gamma"]*np.sum(np.abs(grad.get()-self.v)) +
+                self.irgn_par["gamma"]*np.sum(
+                    np.abs(grad.get()[:, :self.unknowns_TGV]-self.v)) +
                 self.irgn_par["gamma"]*(2)*np.sum(np.abs(sym_grad.get())) +
                 1/(2*self.irgn_par["delta"]) *
-                np.linalg.norm((x-x_old).flatten())**2)
+                np.linalg.norm((x-x_old).flatten())**2 +
+                self.irgn_par["omega"] / 2 *
+                np.linalg.norm(grad[:, self.unknowns_TGV:])**2)
             del grad, sym_grad, v
         else:
             print("Not implemented")
             return
 
         if GN_it == 0:
-          self.fval_init = self.fval
+            self.fval_init = self.fval
         print("-" * 75)
         print("Function value at GN-Step %i: %f" %
               (GN_it, 1e3*self.fval / self.fval_init))
@@ -743,6 +746,7 @@ class ModelReco:
         res = (res).astype(DTYPE)
 
         delta = self.irgn_par["delta"]
+        omega = self.irgn_par["omega"]
         mu = 1/delta
 
         theta_line = self.theta_line
@@ -811,7 +815,8 @@ class ModelReco:
                      Ax_part, Axold_part, res_part, Kyk1_part,
                      Kyk1_new_part, Kyk2_part, Kyk2_new_part, symgrad_v_part,
                      symgrad_v_vold_part),
-                    (ynorm, lhs, beta_line, tau_new, alpha, beta, theta_line),
+                    (ynorm, lhs, beta_line, tau_new, omega,
+                     alpha, beta, theta_line),
                     TGV=True)
 
                 if np.sqrt(beta_line)*tau_new*(abs(lhs)**(1/2)) <= \
@@ -827,19 +832,45 @@ class ModelReco:
              symgrad_v_vold, tau_new)
 
             if not np.mod(myit, 10):
-                self.model.plot_unknowns(np.transpose(x_new, [1, 0, 2, 3]))
-                primal_new = (
-                    self.irgn_par["lambd"]/2*np.vdot(Axold-res, Axold-res) +
-                    alpha*np.sum(abs((gradx[:, :self.unknowns_TGV]-v))) +
-                    beta*np.sum(abs(symgrad_v)) +
-                    1/(2*delta)*np.vdot(x_new-xk, x_new-xk)).real
+                if self.irgn_par["display_iterations"]:
+                    self.model.plot_unknowns(
+                        np.transpose(x_new, [1, 0, 2, 3]))
+                if self.unknowns_H1 > 0:
+                    primal_new = (
+                        self.irgn_par["lambd"]/2 *
+                        np.vdot(Axold-res, Axold-res) +
+                        alpha*np.sum(abs((gradx[:, :self.unknowns_TGV]-v))) +
+                        beta*np.sum(abs(symgrad_v)) +
+                        1/(2*delta)*np.vdot(x_new-xk, x_new-xk) +
+                        self.irgn_par["omega"] / 2 *
+                        np.vdot(gradx[self.unknowns_TGV:],
+                                gradx[self.unknowns_TGV:])).real
 
-                dual = (
-                    - delta/2*np.vdot(-Kyk1.flatten(), -Kyk1.flatten())
-                    - np.vdot(xk.flatten(), (-Kyk1).flatten()) + np.sum(Kyk2)
-                    - 1/(2*self.irgn_par["lambd"])
-                    * np.vdot(r.flatten(), r.flatten())
-                    - np.vdot(res.flatten(), r.flatten())).real
+                    dual = (
+                        - delta/2*np.vdot(-Kyk1.flatten(), -Kyk1.flatten())
+                        - np.vdot(xk.flatten(), (-Kyk1).flatten())
+                        + np.sum(Kyk2)
+                        - 1/(2*self.irgn_par["lambd"])
+                        * np.vdot(r.flatten(), r.flatten())
+                        - np.vdot(res.flatten(), r.flatten())
+                        - 1 / (2 * self.irgn_par["omega"])
+                        * np.vdot(z1[self.unknowns_TGV:],
+                                  z1[self.unknowns_TGV:])).real
+                else:
+                    primal_new = (
+                        self.irgn_par["lambd"]/2 *
+                        np.vdot(Axold-res, Axold-res) +
+                        alpha*np.sum(abs((gradx[:, :self.unknowns_TGV]-v))) +
+                        beta*np.sum(abs(symgrad_v)) +
+                        1/(2*delta)*np.vdot(x_new-xk, x_new-xk)).real
+
+                    dual = (
+                        - delta/2*np.vdot(-Kyk1.flatten(), -Kyk1.flatten())
+                        - np.vdot(xk.flatten(), (-Kyk1).flatten())
+                        + np.sum(Kyk2)
+                        - 1/(2*self.irgn_par["lambd"])
+                        * np.vdot(r.flatten(), r.flatten())
+                        - np.vdot(res.flatten(), r.flatten())).real
 
                 gap = np.abs(primal_new - dual)
                 if myit == 0:
@@ -904,6 +935,7 @@ class ModelReco:
         res = (res).astype(DTYPE)
 
         delta = self.irgn_par["delta"]
+        omega = self.irgn_par["omega"]
         mu = 1/delta
         theta_line = np.float32(1.0)
         beta_line = np.float32(400)
@@ -961,7 +993,7 @@ class ModelReco:
                     (z1_part, z1_new_part, gradx_part,
                      gradx_xold_part, r_part, r_new_part, Ax_part, Axold_part,
                      res_part, Kyk1_part, Kyk1_new_part),
-                    (ynorm, lhs, beta_line, tau_new, alpha, theta_line),
+                    (ynorm, lhs, beta_line, tau_new, omega, alpha, theta_line),
                     TGV=False)
 
                 if np.sqrt(beta_line)*tau_new*(abs(lhs)**(1/2)) <= \
@@ -975,16 +1007,36 @@ class ModelReco:
              gradx_xold, tau_new)
 
             if not np.mod(myit, 10):
-                self.model.plot_unknowns(np.transpose(x_new, [1, 0, 2, 3]))
-                primal_new = (
-                    self.irgn_par["lambd"]/2*np.vdot(Axold-res, Axold-res) +
-                    alpha*np.sum(abs((gradx[:, :self.unknowns_TGV]))) +
-                    1/(2*delta)*np.vdot(x_new-xk, x_new-xk)).real
+                if self.irgn_par["display_iterations"]:
+                    self.model.plot_unknowns(np.transpose(x_new, [1, 0, 2, 3]))
+                if self.unknowns_H1 > 0:
+                    primal_new = (
+                        self.irgn_par["lambd"]/2 *
+                        np.vdot(Axold-res, Axold-res) +
+                        alpha*np.sum(abs((gradx[:, :self.unknowns_TGV]))) +
+                        1/(2*delta)*np.vdot(x_new-xk, x_new-xk) +
+                        self.irgn_par["omega"] / 2 *
+                        np.vdot(gradx[self.unknowns_TGV:],
+                                gradx[self.unknowns_TGV:])).real
 
-                dual = (
-                    -delta/2*np.vdot(-Kyk1, -Kyk1) - np.vdot(xk, (-Kyk1))
-                    - 1/(2*self.irgn_par["lambd"])*np.vdot(r, r)
-                    - np.vdot(res, r)).real
+                    dual = (
+                        -delta/2*np.vdot(-Kyk1, -Kyk1) - np.vdot(xk, (-Kyk1))
+                        - 1/(2*self.irgn_par["lambd"])*np.vdot(r, r)
+                        - np.vdot(res, r)
+                        - 1 / (2 * self.irgn_par["omega"])
+                        * clarray.vdot(z1[self.unknowns_TGV:],
+                                       z1[self.unknowns_TGV:])).real
+                else:
+                    primal_new = (
+                        self.irgn_par["lambd"]/2 *
+                        np.vdot(Axold-res, Axold-res) +
+                        alpha*np.sum(abs((gradx[:, :self.unknowns_TGV]))) +
+                        1/(2*delta)*np.vdot(x_new-xk, x_new-xk)).real
+
+                    dual = (
+                        -delta/2*np.vdot(-Kyk1, -Kyk1) - np.vdot(xk, (-Kyk1))
+                        - 1/(2*self.irgn_par["lambd"])*np.vdot(r, r)
+                        - np.vdot(res, r)).real
 
                 gap = np.abs(primal_new - dual)
                 if myit == 0:
@@ -1172,6 +1224,7 @@ class ModelReco:
             self.queue[4*i+2].finish()
             self.queue[4*i+3].finish()
         del cl_out
+
     def operator_forward_streamed(self, outp, inp):
         cl_out = []
         self.coil_buf_part = []
@@ -1208,7 +1261,7 @@ class ModelReco:
                     allocator=self.alloc[i]))
         for i in range(self.num_dev):
             cl_out[2*i].add_event(
-                self.operator_forward(cl_out[2*i],cl_data[i],i,0))
+                self.operator_forward(cl_out[2*i], cl_data[i], i, 0))
         for i in range(self.num_dev):
             idx_start = (i+1+self.num_dev-1)*self.par_slices
             idx_stop = (i+2+self.num_dev-1)*self.par_slices
@@ -1232,7 +1285,7 @@ class ModelReco:
         for i in range(self.num_dev):
             cl_out[2*i+1].add_event(
                 self.operator_forward(
-                    cl_out[2*i+1],cl_data[self.num_dev+i],i,1))
+                    cl_out[2*i+1], cl_data[self.num_dev+i], i, 1))
         for j in range(2*self.num_dev,
                        int(self.NSlice/(2*self.par_slices*self.num_dev) +
                            (2*self.num_dev-1))):
@@ -1261,7 +1314,7 @@ class ModelReco:
                     self.queue[4*i], self.grad_x[idx_start:idx_stop, ...]))
             for i in range(self.num_dev):
                 cl_out[2*i].add_event(
-                    self.operator_forward(cl_out[2*i],cl_data[i],i,0))
+                    self.operator_forward(cl_out[2*i], cl_data[i], i, 0))
             for i in range(self.num_dev):
                 idx_start = i*self.par_slices+(
                     2*self.num_dev*(j-2*self.num_dev)+self.num_dev) *\
@@ -1296,7 +1349,7 @@ class ModelReco:
             for i in range(self.num_dev):
                 cl_out[2*i+1].add_event(
                     self.operator_forward(
-                        cl_out[2*i+1],cl_data[self.num_dev+i],i,1))
+                        cl_out[2*i+1], cl_data[self.num_dev+i], i, 1))
         if j < 2*self.num_dev:
             j = 2*self.num_dev
         else:
@@ -2719,7 +2772,8 @@ class ModelReco:
 
     def stream_dual_update(self, arrays, parts, pars, TGV=True):
         if TGV:
-            (ynorm, lhs, beta_line, tau_new, alpha, beta, theta_line) = pars
+            (ynorm, lhs, beta_line, tau_new, omega,
+             alpha, beta, theta_line) = pars
             (z1, gradx, gradx_xold, v_new, v, r, Ax, Axold, res, Kyk1,
              z1_new, r_new, Kyk1_new, z2, symgrad_v, symgrad_v_vold, Kyk2,
              z2_new, Kyk2_new) = arrays
@@ -2812,13 +2866,13 @@ class ModelReco:
                     self.update_z1(
                         z1_new_part[i], z1_part[i], gradx_part[i],
                         gradx_xold_part[i], v_new_part[i], v_part[i],
-                        beta_line*tau_new, theta_line, alpha, i, 0))
+                        beta_line*tau_new, theta_line, alpha, omega, i, 0))
             else:
                 z1_new_part[i].add_event(
                     self.update_z1_tv(
                         z1_new_part[i], z1_part[i], gradx_part[i],
                         gradx_xold_part[i],
-                        beta_line*tau_new, theta_line, alpha, i, 0))
+                        beta_line*tau_new, theta_line, alpha, omega, i, 0))
             r_new_part[i].add_event(
                 self.update_r(
                     r_new_part[i], r_part[i], Ax_part[i], Axold_part[i],
@@ -2916,14 +2970,14 @@ class ModelReco:
                         gradx_part[self.num_dev+i],
                         gradx_xold_part[self.num_dev+i],
                         v_new_part[self.num_dev+i], v_part[self.num_dev+i],
-                        beta_line*tau_new, theta_line, alpha, i, 1))
+                        beta_line*tau_new, theta_line, alpha, omega, i, 1))
             else:
                 z1_new_part[i+self.num_dev].add_event(
                     self.update_z1_tv(
                         z1_new_part[i+self.num_dev], z1_part[self.num_dev+i],
                         gradx_part[self.num_dev+i],
                         gradx_xold_part[self.num_dev+i],
-                        beta_line*tau_new, theta_line, alpha, i, 1))
+                        beta_line*tau_new, theta_line, alpha, omega, i, 1))
             r_new_part[i+self.num_dev].add_event(
                 self.update_r(
                     r_new_part[i+self.num_dev], r_part[self.num_dev+i],
@@ -3063,13 +3117,13 @@ class ModelReco:
                         self.update_z1(
                             z1_new_part[i], z1_part[i], gradx_part[i],
                             gradx_xold_part[i], v_new_part[i], v_part[i],
-                            beta_line*tau_new, theta_line, alpha, i, 0))
+                            beta_line*tau_new, theta_line, alpha, omega, i, 0))
                 else:
                     z1_new_part[i].add_event(
                         self.update_z1_tv(
                             z1_new_part[i], z1_part[i], gradx_part[i],
                             gradx_xold_part[i],
-                            beta_line*tau_new, theta_line, alpha, i, 0))
+                            beta_line*tau_new, theta_line, alpha, omega, i, 0))
                 r_new_part[i].add_event(
                     self.update_r(
                         r_new_part[i], r_part[i], Ax_part[i], Axold_part[i],
@@ -3229,7 +3283,7 @@ class ModelReco:
                             gradx_part[self.num_dev+i],
                             gradx_xold_part[self.num_dev+i],
                             v_new_part[self.num_dev+i], v_part[self.num_dev+i],
-                            beta_line*tau_new, theta_line, alpha, i, 1))
+                            beta_line*tau_new, theta_line, alpha, omega, i, 1))
                 else:
                     z1_new_part[i+self.num_dev].add_event(
                         self.update_z1_tv(
@@ -3237,7 +3291,7 @@ class ModelReco:
                             z1_part[self.num_dev+i],
                             gradx_part[self.num_dev+i],
                             gradx_xold_part[self.num_dev+i],
-                            beta_line*tau_new, theta_line, alpha, i, 1))
+                            beta_line*tau_new, theta_line, alpha, omega, i, 1))
                 r_new_part[i+self.num_dev].add_event(
                     self.update_r(
                         r_new_part[i+self.num_dev], r_part[self.num_dev+i],

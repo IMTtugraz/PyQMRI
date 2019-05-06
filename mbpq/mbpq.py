@@ -44,7 +44,8 @@ DTYPE_real = np.float32
 def start_recon(args):
     sig_model_path = os.path.normpath(args.sig_model)
     if len(sig_model_path.split(os.sep)) > 1:
-        spec = importlib.util.spec_from_file_location(sig_model_path.split(os.sep)[-1],sig_model_path)
+        spec = importlib.util.spec_from_file_location(
+            sig_model_path.split(os.sep)[-1], sig_model_path)
         sig_model = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(sig_model)
     else:
@@ -339,15 +340,14 @@ def start_recon(args):
 ###############################################################################
 # Scale data norm  ############################################################
 ###############################################################################
-
-
     if args.imagespace:
-        dscale =  DTYPE_real(np.sqrt(2*1e3*NSlice) /
-                         (np.linalg.norm(images.flatten())))
+        dscale = DTYPE_real(np.sqrt(2*1e3*NSlice) /
+                            (np.linalg.norm(images.flatten())))
         par["dscale"] = dscale
         images = images*dscale
     else:
-        dscale =  (DTYPE_real(np.sqrt(2*1e3*NSlice)) / (np.linalg.norm(data.flatten())))
+        dscale = (DTYPE_real(np.sqrt(2*1e3*NSlice)) /
+                  (np.linalg.norm(data.flatten())))
         par["dscale"] = dscale
         data = data*dscale
 
@@ -355,32 +355,31 @@ def start_recon(args):
         center = int(N*0.2)
         sig = []
         noise = []
-        ind = np.zeros((N),dtype=bool)
+        ind = np.zeros((N), dtype=bool)
         ind[int(par["N"]/2-center):int(par["N"]/2+center)] = 1
         for j in range(Nproj):
-            sig.append(np.sum(data[...,int(NSlice/2),j,ind] *
-                              np.conj(data[...,int(NSlice/2),j,ind])))
-            noise.append(np.sum(data[...,int(NSlice/2),j,~ind] *
-                                np.conj(data[...,int(NSlice/2),j,~ind])))
+            sig.append(np.sum(data[..., int(NSlice/2), j, ind] *
+                              np.conj(data[..., int(NSlice/2), j, ind])))
+            noise.append(np.sum(data[..., int(NSlice/2), j, ~ind] *
+                                np.conj(data[..., int(NSlice/2), j, ~ind])))
         sig = (np.sum(np.array(sig)))/np.sum(ind)
         noise = (np.sum(np.array(noise)))/np.sum(~ind)
-        SNR_est =  np.abs(sig/noise)
+        SNR_est = np.abs(sig/noise)
         par["SNR_est"] = SNR_est
         print("Estimated SNR from kspace", SNR_est)
     else:
         center = int(N*0.2)
-        ind = np.zeros((dimY,dimX),dtype=bool)
+        ind = np.zeros((dimY, dimX), dtype=bool)
         ind[int(par["N"]/2-center):int(par["N"]/2+center),
             int(par["N"]/2-center):int(par["N"]/2+center)] = 1
         ind = np.fft.fftshift(ind)
-        sig = np.sum(data[...,int(NSlice/2),ind] *
-                     np.conj(data[...,int(NSlice/2),ind]))/np.sum(ind)
-        noise = np.sum(data[...,int(NSlice/2),~ind] *
-                       np.conj(data[...,int(NSlice/2),~ind]))/np.sum(~ind)
-        SNR_est =  np.abs(sig/noise)
+        sig = np.sum(data[..., int(NSlice/2), ind] *
+                     np.conj(data[..., int(NSlice/2), ind]))/np.sum(ind)
+        noise = np.sum(data[..., int(NSlice/2), ~ind] *
+                       np.conj(data[..., int(NSlice/2), ~ind]))/np.sum(~ind)
+        SNR_est = np.abs(sig/noise)
         par["SNR_est"] = SNR_est
         print("Estimated SNR from kspace", SNR_est)
-
 
     opt = optimizer.ModelReco(par, args.trafo,
                               imagespace=args.imagespace)

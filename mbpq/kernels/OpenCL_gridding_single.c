@@ -1,12 +1,3 @@
-
-  __kernel void make_complex(__global float2 *out,__global float *re, __global float* im)
-  {
-    size_t k = get_global_id(0);
-
-    out[k].s0 = re[k];
-    out[k].s1 = im[k];
-
-  }
  void AtomicAdd(volatile __global float *addr, float val) {
   union {
            unsigned int u32;
@@ -20,6 +11,14 @@
                                expected.u32, next.u32);
        } while( current.u32 != expected.u32 );
 }
+  __kernel void make_complex(__global float2 *out,__global float *re, __global float* im)
+  {
+    size_t k = get_global_id(0);
+
+    out[k].s0 = re[k];
+    out[k].s1 = im[k];
+
+  }
   __kernel void deapo_adj(__global float2 *out, __global float2 *in, __constant float *deapo, const int dim, const float scale, const float ogf)
   {
     size_t x = get_global_id(2);
