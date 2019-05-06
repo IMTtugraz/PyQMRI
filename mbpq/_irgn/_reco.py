@@ -330,10 +330,15 @@ class ModelReco:
         print("Diff between x: ", np.linalg.norm(scale, axis=-1))
         print("Diff between grad x: ", np.linalg.norm(grad, axis=-1))
         scale = np.linalg.norm(grad, axis=-1)
-        scale = np.max(scale)/scale
+        scale = 1/scale
         scale[~np.isfinite(scale)] = 1
-        sum_scale = np.linalg.norm(scale)/(1000/np.sqrt(self.NSlice))
-        for j in range(x.shape[0]):
+        sum_scale = np.linalg.norm(
+            scale[:self.unknowns_TGV])/(1000/np.sqrt(self.NSlice))
+        for j in range(x.shape[0])[:self.unknowns_TGV]:
+            self.ratio[j] = scale[j] / sum_scale
+        sum_scale = np.linalg.norm(
+            scale[self.unknowns_TGV:])/(1000)
+        for j in range(x.shape[0])[self.unknowns_TGV:]:
             self.ratio[j] = scale[j] / sum_scale
         print("Ratio: ", self.ratio)
 

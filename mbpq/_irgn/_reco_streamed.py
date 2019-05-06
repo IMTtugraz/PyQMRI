@@ -331,11 +331,17 @@ class ModelReco:
         print("Diff between x: ", np.linalg.norm(scale, axis=-1))
         print("Diff between grad x: ", np.linalg.norm(grad, axis=-1))
         scale = np.linalg.norm(grad, axis=-1)
-        scale = np.max(scale)/scale
+        scale = 1/scale
         scale[~np.isfinite(scale)] = 1
-        sum_scale = np.linalg.norm(scale)/(1000/np.sqrt(self.NSlice))
+        sum_scale = np.linalg.norm(
+            scale[:self.unknowns_TGV])/(1000/np.sqrt(self.NSlice))
         for i in range(self.num_dev):
-            for j in range(self.unknowns):
+            for j in range(x.shape[0])[:self.unknowns_TGV]:
+                self.ratio[i][j] = scale[j] / sum_scale
+        sum_scale = np.linalg.norm(
+            scale[self.unknowns_TGV:])/(1000)
+        for i in range(self.num_dev):
+            for j in range(x.shape[0])[self.unknowns_TGV:]:
                 self.ratio[i][j] = scale[j] / sum_scale
         print("Ratio: ", self.ratio[0])
 
@@ -481,10 +487,11 @@ class ModelReco:
                             self.model.execute_forward(x), [1, 0, 2, 3]),
                         requirements='C')
                     [:, :, None, ...]*self.C[:, None, ...])
+            grad = grad.get()
             self.fval = (
                 self.irgn_par["lambd"]/2*np.linalg.norm(data - b)**2 +
                 self.irgn_par["gamma"]*np.sum(np.abs(
-                    grad.get()[:, :self.unknowns_TGV])) +
+                    grad[:, :self.unknowns_TGV])) +
                 1/(2*self.irgn_par["delta"]) *
                 np.linalg.norm((x-x_old).flatten())**2 +
                 self.irgn_par["omega"] / 2 *
@@ -507,10 +514,11 @@ class ModelReco:
                             self.model.execute_forward(x), [1, 0, 2, 3]),
                         requirements='C')
                     [:, :, None, ...]*self.C[:, None, ...])
+            grad = grad.get()
             self.fval = (
                 self.irgn_par["lambd"]/2*np.linalg.norm(data - b)**2 +
                 self.irgn_par["gamma"]*np.sum(np.abs(
-                    grad.get()[:, :self.unknowns_TGV]-self.v)) +
+                    grad[:, :self.unknowns_TGV]-self.v)) +
                 self.irgn_par["gamma"]*(2)*np.sum(np.abs(sym_grad.get())) +
                 1/(2*self.irgn_par["delta"]) *
                 np.linalg.norm((x-x_old).flatten())**2 +
@@ -674,11 +682,12 @@ class ModelReco:
             grad.add_event(self.f_grad(grad, x, wait_for=grad.events+x.events))
             x = np.require(
                 np.transpose(x.get(), [1, 0, 2, 3]), requirements='C')
+            grad = grad.get()
             self.fval = (
                 self.irgn_par["lambd"]/2 *
                 np.linalg.norm(data - self.step_val)**2 +
                 self.irgn_par["gamma"]*np.sum(
-                    np.abs(grad.get()[:, :self.unknowns_TGV])) +
+                    np.abs(grad[:, :self.unknowns_TGV])) +
                 1/(2*self.irgn_par["delta"]) *
                 np.linalg.norm((x-x_old).flatten())**2 +
                 self.irgn_par["omega"] / 2 *
@@ -695,11 +704,12 @@ class ModelReco:
                 self.sym_grad(sym_grad, v, wait_for=sym_grad.events+v.events))
             x = np.require(
                 np.transpose(x.get(), [1, 0, 2, 3]), requirements='C')
+            grad = grad.get()
             self.fval = (
                 self.irgn_par["lambd"]/2 *
                 np.linalg.norm(data - self.step_val)**2 +
                 self.irgn_par["gamma"]*np.sum(
-                    np.abs(grad.get()[:, :self.unknowns_TGV]-self.v)) +
+                    np.abs(grad[:, :self.unknowns_TGV]-self.v)) +
                 self.irgn_par["gamma"]*(2)*np.sum(np.abs(sym_grad.get())) +
                 1/(2*self.irgn_par["delta"]) *
                 np.linalg.norm((x-x_old).flatten())**2 +
@@ -1024,8 +1034,8 @@ class ModelReco:
                         - 1/(2*self.irgn_par["lambd"])*np.vdot(r, r)
                         - np.vdot(res, r)
                         - 1 / (2 * self.irgn_par["omega"])
-                        * clarray.vdot(z1[self.unknowns_TGV:],
-                                       z1[self.unknowns_TGV:])).real
+                        * np.vdot(z1[self.unknowns_TGV:],
+                                  z1[self.unknowns_TGV:])).real
                 else:
                     primal_new = (
                         self.irgn_par["lambd"]/2 *
