@@ -87,7 +87,7 @@ A list of accepted flags can be printed using
 ```
 mbpq -h
 ```
-or by fewing the documentation in of mbpq.mbpq in python.
+or by fewing the documentation of mbpq.mbpq in python.
 
 Limitations and known Issues:
 -------------------------
