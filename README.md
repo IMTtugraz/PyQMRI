@@ -70,10 +70,6 @@ The toolbox expects a .h5 file with a certain structure.
     
 Running the reconstruction:
 -------------------------    
-First, start an ipyparallel cluster on your local machine to speed up coil sensitivity estimation:
-```
-ipcluster start &
-```
 Reconstruction of the parameter maps can be started either using the terminal by typing:
 ```
 mbpq
