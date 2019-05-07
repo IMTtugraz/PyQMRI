@@ -55,6 +55,7 @@ The toolbox expects a .h5 file with a certain structure.
     
     For Cartesian data Projections and Samples are replaced by ky and kx encodings points and no trajectory is needed.  
     
+    Data is assumed to be 2D stack-of-stars, i.e. already Fourier transformed along the fully sampled z-direction.
     
   - flip angle correction (optional) can be passed as:
     - fa_corr (Scans, Coils, Slices, dimY, dimX)
@@ -66,8 +67,8 @@ The toolbox expects a .h5 file with a certain structure.
     
     The specific structure is determined according to the Model file.
     
-  If predetermined coil sensitivity maps are available they can be passed as complex dataset, which can directly saved using Python. Matlab users would need to write/use low level hdf5 functions to save a complex array to .h5 file. Coil sensitivities are assumed to have the same number of slices as the original volume and are intesity normalized. The corresponding .h5 entry is named "Coils". If no "Coils" parameter is found the coil sensitivites are determined using the [NLINV](https://doi.org/10.1002/mrm.21691) algorithm and saved into the file. Additionally, if the number of slices is less than the number of reconstructed slices, sensitivities will get estimated.
-    
+  If predetermined coil sensitivity maps are available they can be passed as complex dataset, which can saved bedirectly using Python. Matlab users would need to write/use low level hdf5 functions to save a complex array to .h5 file. Coil sensitivities are assumed to have the same number of slices as the original volume and are intesity normalized. The corresponding .h5 entry is named "Coils". If no "Coils" parameter is found or the number of "Coil" slices is less than the number of reconstructed slices, the coil sensitivites are determined using the [NLINV](https://doi.org/10.1002/mrm.21691) algorithm and saved into the file. 
+  
 Running the reconstruction:
 -------------------------    
 Reconstruction of the parameter maps can be started either using the terminal by typing:
@@ -84,6 +85,29 @@ A list of accepted flags can be printed using
 mbpq -h
 ```
 or by fewing the documentation of mbpq.mbpq in python.
+
+If reconstructing fewer slices from the volume than acquired, slices will be picked symmetrically from the center of the volume. E.g. reconstructing only a single slice will reconstruct the center slice of the volume. 
+
+The config file (\*.ini):
+-------------------------   
+A default config file will be generated if no path to a config file is passed as an argument or if no default.ini file is present in the current working directory. After the initial generation the values can be altered to influence regularization or the number of iterations. Seperate values for TV and TGV regularization can be used. 
+
+  - max_iters: Maximum primal-dual (PD) iterations
+  - start_iters: PD iterations in the first Gauss-Newton step
+  - max_gn_it: Maximum number of Gauss Newton iterations
+  - lambd: Data weighting
+  - gamma: TGV weighting
+  - delta: L2-step-penalty weighting (inversely weighted)
+  - omega: optional H1 regularization (should be set to 0 if no H1 is used)
+  - display_iterations: Flag for displaying grafical output
+  - gamma_min: Minimum TGV weighting
+  - delta_max: Maximum L2-step-penalty weighting
+  - omega_min: Minimum H1 weighting (should be set to 0 if no H1 is used)
+  - tol: relative convergence toleranze for PD and Gauss-Newton iterations
+  - stag: optional stagnation detection between successive PD steps
+  - delta_inc: Increase factor for delta after each GN step
+  - gamma_dec: Decrease factor for gamma after each GN step
+  - omega_dec: Decrease factor for omega after each GN step
 
 Limitations and known Issues:
 -------------------------
