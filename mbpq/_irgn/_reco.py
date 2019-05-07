@@ -422,7 +422,8 @@ class ModelReco:
                                       hostbuf=self.grad_x.data)
 
             self.irgn_par["delta_max"] = self.delta_max / \
-                                         1e3*np.linalg.norm(result)
+                                         (1e3*np.sqrt(self.NSlice)) *\
+                                         np.linalg.norm(result)
             self.irgn_par["delta"] = np.minimum(
                 self.delta /
                 1e3*np.linalg.norm(result)*self.irgn_par["delta_inc"]**i,
@@ -448,8 +449,10 @@ class ModelReco:
                 print("Terminated at GN-iteration %d because "
                       "the energy decrease was less than %.3e" %
                       (i,  np.abs(self.fval_old - self.fval) / self.fval_init))
+                self.calc_residual_kspace(result, self.data, i+1, TV)
                 break
             self.fval_old = self.fval
+        self.calc_residual_kspace(result, self.data, i+1, TV)
 
 ###############################################################################
 # Precompute constant terms of the GN linearization step ######################
@@ -461,13 +464,23 @@ class ModelReco:
 ###############################################################################
 ###############################################################################
     def irgn_solve_3D(self, x, iters, data, GN_it, TV=0):
-        x_old = x
         x = clarray.to_device(self.queue, np.require(x, requirements="C"))
         b = clarray.empty(self.queue, data.shape, dtype=DTYPE)
         self.FT(b, clarray.to_device(
             self.queue, self.step_val[:, None, ...] * self.C)).wait()
         res = data - b.get() + self.operator_forward(x).get()
+        x = x.get()
+        self.calc_residual_kspace(x, data, GN_it, TV)
 
+        if TV == 1:
+            x = self.tv_solve_3D(x, res, iters)
+        elif TV == 0:
+            x = self.tgv_solve_3D(x, res, iters)
+        return x
+
+    def calc_residual_kspace(self, x, data, GN_it, TV=0):
+        x = clarray.to_device(self.queue, np.require(x, requirements="C"))
+        b = clarray.empty(self.queue, data.shape, dtype=DTYPE)
         if TV == 1:
             grad = clarray.to_device(self.queue, np.zeros_like(self.z1))
             grad.add_event(
@@ -486,8 +499,6 @@ class ModelReco:
                          np.linalg.norm(data - b.get())**2 +
                          self.irgn_par["gamma"] *
                          np.sum(np.abs(grad[:self.unknowns_TGV])) +
-                         1 / (2 * self.irgn_par["delta"]) *
-                         np.linalg.norm((x - x_old).flatten())**2 +
                          self.irgn_par["omega"] / 2 *
                          np.linalg.norm(grad[self.unknowns_TGV:])**2)
             del grad, b
@@ -521,27 +532,15 @@ class ModelReco:
                          np.sum(np.abs(grad[:self.unknowns_TGV] - self.v)) +
                          self.irgn_par["gamma"] * (2) *
                          np.sum(np.abs(sym_grad.get())) +
-                         1 / (2 * self.irgn_par["delta"]) *
-                         np.linalg.norm((x - x_old).flatten())**2 +
                          self.irgn_par["omega"] / 2 *
                          np.linalg.norm(grad[self.unknowns_TGV:])**2)
             del grad, sym_grad, v, b
-        else:
-            print("Not implemented")
-            return
         if GN_it == 0:
             self.fval_init = self.fval
         print("-" * 75)
         print("Function value at GN-Step %i: %f" %
               (GN_it, 1e3*self.fval / self.fval_init))
         print("-" * 75)
-
-        if TV == 1:
-            x = self.tv_solve_3D(x, res, iters)
-        elif TV == 0:
-            x = self.tgv_solve_3D(x, res, iters)
-
-        return x
 
 ###############################################################################
 # Start a 3D Reconstruction, set TV to True to perform TV instead of TGV#######
@@ -596,7 +595,7 @@ class ModelReco:
                 self.grad_x,
                 (self.unknowns,
                  self.NScan * self.NSlice * self.dimY * self.dimX))
-            scale = np.linalg.norm(scale, axis=-1)/np.sqrt(self.NSlice)
+            scale = np.linalg.norm(scale, axis=-1)
             print("Initial norm of the model Gradient: \n", scale)
             scale = 1e3 / np.sqrt(self.unknowns) / scale
             print("Scalefactor of the model Gradient: \n", scale)
@@ -624,7 +623,8 @@ class ModelReco:
                                       hostbuf=self.grad_x.data)
 
             self.irgn_par["delta_max"] = self.delta_max / \
-                                         1e3*np.linalg.norm(result)
+                                         (1e3*np.sqrt(self.NSlice)) *\
+                                         np.linalg.norm(result)
             self.irgn_par["delta"] = np.minimum(
                 self.delta /
                 1e3*np.linalg.norm(result)*self.irgn_par["delta_inc"]**i,
@@ -652,8 +652,10 @@ class ModelReco:
                 print("Terminated at GN-iteration %d because the "
                       "relative energy decrease was less than %.3e" %
                       (i, np.abs(self.fval_old - self.fval) / self.fval_init))
+                self.calc_residual_imagespace(result, self.data, i+1, TV)
                 break
             self.fval_old = self.fval
+        self.calc_residual_imagespace(result, self.data, i+1, TV)
 
 ###############################################################################
 # Precompute constant terms of the GN linearization step ######################
@@ -665,10 +667,20 @@ class ModelReco:
 ###############################################################################
 ###############################################################################
     def irgn_solve_3D_imagespace(self, x, iters, data, GN_it, TV=0):
-        x_old = x
         x = clarray.to_device(self.queue, np.require(x, requirements="C"))
         res = data - self.step_val + self.operator_forward(x).get()
+        x = x.get()
 
+        self.calc_residual_imagespace(x, data, GN_it, TV)
+
+        if TV == 1:
+            x = self.tv_solve_3D(x, res, iters)
+        elif TV == 0:
+            x = self.tgv_solve_3D(x, res, iters)
+        return x
+
+    def calc_residual_imagespace(self, x, data, GN_it, TV=0):
+        x = clarray.to_device(self.queue, np.require(x, requirements="C"))
         if TV == 1:
             grad = clarray.to_device(self.queue, np.zeros_like(self.z1))
             grad.add_event(
@@ -684,8 +696,6 @@ class ModelReco:
                 np.linalg.norm(data - self.step_val)**2 +
                 self.irgn_par["gamma"] *
                 np.sum(np.abs(grad[:self.unknowns_TGV])) +
-                1 / (2 * self.irgn_par["delta"]) *
-                np.linalg.norm((x - x_old).flatten())**2 +
                 self.irgn_par["omega"] / 2 *
                 np.linalg.norm(grad[self.unknowns_TGV:])**2)
             del grad
@@ -706,28 +716,15 @@ class ModelReco:
                 self.irgn_par["gamma"] *
                 np.sum(np.abs(grad[:self.unknowns_TGV] - self.v)) +
                 self.irgn_par["gamma"] * (2) * np.sum(np.abs(sym_grad.get())) +
-                +1 / (2 * self.irgn_par["delta"]) *
-                np.linalg.norm((x - x_old).flatten())**2 +
                 self.irgn_par["omega"] / 2 *
                 np.linalg.norm(grad[self.unknowns_TGV:])**2)
             del grad, sym_grad, v
-        else:
-            print("Not implemented")
-            return
-
         if GN_it == 0:
             self.fval_init = self.fval
         print("-" * 75)
         print("Function value at GN-Step %i: %f" %
               (GN_it, 1e3*self.fval / self.fval_init))
         print("-" * 75)
-
-        if TV == 1:
-            x = self.tv_solve_3D(x, res, iters)
-        elif TV == 0:
-            x = self.tgv_solve_3D(x, res, iters)
-
-        return x
 
     def tgv_solve_3D(self, x, res, iters):
         alpha = self.irgn_par["gamma"]

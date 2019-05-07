@@ -88,6 +88,7 @@ def start_recon(args):
     fname = name.split(os.sep)[-1]
 
     par["file"] = h5py.File(file)
+#    del par["file"]["Coils"]
 ###############################################################################
 # Read Data ###################################################################
 ###############################################################################
@@ -352,7 +353,7 @@ def start_recon(args):
         data = data*dscale
 
     if args.trafo:
-        center = int(N*0.2)
+        center = int(N*0.1)
         sig = []
         noise = []
         ind = np.zeros((N), dtype=bool)
@@ -368,7 +369,7 @@ def start_recon(args):
         par["SNR_est"] = SNR_est
         print("Estimated SNR from kspace", SNR_est)
     else:
-        center = int(N*0.2)
+        center = int(N*0.1)
         ind = np.zeros((dimY, dimX), dtype=bool)
         ind[int(par["N"]/2-center):int(par["N"]/2+center),
             int(par["N"]/2-center):int(par["N"]/2+center)] = 1
