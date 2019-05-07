@@ -205,7 +205,8 @@ def start_recon(args):
     par["unknowns_TGV"] = sig_model.unknowns_TGV
     par["unknowns_H1"] = sig_model.unknowns_H1
     par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
-
+    if args.streamed:
+        par["par_slices"] = args.par_slices
     if not args.trafo:
         tmp = np.ones_like(np.abs(data))
         tmp[np.abs(data) == 0] = 0
