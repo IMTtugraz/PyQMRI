@@ -27,7 +27,7 @@ import pyopencl.array as clarray
 from mbpq._helper_fun import _nlinvns as nlinvns
 from mbpq._helper_fun import _goldcomp as goldcomp
 from mbpq._helper_fun import _utils as utils
-
+import subprocess
 
 # % Estimates sensitivities and complex image.
 # %(see Martin Uecker: Image reconstruction by regularized nonlinear
@@ -37,6 +37,11 @@ DTYPE_real = np.float32
 
 
 def est_coils(data, par, file, args):
+    ipcluster = subprocess.Popen(["ipcluster", "start"])
+    try:
+        ipcluster.wait(5)
+    except subprocess.TimeoutExpired:
+        pass
     ###########################################################################
     # Initiate parallel interface #############################################
     ###########################################################################
@@ -381,3 +386,5 @@ def est_coils(data, par, file, args):
             dtype=par["InScale"].dtype,
             data=par["InScale"])
         file.flush()
+    endcluster = subprocess.Popen(["ipcluster", "stop"])
+    endcluster.wait()

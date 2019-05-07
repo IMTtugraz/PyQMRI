@@ -30,11 +30,10 @@ DTYPE_real = np.float32
 
 class constraints:
     def __init__(self, min_val=-np.inf, max_val=np.inf,
-                 real_const=False, pos_real=False):
+                 real_const=False):
         self.min = min_val
         self.max = max_val
         self.real = real_const
-        self.pos_real = pos_real
 
     def update(self, scale):
         self.min = self.min / scale

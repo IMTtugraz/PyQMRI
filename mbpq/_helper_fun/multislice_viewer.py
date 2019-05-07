@@ -15,7 +15,8 @@ import numpy as np
 
 def imshow(volume, vmin=None, vmax=None):
     """
-    Volumetric imageviewer for python (up to 4D).
+    Volumetric image viewer for python. Shows up to 4D volumes.
+    volume is assumed to be real valued.
     """
     if volume.ndim == 2:
         fig, ax = plt.subplots()

@@ -10,7 +10,6 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
-
 from mbpq._models.template import BaseModel, constraints, DTYPE
 
 matplotlib.use("Qt5agg")
@@ -36,17 +35,13 @@ class Model(BaseModel):
         self.sin_phi = np.sin(phi_corr)
         self.cos_phi = np.cos(phi_corr)
 
-    #    self.uk_scale.append(1/np.median(np.abs(images)))
-    #    self.uk_scale.append(50)
         for j in range(unknowns_TGV + unknowns_H1):
             self.uk_scale.append(1)
-    #    self.uk_scale[0] = 200
-
         self.guess = self._set_init_scales(images)
 
         self.constraints.append(
             constraints(0 / self.uk_scale[0],
-                        5 / self.uk_scale[0],
+                        10 / self.uk_scale[0],
                         False))
         self.constraints.append(
             constraints(np.exp(-self.TR[0] / (50)),

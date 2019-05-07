@@ -27,3 +27,4 @@ data/
 *.ini
 dist*
 *egg*
+mbpq.egg*

@@ -1,12 +1,3 @@
-
-  __kernel void make_complex(__global float2 *out,__global float *re, __global float* im)
-  {
-    size_t k = get_global_id(0);
-
-    out[k].s0 = re[k];
-    out[k].s1 = im[k];
-
-  }
  void AtomicAdd(volatile __global float *addr, float val) {
   union {
            unsigned int u32;
@@ -20,6 +11,15 @@
                                expected.u32, next.u32);
        } while( current.u32 != expected.u32 );
 }
+
+  __kernel void make_complex(__global float2 *out,__global float *re, __global float* im)
+  {
+    size_t k = get_global_id(0);
+
+    out[k].s0 = re[k];
+    out[k].s1 = im[k];
+
+  }
   __kernel void deapo_adj(__global float2 *out, __global float2 *in, __constant float *deapo, const int dim, const float scale, const float ogf)
   {
     size_t x = get_global_id(2);
@@ -219,6 +219,7 @@ __kernel void copy_SMS_adj(__global float2 *out, __global float2 *in, __global i
     }
 
   }
+
 __kernel void masking(__global float2 *ksp, __global float *mask)
   {
     size_t x = get_global_id(0);
@@ -234,3 +235,4 @@ __kernel void fftshift(__global float2* ksp, __global float *check)
 
     ksp[x+dimX*y+dimX*dimY*n] = ksp[x+dimX*y+dimX*dimY*n]*check[x]*check[y];
   }
+

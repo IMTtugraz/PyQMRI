@@ -1,4 +1,3 @@
-
  void AtomicAdd(volatile __global float *addr, float val) {
   union {
            unsigned int u32;
@@ -12,7 +11,6 @@
                                expected.u32, next.u32);
        } while( current.u32 != expected.u32 );
 }
-
   __kernel void make_complex(__global float2 *out,__global float *re, __global float* im)
   {
     size_t k = get_global_id(0);
@@ -223,6 +221,7 @@ __kernel void copy_SMS_adj(__global float2 *out, __global float2 *in, __global i
     }
 
   }
+
 __kernel void masking(__global float2 *ksp, __global float *mask)
   {
     size_t x = get_global_id(0);
