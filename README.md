@@ -1,5 +1,5 @@
 # MBPQ
-===================================
+
 * Requires [OpenCL](https://www.khronos.org/opencl/) >= 1.2
 * Requires [clfft](https://github.com/clMathLibraries/clFFT)
 * Requires Cython, pip >= 19, python >= 3.6
