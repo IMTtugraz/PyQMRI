@@ -26,7 +26,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
-from Models.Model import BaseModel, constraints, DTYPE, DTYPE_real
+from mbpq._models.template import BaseModel, constraints, DTYPE, DTYPE_real
 matplotlib.use("Qt5agg")
 plt.ion()
 unknowns_TGV = 6
@@ -809,7 +809,7 @@ class Model(BaseModel):
         #    mask = np.ones_like(self.tau)
         #    mask[self.tau<1e-4] = 0
 
-        test_M0 = 0.2 * np.ones((self.NSlice, self.dimY,
+        test_M0 = 0.2*1.3085805 * np.ones((self.NSlice, self.dimY,
                                  self.dimX), dtype=DTYPE) * self.mask
 
 #    gain = np.sqrt(np.sum(np.conj(Coils)*Coils,0))

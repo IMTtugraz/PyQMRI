@@ -34,6 +34,15 @@ Install clFFT library:
     ```
     should take care of the other dependencies using PyPI and install the package.
     
+In case OCL > 1.2 is present, e.g. by some CPU driver, and NVidia GPUs needs to be used the flag
+PRETENED_OCL 1.2 has to be passed to PyOpenCL during the build process. This 
+can be done by:
+```
+./configure.py --cl-pretend-version=1.2
+rm -Rf build
+python setup.py install
+```
+    
 ## Sample Data
 
 In-vivo datasets used in the original publication (doi: [10.1002/mrm.27502](http://onlinelibrary.wiley.com/doi/10.1002/mrm.27502/full)) can be found at 
