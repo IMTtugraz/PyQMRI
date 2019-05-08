@@ -425,11 +425,10 @@ class ModelReco:
                 np.transpose(self.grad_x, [2, 0, 1, 3, 4]), requirements='C')
 
             self.irgn_par["delta_max"] = self.delta_max / \
-                                         (1e3*np.sqrt(self.NSlice)) *\
-                                         np.linalg.norm(result)
+                                         (1e3) * np.linalg.norm(result)
             self.irgn_par["delta"] = np.minimum(
                 self.delta /
-                1e3*np.linalg.norm(result)*self.irgn_par["delta_inc"]**i,
+                (1e3)*np.linalg.norm(result)*self.irgn_par["delta_inc"]**i,
                 self.irgn_par["delta_max"])
 
             result = self.irgn_solve_3D(result, iters, self.data, i, TV)
