@@ -126,3 +126,15 @@ Currently runs only on GPUs due to having only basic CPU support for the clfft.
 Citation:
 ----------
 Please cite "Oliver Maier, Matthias Schloegl, Kristian Bredies, and Rudolf Stollberger; 3D Model-Based Parameter Quantification on Resource Constrained Hardware using Double-Buffering. Proceedings of the 27th meeting of the ISMRM, 2019, Montreal, Canada" if using the software or parts of it, specifically the PyOpenCL based NUFFT, in your work.
+
+Older Releases:
+---------
+You can find the code for 
+
+Maier O, Schoormans J,Schloegl M, Strijkers GJ, Lesch A, Benkert T, Block T, Coolen BF, Bredies K, Stollberger R <br>
+  __Rapid T1 quantification from high
+resolution 3D data with model‐based reconstruction.__<br>
+  _Magn Reson Med._, 2018; 00:1–16<br>
+  doi: [10.1002/mrm.27502](http://onlinelibrary.wiley.com/doi/10.1002/mrm.27502/full)
+
+at [v1.0](https://github.com/IMTtugraz/MBPQ/tree/v1.0)
