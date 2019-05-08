@@ -185,7 +185,7 @@ class Model(BaseModel):
                 S[i, j, ...] = M0 * M0_sc * \
                     ((Etau * cos_phi)**(n - 1) * Q_F + F) * sin_phi
 
-        return np.array(np.mean(S, axis=1, dtype=np.complex256), dtype=DTYPE)
+        return np.array(np.mean(S, axis=1, dtype=DTYPE), dtype=DTYPE)
 
     def _execute_gradient_2D(self, x, islice):
         grad = np.zeros(
@@ -271,7 +271,7 @@ class Model(BaseModel):
             np.mean(
                 grad,
                 axis=2,
-                dtype=np.complex256),
+                dtype=DTYPE),
             dtype=DTYPE)
 
     def _execute_forward_3D(self, x):
@@ -313,7 +313,7 @@ class Model(BaseModel):
                 S[i, j, ...] = numexpeval_S(
                     M0, M0_sc, sin_phi, cos_phi, n, Q_F, F, Etau)
 
-        return np.array(np.mean(S, axis=1, dtype=np.complex256), dtype=DTYPE)
+        return np.array(np.mean(S, axis=1, dtype=DTYPE), dtype=DTYPE)
 
     def _execute_gradient_3D(self, x):
         grad = np.zeros(
