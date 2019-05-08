@@ -50,6 +50,12 @@ class Model(BaseModel):
             np.exp(-self.scale / 10) / self.uk_scale[1],
             np.exp(-self.scale / 5500) / self.uk_scale[1], True))
 
+    def rescale(self, x):
+        tmp_x = np.copy(x)
+        tmp_x[0] *= self.uk_scale[0]
+        tmp_x[1] = -self.scale / np.log(tmp_x[1] * self.uk_scale[1])
+        return tmp_x
+
     def plot_unknowns(self, x, dim_2D=False):
         M0 = np.abs(x[0, ...] * self.uk_scale[0])
         T1 = np.abs(-self.scale / np.log(x[1, ...] * self.uk_scale[1]))
