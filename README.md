@@ -76,10 +76,17 @@ The toolbox expects a .h5 file with a certain structure.
     
     The specific structure is determined according to the Model file.
     
-  If predetermined coil sensitivity maps are available they can be passed as complex dataset, which can saved bedirectly using Python. Matlab users would need to write/use low level hdf5 functions to save a complex array to .h5 file. Coil sensitivities are assumed to have the same number of slices as the original volume and are intesity normalized. The corresponding .h5 entry is named "Coils". If no "Coils" parameter is found or the number of "Coil" slices is less than the number of reconstructed slices, the coil sensitivites are determined using the [NLINV](https://doi.org/10.1002/mrm.21691) algorithm and saved into the file. 
+  If predetermined coil sensitivity maps are available they can be passed as complex dataset, which can saved bedirectly using Python. Matlab users would need to write/use low level hdf5 functions to save a complex array to .h5 file. Coil sensitivities are assumed to have the same number of slices as the original volume and are intesity normalized. The corresponding .h5 entry is named "Coils". If no "Coils" parameter is found or the number of "Coil" slices is less than the number of reconstructed slices, the coil sensitivities are determined using the [NLINV](https://doi.org/10.1002/mrm.21691) algorithm and saved into the file. 
 
 Running the reconstruction:
 -------------------------    
+First, start an ipcluster for speeding up the coil sensitivity estimation:
+```
+ipcluster start -n N
+```
+where N amounts to the number of processe to be used. If -n N is ommited, 
+as many processes as number of CPU cores available are started.
+
 Reconstruction of the parameter maps can be started either using the terminal by typing:
 ```
 mbpq
