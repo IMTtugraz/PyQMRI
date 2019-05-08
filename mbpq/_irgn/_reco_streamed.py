@@ -496,11 +496,7 @@ class ModelReco:
             x = np.require(
                 np.transpose(x.get(), [1, 0, 2, 3]), requirements='C')
             self.FT(b,
-                    np.require(
-                        np.transpose(
-                            self.model.execute_forward(x), [1, 0, 2, 3]),
-                        requirements='C')
-                    [:, :, None, ...]*self.C[:, None, ...])
+                    self.step_val[:, :, None, ...]*self.C[:, None, ...])
             grad = grad.get()
             self.fval = (
                 self.irgn_par["lambd"]/2*np.linalg.norm(data - b)**2 +
@@ -521,11 +517,7 @@ class ModelReco:
             x = np.require(
                 np.transpose(x.get(), [1, 0, 2, 3]), requirements='C')
             self.FT(b,
-                    np.require(
-                        np.transpose(
-                            self.model.execute_forward(x), [1, 0, 2, 3]),
-                        requirements='C')
-                    [:, :, None, ...]*self.C[:, None, ...])
+                    self.step_val[:, :, None, ...]*self.C[:, None, ...])
             grad = grad.get()
             self.fval = (
                 self.irgn_par["lambd"]/2*np.linalg.norm(data - b)**2 +

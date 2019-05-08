@@ -492,7 +492,7 @@ class ModelReco:
             x = x.get()
             self.FT(b, clarray.to_device(
                 self.queue,
-                (self.model.execute_forward(x)[:, None, ...] *
+                (self.step_val[:, None, ...] *
                  self.C))).wait()
             grad = grad.get()
             self.fval = (self.irgn_par["lambd"] / 2 *
@@ -524,7 +524,7 @@ class ModelReco:
                 b,
                 clarray.to_device(
                     self.queue,
-                    self.model.execute_forward(x)[:, None, ...] *
+                    self.step_val[:, None, ...] *
                     self.C)).wait()
             self.fval = (self.irgn_par["lambd"] / 2 *
                          np.linalg.norm(data - b.get())**2 +
