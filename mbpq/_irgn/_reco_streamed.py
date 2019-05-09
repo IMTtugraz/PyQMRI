@@ -496,11 +496,7 @@ class ModelReco:
             x = np.require(
                 np.transpose(x.get(), [1, 0, 2, 3]), requirements='C')
             self.FT(b,
-                    np.require(
-                        np.transpose(
-                            self.model.execute_forward(x), [1, 0, 2, 3]),
-                        requirements='C')
-                    [:, :, None, ...]*self.C[:, None, ...])
+                    self.step_val[:, :, None, ...]*self.C[:, None, ...])
             grad = grad.get()
             self.fval = (
                 self.irgn_par["lambd"]/2*np.linalg.norm(data - b)**2 +
@@ -521,11 +517,7 @@ class ModelReco:
             x = np.require(
                 np.transpose(x.get(), [1, 0, 2, 3]), requirements='C')
             self.FT(b,
-                    np.require(
-                        np.transpose(
-                            self.model.execute_forward(x), [1, 0, 2, 3]),
-                        requirements='C')
-                    [:, :, None, ...]*self.C[:, None, ...])
+                    self.step_val[:, :, None, ...]*self.C[:, None, ...])
             grad = grad.get()
             self.fval = (
                 self.irgn_par["lambd"]/2*np.linalg.norm(data - b)**2 +
@@ -1146,6 +1138,9 @@ class ModelReco:
                        int(self.NSlice/(2*self.par_slices*self.num_dev) +
                            (2*self.num_dev-1))):
             for i in range(self.num_dev):
+                self.queue[4*(self.num_dev-1)+3].finish()
+                if i > 1:
+                    self.queue[4*(i-1)+2].finish()
                 idx_start = i*self.par_slices+(
                     2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
                 idx_stop = (i+1)*self.par_slices+(
@@ -1172,6 +1167,9 @@ class ModelReco:
                 cl_out[2*i].add_event(
                     self.NUFFT[2*i].fwd_NUFFT(cl_out[2*i], cl_data[i]))
             for i in range(self.num_dev):
+                self.queue[4*(self.num_dev-1)+2].finish()
+                if i > 1:
+                    self.queue[4*(i-1)+3].finish()
                 idx_start = i*self.par_slices+(
                     2*self.num_dev*(j-2*self.num_dev)+self.num_dev) *\
                     self.par_slices
@@ -1209,6 +1207,9 @@ class ModelReco:
         else:
             j += 1
         for i in range(self.num_dev):
+            self.queue[4*(self.num_dev-1)+3].finish()
+            if i > 1:
+                self.queue[4*(i-1)+2].finish()
             idx_start = i*self.par_slices+(
                 2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
             idx_stop = (i+1)*self.par_slices+(
@@ -1219,6 +1220,9 @@ class ModelReco:
                     cl_out[2*i].data, wait_for=cl_out[2*i].events,
                     is_blocking=False))
         for i in range(self.num_dev):
+            self.queue[4*(self.num_dev-1)+2].finish()
+            if i > 1:
+                self.queue[4*(i-1)+3].finish()
             idx_start = i*self.par_slices+(
                 2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
             idx_stop = (i+1)*self.par_slices+(
@@ -1302,6 +1306,9 @@ class ModelReco:
                        int(self.NSlice/(2*self.par_slices*self.num_dev) +
                            (2*self.num_dev-1))):
             for i in range(self.num_dev):
+                self.queue[4*(self.num_dev-1)+3].finish()
+                if i > 1:
+                    self.queue[4*(i-1)+2].finish()
                 idx_start = i*self.par_slices+(
                     2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
                 idx_stop = (i+1)*self.par_slices+(
@@ -1328,6 +1335,9 @@ class ModelReco:
                 cl_out[2*i].add_event(
                     self.operator_forward(cl_out[2*i], cl_data[i], i, 0))
             for i in range(self.num_dev):
+                self.queue[4*(self.num_dev-1)+2].finish()
+                if i > 1:
+                    self.queue[4*(i-1)+3].finish()
                 idx_start = i*self.par_slices+(
                     2*self.num_dev*(j-2*self.num_dev)+self.num_dev) *\
                     self.par_slices
@@ -1367,6 +1377,9 @@ class ModelReco:
         else:
             j += 1
         for i in range(self.num_dev):
+            self.queue[4*(self.num_dev-1)+3].finish()
+            if i > 1:
+                self.queue[4*(i-1)+2].finish()
             idx_start = i*self.par_slices+(
                 2*self.num_dev*(j-2*self.num_dev)*self.par_slices)
             idx_stop = (i+1)*self.par_slices+(
@@ -1377,6 +1390,9 @@ class ModelReco:
                     cl_out[2*i].data, wait_for=cl_out[2*i].events,
                     is_blocking=False))
         for i in range(self.num_dev):
+            self.queue[4*(self.num_dev-1)+2].finish()
+            if i > 1:
+                self.queue[4*(i-1)+3].finish()
             idx_start = i*self.par_slices+(
                 2*self.num_dev*(j-2*self.num_dev)+self.num_dev)*self.par_slices
             idx_stop = (i+1)*self.par_slices+(

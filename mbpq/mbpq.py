@@ -88,6 +88,7 @@ def start_recon(args):
     fname = name.split(os.sep)[-1]
 
     par["file"] = h5py.File(file)
+#    del par["file"]["Coils"]
 ###############################################################################
 # Read Data ###################################################################
 ###############################################################################
@@ -333,6 +334,7 @@ def start_recon(args):
                                (np.conj(par["C"])), axis=1),
                         requirements='C')
     del FFT, nFTH
+
 ###############################################################################
 # Scale data norm  ############################################################
 ###############################################################################
@@ -387,7 +389,7 @@ def start_recon(args):
 ###############################################################################
 # ratio of z direction to x,y, important for finite differences ###############
 ###############################################################################
-    opt.dz = 1
+    opt.dz = args.dz
 ###############################################################################
 # Start Reco ##################################################################
 ###############################################################################
@@ -471,7 +473,7 @@ def start_recon(args):
 
 def main(recon_type='3D', reg_type='TGV', slices=1, trafo=1, streamed=0,
          par_slices=1, data='', model='VFA', config='default', imagespace=0,
-         OCL_GPU=1, sms=0, devices=0):
+         OCL_GPU=1, sms=0, devices=0, dz=1):
     """
     Start a 3D model based reconstruction. Data can also be selected at
     start up. \n\n
@@ -493,6 +495,8 @@ def main(recon_type='3D', reg_type='TGV', slices=1, trafo=1, streamed=0,
     OCL_GPU: 1 (Use GPU, default, CAVE: CPU FFT not working)\n
     sms: 1 use Simultaneous Multi Slice Recon (default 0)
     devices: 1 Device ID of device(s) to use for streaming\n
+    dz: Ratio of physical Z to X/Y dimension.
+    X/Y is assumed to be isotropic.\n
     """
     parser = argparse.ArgumentParser(description="T1 quantification from VFA "
                                                  "data. By default runs 3D "
@@ -546,6 +550,10 @@ def main(recon_type='3D', reg_type='TGV', slices=1, trafo=1, streamed=0,
       '--devices', default=devices, dest='devices', type=int,
       help="Device ID of device(s) to use for streaming. "
            "-1 selects all available devices", nargs='*')
+    parser.add_argument(
+      '--dz', default=dz, dest='dz', type=float,
+      help="Ratio of physical Z to X/Y dimension. "
+           "X/Y is assumed to be isotropic. Defaults to 1")
     args = parser.parse_args()
     start_recon(args)
 
@@ -603,5 +611,9 @@ if __name__ == '__main__':
       '--devices', default=0, dest='devices', type=int,
       help="Device ID of device(s) to use for streaming. "
            "-1 selects all available devices", nargs='*')
+    parser.add_argument(
+      '--dz', default=1, dest='dz', type=float,
+      help="Ratio of physical Z to X/Y dimension. "
+           "X/Y is assumed to be isotropic. Defaults to  1")
     args = parser.parse_args()
     start_recon(args)

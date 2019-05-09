@@ -374,6 +374,7 @@ class ModelReco:
              self.dimY, self.dimX),
             dtype=DTYPE)
         self.result[0, ...] = np.copy(self.model.guess)
+
         result = np.copy(self.model.guess)
 
         if TV == 1:
@@ -511,7 +512,7 @@ class ModelReco:
             x = x.get()
             self.FT(b, clarray.to_device(
                 self.queue,
-                (self.model.execute_forward(x)[:, None, ...] *
+                (self.step_val[:, None, ...] *
                  self.C))).wait()
             grad = grad.get()
             self.fval = (self.irgn_par["lambd"] / 2 *
@@ -543,7 +544,7 @@ class ModelReco:
                 b,
                 clarray.to_device(
                     self.queue,
-                    self.model.execute_forward(x)[:, None, ...] *
+                    self.step_val[:, None, ...] *
                     self.C)).wait()
             self.fval = (self.irgn_par["lambd"] / 2 *
                          np.linalg.norm(data - b.get())**2 +
@@ -573,7 +574,7 @@ class ModelReco:
             x = x.get()
             grad = grad.get()
             self.FT(b, clarray.to_device(
-                self.queue, (self.model.execute_forward(x)[:, None, ...] *
+                self.queue, (self.step_val[:, None, ...] *
                              self.C))).wait()
             self.fval = (self.irgn_par["lambd"] / 2 *
                          np.linalg.norm(data - b.get())**2 +
@@ -634,16 +635,8 @@ class ModelReco:
                 ([self.unknowns_TGV, self.NSlice, self.dimY, self.dimX, 8]),
                 dtype=DTYPE)
         else:
-            L = np.float32(0.5 * (18.0 + np.sqrt(33)))
-            self.tau = np.float32(1 / np.sqrt(L))
-            self.beta_line = 1
-            self.theta_line = np.float32(1.0)
-            self.v = np.zeros(
-                ([self.unknowns, self.NSlice, self.dimY, self.dimX, 4]),
-                dtype=DTYPE)
-            self.z2 = np.zeros(
-                ([self.unknowns, self.NSlice, self.dimY, self.dimX, 8]),
-                dtype=DTYPE)
+            print("Not implemented")
+            return
 
         for i in range(self.irgn_par["max_gn_it"]):
             start = time.time()
@@ -792,7 +785,7 @@ class ModelReco:
             grad = grad.get()
             self.fval = (
                 self.irgn_par["lambd"] / 2 *
-                np.linalg.norm(data - self.model.execute_forward(x))**2 +
+                np.linalg.norm(data - self.step_val)**2 +
                 self.irgn_par["gamma"] *
                 np.sum(np.abs(grad[:self.unknowns_TGV] - self.v)) +
                 self.irgn_par["gamma"] * (2) * np.sum(np.abs(sym_grad.get())) +
@@ -854,13 +847,14 @@ class ModelReco:
         gradx_xold = clarray.empty_like(z1)
         symgrad_v = clarray.empty_like(z2)
         symgrad_v_vold = clarray.empty_like(z2)
-
         Axold = clarray.empty_like(res)
         Ax = clarray.empty_like(res)
 
         Axold.add_event(self.operator_forward(x, Axold))
         Kyk1.add_event(self.operator_adjoint(r, Kyk1, z1))
         Kyk2.add_event(self.update_Kyk2(Kyk2, z2, z1))
+        gradx_xold.add_event(self.f_grad(gradx_xold, x))
+        symgrad_v_vold.add_event(self.sym_grad(symgrad_v_vold, v))
 
         gradx_xold.add_event(self.f_grad(gradx_xold, x))
         symgrad_v_vold.add_event(self.sym_grad(symgrad_v_vold, v))

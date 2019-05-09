@@ -50,6 +50,12 @@ class Model(BaseModel):
             np.exp(-self.scale / 10) / self.uk_scale[1],
             np.exp(-self.scale / 5500) / self.uk_scale[1], True))
 
+    def rescale(self, x):
+        tmp_x = np.copy(x)
+        tmp_x[0] *= self.uk_scale[0]
+        tmp_x[1] = -self.scale / np.log(tmp_x[1] * self.uk_scale[1])
+        return tmp_x
+
     def plot_unknowns(self, x, dim_2D=False):
         M0 = np.abs(x[0, ...] * self.uk_scale[0])
         T1 = np.abs(-self.scale / np.log(x[1, ...] * self.uk_scale[1]))
@@ -179,7 +185,7 @@ class Model(BaseModel):
                 S[i, j, ...] = M0 * M0_sc * \
                     ((Etau * cos_phi)**(n - 1) * Q_F + F) * sin_phi
 
-        return np.array(np.mean(S, axis=1, dtype=np.complex256), dtype=DTYPE)
+        return np.array(np.mean(S, axis=1, dtype=DTYPE), dtype=DTYPE)
 
     def _execute_gradient_2D(self, x, islice):
         grad = np.zeros(
@@ -265,7 +271,7 @@ class Model(BaseModel):
             np.mean(
                 grad,
                 axis=2,
-                dtype=np.complex256),
+                dtype=DTYPE),
             dtype=DTYPE)
 
     def _execute_forward_3D(self, x):
@@ -307,7 +313,7 @@ class Model(BaseModel):
                 S[i, j, ...] = numexpeval_S(
                     M0, M0_sc, sin_phi, cos_phi, n, Q_F, F, Etau)
 
-        return np.array(np.mean(S, axis=1, dtype=np.complex256), dtype=DTYPE)
+        return np.array(np.mean(S, axis=1, dtype=DTYPE), dtype=DTYPE)
 
     def _execute_gradient_3D(self, x):
         grad = np.zeros(
