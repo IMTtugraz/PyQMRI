@@ -6,7 +6,7 @@ Created on Tue May 30 11:42:42 2017
 @author: omaier
 """
 
-from Models.Model import BaseModel, constraints, DTYPE
+from mbpq._models.template import BaseModel, constraints, DTYPE
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
@@ -33,8 +33,8 @@ class Model(BaseModel):
                 self.TE[i, ...] = par["TE"][i] * np.ones((1, 1, 1))
 
         self.uk_scale = []
-        self.uk_scale.append(1 / np.max(np.abs(images)))
-        self.uk_scale.append(1)
+        for j in range(unknowns_TGV + unknowns_H1):
+            self.uk_scale.append(1)
 
         self.guess = self._set_init_scales()
 
@@ -48,6 +48,12 @@ class Model(BaseModel):
                 ((1 / 150) / self.uk_scale[1]),
                 ((1 / 5) / self.uk_scale[1]),
                 True))
+
+    def rescale(self, x):
+        tmp_x = np.copy(x)
+        tmp_x[0] *= self.uk_scale[0]
+        tmp_x[1] = 1/(tmp_x[1]*self.uk_scale[1])
+        return tmp_x
 
     def _execute_forward_2D(self, x, islice):
         R2 = x[1, ...] * self.uk_scale[1]
@@ -189,84 +195,78 @@ class Model(BaseModel):
 
     def _set_init_scales(self):
         #
-        test_T2 = 1 / np.reshape(np.linspace(5,
-                                             150,
-                                             self.dimX * self.dimY * self.NSlice),
-                                 (self.NSlice,
-                                  self.dimX,
-                                  self.dimY))
 #    print(np.median(np.abs(images)))
         # np.max(np.abs(images))#np.mean(np.abs(images),0)#1*np.sqrt((dimX*np.pi/2)/par['Nproj'])
-        test_M0 = 1
+        test_M0 = 1 * np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
 #    print(test_M0)
-        test_T2 = 1 / self.uk_scale[1] * test_T2 * \
+        test_T2 = 1 / self.uk_scale[1] * 1/50 * \
             np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+        x = np.array([test_M0, test_T2], dtype=DTYPE)
+##
+#        G_x = self._execute_forward_3D(
+#            np.array(
+#                [
+#                    test_M0 /
+#                    self.uk_scale[0] *
+#                    np.ones(
+#                        (self.NSlice,
+#                         self.dimY,
+#                         self.dimX),
+#                        dtype=DTYPE),
+#                    test_T2],
+#                dtype=DTYPE))
+#        self.uk_scale[0] *= 1 / np.max(np.abs(G_x))
+##
+##    test_M0*=self.uk_scale[0]
+##    self.uk_scale[0] = 2
 #
+#        DG_x = self._execute_gradient_3D(
+#            np.array(
+#                [
+#                    test_M0 /
+#                    self.uk_scale[0] *
+#                    np.ones(
+#                        (self.NSlice,
+#                         self.dimY,
+#                         self.dimX),
+#                        dtype=DTYPE),
+#                    test_T2],
+#                dtype=DTYPE))
+#        self.uk_scale[1] = self.uk_scale[1] * np.linalg.norm(
+#            np.abs(DG_x[0, ...])) / np.linalg.norm(np.abs(DG_x[1, ...]))
 #
-        G_x = self._execute_forward_3D(
-            np.array(
-                [
-                    test_M0 /
-                    self.uk_scale[0] *
-                    np.ones(
-                        (self.NSlice,
-                         self.dimY,
-                         self.dimX),
-                        dtype=DTYPE),
-                    test_T2],
-                dtype=DTYPE))
-        self.uk_scale[0] *= 1 / np.max(np.abs(G_x))
-#
-#    test_M0*=self.uk_scale[0]
-#    self.uk_scale[0] = 2
-
-        DG_x = self._execute_gradient_3D(
-            np.array(
-                [
-                    test_M0 /
-                    self.uk_scale[0] *
-                    np.ones(
-                        (self.NSlice,
-                         self.dimY,
-                         self.dimX),
-                        dtype=DTYPE),
-                    test_T2],
-                dtype=DTYPE))
-        self.uk_scale[1] = self.uk_scale[1] * np.linalg.norm(
-            np.abs(DG_x[0, ...])) / np.linalg.norm(np.abs(DG_x[1, ...]))
-
-        DG_x = self._execute_gradient_3D(
-            np.array(
-                [
-                    test_M0 /
-                    self.uk_scale[0] *
-                    np.ones(
-                        (self.NSlice,
-                         self.dimY,
-                         self.dimX),
-                        dtype=DTYPE),
-                    test_T2 /
-                    self.uk_scale[1]],
-                dtype=DTYPE))
-        print('Grad Scaling init', np.linalg.norm(
-            np.abs(DG_x[0, ...])) / np.linalg.norm(np.abs(DG_x[1, ...])))
-        print('T2 scale: ', self.uk_scale[1], 'M0 scale: ', self.uk_scale[0])
-
-        return np.array(
-            [
-                0.1 /
-                self.uk_scale[0] *
-                np.ones(
-                    (self.NSlice,
-                     self.dimY,
-                     self.dimX),
-                    dtype=DTYPE),
-                ((1 /
-                  50) /
-                 self.uk_scale[1] *
-                 np.ones(
-                    (self.NSlice,
-                     self.dimY,
-                     self.dimX),
-                    dtype=DTYPE))],
-            dtype=DTYPE)
+#        DG_x = self._execute_gradient_3D(
+#            np.array(
+#                [
+#                    test_M0 /
+#                    self.uk_scale[0] *
+#                    np.ones(
+#                        (self.NSlice,
+#                         self.dimY,
+#                         self.dimX),
+#                        dtype=DTYPE),
+#                    test_T2 /
+#                    self.uk_scale[1]],
+#                dtype=DTYPE))
+#        print('Grad Scaling init', np.linalg.norm(
+#            np.abs(DG_x[0, ...])) / np.linalg.norm(np.abs(DG_x[1, ...])))
+#        print('T2 scale: ', self.uk_scale[1], 'M0 scale: ', self.uk_scale[0])
+        return x
+#        return np.array(
+#            [
+#                0.1 /
+#                self.uk_scale[0] *
+#                np.ones(
+#                    (self.NSlice,
+#                     self.dimY,
+#                     self.dimX),
+#                    dtype=DTYPE),
+#                ((1 /
+#                  50) /
+#                 self.uk_scale[1] *
+#                 np.ones(
+#                    (self.NSlice,
+#                     self.dimY,
+#                     self.dimX),
+#                    dtype=DTYPE))],
+#            dtype=DTYPE)

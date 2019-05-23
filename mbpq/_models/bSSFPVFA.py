@@ -6,7 +6,7 @@ Created on Tue May 30 11:42:42 2017
 @author: omaier
 """
 
-from Models.Model import BaseModel, constraints, DTYPE
+from mbpq._models.template import BaseModel, constraints, DTYPE
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
@@ -54,7 +54,7 @@ class Model(BaseModel):
         self.uk_scale = []
         for i in range(unknowns_TGV + unknowns_H1):
             self.uk_scale.append(1)
-        self.uk_scale[0] = 1 / np.median(np.abs(images[:NScan_VFA]))
+#        self.uk_scale[0] = 1 / np.median(np.abs(images[:NScan_VFA]))
 
         self.guess = self._set_init_scales()
         self.constraints.append(
@@ -63,14 +63,14 @@ class Model(BaseModel):
                 1000 / self.uk_scale[0],
                 False))
         self.constraints.append(constraints(
-            np.exp(-self.TR / (10)) / self.uk_scale[1], np.exp(-self.TR / (5500)) / self.uk_scale[1], True))
+            np.exp(-self.TR / (1)) / self.uk_scale[1], np.exp(-self.TR / (5500)) / self.uk_scale[1], True))
         self.constraints.append(constraints(
-            np.exp(-self.TR / (10)) / self.uk_scale[2], np.exp(-self.TR / (2500)) / self.uk_scale[2], True))
+            np.exp(-self.TR / (1)) / self.uk_scale[2], np.exp(-self.TR / (2500)) / self.uk_scale[2], True))
         self.constraints.append(
             constraints(
                 0 / self.uk_scale[3],
-                1000 / self.uk_scale[3],
-                False))
+                1 / self.uk_scale[3],
+                True))
 
     def _execute_forward_2D(self, x, islice):
         print("2D Functions not implemented")
@@ -91,7 +91,7 @@ class Model(BaseModel):
         M02_sc = self.uk_scale[3]
         S1 = M0 * M0_sc * (-E1 * T1_sc + 1) * self.sin_phi_fl / \
             (-E1 * T1_sc * self.cos_phi_fl + 1)
-        S2 = M02 * M02_sc * (-E1 * T1_sc + 1) * self.sin_phi_bl / (-E1 * E2 * \
+        S2 = M0 * M0_sc / (M02 * M02_sc) * (-E1 * T1_sc + 1) * self.sin_phi_bl / (-E1 * E2 * \
                              T1_sc * T2_sc - (E1 * T1_sc - E2 * T2_sc) * self.cos_phi_bl + 1)
         S = (np.concatenate((S1, S2)))
         S[~np.isfinite(S)] = 1e-20
@@ -116,46 +116,22 @@ class Model(BaseModel):
         grad_M02_fl = np.zeros_like(
             M0 * M0_sc * (-E1 * T1_sc + 1) * self.sin_phi_fl / (-E1 * T1_sc * self.cos_phi_fl + 1))
 
-        grad_M0_bl = np.zeros_like(M0_sc * (-E1 * T1_sc + 1) * self.sin_phi_bl / \
+        grad_M0_bl = (M0_sc / (M02 * M02_sc) * (-E1 * T1_sc + 1) * self.sin_phi_bl / \
                                    (-E1 * E2 * T1_sc * T2_sc - (E1 * T1_sc - E2 * T2_sc) * self.cos_phi_bl + 1))
-        grad_T1_bl = (-M02 * M02_sc * T1_sc * self.sin_phi_bl / (-E1 * E2 * T1_sc * T2_sc - (E1 * T1_sc - E2 * T2_sc) * self.cos_phi_bl + 1) + M02 * M02_sc * (-E1 * T1_sc + 1)
+        grad_T1_bl = (-M0 * M0_sc / (M02 * M02_sc)  * T1_sc * self.sin_phi_bl / (-E1 * E2 * T1_sc * T2_sc - (E1 * T1_sc - E2 * T2_sc) * self.cos_phi_bl + 1) + M0 * M0_sc / (M02 * M02_sc)  * (-E1 * T1_sc + 1)
                       * (E2 * T1_sc * T2_sc + T1_sc * self.cos_phi_bl) * self.sin_phi_bl / (-E1 * E2 * T1_sc * T2_sc - (E1 * T1_sc - E2 * T2_sc) * self.cos_phi_bl + 1)**2)
-        grad_T2_bl = (M02 * M02_sc * (-E1 * T1_sc + 1) * (E1 * T1_sc * T2_sc - T2_sc * self.cos_phi_bl) *
+        grad_T2_bl = (M0 * M0_sc / (M02 * M02_sc)  * (-E1 * T1_sc + 1) * (E1 * T1_sc * T2_sc - T2_sc * self.cos_phi_bl) *
                       self.sin_phi_bl / (-E1 * E2 * T1_sc * T2_sc - (E1 * T1_sc - E2 * T2_sc) * self.cos_phi_bl + 1)**2)
 
-        grad_M02_bl = ((M02_sc * (-E1 * T1_sc + 1) * self.sin_phi_bl / (-E1 * \
-                       E2 * T1_sc * T2_sc - (E1 * T1_sc - E2 * T2_sc) * self.cos_phi_bl + 1)))
+        grad_M02_bl = - M02_sc * (M0 * M0_sc / (M02 * M02_sc)**2 * (-E1 * T1_sc + 1) * self.sin_phi_bl / (-E1 * E2 * \
+                             T1_sc * T2_sc - (E1 * T1_sc - E2 * T2_sc) * self.cos_phi_bl + 1))
 
         grad_M0 = np.concatenate((grad_M0_fl, grad_M0_bl))
         grad_T1 = np.concatenate((grad_T1_fl, grad_T1_bl))
         grad_T2 = np.concatenate((grad_T2_fl, grad_T2_bl))
-        grad_M02 = np.concatenate((grad_M02_fl, grad_M02_bl))
+        grad_M02 = np.concatenate((grad_M02_fl, np.mean(grad_M02_bl)*np.ones_like(grad_M02_bl)))
         grad = np.array([grad_M0, grad_T1, grad_T2, grad_M02], dtype=DTYPE)
         grad[~np.isfinite(grad)] = 1e-20
-        print(
-            'Grad Scaling E1',
-            np.linalg.norm(
-                np.abs(
-                    grad[0])) /
-            np.linalg.norm(
-                np.abs(
-                    grad[1])))
-        print(
-            'Grad Scaling E2',
-            np.linalg.norm(
-                np.abs(
-                    grad[0])) /
-            np.linalg.norm(
-                np.abs(
-                    grad[2])))
-        print(
-            'Grad Scaling k',
-            np.linalg.norm(
-                np.abs(
-                    grad[0])) /
-            np.linalg.norm(
-                np.abs(
-                    grad[3])))
         return grad
 
     def plot_unknowns(self, x, dim_2D=False):
@@ -338,16 +314,16 @@ class Model(BaseModel):
             self.uk_scale[3] * np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
 
         x = np.array([test_M0, test_T1, test_T2, test_M02], dtype=DTYPE)
-        G_x = self._execute_forward_3D(x)
-
-        self.uk_scale[0] *= 1 / np.median(np.abs(G_x))
-        x[0] /= self.uk_scale[0]
-
-        DG_x = self._execute_gradient_3D(x)
-
-        for i in range(unknowns_TGV + unknowns_H1 - 1):
-            self.uk_scale[i + 1] *= np.linalg.norm(
-                np.abs(DG_x[0, ...])) / np.linalg.norm(np.abs(DG_x[i + 1, ...]))
-            x[i + 1] /= self.uk_scale[i + 1]
+#        G_x = self._execute_forward_3D(x)
+#
+#        self.uk_scale[0] *= 1 / np.median(np.abs(G_x))
+#        x[0] /= self.uk_scale[0]
+#
+#        DG_x = self._execute_gradient_3D(x)
+#
+#        for i in range(unknowns_TGV + unknowns_H1 - 1):
+#            self.uk_scale[i + 1] *= np.linalg.norm(
+#                np.abs(DG_x[0, ...])) / np.linalg.norm(np.abs(DG_x[i + 1, ...]))
+#            x[i + 1] /= self.uk_scale[i + 1]
 
         return x
