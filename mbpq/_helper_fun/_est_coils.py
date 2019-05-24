@@ -374,9 +374,9 @@ def est_coils(data, par, file, args):
             par["C"].shape,
             dtype=par["C"].dtype,
             data=par["C"])
-        file.create_dataset(
-            "InScale",
-            par["InScale"].shape,
-            dtype=par["InScale"].dtype,
-            data=par["InScale"])
+#        file.create_dataset(
+#            "InScale",
+#            par["InScale"].shape,
+#            dtype=par["InScale"].dtype,
+#            data=par["InScale"])
         file.flush()

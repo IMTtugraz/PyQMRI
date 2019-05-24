@@ -338,16 +338,16 @@ def start_recon(args):
 ###############################################################################
 # Scale data norm  ############################################################
 ###############################################################################
-    if args.imagespace:
-        dscale = DTYPE_real(np.sqrt(2*1e3*NSlice) /
-                            (np.linalg.norm(images.flatten())))
-        par["dscale"] = dscale
-        images = images*dscale
-    else:
-        dscale = (DTYPE_real(np.sqrt(2*1e3*NSlice)) /
-                  (np.linalg.norm(data.flatten())))
-        par["dscale"] = dscale
-        data = data*dscale
+#    if args.imagespace:
+#        dscale = DTYPE_real(np.sqrt(2*1e3*NSlice) /
+#                            (np.linalg.norm(images.flatten())))
+#        par["dscale"] = dscale
+#        images = images*dscale
+#    else:
+#        dscale = (DTYPE_real(np.sqrt(2*1e3*NSlice)) /
+#                  (np.linalg.norm(data.flatten())))
+#        par["dscale"] = dscale
+#        data = data*dscale
 
     if args.trafo:
         center = int(N*0.1)
@@ -571,11 +571,11 @@ if __name__ == '__main__':
       help="Choose regularization type (default: TGV) "
            "options are: TGV, TV, all")
     parser.add_argument(
-      '--slices', default=1, dest='slices', type=int,
+      '--slices', default=-1, dest='slices', type=int,
       help="Number of reconstructed slices (default=40). "
            "Symmetrical around the center slice.")
     parser.add_argument(
-      '--trafo', default=1, dest='trafo', type=int,
+      '--trafo', default=0, dest='trafo', type=int,
       help='Choos between radial (1, default) and Cartesian (0) sampling. ')
     parser.add_argument(
       '--streamed', default=0, dest='streamed', type=int,
@@ -589,7 +589,7 @@ if __name__ == '__main__':
       help="Full path to input data. "
            "If not provided, a file dialog will open.")
     parser.add_argument(
-      '--model', default='VFA', dest='sig_model',
+      '--model', default='ASL', dest='sig_model',
       help='Name of the signal model to use. Defaults to VFA. \
  Please put your signal model file in the Model subfolder.')
     parser.add_argument(
@@ -597,7 +597,7 @@ if __name__ == '__main__':
       help='Name of config file to use (assumed to be in the same folder). \
  If not specified, use default parameters.')
     parser.add_argument(
-      '--imagespace', default=0, dest='imagespace', type=int,
+      '--imagespace', default=1, dest='imagespace', type=int,
       help="Select if Reco is performed on images (1) or on kspace (0) data. "
            "Defaults to 0")
     parser.add_argument(
