@@ -144,4 +144,4 @@ resolution 3D data with model‐based reconstruction.__<br>
   _Magn Reson Med._, 2018; 00:1–16<br>
   doi: [10.1002/mrm.27502](http://onlinelibrary.wiley.com/doi/10.1002/mrm.27502/full)
 
-at [v1.0](https://github.com/IMTtugraz/MBPQ/tree/v1.0)
+at [v0.1.0](https://github.com/IMTtugraz/MBPQ/tree/v.0.1.0)
