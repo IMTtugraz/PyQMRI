@@ -46,7 +46,6 @@ class PyOpenCLFFT(object):
                queue,
                par,
                kwidth=5,
-               overgridfactor=2,
                fft_dim=(
                    1,
                    2),
@@ -56,6 +55,7 @@ class PyOpenCLFFT(object):
                radial=False,
                SMS=False,
                streamed=False):
+
         if not streamed:
             if radial is True and SMS is False:
                 obj = PyOpenCLRadialNUFFT(
@@ -63,7 +63,6 @@ class PyOpenCLFFT(object):
                     queue,
                     par,
                     kwidth=5,
-                    overgridfactor=2,
                     fft_dim=(
                         1,
                         2),
@@ -172,7 +171,6 @@ class PyOpenCLRadialNUFFT(PyOpenCLFFT):
             queue,
             par,
             kwidth=5,
-            overgridfactor=2,
             fft_dim=(
                 1,
                 2),
@@ -182,17 +180,16 @@ class PyOpenCLRadialNUFFT(PyOpenCLFFT):
         super().__init__(ctx, queue, DTYPE, DTYPE_real)
         self.traj = par["traj"]
         self.dcf = par["dcf"]
-        self.overgridfactor = overgridfactor
+        self.ogf = par["N"]/par["dimX"]
         self.fft_shape = (
             par["NScan"] *
             par["NC"] *
             par["NSlice"],
-            par["dimY"]*self.overgridfactor,
-            par["dimX"]*self.overgridfactor)
+            int(par["dimY"]*self.ogf),
+            int(par["dimX"]*self.ogf))
         (self.kerneltable, self.kerneltable_FT, self.u) = calckbkernel(
-            kwidth, overgridfactor, par["N"], klength)
+            kwidth, self.ogf, par["N"], klength)
         self.kernelpoints = self.kerneltable.size
-        self.overgridfactor = overgridfactor
         self.fft_scale = DTYPE_real(
             np.sqrt(np.prod(self.fft_shape[fft_dim[0]:])))
         self.deapo = 1 / self.kerneltable_FT.astype(DTYPE_real)
@@ -302,7 +299,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLFFT):
                   self.deapo_cl,
                   np.int32(self.tmp_fft_array.shape[-1]),
                   self.DTYPE_real(self.fft_scale),
-                  self.DTYPE_real(self.overgridfactor),
+                  self.DTYPE_real(self.ogf),
                   wait_for=(wait_for + sg.events + s.events +
                             self.tmp_fft_array.events))
 
@@ -331,7 +328,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLFFT):
                 self.deapo_cl,
                 np.int32(self.tmp_fft_array.shape[-1]),
                 self.DTYPE_real(1 / self.fft_scale),
-                self.DTYPE_real(self.overgridfactor),
+                self.DTYPE_real(self.ogf),
                 wait_for=wait_for + sg.events + self.tmp_fft_array.events))
         # FFT
         self.tmp_fft_array.add_event(
@@ -605,7 +602,6 @@ class PyOpenCLRadialNUFFTStreamed:
             queue,
             par,
             kwidth=5,
-            overgridfactor=2,
             fft_dim=(
                 1,
                 2),
@@ -617,15 +613,17 @@ class PyOpenCLRadialNUFFTStreamed:
         self.NScan = par["NScan"]
         self.traj = par["traj"]
         self.dcf = par["dcf"]
-
+        self.ogf = par["N"]/par["dimX"]
         self.fft_shape = (par["NScan"] *
                           par["NC"] *
                           (par["par_slices"] +
-                           par["overlap"]), par["N"], par["N"])
+                           par["overlap"]),
+                          int(par["dimY"]*self.ogf),
+                          int(par["dimX"]*self.ogf))
         (self.kerneltable, self.kerneltable_FT, self.u) = calckbkernel(
-            kwidth, overgridfactor, par["N"], klength)
+            kwidth, self.ogf, par["N"], klength)
         self.kernelpoints = self.kerneltable.size
-        self.overgridfactor = overgridfactor
+
         self.fft_scale = DTYPE_real(self.fft_shape[-1])
         self.deapo = 1 / self.kerneltable_FT.astype(DTYPE_real)
         self.kwidth = kwidth / 2
@@ -735,7 +733,7 @@ class PyOpenCLRadialNUFFTStreamed:
                                   self.deapo_cl,
                                   np.int32(self.tmp_fft_array.shape[-1]),
                                   self.DTYPE_real(self.fft_scale),
-                                  self.DTYPE_real(self.overgridfactor),
+                                  self.DTYPE_real(self.ogf),
                                   wait_for=(wait_for + sg.events + s.events +
                                             self.tmp_fft_array.events))
 
@@ -762,7 +760,7 @@ class PyOpenCLRadialNUFFTStreamed:
                 self.deapo_cl,
                 np.int32(self.tmp_fft_array.shape[-1]),
                 self.DTYPE_real(1 / self.fft_scale),
-                self.DTYPE_real(self.overgridfactor),
+                self.DTYPE_real(self.ogf),
                 wait_for=wait_for + sg.events + self.tmp_fft_array.events))
         # FFT
         self.tmp_fft_array.add_event(

@@ -79,11 +79,13 @@ class Model(BaseModel):
                              (1/self.T1[ind]+f[ind]/self.lambd[ind])))
             ind = self.t[j] >= del_t + self.tau[j]
             if np.any(ind):
-                S[j, ind] = 2*self.alpha[ind]*self.M0[ind]/self.lambd[ind]*f[ind]/(1/self.T1[ind]+f[ind]/self.lambd[ind]) * \
+                S[j, ind] = 2*self.alpha[ind]*self.M0[ind]/self.lambd[ind] *\
+                            f[ind]/(1/self.T1[ind]+f[ind]/self.lambd[ind]) * \
                             np.exp(-(del_t[ind])/self.T1b[ind]) * \
-                            np.exp(-(self.t[j]-del_t[ind]-self.tau[j,ind]) *
-                                (1/self.T1[ind]+f[ind]/self.lambd[ind])) * \
-                            (1-np.exp(-self.tau[j,ind]*(1/self.T1[ind]+f[ind]/self.lambd[ind])))
+                            np.exp(-(self.t[j]-del_t[ind]-self.tau[j, ind]) *
+                                   (1/self.T1[ind]+f[ind]/self.lambd[ind])) * \
+                            (1-np.exp(-self.tau[j, ind] *
+                                      (1/self.T1[ind]+f[ind]/self.lambd[ind])))
         S[~np.isfinite(S)] = 1e-20
         S = np.array(S, dtype=DTYPE)
         return S
@@ -103,7 +105,7 @@ class Model(BaseModel):
             T1 = self.T1[ind]
             T1b = self.T1b[ind]
             lambd = self.lambd[ind]
-            tau = self.tau[j,ind]
+            tau = self.tau[j, ind]
             alpha = self.alpha[ind]
             f = x[0, ind]
             del_t = x[1, ind]
@@ -183,19 +185,7 @@ class Model(BaseModel):
         return grad
 
     def plot_unknowns(self, x, dim_2D=False):
-#        ipdb.set_trace()
         images = self._execute_forward_3D(x)
-#        images = np.transpose(images, [0, 2, 3, 1])
-#        print(np.max(np.abs(images)))
-#        print(np.max(np.abs(self.images)))
-#        print(np.max(np.abs(images))/np.max(np.abs(self.images)))
-#        print(self.dscale)
-#        images /= np.max(np.abs(images))/np.max(np.abs(self.images))
-#        f = np.transpose(
-#            np.abs(x[0, ...] * self.uk_scale[0]/self.dscale),
-#            [1, 2, 0])
-#        del_t = np.transpose(np.abs(x[1, ...] * self.uk_scale[1]),
-#                             [1, 2, 0])
         f = np.abs(x[0, ...] * self.uk_scale[0]/self.dscale)
         del_t = np.abs(x[1, ...] * self.uk_scale[1])
         f_min = f.min()

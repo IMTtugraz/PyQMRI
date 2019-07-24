@@ -26,7 +26,7 @@ def prime_factors(n):
     return factors
 
 
-def NUFFT(par, trafo=1, SMS=0):
+def NUFFT(par, trafo=True, SMS=False):
     NC = par["NC"]
     NSlice = par["NSlice"]
     par["NC"] = 1

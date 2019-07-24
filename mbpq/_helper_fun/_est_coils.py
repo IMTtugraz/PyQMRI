@@ -27,12 +27,12 @@ import pyopencl.array as clarray
 from mbpq._helper_fun import _nlinvns as nlinvns
 from mbpq._helper_fun import _goldcomp as goldcomp
 from mbpq._helper_fun import _utils as utils
-
 # % Estimates sensitivities and complex image.
 # %(see Martin Uecker: Image reconstruction by regularized nonlinear
 # %inversion joint estimation of coil sensitivities and image content)
 DTYPE = np.complex64
 DTYPE_real = np.float32
+import ipdb
 
 
 def est_coils(data, par, file, args):
@@ -72,7 +72,8 @@ def est_coils(data, par, file, args):
                 par_coils["NSlice"] = 1
                 par_coils["ctx"] = par["ctx"]
                 par_coils["queue"] = par["queue"]
-
+                par_coils["dimX"] = par["dimX"]
+                par_coils["dimY"] = par["dimY"]
                 FFT = utils.NUFFT(par_coils)
 
                 result = []
@@ -102,7 +103,7 @@ def est_coils(data, par, file, args):
                     for j in range(par["NC"]):
                         tmp_combinedData = clarray.to_device(
                             FFT.queue, combinedData[None, :, j, ...])
-                        FFT.adj_NUFFT(tmp_coilData, tmp_combinedData)
+                        FFT.FFTH(tmp_coilData, tmp_combinedData)
                         coilData[j, ...] = np.squeeze(tmp_coilData.get())
 
                     combinedData = np.require(
@@ -238,6 +239,8 @@ def est_coils(data, par, file, args):
             par_coils = {}
             par_coils["traj"] = traj_coil
             par_coils["dcf"] = dcf_coil
+            par_coils["dimX"] = par["dimX"]
+            par_coils["dimY"] = par["dimY"]
             par_coils["N"] = par["N"]
             par_coils["NScan"] = 1
             par_coils["NC"] = 1
@@ -272,7 +275,7 @@ def est_coils(data, par, file, args):
                 for j in range(par["NC"]):
                     tmp_combinedData = clarray.to_device(
                         FFT.queue, combinedData[None, :, j, ...])
-                    FFT.adj_NUFFT(tmp_coilData, tmp_combinedData)
+                    FFT.FFTH(tmp_coilData, tmp_combinedData)
                     coilData[j, ...] = np.squeeze(tmp_coilData.get())
 
                 combinedData = np.require(

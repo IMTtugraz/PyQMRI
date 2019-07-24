@@ -27,7 +27,6 @@ import matplotlib.pyplot as plt
 import importlib
 
 import pyopencl as cl
-
 import argparse
 
 from mbpq._helper_fun import _goldcomp as goldcomp
@@ -38,11 +37,11 @@ DTYPE = np.complex64
 DTYPE_real = np.float32
 
 
-def _setupOCL(args, par):
+def _setupOCL(myargs, par):
     platforms = cl.get_platforms()
     par["GPU"] = False
     par["Platform_Indx"] = 0
-    if args.use_GPU:
+    if myargs.use_GPU:
         for j in range(len(platforms)):
             if platforms[j].get_devices(device_type=cl.device_type.GPU):
                 print("GPU OpenCL platform <%s> found "
@@ -54,7 +53,7 @@ def _setupOCL(args, par):
                 par["GPU"] = True
                 par["Platform_Indx"] = j
     if not par["GPU"]:
-        if args.use_GPU:
+        if myargs.use_GPU:
             print("No GPU OpenCL platform found. Falling back to CPU.")
         for j in range(len(platforms)):
             if platforms[j].get_devices(device_type=cl.device_type.CPU):
@@ -69,19 +68,19 @@ def _setupOCL(args, par):
 
     par["ctx"] = []
     par["queue"] = []
-    if type(args.devices) == int:
-        args.devices = [args.devices]
-    if args.streamed:
-        if len(args.devices) == 1 and args.devices[0] == -1:
+    if type(myargs.devices) == int:
+        myargs.devices = [myargs.devices]
+    if myargs.streamed:
+        if len(myargs.devices) == 1 and myargs.devices[0] == -1:
             num_dev = []
             for j in range(len(platforms[par["Platform_Indx"]].get_devices())):
                 num_dev.append(j)
             par["num_dev"] = num_dev
         else:
-            num_dev = args.devices
+            num_dev = myargs.devices
             par["num_dev"] = num_dev
     else:
-        num_dev = args.devices
+        num_dev = myargs.devices
         par["num_dev"] = num_dev
     for device in num_dev:
         dev = []
@@ -114,10 +113,12 @@ def _setupOCL(args, par):
           | cl.command_queue_properties.PROFILING_ENABLE))
 
 
-def _genImages(par, data):
-    #    par['C'] = np.require(par['C'][:,16,...][:,None,...],requirements='C')
-    #    FFT = utils.NUFFT(par, trafo=args.trafo, SMS=args.sms)
-    #    data = data/(FFT.deblurring[None, None, None, :, None])
+def _genImages(myargs, par, data):
+    #    #    par['C'] = np.require(par['C'][:,16,...][:,None,...],
+    #                               requirements='C')
+    #    FFT = utils.NUFFT(par, trafo=myargs.trafo, SMS=myargs.sms)
+    #    #    data = data/(FFT.deblurring[None, None, None, :, None])
+    #    import pyopencl.array as clarray
     #
     #    def nFTH(x, fft, par):
     #        siz = np.shape(x)
@@ -133,8 +134,8 @@ def _genImages(par, data):
     #                                        np.require(x[:, j, k, ...]
     #                                                    [:, None, None, ...],
     #                                                   requirements='C'))
-    #                fft.adj_NUFFT(tmp_result, inp)
-    #                if args.sms:
+    #                fft.FFTH(tmp_result, inp)
+    #                if myargs.sms:
     #                    ind = slice(k, siz[2]+k+1, siz[2])
     #                    result[j, ind, ...] = np.transpose(
     #                        (tmp_result.get()), (1, 2, 0, 3, 4))
@@ -145,7 +146,8 @@ def _genImages(par, data):
     #                               (np.conj(par["C"])), axis=1),
     #                        requirements='C')
     #    del FFT, nFTH
-    #    del par["file"]["images_cg"]
+
+#    del par["file"]["images_cg"]
     if "images_cg" not in list(par["file"].keys()):
         from mbpq.solver import CGSolver
         images = np.zeros((par["NScan"],
@@ -153,7 +155,7 @@ def _genImages(par, data):
                            par["dimY"],
                            par["dimX"]), dtype=DTYPE)
         if par["NScan"]/10 >= 1:
-            cgs = CGSolver(par, 10, args.trafo, args.sms)
+            cgs = CGSolver(par, 10, myargs.trafo, myargs.sms)
             for j in range(int(par["NScan"]/10)):
                 if par["NSlice"] == 1:
                     images[10*j:10*(j+1), ...] = cgs.run(
@@ -165,15 +167,20 @@ def _genImages(par, data):
                         tol=1e-12)
             del cgs
         if np.mod(par["NScan"], 10):
-            cgs = CGSolver(par, np.mod(par["NScan"], 10), args.trafo, args.sms)
+            cgs = CGSolver(par, np.mod(par["NScan"], 10), myargs.trafo, myargs.sms)
             if par["NSlice"] == 1:
-                images[-np.mod(par["NScan"], 10):, ...] = cgs.run(
-                        data[-np.mod(par["NScan"], 10):, ...],
-                        tol=1e-6)[:, None, ...]
+                if np.mod(par["NScan"], 10) == 1:
+                    images[-np.mod(par["NScan"], 10):, ...] = cgs.run(
+                            data[-np.mod(par["NScan"], 10):, ...],
+                            tol=1e-12)
+                else:
+                    images[-np.mod(par["NScan"], 10):, ...] = cgs.run(
+                            data[-np.mod(par["NScan"], 10):, ...],
+                            tol=1e-12)[:, None, ...]
             else:
                 images[-np.mod(par["NScan"], 10):, ...] = cgs.run(
                         data[-np.mod(par["NScan"], 10):, ...],
-                        tol=1e-6)
+                        tol=1e-12)
             del cgs
         par["file"].create_dataset("images_cg", images.shape,
                                    dtype=DTYPE, data=images)
@@ -182,8 +189,8 @@ def _genImages(par, data):
     return images
 
 
-def _estScaleNorm(args, par, images, data):
-    if args.imagespace:
+def _estScaleNorm(myargs, par, images, data):
+    if myargs.imagespace:
         dscale = DTYPE_real(np.sqrt(2*1e3*par["NSlice"]/par["MB"]) /
                             (np.linalg.norm(images.flatten())))
         par["dscale"] = dscale
@@ -194,7 +201,7 @@ def _estScaleNorm(args, par, images, data):
         par["dscale"] = dscale
         data = data*dscale
 
-    if args.trafo:
+    if myargs.trafo:
         center = int(par["N"]*0.1)
         sig = []
         noise = []
@@ -233,8 +240,8 @@ def _estScaleNorm(args, par, images, data):
     return data
 
 
-def _readInput(args, par):
-    if args.file == '':
+def _readInput(myargs, par):
+    if myargs.file == '':
         select_file = True
         while select_file is True:
             root = Tk()
@@ -251,10 +258,10 @@ def _readInput(args, par):
             else:
                 select_file = False
     else:
-        if not args.file.endswith((('.h5'), ('.hdf5'))):
+        if not myargs.file.endswith((('.h5'), ('.hdf5'))):
             print("Please specify a h5 file. ")
             return 0
-        file = args.file
+        file = myargs.file
 
     name = os.path.normpath(file)
     par["fname"] = name.split(os.sep)[-1]
@@ -268,8 +275,8 @@ def _readInput(args, par):
     par["file"] = h5py.File(file)
 
 
-def start_recon(args):
-    sig_model_path = os.path.normpath(args.sig_model)
+def start_recon(myargs):
+    sig_model_path = os.path.normpath(myargs.sig_model)
     if len(sig_model_path.split(os.sep)) > 1:
         spec = importlib.util.spec_from_file_location(
             sig_model_path.split(os.sep)[-1], sig_model_path)
@@ -278,7 +285,7 @@ def start_recon(args):
     else:
         sig_model = importlib.import_module(
             "mbpq._models."+str(sig_model_path))
-    if int(args.streamed) == 1:
+    if int(myargs.streamed) == 1:
         import mbpq._irgn._reco_streamed as optimizer
     else:
         import mbpq._irgn._reco as optimizer
@@ -289,16 +296,16 @@ def start_recon(args):
 ###############################################################################
 # Select input file ###########################################################
 ###############################################################################
-    _readInput(args, par)
+    _readInput(myargs, par)
 ###############################################################################
 # Read Data ###################################################################
 ###############################################################################
-    reco_Slices = args.slices
+    reco_Slices = myargs.slices
     dimX, dimY, NSlice = ((par["file"].attrs['image_dimensions']).astype(int))
     if reco_Slices == -1:
         reco_Slices = NSlice
     off = 0
-    if args.sms:
+    if myargs.sms:
         data = par["file"]['real_dat'][()].astype(DTYPE)\
                + 1j*par["file"]['imag_dat'][()].astype(DTYPE)
     else:
@@ -309,7 +316,7 @@ def start_recon(args):
           ..., int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:
           int(NSlice/2)+int(np.ceil(reco_Slices/2))+off, :, :].astype(DTYPE)
     dimreduction = 0
-    if args.trafo:
+    if myargs.trafo:
         par["traj"] = par["file"]['real_traj'][()].astype(DTYPE) + \
                       1j*par["file"]['imag_traj'][()].astype(DTYPE)
 
@@ -329,7 +336,7 @@ def start_recon(args):
         print('Decrease grid size by %i' % dimreduction)
         dimX -= dimreduction
         dimY -= dimreduction
-        if args.trafo:
+        if myargs.trafo:
             data = np.require(data[..., int(dimreduction/2):
                                    data.shape[-1]-int(dimreduction/2)],
                               requirements='C')
@@ -353,7 +360,7 @@ def start_recon(args):
 ###############################################################################
     if "fa_corr" in list(par["file"].keys()):
         print("Using provied flip angle correction.")
-        if args.sms:
+        if myargs.sms:
             par["fa_corr"] = np.flip(par["file"]['fa_corr'][()].astype(DTYPE),
                                      0)[...]
         else:
@@ -372,16 +379,38 @@ def start_recon(args):
         # Recheck if shifted/transposed correctly
         par["fa_corr"] = np.require((np.transpose(par["fa_corr"], (0, 2, 1))),
                                     requirements='C')
+    elif "interpol_fa" in list(par["file"].keys()):
+        print("Using provied flip angle correction.")
+        if myargs.sms:
+            par["fa_corr"] = np.flip(
+                par["file"]['interpol_fa'][()].astype(DTYPE),
+                0)[...]
+        else:
+            NSlice_fa, dimY_fa, dimX_fa = par["file"]['interpol_fa'][()].shape
+            par["fa_corr"] = np.flip(
+                par["file"]['interpol_fa'][()].astype(DTYPE),
+                0)[
+                  int(NSlice_fa/2)-int(np.floor((reco_Slices)/2)):
+                  int(NSlice_fa/2)+int(np.ceil(reco_Slices/2)),
+                  ...]
+        par["fa_corr"][par["fa_corr"] == 0] = 0
+        par["fa_corr"] = par["fa_corr"][
+           ...,
+           int(dimreduction/2):par["fa_corr"].shape[-2]-int(dimreduction/2),
+           int(dimreduction/2):par["fa_corr"].shape[-1]-int(dimreduction/2)]
+        # Recheck if shifted/transposed correctly
+        par["fa_corr"] = np.require((np.transpose(par["fa_corr"], (0, 2, 1))),
+                                    requirements='C')
     else:
         print("No flip angle correction provided/used.")
 
     if data.ndim == 5:
         [NScan, NC, reco_Slices, Nproj, N] = data.shape
-    elif data.ndim == 4 and "IRLL" in args.sig_model:
+    elif data.ndim == 4 and "IRLL" in myargs.sig_model:
         print("4D Data passed and IRLL model used. Reordering Projections "
               "into 8 Spokes/Frame")
         [NC, reco_Slices, Nproj, N] = data.shape
-        Nproj_new = 8
+        Nproj_new = 5
         NScan = np.floor_divide(Nproj, Nproj_new)
         par["Nproj_measured"] = Nproj
         Nproj = Nproj_new
@@ -406,7 +435,7 @@ def start_recon(args):
     par["NC"] = NC
     par["dimY"] = dimY
     par["dimX"] = dimX
-    if args.sms:
+    if myargs.sms:
         par["NSlice"] = NSlice
         par["packs"] = int(par["packs"])
         par["numofpacks"] = int(NSlice/(int(par["packs"])*int(par["MB"])))
@@ -420,13 +449,13 @@ def start_recon(args):
     par["unknowns_TGV"] = sig_model.unknowns_TGV
     par["unknowns_H1"] = sig_model.unknowns_H1
     par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
-    if args.weights is None:
+    if myargs.weights is None:
         par["weights"] = np.ones((par["unknowns"]), dtype=np.float32)
     else:
-        par["weights"] = np.array(args.weights, dtype=np.float32)
-    if args.streamed:
-        par["par_slices"] = args.par_slices
-    if not args.trafo:
+        par["weights"] = np.array(myargs.weights, dtype=np.float32)
+    if myargs.streamed:
+        par["par_slices"] = myargs.par_slices
+    if not myargs.trafo:
         tmp = np.ones_like(np.abs(data[0, 0,  ...]))
         tmp[np.abs(data[0, 0,  ...]) == 0] = 0
         par['mask'] = np.reshape(
@@ -438,20 +467,21 @@ def start_recon(args):
 ###############################################################################
 # ratio of z direction to x,y, important for finite differences ###############
 ###############################################################################
-    par["dz"] = args.dz
+    par["dz"] = myargs.dz
 ###############################################################################
 # Create OpenCL Context and Queues ############################################
 ###############################################################################
-    _setupOCL(args, par)
+    _setupOCL(myargs, par)
 ###############################################################################
 # Coil Sensitivity Estimation #################################################
 ###############################################################################
-    est_coils(data, par, par["file"], args)
+
+    est_coils(data, par, par["file"], myargs)
 ###############################################################################
 # Standardize data ############################################################
 ###############################################################################
     [NScan, NC, NSlice, Nproj, N] = data.shape
-    if args.trafo:
+    if myargs.trafo:
         if par["file"].attrs['data_normalized_with_dcf']:
             pass
         else:
@@ -461,22 +491,21 @@ def start_recon(args):
         par['C'] = np.ones((data[0, ...].shape), dtype=DTYPE)
     else:
         par['C'] = par['C'].astype(DTYPE)
-
 ###############################################################################
 # Reconstruct images using CG-SENSE  ##########################################
 ###############################################################################
-    images = _genImages(par, data)
+    images = _genImages(myargs, par, data)
 ###############################################################################
 # Scale data norm  ############################################################
 ###############################################################################
-    data = _estScaleNorm(args, par, images, data)
+    data = _estScaleNorm(myargs, par, images, data)
 ###############################################################################
 # initialize operator  ########################################################
 ###############################################################################
-    opt = optimizer.ModelReco(par, args.trafo,
-                              imagespace=args.imagespace,
-                              SMS=args.sms)
-    if args.imagespace:
+    opt = optimizer.ModelReco(par, myargs.trafo,
+                              imagespace=myargs.imagespace,
+                              SMS=myargs.sms)
+    if myargs.imagespace:
         opt.data = images
     else:
         opt.data = data
@@ -488,7 +517,7 @@ def start_recon(args):
 ###############################################################################
 # Start Reco ##################################################################
 ###############################################################################
-    if args.type == '3D':
+    if myargs.type == '3D':
         #######################################################################
         # Init forward model and initial guess ################################
         #######################################################################
@@ -497,24 +526,24 @@ def start_recon(args):
         #######################################################################
         # IRGN - TGV Reco #####################################################
         #######################################################################
-        if "TGV" in args.reg or args.reg == 'all':
+        if "TGV" in myargs.reg or myargs.reg == 'all':
             opt.model = model
             ###################################################################
             # IRGN Params #####################################################
             ###################################################################
-            opt.irgn_par = utils.read_config(args.config, "3D_TGV")
-            opt.execute(TV=0, imagespace=args.imagespace)
+            opt.irgn_par = utils.read_config(myargs.config, "3D_TGV")
+            opt.execute(TV=0, imagespace=myargs.imagespace)
             plt.close('all')
         #######################################################################
         # IRGN - TV Reco ######################################################
         #######################################################################
-        if "TV" in args.reg or args.reg == 'all':
+        if "TV" in myargs.reg or myargs.reg == 'all':
             opt.model = model
             ###################################################################
             # IRGN Params #####################################################
             ###################################################################
-            opt.irgn_par = utils.read_config(args.config, "3D_TV")
-            opt.execute(TV=1, imagespace=args.imagespace)
+            opt.irgn_par = utils.read_config(myargs.config, "3D_TV")
+            opt.execute(TV=1, imagespace=myargs.imagespace)
             plt.close('all')
         del opt
 
