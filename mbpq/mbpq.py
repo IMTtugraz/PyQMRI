@@ -191,10 +191,10 @@ def _genImages(myargs, par, data):
             del par["file"]["images_cg"]
             images = _genImages(myargs, par, data)
         else:
-            print("Using precomputed coil sensitivities")
+            print("Using precomputed images")
             slices_images = par["file"]['images_cg'][()].shape[1]
             images = \
-                par["file"]['Coils'][
+                par["file"]['images_cg'][
                     :, int(slices_images / 2) - int(
                         np.floor((par["NSlice"]) / 2)):int(
                             slices_images / 2) + int(
