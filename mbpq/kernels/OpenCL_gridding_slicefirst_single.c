@@ -185,42 +185,43 @@ __kernel void copy(__global float2 *out, __global float2 *in, const float scale)
     out[x] = in[x]*scale;
 
   }
-__kernel void copy_SMS_fwd(__global float2 *out, __global float2 *in, __global int* shift, const int packs, const int MB, const float scale)
-  {
-    size_t x = get_global_id(2);
-    size_t dimX = get_global_size(2);
-    size_t y = get_global_id(1);
-    size_t dimY = get_global_size(1);
-    size_t n = get_global_id(0);
+//__kernel void copy_SMS_fwd(__global float2 *out, __global float2 *in, __global int* shift, const int packs, const int MB, const float scale)
+//  {
+//    size_t x = get_global_id(2);
+//    size_t dimX = get_global_size(2);
+//    size_t y = get_global_id(1);
+//    size_t dimY = get_global_size(1);
+//    size_t n = get_global_id(0);
+//    size_t N = get_global_size(0);
+//
+////    for (int k=0; k<packs; k++)
+////    {
+//    out[x+y*dimX+dimX*dimY*n] = (float2)(0);
+//    for(int z=0; z< MB; z++)
+//    {
+//        out[x+y*dimX+dimX*dimY*n] += in[x+(y+shift[z])%dimY*dimX+dimX*dimY*n+z*N*dimX*dimY]*scale;
+//    }
+////    }
+//  }
 
-
-    for (int k=0; k<packs; k++)
-    {
-    out[x+y*dimX+dimX*dimY*k+dimX*dimY*packs*n] = (float2)(0);
-    for(int z=0; z< MB; z++)
-    {
-        out[x+y*dimX+dimX*dimY*k+dimX*dimY*packs*n] += in[x+(y+shift[z])%dimY*dimX+k*dimX*dimY+z*dimX*dimY*packs+dimX*dimY*packs*MB*n]*scale;
-    }
-    }
-  }
-
-__kernel void copy_SMS_adj(__global float2 *out, __global float2 *in, __global int* shift, const int packs, const int MB, const float scale)
-  {
-    size_t x = get_global_id(2);
-    size_t dimX = get_global_size(2);
-    size_t y = get_global_id(1);
-    size_t dimY = get_global_size(1);
-    size_t n = get_global_id(0);
-
-    for (int k=0; k<packs; k++)
-    {
-    for(int z=0; z<MB; z++)
-    {
-        out[x+(y+shift[z])%dimY*dimX+dimX*dimY*(z*packs+k)+n*dimX*dimY*packs*MB] = in[x+y*dimX+dimX*dimY*k+dimX*dimY*packs*n]*scale;
-    }
-    }
-
-  }
+//__kernel void copy_SMS_adj(__global float2 *out, __global float2 *in, __global int* shift, const int packs, const int MB, const float scale)
+//  {
+//    size_t x = get_global_id(2);
+//    size_t dimX = get_global_size(2);
+//    size_t y = get_global_id(1);
+//    size_t dimY = get_global_size(1);
+//    size_t n = get_global_id(0);
+//    size_t N = get_global_size(0);
+//
+////    for (int k=0; k<packs; k++)
+////    {
+//    for(int z=0; z<MB; z++)
+//    {
+//        out[x+(y+shift[z])%dimY*dimX+n*dimX*dimY+N*dimX*dimY*(z)] = in[x+y*dimX+dimX*dimY*n]*scale;
+//    }
+////    }
+//
+//  }
 
 __kernel void masking(__global float2 *ksp, __global float *mask)
   {
@@ -236,4 +237,63 @@ __kernel void fftshift(__global float2* ksp, __global float *check)
     size_t n = get_global_id(0);
 
     ksp[x+dimX*y+dimX*dimY*n] = ksp[x+dimX*y+dimX*dimY*n]*check[x]*check[y];
+  }
+
+__kernel void copy_SMS_fwd(__global float2 *out, __global float2 *in, __global int* shift, const int packs, const int MB, const float scale, const int NGroups)
+  {
+    size_t x = get_global_id(2);
+    size_t dimX = get_global_size(2);
+    size_t y = get_global_id(1);
+    size_t dimY = get_global_size(1);
+    size_t n = get_global_id(0);
+
+    size_t NSlice = NGroups*packs*MB*dimX*dimY;
+    size_t idSlice = dimX*dimY;
+
+    for (int gid=0; gid<NGroups; gid++)
+    {
+    for (int k=0; k<packs; k++)
+    {
+    out[x+y*dimX+idSlice*k+idSlice*packs*gid+idSlice*packs*NGroups*n] = (float2)(0);
+    for(int z=0; z< MB; z++)
+    {
+//        out[x+y*dimX+idSlice*k+idSlice*packs*gid+idSlice*packs*NGroups*n] += in[x+(y+shift[z])%dimY*dimX+idSlice*(k+z*packs+gid*packs*MB)+NSlice*n]*scale;
+    out[x+y*dimX+idSlice*k+idSlice*packs*gid+idSlice*packs*NGroups*n] += in[x+(y+shift[z])%dimY*dimX+idSlice*(k+z*packs+gid*packs*MB)+NSlice*n]*scale;
+    }
+    }
+    }
+  }
+
+__kernel void copy_SMS_adj(__global float2 *out, __global float2 *in, __global int* shift, const int packs, const int MB, const float scale, const int NGroups)
+  {
+    size_t x = get_global_id(2);
+    size_t dimX = get_global_size(2);
+    size_t y = get_global_id(1);
+    size_t dimY = get_global_size(1);
+    size_t n = get_global_id(0);
+
+    size_t NSlice = NGroups*packs*MB*dimX*dimY;
+    size_t idSlice = dimX*dimY;
+
+    for (int gid=0; gid<NGroups; gid++)
+    {
+    for (int k=0; k<packs; k++)
+    {
+    for(int z=0; z<MB; z++)
+    {
+//        out[x+(y+shift[z])%dimY*dimX+idSlice*(k+z*packs+gid*packs*MB)+NSlice*n] = in[x+y*dimX+idSlice*k+idSlice*packs*gid+idSlice*packs*NGroups*n]*scale;
+        out[x+(y+shift[z])%dimY*dimX+idSlice*(k+z*packs+gid*packs*MB)+NSlice*n] = in[x+y*dimX+idSlice*k+idSlice*packs*gid+idSlice*packs*NGroups*n]*scale;
+    }
+    }
+    }
+  }
+
+__kernel void maskingcpy(__global float2* out, __global float2 *ksp, __global float *mask)
+  {
+    size_t x = get_global_id(2);
+    size_t dimX = get_global_size(2);
+    size_t y = get_global_id(1);
+    size_t dimY = get_global_size(1);
+    size_t n = get_global_id(0);
+    out[x+y*dimX+dimX*dimY*n] = ksp[x+y*dimX+dimX*dimY*n]*mask[x+y*dimX];
   }

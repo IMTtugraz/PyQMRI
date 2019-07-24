@@ -81,7 +81,6 @@ class Model(BaseModel):
         return grad
 
     def _execute_forward_3D(self, x):
-        # print('uk_scale[1]: ',self.uk_scale[1])
         E1 = x[1, ...] * self.uk_scale[1]
         S = x[0, ...] * self.uk_scale[0] * (-E1 + 1) * self.sin_phi /\
             (-E1 * self.cos_phi + 1)

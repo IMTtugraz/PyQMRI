@@ -13,10 +13,11 @@ import numpy as np
 import matplotlib
 matplotlib.use("Qt5agg")
 plt.ion()
+import ipdb
 
 
 #phase_maps = 0
-unknowns_TGV = 8 #+ phase_maps
+unknowns_TGV = 7 #+ phase_maps
 unknowns_H1 = 0
 
 
@@ -87,13 +88,10 @@ class Model(BaseModel):
                 (3e0 / self.uk_scale[6]),
                 True))
 
-        Kmax = 2.5
-
-        self.constraints.append(
-            constraints(
-                (0 / self.uk_scale[7]),
-                (Kmax / self.uk_scale[7]),
-                True))
+#        for j in range(phase_maps):
+#            self.constraints.append(constraints(
+#                (-np.pi / self.uk_scale[-phase_maps + j]),
+#                (np.pi / self.uk_scale[-phase_maps + j]), True))
 
     def _execute_forward_2D(self, x, islice):
         print("2D Functions not implemented")
@@ -108,10 +106,8 @@ class Model(BaseModel):
             2 * x[2, ...] * self.uk_scale[2] * self.dir[..., 0] * self.dir[..., 1] + 2 * x[4, ...] * self.uk_scale[4] * self.dir[..., 0] * self.dir[..., 2] +\
             2 * x[6, ...] * self.uk_scale[6] * self.dir[..., 1] * self.dir[..., 2]
 
-        meanADC = 1 / 3 * (x[1, ...] * self.uk_scale[1] + x[3, ...]
-                           * self.uk_scale[3] + x[5, ...] * self.uk_scale[5])
 
-        S = (x[0, ...] * self.uk_scale[0] * np.exp(- ADC * self.b + 1 / 6 * meanADC**2 * self.b**2 * x[7, ...]*self.uk_scale[7])).astype(DTYPE)
+        S = (x[0, ...] * self.uk_scale[0] * np.exp(- ADC * self.b)).astype(DTYPE)
 
 #        phase = np.zeros((phase_maps,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
 #        for j in range(phase_maps):
@@ -126,46 +122,35 @@ class Model(BaseModel):
             2 * x[2, ...] * self.uk_scale[2] * self.dir[..., 0] * self.dir[..., 1] + 2 * x[4, ...] * self.uk_scale[4] * self.dir[..., 0] * self.dir[..., 2] +\
             2 * x[6, ...] * self.uk_scale[6] * self.dir[..., 1] * self.dir[..., 2]
 
-        meanADC = 1 / 3 * (x[1, ...] * self.uk_scale[1] + x[3, ...]
-                           * self.uk_scale[3] + x[5, ...] * self.uk_scale[5])
 
 #        phase = np.zeros((phase_maps,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
 #        grad_phase = np.zeros((phase_maps,self.NScan,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
-        grad_M0 = self.uk_scale[0] * np.exp(- ADC * self.b + 1 / 6 * meanADC**2 * self.b**2 * x[7, ...]*self.uk_scale[7])
+        grad_M0 = self.uk_scale[0] * np.exp(- ADC * self.b)
         del ADC
 #        for j in range(phase_maps):
 #          phase[j,...] = np.exp(1j*x[7+j,...]*self.uk_scale[7+j])
 #          grad_M0[int(j*(self.NScan-1)/phase_maps)+1:int((j+1)*(self.NScan-1)/phase_maps)+1,...] *= phase[j]
         grad_M0 *= self.phase
-        mean_squared = x[0, ...] * grad_M0 * 1 / 6 * meanADC**2 * self.b**2
-        meanADC = (x[0, ...] * grad_M0 * 2 / 6 * 1 / 3 *
-                   meanADC * self.b**2 * x[7, ...]*self.uk_scale[7])
-
-        grad_ADC_x = (meanADC * self.uk_scale[1] -
-                      x[0, ...] * grad_M0 * self.uk_scale[1] *
-                      self.dir[..., 0]**2 * self.b)
+        grad_ADC_x = x[0, ...] * grad_M0 * \
+            (- self.uk_scale[1] * self.dir[..., 0]**2 * self.b)
         grad_ADC_xy = x[0, ...] * grad_M0 * \
-            (-2 * self.uk_scale[2] * self.dir[..., 0] *
-             self.dir[..., 1] * self.b)
+            (-2 * self.uk_scale[2] * self.dir[..., 0] * self.dir[..., 1] * self.b)
 
-        grad_ADC_y = (meanADC * self.uk_scale[3] -
-                      x[0, ...] * grad_M0 * self.uk_scale[3] *
-                      self.dir[..., 1]**2 * self.b)
+        grad_ADC_y = x[0, ...] * grad_M0 * \
+            (- self.uk_scale[3] * self.dir[..., 1]**2 * self.b)
         grad_ADC_xz = x[0, ...] * grad_M0 * \
-            (-2 * self.uk_scale[4] * self.dir[..., 0] *
-             self.dir[..., 2] * self.b)
+            (-2 * self.uk_scale[4] * self.dir[..., 0] * self.dir[..., 2] * self.b)
 
-        grad_ADC_z = (meanADC * self.uk_scale[5] -
-                      x[0, ...] * grad_M0 *
-                      self.uk_scale[5] * self.dir[..., 2]**2 * self.b)
+        grad_ADC_z = x[0, ...] * grad_M0 * \
+            (- self.uk_scale[5] * self.dir[..., 2]**2 * self.b)
         grad_ADC_yz = x[0, ...] * grad_M0 * \
-            (-2 * self.uk_scale[6] * self.dir[..., 1] *
-             self.dir[..., 2] * self.b)
+            (-2 * self.uk_scale[6] * self.dir[..., 1] * self.dir[..., 2] * self.b)
 
-        grad_kurt = (mean_squared *
-                     self.uk_scale[7])
+#        for j in range(phase_maps):
+#          grad_phase[j,...] = 1j*self.uk_scale[7+j]*x[0, ...] * grad_M0
 
-        grad = np.array([grad_M0,grad_ADC_x,grad_ADC_xy,grad_ADC_y,grad_ADC_xz,grad_ADC_z,grad_ADC_yz,grad_kurt],dtype=DTYPE)
+#        grad = np.concatenate((np.array([grad_M0,grad_ADC_x,grad_ADC_xy,grad_ADC_y,grad_ADC_xz,grad_ADC_z,grad_ADC_yz],dtype=DTYPE),grad_phase))
+        grad = np.array([grad_M0,grad_ADC_x,grad_ADC_xy,grad_ADC_y,grad_ADC_xz,grad_ADC_z,grad_ADC_yz],dtype=DTYPE)
         grad[~np.isfinite(grad)] = 0
         return grad
 
@@ -529,8 +514,7 @@ class Model(BaseModel):
 #            dtype=DTYPE)
         test_M0 = self.b0
         ADC = 1 * np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
-        kurt = 0 * np.ones((self.NSlice, self.dimY,
-                            self.dimX), dtype=DTYPE)
+
 #        x = np.concatenate(
 #            (np.array(
 #                [
@@ -552,7 +536,6 @@ class Model(BaseModel):
                     ADC,
                     0 * ADC,
                     ADC,
-                    0 * ADC,
-                    kurt],
+                    0 * ADC],
                 dtype=DTYPE)
         return x

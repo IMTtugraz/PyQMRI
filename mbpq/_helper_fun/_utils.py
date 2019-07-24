@@ -7,8 +7,7 @@ Created on Wed Jan 30 11:10:07 2019
 """
 import numpy as np
 import configparser
-from mbpq._transforms._pyopencl_nufft import PyOpenCLNUFFT
-
+from mbpq._transforms._pyopencl_nufft import PyOpenCLFFT
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
@@ -32,10 +31,16 @@ def NUFFT(par, trafo=1, SMS=0):
     NSlice = par["NSlice"]
     par["NC"] = 1
     par["NSlice"] = 1
-    FFT = PyOpenCLNUFFT(par["ctx"][0], par["queue"][0], par,
-                        radial=trafo, SMS=SMS)
+    if SMS:
+        packs = par["packs"]
+        par["packs"] = 1
+        par["NSlice"] = 2
+    FFT = PyOpenCLFFT.create(par["ctx"][0], par["queue"][0], par,
+                             radial=trafo, SMS=SMS)
     par["NC"] = NC
     par["NSlice"] = NSlice
+    if SMS:
+        par["packs"] = packs
     return FFT
 
 

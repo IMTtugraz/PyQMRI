@@ -13,10 +13,7 @@ import numpy as np
 import matplotlib
 matplotlib.use("Qt5agg")
 plt.ion()
-
-
-phase_maps = 0
-unknowns_TGV = 22 + phase_maps
+unknowns_TGV = 22
 unknowns_H1 = 0
 
 
@@ -36,11 +33,6 @@ class Model(BaseModel):
 
         if np.max(self.b) > 100:
             self.b /= 1000
-#        print(np.max(self.b))
-#    print(par["b_value"]*1000)
-#    self.b_x = self.b*(self.dir[:,0][:,None,None,None])
-#    self.b_y = self.b*(self.dir[:,1][:,None,None,None])
-#    self.b_z = self.b*(self.dir[:,2][:,None,None,None])
 
         self.dir = self.dir[:, None, None, None, :]
 
@@ -49,18 +41,23 @@ class Model(BaseModel):
             self.uk_scale.append(1)
 
         self.unknowns = par["unknowns_TGV"] + par["unknowns_H1"]
-
+        try:
+            self.b0 = np.flip(
+                np.transpose(par["file"]["b0"][()], (0, 2, 1)), 0)
+        except KeyError:
+            self.b0 = images[0]*par["dscale"]
+        self.phase = np.exp(1j*(np.angle(images)-np.angle(images[0])))
         self.guess = self._set_init_scales(images)
 
         self.constraints.append(
             constraints(
                 0 / self.uk_scale[0],
-                10 / self.uk_scale[0],
+                100 / self.uk_scale[0],
                 False))
         self.constraints.append(
             constraints(
                 (0 / self.uk_scale[1]),
-                (10 / self.uk_scale[1]),
+                (3 / self.uk_scale[1]),
                 True))
         self.constraints.append(
             constraints(
@@ -70,7 +67,7 @@ class Model(BaseModel):
         self.constraints.append(
             constraints(
                 (0 / self.uk_scale[3]),
-                (10 / self.uk_scale[3]),
+                (3 / self.uk_scale[3]),
                 True))
         self.constraints.append(
             constraints(
@@ -80,7 +77,7 @@ class Model(BaseModel):
         self.constraints.append(
             constraints(
                 (0 / self.uk_scale[5]),
-                (10 / self.uk_scale[5]),
+                (3 / self.uk_scale[5]),
                 True))
         self.constraints.append(
             constraints(
@@ -88,8 +85,7 @@ class Model(BaseModel):
                 (1e0 / self.uk_scale[6]),
                 True))
 
-        Kmax = 5
-#    print(Kmax)
+        Kmax = 2.5
 
         self.constraints.append(
             constraints(
@@ -107,14 +103,20 @@ class Model(BaseModel):
                 (Kmax / self.uk_scale[9]),
                 True))
 
-        for j in range(12):
+        for j in range(6):
             self.constraints.append(constraints(
                 (-Kmax / self.uk_scale[j + 10]),
                 (Kmax / self.uk_scale[j + 10]), True))
-        for j in range(phase_maps):
+
+        for j in range(3):
             self.constraints.append(constraints(
-                (-np.pi / self.uk_scale[-phase_maps + j]),
-                (np.pi / self.uk_scale[-phase_maps + j]), True))
+                (0 / self.uk_scale[j + 16]),
+                (Kmax / self.uk_scale[j + 16]), True))
+
+        for j in range(3):
+            self.constraints.append(constraints(
+                (-Kmax / self.uk_scale[j + 19]),
+                (Kmax / self.uk_scale[j + 19]), True))
 
     def _execute_forward_2D(self, x, islice):
         print("2D Functions not implemented")
@@ -125,92 +127,126 @@ class Model(BaseModel):
         raise NotImplementedError
 
     def _execute_forward_3D(self, x):
-        x = x.astype(np.complex128)
-
-        ADC = x[1, ...] * self.uk_scale[1] * self.dir[..., 0]**2 + x[3, ...] * self.uk_scale[3] * self.dir[..., 1]**2 + x[5, ...] * self.uk_scale[5] * self.dir[..., 2]**2 +\
-            2 * x[2, ...] * self.uk_scale[2] * self.dir[..., 0] * self.dir[..., 1] + 2 * x[4, ...] * self.uk_scale[4] * self.dir[..., 0] * self.dir[..., 2] +\
-            2 * x[6, ...] * self.uk_scale[6] * self.dir[..., 1] * self.dir[..., 2]
+        ADC = x[1, ...] * self.uk_scale[1] * self.dir[..., 0]**2 + \
+              x[3, ...] * self.uk_scale[3] * self.dir[..., 1]**2 + \
+              x[5, ...] * self.uk_scale[5] * self.dir[..., 2]**2 + \
+              2*x[2, ...]*self.uk_scale[2]*self.dir[..., 0]*self.dir[..., 1] +\
+              2*x[4, ...]*self.uk_scale[4]*self.dir[..., 0]*self.dir[..., 2] +\
+              2*x[6, ...]*self.uk_scale[6]*self.dir[..., 1]*self.dir[..., 2]
 
         meanADC = 1 / 3 * (x[1, ...] * self.uk_scale[1] + x[3, ...]
                            * self.uk_scale[3] + x[5, ...] * self.uk_scale[5])
 
-        kurt = x[7, ...] * self.uk_scale[7] * self.dir[..., 0]**4 + x[8, ...] * self.uk_scale[8] * self.dir[..., 1]**4 + x[9, ...] * self.uk_scale[9] * self.dir[..., 2]**4 +\
-            4 * x[10, ...] * self.uk_scale[10] * self.dir[..., 0]**3 * self.dir[..., 1] +\
-            4 * x[11, ...] * self.uk_scale[11] * self.dir[..., 0]**3 * self.dir[..., 2] +\
-            4 * x[12, ...] * self.uk_scale[12] * self.dir[..., 1]**3 * self.dir[..., 0] +\
-            4 * x[13, ...] * self.uk_scale[13] * self.dir[..., 1]**3 * self.dir[..., 2] +\
-            4 * x[14, ...] * self.uk_scale[14] * self.dir[..., 2]**3 * self.dir[..., 0] +\
-            4 * x[15, ...] * self.uk_scale[15] * self.dir[..., 2]**3 * self.dir[..., 1] +\
-            6 * x[16, ...] * self.uk_scale[16] * self.dir[..., 0]**2 * self.dir[..., 1]**2 +\
-            6 * x[17, ...] * self.uk_scale[17] * self.dir[..., 0]**2 * self.dir[..., 2]**2 +\
-            6 * x[18, ...] * self.uk_scale[18] * self.dir[..., 1]**2 * self.dir[..., 2]**2 +\
-            12 * x[19, ...] * self.uk_scale[19] * self.dir[..., 0]**2 * self.dir[..., 1] * self.dir[..., 2] +\
-            12 * x[20, ...] * self.uk_scale[20] * self.dir[..., 0] * self.dir[..., 1]**2 * self.dir[..., 2] +\
-            12 * x[21, ...] * self.uk_scale[21] * self.dir[..., 0] * self.dir[..., 1] * self.dir[..., 2]**2
+        kurt = (
+          x[7, ...] * self.uk_scale[7] * self.dir[..., 0]**4 +
+          x[8, ...] * self.uk_scale[8] * self.dir[..., 1]**4 +
+          x[9, ...] * self.uk_scale[9] * self.dir[..., 2]**4 +
+          4 * x[10, ...] * self.uk_scale[10] *
+          self.dir[..., 0]**3 * self.dir[..., 1] +
+          4 * x[11, ...] * self.uk_scale[11] *
+          self.dir[..., 0]**3 * self.dir[..., 2] +
+          4 * x[12, ...] * self.uk_scale[12] *
+          self.dir[..., 1]**3 * self.dir[..., 0] +
+          4 * x[13, ...] * self.uk_scale[13] *
+          self.dir[..., 1]**3 * self.dir[..., 2] +
+          4 * x[14, ...] * self.uk_scale[14] *
+          self.dir[..., 2]**3 * self.dir[..., 0] +
+          4 * x[15, ...] * self.uk_scale[15] *
+          self.dir[..., 2]**3 * self.dir[..., 1] +
+          6 * x[16, ...] * self.uk_scale[16] *
+          self.dir[..., 0]**2 * self.dir[..., 1]**2 +
+          6 * x[17, ...] * self.uk_scale[17] *
+          self.dir[..., 0]**2 * self.dir[..., 2]**2 +
+          6 * x[18, ...] * self.uk_scale[18] *
+          self.dir[..., 1]**2 * self.dir[..., 2]**2 +
+          12 * x[19, ...] * self.uk_scale[19] *
+          self.dir[..., 0]**2 * self.dir[..., 1] * self.dir[..., 2] +
+          12 * x[20, ...] * self.uk_scale[20] *
+          self.dir[..., 0] * self.dir[..., 1]**2 * self.dir[..., 2] +
+          12 * x[21, ...] * self.uk_scale[21] *
+          self.dir[..., 0] * self.dir[..., 1] * self.dir[..., 2]**2)
 
-        S = (x[0, ...] * self.uk_scale[0] * np.exp(1 / 6 * meanADC **
-                                                   2 * self.b**2 * kurt - ADC * self.b)).astype(DTYPE)
+        S = (x[0, ...] * self.uk_scale[0] *
+             np.exp(1 / 6 * meanADC**2 * self.b**2 *
+                    kurt - ADC * self.b)).astype(DTYPE)
 
-#    phase = np.zeros((phase_maps,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
-#    for j in range(phase_maps):
-#      phase[j,...] = np.exp(1j*x[22+j,...]*self.uk_scale[22+j])
-#      S[int(j*(self.NScan-1)/phase_maps)+1:int((j+1)*(self.NScan-1)/phase_maps)+1,...]*=phase[j]
-
+        S *= self.phase
         S[~np.isfinite(S)] = 0
         return S
 
     def _execute_gradient_3D(self, x):
-        x = x.astype(np.complex128)
-        ADC = x[1, ...] * self.uk_scale[1] * self.dir[..., 0]**2 + x[3, ...] * self.uk_scale[3] * self.dir[..., 1]**2 + x[5, ...] * self.uk_scale[5] * self.dir[..., 2]**2 +\
-            2 * x[2, ...] * self.uk_scale[2] * self.dir[..., 0] * self.dir[..., 1] + 2 * x[4, ...] * self.uk_scale[4] * self.dir[..., 0] * self.dir[..., 2] +\
-            2 * x[6, ...] * self.uk_scale[6] * self.dir[..., 1] * self.dir[..., 2]
+        ADC = x[1, ...] * self.uk_scale[1] * self.dir[..., 0]**2 + \
+              x[3, ...] * self.uk_scale[3] * self.dir[..., 1]**2 + \
+              x[5, ...] * self.uk_scale[5] * self.dir[..., 2]**2 + \
+              2*x[2, ...]*self.uk_scale[2]*self.dir[..., 0]*self.dir[..., 1] +\
+              2*x[4, ...]*self.uk_scale[4]*self.dir[..., 0]*self.dir[..., 2] +\
+              2*x[6, ...]*self.uk_scale[6]*self.dir[..., 1]*self.dir[..., 2]
 
         meanADC = 1 / 3 * (x[1, ...] * self.uk_scale[1] + x[3, ...]
                            * self.uk_scale[3] + x[5, ...] * self.uk_scale[5])
 
-        kurt = x[7, ...] * self.uk_scale[7] * self.dir[..., 0]**4 + x[8, ...] * self.uk_scale[8] * self.dir[..., 1]**4 + x[9, ...] * self.uk_scale[9] * self.dir[..., 2]**4 +\
-            4 * x[10, ...] * self.uk_scale[10] * self.dir[..., 0]**3 * self.dir[..., 1] +\
-            4 * x[11, ...] * self.uk_scale[11] * self.dir[..., 0]**3 * self.dir[..., 2] +\
-            4 * x[12, ...] * self.uk_scale[12] * self.dir[..., 1]**3 * self.dir[..., 0] +\
-            4 * x[13, ...] * self.uk_scale[13] * self.dir[..., 1]**3 * self.dir[..., 2] +\
-            4 * x[14, ...] * self.uk_scale[14] * self.dir[..., 2]**3 * self.dir[..., 0] +\
-            4 * x[15, ...] * self.uk_scale[15] * self.dir[..., 2]**3 * self.dir[..., 1] +\
-            6 * x[16, ...] * self.uk_scale[16] * self.dir[..., 0]**2 * self.dir[..., 1]**2 +\
-            6 * x[17, ...] * self.uk_scale[17] * self.dir[..., 0]**2 * self.dir[..., 2]**2 +\
-            6 * x[18, ...] * self.uk_scale[18] * self.dir[..., 1]**2 * self.dir[..., 2]**2 +\
-            12 * x[19, ...] * self.uk_scale[19] * self.dir[..., 0]**2 * self.dir[..., 1] * self.dir[..., 2] +\
-            12 * x[20, ...] * self.uk_scale[20] * self.dir[..., 0] * self.dir[..., 1]**2 * self.dir[..., 2] +\
-            12 * x[21, ...] * self.uk_scale[21] * self.dir[..., 0] * self.dir[..., 1] * self.dir[..., 2]**2
+        kurt = (
+          x[7, ...] * self.uk_scale[7] * self.dir[..., 0]**4 +
+          x[8, ...] * self.uk_scale[8] * self.dir[..., 1]**4 +
+          x[9, ...] * self.uk_scale[9] * self.dir[..., 2]**4 +
+          4 * x[10, ...] * self.uk_scale[10] *
+          self.dir[..., 0]**3 * self.dir[..., 1] +
+          4 * x[11, ...] * self.uk_scale[11] *
+          self.dir[..., 0]**3 * self.dir[..., 2] +
+          4 * x[12, ...] * self.uk_scale[12] *
+          self.dir[..., 1]**3 * self.dir[..., 0] +
+          4 * x[13, ...] * self.uk_scale[13] *
+          self.dir[..., 1]**3 * self.dir[..., 2] +
+          4 * x[14, ...] * self.uk_scale[14] *
+          self.dir[..., 2]**3 * self.dir[..., 0] +
+          4 * x[15, ...] * self.uk_scale[15] *
+          self.dir[..., 2]**3 * self.dir[..., 1] +
+          6 * x[16, ...] * self.uk_scale[16] *
+          self.dir[..., 0]**2 * self.dir[..., 1]**2 +
+          6 * x[17, ...] * self.uk_scale[17] *
+          self.dir[..., 0]**2 * self.dir[..., 2]**2 +
+          6 * x[18, ...] * self.uk_scale[18] *
+          self.dir[..., 1]**2 * self.dir[..., 2]**2 +
+          12 * x[19, ...] * self.uk_scale[19] *
+          self.dir[..., 0]**2 * self.dir[..., 1] * self.dir[..., 2] +
+          12 * x[20, ...] * self.uk_scale[20] *
+          self.dir[..., 0] * self.dir[..., 1]**2 * self.dir[..., 2] +
+          12 * x[21, ...] * self.uk_scale[21] *
+          self.dir[..., 0] * self.dir[..., 1] * self.dir[..., 2]**2)
 
         diffexp = np.exp(1 / 6 * meanADC**2 * self.b**2 * kurt - ADC * self.b)
+        del ADC
 
-
-#    phase = np.zeros((phase_maps,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
-#    grad_phase = np.zeros((phase_maps,self.NScan,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
         grad_M0 = self.uk_scale[0] * diffexp
-#    for j in range(phase_maps):
-#      phase[j,...] = np.exp(1j*x[22+j,...]*self.uk_scale[22+j])
-#      grad_M0[int(j*(self.NScan-1)/phase_maps)+1:int((j+1)*(self.NScan-1)/phase_maps)+1,...] *= phase[j]
+        del diffexp
 
-        M0_scaled = x[0, ...] * grad_M0
+        grad_M0 *= self.phase
+        mean_squared = x[0, ...] * grad_M0 * 1 / 6 * meanADC**2 * self.b**2
+        meanADC = (x[0, ...] * grad_M0 * 2 / 6 * 1 / 3 *
+                   meanADC * self.b**2 * kurt)
 
-        grad_ADC_x = M0_scaled * \
-            (2 / 6 * 1 / 3 * meanADC * self.uk_scale[1] * self.b**2 * kurt - self.uk_scale[1] * self.dir[..., 0]**2 * self.b)
-        grad_ADC_xy = M0_scaled * \
-            (-2 * self.uk_scale[2] * self.dir[..., 0] * self.dir[..., 1] * self.b)
+        grad_ADC_x = (meanADC * self.uk_scale[1] -
+                      x[0, ...] * grad_M0 * self.uk_scale[1] *
+                      self.dir[..., 0]**2 * self.b)
+        grad_ADC_xy = x[0, ...] * grad_M0 * \
+            (-2 * self.uk_scale[2] * self.dir[..., 0] *
+             self.dir[..., 1] * self.b)
 
-        grad_ADC_y = M0_scaled * \
-            (2 / 6 * 1 / 3 * meanADC * self.uk_scale[3] * self.b**2 * kurt - self.uk_scale[3] * self.dir[..., 1]**2 * self.b)
-        grad_ADC_xz = M0_scaled * \
-            (-2 * self.uk_scale[4] * self.dir[..., 0] * self.dir[..., 2] * self.b)
+        grad_ADC_y = (meanADC * self.uk_scale[3] -
+                      x[0, ...] * grad_M0 * self.uk_scale[3] *
+                      self.dir[..., 1]**2 * self.b)
+        grad_ADC_xz = x[0, ...] * grad_M0 * \
+            (-2 * self.uk_scale[4] * self.dir[..., 0] *
+             self.dir[..., 2] * self.b)
 
-        grad_ADC_z = M0_scaled * \
-            (2 / 6 * 1 / 3 * meanADC * self.uk_scale[5] * self.b**2 * kurt - self.uk_scale[5] * self.dir[..., 2]**2 * self.b)
-        grad_ADC_yz = M0_scaled * \
-            (-2 * self.uk_scale[6] * self.dir[..., 1] * self.dir[..., 2] * self.b)
+        grad_ADC_z = (meanADC * self.uk_scale[5] -
+                      x[0, ...] * grad_M0 *
+                      self.uk_scale[5] * self.dir[..., 2]**2 * self.b)
+        grad_ADC_yz = x[0, ...] * grad_M0 * \
+            (-2 * self.uk_scale[6] * self.dir[..., 1] *
+             self.dir[..., 2] * self.b)
 
-        mean_squared = M0_scaled * 1 / 6 * meanADC**2 * self.b**2
-
+        del meanADC
         grad_kurt_xxxx = (mean_squared *
                           self.uk_scale[7] *
                           self.dir[..., 0]**4)
@@ -283,14 +319,8 @@ class Model(BaseModel):
                           self.dir[..., 0] *
                           self.dir[..., 1] *
                           self.dir[..., 2]**2)
+        del mean_squared
 
-#    for j in range(phase_maps):
-#      grad_phase[j,...] = 1j*self.uk_scale[22+j]*M0_scaled
-
-
-#    grad = np.concatenate((np.array([grad_M0,grad_ADC_x,grad_ADC_xy,grad_ADC_y,grad_ADC_xz,grad_ADC_z,grad_ADC_yz,grad_kurt_xxxx,grad_kurt_yyyy,grad_kurt_zzzz,grad_kurt_xxxy,
-#                     grad_kurt_xxxz,grad_kurt_xyyy,grad_kurt_yyyz,grad_kurt_xzzz,grad_kurt_yzzz,grad_kurt_xxyy,grad_kurt_xxzz,grad_kurt_yyzz,
-#                     grad_kurt_xxyz,grad_kurt_xyyz,grad_kurt_xyzz],dtype=DTYPE),grad_phase))
         grad = np.array([grad_M0,
                          grad_ADC_x,
                          grad_ADC_xy,
@@ -367,37 +397,10 @@ class Model(BaseModel):
             tmp2 = np.concatenate(
                 (np.flip(
                     (tmp[:, :, int(tmp.shape[-1] / 2)]), 1),
-                np.zeros((tmp.shape[0], tmp.shape[0]))), -1)
+                 np.zeros((tmp.shape[0], tmp.shape[0]))), -1)
             kurt.append(np.concatenate((tmp1, tmp2), 0))
             kurt_min.append(kurt[j].min())
             kurt_max.append(kurt[j].max())
-
-        DT = np.zeros((M0.shape[-3], M0.shape[-1],
-                       M0.shape[-1], 3, 3), dtype=np.float32)
-        DT[..., 0, 0] = ADC_x.real
-        DT[..., 0, 1] = ADC_xy.real
-        DT[..., 0, 2] = ADC_xz.real
-        DT[..., 1, 0] = ADC_xy.real
-        DT[..., 1, 1] = ADC_y.real
-        DT[..., 1, 2] = ADC_yz.real
-        DT[..., 2, 0] = ADC_xz.real
-        DT[..., 2, 1] = ADC_yz.real
-        DT[..., 2, 2] = ADC_z.real
-        DT_eig = np.linalg.eigh(DT)[0]
-        FA = np.sqrt(((DT_eig[..., 0] - DT_eig[..., 1])**2 +
-                      (DT_eig[..., 1] - DT_eig[..., 2])**2 +
-                      (DT_eig[..., 0] - DT_eig[..., 2])**2) / 2 *
-                     (DT_eig[..., 0]**2 + DT_eig[..., 1]**2 +
-                      DT_eig[..., 2]**2))
-        FA_min = FA.min()
-        FA_max = FA.max()
-
-        phase = []
-        for j in range(phase_maps):
-            phase.append((x[j - phase_maps, ...] *
-                          self.uk_scale[j - phase_maps]).real)
-            phase_min = phase[0].min()
-            phase_max = phase[0].max()
 
         if dim_2D:
             if not self.figure:
@@ -574,7 +577,8 @@ class Model(BaseModel):
                 self.kurt_xxxx_plot_cor = self.ax[71].imshow(
                     (kurt_xxxx[:, int(kurt_xxxx.shape[1] / 2), ...]))
                 self.kurt_xxxx_plot_sag = self.ax[62].imshow(
-                    np.flip((kurt_xxxx[:, :, int(kurt_xxxx.shape[-1] / 2)]).T, 1))
+                    np.flip(
+                        (kurt_xxxx[:, :, int(kurt_xxxx.shape[-1] / 2)]).T, 1))
                 self.ax[61].set_title('kurtosis_x in a.u.', color='white')
                 self.ax[61].set_anchor('SE')
                 self.ax[62].set_anchor('SW')
@@ -591,7 +595,8 @@ class Model(BaseModel):
                 self.kurt_yyyy_plot_cor = self.ax[73].imshow(
                     (kurt_yyyy[:, int(kurt_yyyy.shape[1] / 2), ...]))
                 self.kurt_yyyy_plot_sag = self.ax[64].imshow(
-                    np.flip((kurt_yyyy[:, :, int(kurt_yyyy.shape[-1] / 2)]).T, 1))
+                    np.flip(
+                        (kurt_yyyy[:, :, int(kurt_yyyy.shape[-1] / 2)]).T, 1))
                 self.ax[63].set_title('kurtosis_y in a.u.', color='white')
                 self.ax[63].set_anchor('SE')
                 self.ax[64].set_anchor('SW')
@@ -607,7 +612,8 @@ class Model(BaseModel):
                 self.kurt_zzzz_plot_cor = self.ax[77].imshow(
                     (kurt_zzzz[:, int(kurt_zzzz.shape[1] / 2), ...]))
                 self.kurt_zzzz_plot_sag = self.ax[68].imshow(
-                    np.flip((kurt_zzzz[:, :, int(kurt_zzzz.shape[-1] / 2)]).T, 1))
+                    np.flip(
+                        (kurt_zzzz[:, :, int(kurt_zzzz.shape[-1] / 2)]).T, 1))
                 self.ax[67].set_title('kurtosis_z in a.u.', color='white')
                 self.ax[67].set_anchor('SE')
                 self.ax[68].set_anchor('SW')
@@ -618,22 +624,6 @@ class Model(BaseModel):
                 for spine in cbar.ax.spines:
                     cbar.ax.spines[spine].set_color('white')
 
-                self.FA_plot = self.ax[41].imshow(
-                    (FA[int(self.NSlice / 2), ...]))
-                self.FA_plot_cor = self.ax[51].imshow(
-                    (FA[:, int(FA.shape[1] / 2), ...]))
-                self.FA_plot_sag = self.ax[42].imshow(
-                    np.flip((FA[:, :, int(FA.shape[-1] / 2)]).T, 1))
-                self.ax[41].set_title('FA', color='white')
-                self.ax[41].set_anchor('SE')
-                self.ax[42].set_anchor('SW')
-                self.ax[51].set_anchor('NE')
-                cax = plt.subplot(self.gs[4:6, 0])
-                cbar = self.figure.colorbar(self.FA_plot, cax=cax)
-                cbar.ax.tick_params(labelsize=12, colors='white')
-                cax.yaxis.set_ticks_position('left')
-                for spine in cbar.ax.spines:
-                    cbar.ax.spines[spine].set_color('white')
                 plt.draw()
                 plt.pause(1e-10)
 
@@ -644,7 +634,8 @@ class Model(BaseModel):
                 self.figure_kurt.subplots_adjust(hspace=0.3, wspace=0)
                 wd_ratio = np.tile([1, 1 / 20, 1 / (5)], plot_dim)
                 self.gs_kurt = gridspec.GridSpec(
-                    plot_dim, 3 * plot_dim, width_ratios=wd_ratio, hspace=0.3, wspace=0)
+                    plot_dim, 3 * plot_dim,
+                    width_ratios=wd_ratio, hspace=0.3, wspace=0)
                 self.figure_kurt.tight_layout()
                 self.figure_kurt.patch.set_facecolor(plt.cm.viridis.colors[0])
                 for grid in self.gs_kurt:
@@ -665,31 +656,6 @@ class Model(BaseModel):
                         cbar.ax.spines[spine].set_color('white')
                     plt.draw()
                     plt.pause(1e-10)
-
-                plot_dim = int(np.ceil(np.sqrt(len(phase))))
-                plt.ion()
-                if phase_maps:
-                    self.figure_phase = plt.figure(figsize=(12, 6))
-                    self.figure_phase.subplots_adjust(hspace=0, wspace=0)
-                    self.gs_phase = gridspec.GridSpec(plot_dim, plot_dim)
-                    self.figure_phase.tight_layout()
-                    self.figure_phase.patch.set_facecolor(
-                        plt.cm.viridis.colors[0])
-                    for grid in self.gs_phase:
-                        self.ax_phase.append(plt.subplot(grid))
-                        self.ax_phase[-1].axis('off')
-                    self.phase_plot = []
-                    for j in range(phase_maps):
-                        self.phase_plot.append(self.ax_phase[j].imshow(
-                            (phase[j][int(self.NSlice / 2), ...])))
-                        self.ax_phase[j].set_title(
-                            'Phase of dir: ' + str(j), color='white')
-    #             cax = plt.subplot(self.gs_phase[:2,0])
-    #             cbar = self.figure_phase.colorbar(self.phase_plot, cax=cax)
-    #             cbar.ax.tick_params(labelsize=12,colors='white')
-    #             cax.yaxis.set_ticks_position('left')
-    #             for spine in cbar.ax.spines:
-    #              cbar.ax.spines[spine].set_color('white')
 
                 plt.draw()
                 plt.pause(1e-10)
@@ -762,7 +728,8 @@ class Model(BaseModel):
                 self.kurt_xxxx_plot_cor.set_data(
                     (kurt_xxxx[:, int(kurt_xxxx.shape[1] / 2), ...]))
                 self.kurt_xxxx_plot_sag.set_data(
-                    np.flip((kurt_xxxx[:, :, int(kurt_xxxx.shape[-1] / 2)]).T, 1))
+                    np.flip(
+                        (kurt_xxxx[:, :, int(kurt_xxxx.shape[-1] / 2)]).T, 1))
                 self.kurt_xxxx_plot.set_clim([kurt_xxxx_min, kurt_xxxx_max])
                 self.kurt_xxxx_plot_cor.set_clim(
                     [kurt_xxxx_min, kurt_xxxx_max])
@@ -774,7 +741,8 @@ class Model(BaseModel):
                 self.kurt_yyyy_plot_cor.set_data(
                     (kurt_yyyy[:, int(kurt_yyyy.shape[1] / 2), ...]))
                 self.kurt_yyyy_plot_sag.set_data(
-                    np.flip((kurt_yyyy[:, :, int(kurt_yyyy.shape[-1] / 2)]).T, 1))
+                    np.flip(
+                        (kurt_yyyy[:, :, int(kurt_yyyy.shape[-1] / 2)]).T, 1))
                 self.kurt_yyyy_plot.set_clim([kurt_yyyy_min, kurt_yyyy_max])
                 self.kurt_yyyy_plot_cor.set_clim(
                     [kurt_yyyy_min, kurt_yyyy_max])
@@ -786,21 +754,14 @@ class Model(BaseModel):
                 self.kurt_zzzz_plot_cor.set_data(
                     (kurt_zzzz[:, int(kurt_zzzz.shape[1] / 2), ...]))
                 self.kurt_zzzz_plot_sag.set_data(
-                    np.flip((kurt_zzzz[:, :, int(kurt_zzzz.shape[-1] / 2)]).T, 1))
+                    np.flip(
+                        (kurt_zzzz[:, :, int(kurt_zzzz.shape[-1] / 2)]).T, 1))
                 self.kurt_zzzz_plot.set_clim([kurt_zzzz_min, kurt_zzzz_max])
                 self.kurt_zzzz_plot_cor.set_clim(
                     [kurt_zzzz_min, kurt_zzzz_max])
                 self.kurt_zzzz_plot_sag.set_clim(
                     [kurt_zzzz_min, kurt_zzzz_max])
 
-                self.FA_plot.set_data((FA[int(self.NSlice / 2), ...]))
-                self.FA_plot_cor.set_data((FA[:, int(FA.shape[1] / 2), ...]))
-                self.FA_plot_sag.set_data(
-                    np.flip((FA[:, :, int(FA.shape[-1] / 2)]).T, 1))
-                self.FA_plot.set_clim([FA_min, FA_max])
-                self.FA_plot_sag.set_clim([FA_min, FA_max])
-                self.FA_plot_cor.set_clim([FA_min, FA_max])
-
                 self.figure.canvas.draw_idle()
 
                 for j in range(len(kurt)):
@@ -816,33 +777,21 @@ class Model(BaseModel):
                     self.kurt_plot[j].set_clim([kurt_min[j], kurt_max[j]])
 
                 self.figure_kurt.canvas.draw_idle()
-
-                for j in range(phase_maps):
-                    self.phase_plot[j].set_data(
-                        (phase[j][int(self.NSlice / 2), ...]))
-                    self.phase_plot[j].set_clim([phase_min, phase_max])
 
                 plt.draw()
                 plt.pause(1e-10)
 
     def _set_init_scales(self, images):
-        phase = np.zeros(
-            (phase_maps,
-             self.NSlice,
-             self.dimY,
-             self.dimX),
-            dtype=DTYPE)
-        test_M0 = np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+        test_M0 = self.b0
         ADC_x = 1 * np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         kurt_yyyy = 0 * np.ones((self.NSlice, self.dimY,
                                  self.dimX), dtype=DTYPE)
         kurt_xxxx = 0 * np.ones((self.NSlice, self.dimY,
                                  self.dimX), dtype=DTYPE)
 
-        x = np.concatenate(
-            (np.array(
+        x = np.array(
                 [
-                    test_M0 / self.uk_scale[0],
+                    test_M0,
                     ADC_x,
                     0 * ADC_x,
                     ADC_x,
@@ -858,13 +807,11 @@ class Model(BaseModel):
                     kurt_xxxx,
                     kurt_xxxx,
                     kurt_xxxx,
-                    kurt_xxxx,
-                    kurt_xxxx,
-                    kurt_xxxx,
+                    kurt_yyyy/2,
+                    kurt_yyyy/2,
+                    kurt_yyyy/2,
                     kurt_xxxx,
                     kurt_xxxx,
                     kurt_xxxx],
-                dtype=DTYPE),
-                phase),
-            axis=0)
+                dtype=DTYPE)
         return x

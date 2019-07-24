@@ -18,18 +18,15 @@ limitations under the License.
 
 
 import numpy as np
-import time
 import os
 import h5py
-
+import time
 from tkinter import filedialog
 from tkinter import Tk
 import matplotlib.pyplot as plt
 import importlib
 
 import pyopencl as cl
-import pyopencl.array as clarray
-
 
 import argparse
 
@@ -41,183 +38,7 @@ DTYPE = np.complex64
 DTYPE_real = np.float32
 
 
-def start_recon(args):
-    sig_model_path = os.path.normpath(args.sig_model)
-    if len(sig_model_path.split(os.sep)) > 1:
-        spec = importlib.util.spec_from_file_location(
-            sig_model_path.split(os.sep)[-1], sig_model_path)
-        sig_model = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(sig_model)
-    else:
-        sig_model = importlib.import_module(
-            "mbpq._models."+str(sig_model_path))
-    if int(args.streamed) == 1:
-        import mbpq._irgn._reco_streamed as optimizer
-    else:
-        import mbpq._irgn._reco as optimizer
-    np.seterr(divide='ignore', invalid='ignore')
-
-# Create par struct to store everyting
-    par = {}
-###############################################################################
-# Select input file ###########################################################
-###############################################################################
-    if args.file == '':
-        select_file = True
-        while select_file is True:
-            root = Tk()
-            root.withdraw()
-            root.update()
-            file = filedialog.askopenfilename()
-            root.destroy()
-            if not file == () and \
-               not file.endswith((('.h5'), ('.hdf5'))):
-                print("Please specify a h5 file. Press cancel to exit.")
-            elif file == ():
-                print("Exiting...")
-                return 0
-            else:
-                select_file = False
-    else:
-        if not args.file.endswith((('.h5'), ('.hdf5'))):
-            print("Please specify a h5 file. ")
-            return 0
-        file = args.file
-
-    name = os.path.normpath(file)
-    fname = name.split(os.sep)[-1]
-
-    par["file"] = h5py.File(file)
-#    del par["file"]["Coils"]
-###############################################################################
-# Read Data ###################################################################
-###############################################################################
-    reco_Slices = args.slices
-    dimX, dimY, NSlice = ((par["file"].attrs['image_dimensions']).astype(int))
-    if reco_Slices == -1:
-        reco_Slices = NSlice
-    off = 0
-
-    if args.sms:
-        data = par["file"]['real_dat'][()].astype(DTYPE)\
-               + 1j*par["file"]['imag_dat'][()].astype(DTYPE)
-    else:
-        data = par["file"]['real_dat'][
-          ..., int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:
-          int(NSlice/2)+int(np.ceil(reco_Slices/2))+off, :, :].astype(DTYPE)\
-               + 1j*par["file"]['imag_dat'][
-          ..., int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:
-          int(NSlice/2)+int(np.ceil(reco_Slices/2))+off, :, :].astype(DTYPE)
-
-    dimreduction = 0
-    if args.trafo:
-        par["traj"] = par["file"]['real_traj'][()].astype(DTYPE) + \
-                      1j*par["file"]['imag_traj'][()].astype(DTYPE)
-
-        par["dcf"] = np.sqrt(np.array(goldcomp.cmp(
-                         par["traj"]), dtype=DTYPE_real)).astype(DTYPE_real)
-        par["dcf"] = np.require(np.abs(par["dcf"]),
-                                DTYPE_real, requirements='C')
-    else:
-        par["traj"] = None
-        par["dcf"] = None
-    if np.max(utils.prime_factors(data.shape[-1])) > 13:
-        print("Samples along the spoke need to have their largest prime factor"
-              " to be 13 or lower. Finding next smaller grid.")
-        dimreduction = 2
-        while np.max(utils.prime_factors(data.shape[-1]-dimreduction)) > 13:
-            dimreduction += 2
-        print('Decrease grid size by %i' % dimreduction)
-        data = np.require(data[..., int(dimreduction/2):
-                               data.shape[-1]-int(dimreduction/2)],
-                          requirements='C')
-        dimX -= dimreduction
-        dimY -= dimreduction
-        par["traj"] = np.require(par["traj"][
-            ..., int(dimreduction/2):
-            par["traj"].shape[-1]-int(dimreduction/2)], requirements='C')
-        par["dcf"] = np.sqrt(np.array(goldcomp.cmp(par["traj"]),
-                                      dtype=DTYPE_real)).astype(DTYPE_real)
-        par["dcf"] = np.require(np.abs(par["dcf"]),
-                                DTYPE_real, requirements='C')
-###############################################################################
-# FA correction ###############################################################
-###############################################################################
-    if "fa_corr" in list(par["file"].keys()):
-        print("Using provied flip angle correction.")
-        if args.sms:
-            par["fa_corr"] = np.flip(par["file"]['fa_corr'][()].astype(DTYPE),
-                                     0)[...]
-        else:
-            par["fa_corr"] = np.flip(par["file"]['fa_corr'][()].astype(DTYPE),
-                                     0)[
-                                 int(NSlice/2)-int(np.floor((reco_Slices)/2)):
-                                 int(NSlice/2)+int(np.ceil(reco_Slices/2)),
-                                 ...]
-        par["fa_corr"][par["fa_corr"] == 0] = 0
-        par["fa_corr"] = par["fa_corr"][
-           ...,
-           int(dimreduction/2):par["fa_corr"].shape[-2]-int(dimreduction/2),
-           int(dimreduction/2):par["fa_corr"].shape[-1]-int(dimreduction/2)]
-        # Recheck if shifted/transposed correctly
-        par["fa_corr"] = np.require((np.transpose(par["fa_corr"], (0, 2, 1))),
-                                    requirements='C')
-    else:
-        print("No flip angle correction provided/used.")
-    if data.ndim == 5:
-        [NScan, NC, reco_Slices, Nproj, N] = data.shape
-    elif data.ndim == 4 and "IRLL" in args.sig_model:
-        print("4D Data passed and IRLL model used. Reordering Projections "
-              "into 8 Spokes/Frame")
-        [NC, reco_Slices, Nproj, N] = data.shape
-        Nproj_new = 8
-        NScan = np.floor_divide(Nproj, Nproj_new)
-        par["Nproj_measured"] = Nproj
-        Nproj = Nproj_new
-        data = np.require(np.transpose(np.reshape(data[..., :Nproj*NScan, :],
-                                       (NC, reco_Slices, NScan, Nproj, N)),
-                                       (2, 0, 1, 3, 4)), requirements='C')
-        par["traj"] = np.require(np.reshape(par["traj"][:Nproj*NScan, :],
-                                 (NScan, Nproj, N)), requirements='C')
-        par["dcf"] = np.sqrt(np.array(goldcomp.cmp(par["traj"]),
-                                      dtype=DTYPE_real)).astype(DTYPE_real)
-        par["dcf"] = np.require(np.abs(par["dcf"]), DTYPE_real,
-                                requirements='C')
-    else:
-        print("Wrong data dimension / model inkompatible. Returning")
-        return
-###############################################################################
-# Set sequence related parameters #############################################
-###############################################################################
-    for att in par["file"].attrs:
-        par[att] = par["file"].attrs[att]
-
-    par["NC"] = NC
-    par["dimY"] = dimY
-    par["dimX"] = dimX
-    if args.sms:
-        par["NSlice"] = NSlice
-        par["packs"] = reco_Slices
-    else:
-        par["NSlice"] = reco_Slices
-    par["NScan"] = NScan
-    par["N"] = N
-    par["Nproj"] = Nproj
-    par["unknowns_TGV"] = sig_model.unknowns_TGV
-    par["unknowns_H1"] = sig_model.unknowns_H1
-    par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
-    if args.streamed:
-        par["par_slices"] = args.par_slices
-    if not args.trafo:
-        tmp = np.ones_like(np.abs(data))
-        tmp[np.abs(data) == 0] = 0
-        par['mask'] = np.reshape(tmp, (data.shape)).astype(DTYPE_real)
-        del tmp
-    else:
-        par['mask'] = None
-###############################################################################
-# Create OpenCL Context and Queues ############################################
-###############################################################################
+def _setupOCL(args, par):
     platforms = cl.get_platforms()
     par["GPU"] = False
     par["Platform_Indx"] = 0
@@ -291,6 +112,337 @@ def start_recon(args):
           platforms[par["Platform_Indx"]].get_devices()[device],
           properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE
           | cl.command_queue_properties.PROFILING_ENABLE))
+
+
+def _genImages(par, data):
+    #    par['C'] = np.require(par['C'][:,16,...][:,None,...],requirements='C')
+    #    FFT = utils.NUFFT(par, trafo=args.trafo, SMS=args.sms)
+    #    data = data/(FFT.deblurring[None, None, None, :, None])
+    #
+    #    def nFTH(x, fft, par):
+    #        siz = np.shape(x)
+    #        MB = int(par["MB"])
+    #        result = np.zeros(
+    #            (par["NC"], par["NSlice"], par["NScan"],
+    #             par["dimY"], par["dimX"]), dtype=DTYPE)
+    #        tmp_result = clarray.empty(fft.queue, (par["NScan"], 1, MB,
+    #                                   par["dimY"], par["dimX"]), dtype=DTYPE)
+    #        for j in range(siz[1]):
+    #            for k in range(siz[2]):
+    #                inp = clarray.to_device(fft.queue,
+    #                                        np.require(x[:, j, k, ...]
+    #                                                    [:, None, None, ...],
+    #                                                   requirements='C'))
+    #                fft.adj_NUFFT(tmp_result, inp)
+    #                if args.sms:
+    #                    ind = slice(k, siz[2]+k+1, siz[2])
+    #                    result[j, ind, ...] = np.transpose(
+    #                        (tmp_result.get()), (1, 2, 0, 3, 4))
+    #                else:
+    #                    result[j, k, ...] = np.squeeze(tmp_result.get())
+    #        return np.transpose(result, (2, 0, 1, 3, 4))
+    #    images = np.require(np.sum(nFTH(data, FFT, par) *
+    #                               (np.conj(par["C"])), axis=1),
+    #                        requirements='C')
+    #    del FFT, nFTH
+    #    del par["file"]["images_cg"]
+    if "images_cg" not in list(par["file"].keys()):
+        from mbpq.solver import CGSolver
+        images = np.zeros((par["NScan"],
+                           par["NSlice"],
+                           par["dimY"],
+                           par["dimX"]), dtype=DTYPE)
+        if par["NScan"]/10 >= 1:
+            cgs = CGSolver(par, 10, args.trafo, args.sms)
+            for j in range(int(par["NScan"]/10)):
+                if par["NSlice"] == 1:
+                    images[10*j:10*(j+1), ...] = cgs.run(
+                        data[10*j:10*(j+1), ...],
+                        tol=1e-12)[:, None, ...]
+                else:
+                    images[10*j:10*(j+1), ...] = cgs.run(
+                        data[10*j:10*(j+1), ...],
+                        tol=1e-12)
+            del cgs
+        if np.mod(par["NScan"], 10):
+            cgs = CGSolver(par, np.mod(par["NScan"], 10), args.trafo, args.sms)
+            if par["NSlice"] == 1:
+                images[-np.mod(par["NScan"], 10):, ...] = cgs.run(
+                        data[-np.mod(par["NScan"], 10):, ...],
+                        tol=1e-6)[:, None, ...]
+            else:
+                images[-np.mod(par["NScan"], 10):, ...] = cgs.run(
+                        data[-np.mod(par["NScan"], 10):, ...],
+                        tol=1e-6)
+            del cgs
+        par["file"].create_dataset("images_cg", images.shape,
+                                   dtype=DTYPE, data=images)
+    else:
+        images = par["file"]["images_cg"][()].astype(DTYPE)
+    return images
+
+
+def _estScaleNorm(args, par, images, data):
+    if args.imagespace:
+        dscale = DTYPE_real(np.sqrt(2*1e3*par["NSlice"]/par["MB"]) /
+                            (np.linalg.norm(images.flatten())))
+        par["dscale"] = dscale
+        images = images*dscale
+    else:
+        dscale = (DTYPE_real(np.sqrt(2*1e3*par["NSlice"]/par["MB"])) /
+                  (np.linalg.norm(data.flatten())))
+        par["dscale"] = dscale
+        data = data*dscale
+
+    if args.trafo:
+        center = int(par["N"]*0.1)
+        sig = []
+        noise = []
+        ind = np.zeros((par["N"]), dtype=bool)
+        ind[int(par["N"]/2-center):int(par["N"]/2+center)] = 1
+        for j in range(par["Nproj"]):
+            sig.append(np.sum(
+                data[..., int(par["NSlice"]/2), j, ind] *
+                np.conj(data[..., int(par["NSlice"]/2), j, ind])))
+            noise.append(np.sum(
+                data[..., int(par["NSlice"]/2), j, ~ind] *
+                np.conj(data[..., int(par["NSlice"]/2), j, ~ind])))
+        sig = (np.sum(np.array(sig)))/np.sum(ind)
+        noise = (np.sum(np.array(noise)))/np.sum(~ind)
+        SNR_est = np.abs(sig/noise)
+        par["SNR_est"] = SNR_est
+        print("Estimated SNR from kspace", SNR_est)
+    else:
+        centerX = int(par["dimX"]*0.2)
+        centerY = int(par["dimY"]*0.2)
+        ind = np.zeros((par["dimY"], par["dimX"]), dtype=bool)
+        ind[int(par["N"]/2-centerY):int(par["N"]/2+centerY),
+            int(par["N"]/2-centerX):int(par["N"]/2+centerX)] = 1
+        ind = np.fft.fftshift(ind)
+        sig = np.sum(
+            data[..., int(par["NSlice"]/2/par["MB"]), ind] *
+            np.conj(
+                data[..., int(par["NSlice"]/2/par["MB"]), ind]))/np.sum(ind)
+        noise = np.sum(
+            data[..., int(par["NSlice"]/2/par["MB"]), ~ind] *
+            np.conj(
+                data[..., int(par["NSlice"]/2/par["MB"]), ~ind]))/np.sum(~ind)
+        SNR_est = np.abs(sig/noise)
+        par["SNR_est"] = SNR_est
+        print("Estimated SNR from kspace", SNR_est)
+    return data
+
+
+def _readInput(args, par):
+    if args.file == '':
+        select_file = True
+        while select_file is True:
+            root = Tk()
+            root.withdraw()
+            root.update()
+            file = filedialog.askopenfilename()
+            root.destroy()
+            if not file == () and \
+               not file.endswith((('.h5'), ('.hdf5'))):
+                print("Please specify a h5 file. Press cancel to exit.")
+            elif file == ():
+                print("Exiting...")
+                return 0
+            else:
+                select_file = False
+    else:
+        if not args.file.endswith((('.h5'), ('.hdf5'))):
+            print("Please specify a h5 file. ")
+            return 0
+        file = args.file
+
+    name = os.path.normpath(file)
+    par["fname"] = name.split(os.sep)[-1]
+    outdir = time.strftime("%Y-%m-%d  %H-%M-%S_MRI_" +
+                           par["fname"][:-3])
+    if not os.path.exists('./output'):
+        os.makedirs('./output')
+    if not os.path.exists('./output/' + outdir):
+        os.makedirs("output/" + outdir)
+    par["outdir"] = './output/'+outdir+'/'
+    par["file"] = h5py.File(file)
+
+
+def start_recon(args):
+    sig_model_path = os.path.normpath(args.sig_model)
+    if len(sig_model_path.split(os.sep)) > 1:
+        spec = importlib.util.spec_from_file_location(
+            sig_model_path.split(os.sep)[-1], sig_model_path)
+        sig_model = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(sig_model)
+    else:
+        sig_model = importlib.import_module(
+            "mbpq._models."+str(sig_model_path))
+    if int(args.streamed) == 1:
+        import mbpq._irgn._reco_streamed as optimizer
+    else:
+        import mbpq._irgn._reco as optimizer
+    np.seterr(divide='ignore', invalid='ignore')
+
+# Create par struct to store everyting
+    par = {}
+###############################################################################
+# Select input file ###########################################################
+###############################################################################
+    _readInput(args, par)
+###############################################################################
+# Read Data ###################################################################
+###############################################################################
+    reco_Slices = args.slices
+    dimX, dimY, NSlice = ((par["file"].attrs['image_dimensions']).astype(int))
+    if reco_Slices == -1:
+        reco_Slices = NSlice
+    off = 0
+    if args.sms:
+        data = par["file"]['real_dat'][()].astype(DTYPE)\
+               + 1j*par["file"]['imag_dat'][()].astype(DTYPE)
+    else:
+        data = par["file"]['real_dat'][
+          ..., int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:
+          int(NSlice/2)+int(np.ceil(reco_Slices/2))+off, :, :].astype(DTYPE)\
+               + 1j*par["file"]['imag_dat'][
+          ..., int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:
+          int(NSlice/2)+int(np.ceil(reco_Slices/2))+off, :, :].astype(DTYPE)
+    dimreduction = 0
+    if args.trafo:
+        par["traj"] = par["file"]['real_traj'][()].astype(DTYPE) + \
+                      1j*par["file"]['imag_traj'][()].astype(DTYPE)
+
+        par["dcf"] = np.sqrt(np.array(goldcomp.cmp(
+                         par["traj"]), dtype=DTYPE_real)).astype(DTYPE_real)
+        par["dcf"] = np.require(np.abs(par["dcf"]),
+                                DTYPE_real, requirements='C')
+    else:
+        par["traj"] = None
+        par["dcf"] = None
+    if np.max(utils.prime_factors(data.shape[-1])) > 13:
+        print("Samples along the spoke need to have their largest prime factor"
+              " to be 13 or lower. Finding next smaller grid.")
+        dimreduction = 2
+        while np.max(utils.prime_factors(data.shape[-1]-dimreduction)) > 13:
+            dimreduction += 2
+        print('Decrease grid size by %i' % dimreduction)
+        dimX -= dimreduction
+        dimY -= dimreduction
+        if args.trafo:
+            data = np.require(data[..., int(dimreduction/2):
+                                   data.shape[-1]-int(dimreduction/2)],
+                              requirements='C')
+            par["traj"] = np.require(par["traj"][
+                ..., int(dimreduction/2):
+                par["traj"].shape[-1]-int(dimreduction/2)], requirements='C')
+            par["dcf"] = np.sqrt(np.array(goldcomp.cmp(par["traj"]),
+                                          dtype=DTYPE_real)).astype(DTYPE_real)
+            par["dcf"] = np.require(np.abs(par["dcf"]),
+                                    DTYPE_real, requirements='C')
+        else:
+            data = np.require(data[...,
+                                   int(dimreduction/2):
+                                   data.shape[-1]-int(dimreduction/2),
+                                   int(dimreduction/2):
+                                   data.shape[-1]-int(dimreduction/2)],
+                              requirements='C')
+
+###############################################################################
+# FA correction ###############################################################
+###############################################################################
+    if "fa_corr" in list(par["file"].keys()):
+        print("Using provied flip angle correction.")
+        if args.sms:
+            par["fa_corr"] = np.flip(par["file"]['fa_corr'][()].astype(DTYPE),
+                                     0)[...]
+        else:
+            NSlice_fa, dimY_fa, dimX_fa = par["file"]['fa_corr'][()].shape
+            par["fa_corr"] = np.flip(
+                par["file"]['fa_corr'][()].astype(DTYPE),
+                0)[
+                  int(NSlice_fa/2)-int(np.floor((reco_Slices)/2)):
+                  int(NSlice_fa/2)+int(np.ceil(reco_Slices/2)),
+                  ...]
+        par["fa_corr"][par["fa_corr"] == 0] = 0
+        par["fa_corr"] = par["fa_corr"][
+           ...,
+           int(dimreduction/2):par["fa_corr"].shape[-2]-int(dimreduction/2),
+           int(dimreduction/2):par["fa_corr"].shape[-1]-int(dimreduction/2)]
+        # Recheck if shifted/transposed correctly
+        par["fa_corr"] = np.require((np.transpose(par["fa_corr"], (0, 2, 1))),
+                                    requirements='C')
+    else:
+        print("No flip angle correction provided/used.")
+
+    if data.ndim == 5:
+        [NScan, NC, reco_Slices, Nproj, N] = data.shape
+    elif data.ndim == 4 and "IRLL" in args.sig_model:
+        print("4D Data passed and IRLL model used. Reordering Projections "
+              "into 8 Spokes/Frame")
+        [NC, reco_Slices, Nproj, N] = data.shape
+        Nproj_new = 8
+        NScan = np.floor_divide(Nproj, Nproj_new)
+        par["Nproj_measured"] = Nproj
+        Nproj = Nproj_new
+        data = np.require(np.transpose(np.reshape(data[..., :Nproj*NScan, :],
+                                       (NC, reco_Slices, NScan, Nproj, N)),
+                                       (2, 0, 1, 3, 4)), requirements='C')
+        par["traj"] = np.require(np.reshape(par["traj"][:Nproj*NScan, :],
+                                 (NScan, Nproj, N)), requirements='C')
+        par["dcf"] = np.sqrt(np.array(goldcomp.cmp(par["traj"]),
+                                      dtype=DTYPE_real)).astype(DTYPE_real)
+        par["dcf"] = np.require(np.abs(par["dcf"]), DTYPE_real,
+                                requirements='C')
+    else:
+        print("Wrong data dimension / model inkompatible. Returning")
+        return
+###############################################################################
+# Set sequence related parameters #############################################
+###############################################################################
+    for att in par["file"].attrs:
+        par[att] = par["file"].attrs[att]
+
+    par["NC"] = NC
+    par["dimY"] = dimY
+    par["dimX"] = dimX
+    if args.sms:
+        par["NSlice"] = NSlice
+        par["packs"] = int(par["packs"])
+        par["numofpacks"] = int(NSlice/(int(par["packs"])*int(par["MB"])))
+    else:
+        par["NSlice"] = reco_Slices
+        par["packs"] = 1
+        par["MB"] = 1
+    par["NScan"] = NScan
+    par["N"] = N
+    par["Nproj"] = Nproj
+    par["unknowns_TGV"] = sig_model.unknowns_TGV
+    par["unknowns_H1"] = sig_model.unknowns_H1
+    par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
+    if args.weights is None:
+        par["weights"] = np.ones((par["unknowns"]), dtype=np.float32)
+    else:
+        par["weights"] = np.array(args.weights, dtype=np.float32)
+    if args.streamed:
+        par["par_slices"] = args.par_slices
+    if not args.trafo:
+        tmp = np.ones_like(np.abs(data[0, 0,  ...]))
+        tmp[np.abs(data[0, 0,  ...]) == 0] = 0
+        par['mask'] = np.reshape(
+            tmp,
+            (data[0, 0, ...].shape)).astype(DTYPE_real)
+        del tmp
+    else:
+        par['mask'] = None
+###############################################################################
+# ratio of z direction to x,y, important for finite differences ###############
+###############################################################################
+    par["dz"] = args.dz
+###############################################################################
+# Create OpenCL Context and Queues ############################################
+###############################################################################
+    _setupOCL(args, par)
 ###############################################################################
 # Coil Sensitivity Estimation #################################################
 ###############################################################################
@@ -304,92 +456,35 @@ def start_recon(args):
             pass
         else:
             data = data*(par["dcf"])
-###############################################################################
-# generate nFFT  ##############################################################
-###############################################################################
+
     if NC == 1:
         par['C'] = np.ones((data[0, ...].shape), dtype=DTYPE)
     else:
         par['C'] = par['C'].astype(DTYPE)
 
-    FFT = utils.NUFFT(par, trafo=args.trafo, SMS=args.sms)
-
-    def nFTH(x, fft, par):
-        siz = np.shape(x)
-        result = np.zeros((par["NC"], par["NSlice"], par["NScan"],
-                           par["dimY"], par["dimX"]), dtype=DTYPE)
-        tmp_result = clarray.empty(fft.queue, (par["NScan"], 1, 1,
-                                   par["dimY"], par["dimX"]), dtype=DTYPE)
-        for j in range(siz[1]):
-            for k in range(siz[2]):
-                inp = clarray.to_device(fft.queue,
-                                        np.require(x[:, j, k, ...]
-                                                    [:, None, None, ...],
-                                                   requirements='C'))
-                fft.adj_NUFFT(tmp_result, inp)
-                result[j, k, ...] = np.squeeze(tmp_result.get())
-        return np.transpose(result, (2, 0, 1, 3, 4))
-
-    images = np.require(np.sum(nFTH(data, FFT, par) *
-                               (np.conj(par["C"])), axis=1),
-                        requirements='C')
-    del FFT, nFTH
-
+###############################################################################
+# Reconstruct images using CG-SENSE  ##########################################
+###############################################################################
+    images = _genImages(par, data)
 ###############################################################################
 # Scale data norm  ############################################################
 ###############################################################################
-#    if args.imagespace:
-#        dscale = DTYPE_real(np.sqrt(2*1e3*NSlice) /
-#                            (np.linalg.norm(images.flatten())))
-#        par["dscale"] = dscale
-#        images = images*dscale
-#    else:
-#        dscale = (DTYPE_real(np.sqrt(2*1e3*NSlice)) /
-#                  (np.linalg.norm(data.flatten())))
-#        par["dscale"] = dscale
-#        data = data*dscale
-
-    if args.trafo:
-        center = int(N*0.1)
-        sig = []
-        noise = []
-        ind = np.zeros((N), dtype=bool)
-        ind[int(par["N"]/2-center):int(par["N"]/2+center)] = 1
-        for j in range(Nproj):
-            sig.append(np.sum(data[..., int(NSlice/2), j, ind] *
-                              np.conj(data[..., int(NSlice/2), j, ind])))
-            noise.append(np.sum(data[..., int(NSlice/2), j, ~ind] *
-                                np.conj(data[..., int(NSlice/2), j, ~ind])))
-        sig = (np.sum(np.array(sig)))/np.sum(ind)
-        noise = (np.sum(np.array(noise)))/np.sum(~ind)
-        SNR_est = np.abs(sig/noise)
-        par["SNR_est"] = SNR_est
-        print("Estimated SNR from kspace", SNR_est)
-    else:
-        center = int(N*0.1)
-        ind = np.zeros((dimY, dimX), dtype=bool)
-        ind[int(par["N"]/2-center):int(par["N"]/2+center),
-            int(par["N"]/2-center):int(par["N"]/2+center)] = 1
-        ind = np.fft.fftshift(ind)
-        sig = np.sum(data[..., int(NSlice/2), ind] *
-                     np.conj(data[..., int(NSlice/2), ind]))/np.sum(ind)
-        noise = np.sum(data[..., int(NSlice/2), ~ind] *
-                       np.conj(data[..., int(NSlice/2), ~ind]))/np.sum(~ind)
-        SNR_est = np.abs(sig/noise)
-        par["SNR_est"] = SNR_est
-        print("Estimated SNR from kspace", SNR_est)
-
+    data = _estScaleNorm(args, par, images, data)
+###############################################################################
+# initialize operator  ########################################################
+###############################################################################
     opt = optimizer.ModelReco(par, args.trafo,
-                              imagespace=args.imagespace)
-
+                              imagespace=args.imagespace,
+                              SMS=args.sms)
     if args.imagespace:
         opt.data = images
     else:
         opt.data = data
-###############################################################################
-# ratio of z direction to x,y, important for finite differences ###############
-###############################################################################
-    opt.dz = args.dz
+
+    f = h5py.File(par["outdir"]+"output_" + par["fname"], "a")
+    f.create_dataset("images_ifft_", images.shape, dtype=DTYPE, data=images)
+    f.attrs['data_norm'] = par["dscale"]
+    f.close()
 ###############################################################################
 # Start Reco ##################################################################
 ###############################################################################
@@ -403,77 +498,43 @@ def start_recon(args):
         # IRGN - TGV Reco #####################################################
         #######################################################################
         if "TGV" in args.reg or args.reg == 'all':
-            result_tgv = []
             opt.model = model
             ###################################################################
             # IRGN Params #####################################################
             ###################################################################
             opt.irgn_par = utils.read_config(args.config, "3D_TGV")
             opt.execute(TV=0, imagespace=args.imagespace)
-            result_tgv.append(opt.result)
             plt.close('all')
-            res_tgv = opt.gn_res
-            res_tgv = np.array(res_tgv)/(opt.irgn_par["lambd"]*NSlice)
         #######################################################################
         # IRGN - TV Reco ######################################################
         #######################################################################
         if "TV" in args.reg or args.reg == 'all':
-            result_tv = []
             opt.model = model
             ###################################################################
             # IRGN Params #####################################################
             ###################################################################
             opt.irgn_par = utils.read_config(args.config, "3D_TV")
             opt.execute(TV=1, imagespace=args.imagespace)
-            result_tv.append(opt.result)
             plt.close('all')
-            res_tv = opt.gn_res
-            res_tv = np.array(res_tv)/(opt.irgn_par["lambd"]*NSlice)
         del opt
-###############################################################################
-# New .hdf5 save files ########################################################
-###############################################################################
-    outdir = time.strftime("%Y-%m-%d  %H-%M-%S_MRI_"+args.reg+"_"+args.type+"_"
-                           + fname[:-3])
-    if not os.path.exists('./output'):
-        os.makedirs('./output')
-    if not os.path.exists('./output/' + outdir):
-        os.makedirs("output/" + outdir)
-    cwd = os.getcwd()
-    os.chdir("output/" + outdir)
-    f = h5py.File("output_" + fname, "w")
-    f.create_dataset("images_ifft_", images.shape, dtype=DTYPE, data=images)
-    if "TGV" in args.reg or args.reg == 'all':
-        for i in range(len(result_tgv)):
-            f.create_dataset("tgv_full_result_"+str(i), result_tgv[i].shape,
-                             dtype=DTYPE, data=result_tgv[i])
-            f.attrs['res_tgv'+str(i)] = res_tgv
-            for j in range(len(model.uk_scale)):
-                model.uk_scale[j] = 1
-            image_final = model.execute_forward(result_tgv[i][-1, ...])
-            f.create_dataset("sim_images_"+str(i), image_final.shape,
-                             dtype=DTYPE, data=image_final)
-    if "TV" in args.reg or args.reg == 'all':
-        for i in range(len(result_tv)):
-            f.create_dataset("tv_full_result_"+str(i), result_tv[i].shape,
-                             dtype=DTYPE, data=result_tv[i])
-            f.attrs['res_tv'] = res_tv
-
-    if "imagespace" in args.reg or args.reg == 'all':
-        for i in range(len(result_tgv)):
-            f.create_dataset("imagespace_full_result_"+str(i),
-                             result_tgv[i].shape,
-                             dtype=DTYPE, data=result_tgv[i])
-            f.attrs['imagespace_tgv'] = res_tgv
-        f.flush()
-    f.attrs['data_norm'] = dscale
-    f.close()
-    os.chdir(cwd)
 
 
-def main(recon_type='3D', reg_type='TGV', slices=1, trafo=1, streamed=0,
-         par_slices=1, data='', model='VFA', config='default', imagespace=0,
-         OCL_GPU=1, sms=0, devices=0, dz=1):
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
+def main(recon_type='3D', reg_type='TGV', slices=1, trafo=False,
+         streamed=False,
+         par_slices=1, data='', model='VFA', config='default',
+         imagespace=False,
+         OCL_GPU=True, sms=False, devices=0, dz=1, weights=None):
     """
     Start a 3D model based reconstruction. Data can also be selected at
     start up. \n\n
@@ -500,8 +561,7 @@ def main(recon_type='3D', reg_type='TGV', slices=1, trafo=1, streamed=0,
     """
     parser = argparse.ArgumentParser(description="T1 quantification from VFA "
                                                  "data. By default runs 3D "
-                                                 "regularization for TGV and "
-                                                 "TV.")
+                                                 "regularization for TGV.")
     parser.add_argument(
       '--recon_type', default=recon_type, dest='type',
       help='Choose reconstruction type (currently only 3D)')
@@ -514,10 +574,10 @@ def main(recon_type='3D', reg_type='TGV', slices=1, trafo=1, streamed=0,
       help="Number of reconstructed slices (default=40). "
            "Symmetrical around the center slice.")
     parser.add_argument(
-      '--trafo', default=trafo, dest='trafo', type=int,
+      '--trafo', default=trafo, dest='trafo', type=str2bool,
       help='Choos between radial (1, default) and Cartesian (0) sampling. ')
     parser.add_argument(
-      '--streamed', default=streamed, dest='streamed', type=int,
+      '--streamed', default=streamed, dest='streamed', type=str2bool,
       help='Enable streaming of large data arrays (e.g. >10 slices).')
     parser.add_argument(
       '--par_slices', default=par_slices, dest='par_slices', type=int,
@@ -536,14 +596,14 @@ def main(recon_type='3D', reg_type='TGV', slices=1, trafo=1, streamed=0,
       help="Name of config file to use (assumed to be in the same folder). "
            "If not specified, use default parameters.")
     parser.add_argument(
-      '--imagespace', default=imagespace, dest='imagespace', type=int,
+      '--imagespace', default=imagespace, dest='imagespace', type=str2bool,
       help="Select if Reco is performed on images (1) or on kspace (0) data. "
            "Defaults to 0")
     parser.add_argument(
-      '--sms', default=sms, dest='sms', type=int,
+      '--sms', default=sms, dest='sms', type=str2bool,
       help="Switch to SMS reconstruction")
     parser.add_argument(
-      '--OCL_GPU', default=OCL_GPU, dest='use_GPU', type=int,
+      '--OCL_GPU', default=OCL_GPU, dest='use_GPU', type=str2bool,
       help="Select if CPU or GPU should be used as OpenCL platform. "
            "Defaults to GPU (1). CAVE: CPU FFT not working")
     parser.add_argument(
@@ -554,6 +614,11 @@ def main(recon_type='3D', reg_type='TGV', slices=1, trafo=1, streamed=0,
       '--dz', default=dz, dest='dz', type=float,
       help="Ratio of physical Z to X/Y dimension. "
            "X/Y is assumed to be isotropic. Defaults to 1")
+    parser.add_argument(
+      '--weights', default=weights, dest='weights', type=float,
+      help="Ratio of unkowns to each other. Defaults to 1. "
+           "If passed, needs to be in the same size as the number of unknowns",
+           nargs='*')
     args = parser.parse_args()
     start_recon(args)
 
@@ -561,8 +626,7 @@ def main(recon_type='3D', reg_type='TGV', slices=1, trafo=1, streamed=0,
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="T1 quantification from VFA "
                                                  "data. By default runs 3D "
-                                                 "regularization for TGV and "
-                                                 "TV.")
+                                                 "regularization for TGV.")
     parser.add_argument(
       '--recon_type', default='3D', dest='type',
       help='Choose reconstruction type (currently only 3D)')
@@ -575,10 +639,10 @@ if __name__ == '__main__':
       help="Number of reconstructed slices (default=40). "
            "Symmetrical around the center slice.")
     parser.add_argument(
-      '--trafo', default=0, dest='trafo', type=int,
+      '--trafo', default=False, dest='trafo', type=str2bool,
       help='Choos between radial (1, default) and Cartesian (0) sampling. ')
     parser.add_argument(
-      '--streamed', default=0, dest='streamed', type=int,
+      '--streamed', default=False, dest='streamed', type=str2bool,
       help='Enable streaming of large data arrays (e.g. >10 slices).')
     parser.add_argument(
       '--par_slices', default=1, dest='par_slices', type=int,
@@ -589,7 +653,7 @@ if __name__ == '__main__':
       help="Full path to input data. "
            "If not provided, a file dialog will open.")
     parser.add_argument(
-      '--model', default='ASL', dest='sig_model',
+      '--model', default='ImageReco', dest='sig_model',
       help='Name of the signal model to use. Defaults to VFA. \
  Please put your signal model file in the Model subfolder.')
     parser.add_argument(
@@ -597,14 +661,14 @@ if __name__ == '__main__':
       help='Name of config file to use (assumed to be in the same folder). \
  If not specified, use default parameters.')
     parser.add_argument(
-      '--imagespace', default=1, dest='imagespace', type=int,
+      '--imagespace', default=False, dest='imagespace', type=str2bool,
       help="Select if Reco is performed on images (1) or on kspace (0) data. "
            "Defaults to 0")
     parser.add_argument(
-      '--sms', default=0, dest='sms', type=int,
+      '--sms', default=False, dest='sms', type=str2bool,
       help="Switch to SMS reconstruction")
     parser.add_argument(
-      '--OCL_GPU', default=1, dest='use_GPU', type=int,
+      '--OCL_GPU', default=True, dest='use_GPU', type=str2bool,
       help="Select if CPU or GPU should be used as OpenCL platform. "
            "Defaults to GPU (1). CAVE: CPU FFT not working")
     parser.add_argument(
@@ -615,5 +679,10 @@ if __name__ == '__main__':
       '--dz', default=1, dest='dz', type=float,
       help="Ratio of physical Z to X/Y dimension. "
            "X/Y is assumed to be isotropic. Defaults to  1")
+    parser.add_argument(
+      '--weights', default=None, dest='weights', type=float,
+      help="Ratio of unkowns to each other. Defaults to 1. "
+           "If passed, needs to be in the same size as the number of unknowns",
+           nargs='*')
     args = parser.parse_args()
     start_recon(args)

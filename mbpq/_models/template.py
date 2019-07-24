@@ -42,6 +42,7 @@ class constraints:
 
 class BaseModel(ABC):
     def __init__(self, par):
+        super().__init__()
         self.constraints = []
         self.uk_scale = []
         self.NScan = par["NScan"]

@@ -43,7 +43,11 @@ def est_coils(data, par, file, args):
     nlinvNewtonSteps = 6
     nlinvRealConstr = False
     try:
-        if not file['Coils'][()].shape[1] >= par["NSlice"]:
+        if args.sms or "Coils_real" in list(file.keys()):
+            print("Using precomputed coil sensitivities")
+            slices_coils = file['Coils_real'][()].shape[1]
+            par["C"] = file['Coils_real'][...] + 1j * file['Coils_imag'][...]
+        elif not args.sms and not file['Coils'][()].shape[1] >= par["NSlice"]:
             if args.trafo:
 
                 traj_coil = np.reshape(
@@ -211,15 +215,9 @@ def est_coils(data, par, file, args):
         else:
             print("Using precomputed coil sensitivities")
             slices_coils = file['Coils'][()].shape[1]
-            if args.sms:
-                par["C"] = file['Coils'][...] + 1j * file['Coils_imag'][...]
-            else:
-                par["C"] = \
-                    file['Coils'][:, int(slices_coils / 2) - int(np.floor(
-                    (par["NSlice"]) / 2)):int(slices_coils / 2) + int(np.ceil(par["NSlice"] / 2)), ...]
-#                par["InScale"] = \
-#                    file['InScale'][int(slices_coils / 2) - int(np.floor(
-#                    (par["NSlice"]) / 2)):int(slices_coils / 2) + int(np.ceil(par["NSlice"] / 2)), ...]
+            par["C"] = \
+                file['Coils'][:, int(slices_coils / 2) - int(np.floor(
+                (par["NSlice"]) / 2)):int(slices_coils / 2) + int(np.ceil(par["NSlice"] / 2)), ...]
 
     except BaseException:
         if args.trafo:
