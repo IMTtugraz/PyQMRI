@@ -186,7 +186,8 @@ def _genImages(myargs, par, data):
         par["file"].create_dataset("images_cg", images.shape,
                                    dtype=DTYPE, data=images)
     else:
-        if images.shape[1] != par["NSlice"]:
+        images = par["file"]['images_cg']
+        if images.shape[1] < par["NSlice"]:
             del par["file"]["images_cg"]
             images = _genImages(myargs, par, data)
         else:
