@@ -147,7 +147,7 @@ def _genImages(myargs, par, data):
     #                        requirements='C')
     #    del FFT, nFTH
 
-#    del par["file"]["images_cg"]
+    #    del par["file"]["images_cg"]
     if "images_cg" not in list(par["file"].keys()):
         from mbpq.solver import CGSolver
         images = np.zeros((par["NScan"],
@@ -167,7 +167,8 @@ def _genImages(myargs, par, data):
                         tol=1e-12)
             del cgs
         if np.mod(par["NScan"], 10):
-            cgs = CGSolver(par, np.mod(par["NScan"], 10), myargs.trafo, myargs.sms)
+            cgs = CGSolver(par, np.mod(par["NScan"], 10),
+                           myargs.trafo, myargs.sms)
             if par["NSlice"] == 1:
                 if np.mod(par["NScan"], 10) == 1:
                     images[-np.mod(par["NScan"], 10):, ...] = cgs.run(
@@ -185,7 +186,19 @@ def _genImages(myargs, par, data):
         par["file"].create_dataset("images_cg", images.shape,
                                    dtype=DTYPE, data=images)
     else:
-        images = par["file"]["images_cg"][()].astype(DTYPE)
+        if images.shape[1] != par["NSlice"]:
+            del par["file"]["images_cg"]
+            images = _genImages(myargs, par, data)
+        else:
+            print("Using precomputed coil sensitivities")
+            slices_images = par["file"]['images_cg'][()].shape[1]
+            images = \
+                par["file"]['Coils'][
+                    :, int(slices_images / 2) - int(
+                        np.floor((par["NSlice"]) / 2)):int(
+                            slices_images / 2) + int(
+                                np.ceil(par["NSlice"] / 2)), ...].astype(DTYPE)
+
     return images
 
 

@@ -110,12 +110,11 @@ class PyOpenCLFFT(object):
                             'kernels/OpenCL_gridding_single.c')).read())
         else:
             if radial is True and SMS is False:
-                return PyOpenCLRadialNUFFTStreamed(
+                obj = PyOpenCLRadialNUFFTStreamed(
                     ctx,
                     queue,
                     par,
                     kwidth=5,
-                    overgridfactor=2,
                     fft_dim=(
                         1,
                         2),
@@ -123,7 +122,7 @@ class PyOpenCLFFT(object):
                     DTYPE=np.complex64,
                     DTYPE_real=np.float32)
             elif SMS is True and radial is False:
-                return PyOpenCLSMSNUFFTStreamed(
+                obj = PyOpenCLSMSNUFFTStreamed(
                     ctx,
                     queue,
                     par,
@@ -133,7 +132,7 @@ class PyOpenCLFFT(object):
                     DTYPE=np.complex64,
                     DTYPE_real=np.float32)
             elif SMS is False and radial is False:
-                return PyOpenCLCartNUFFTStreamed(
+                obj = PyOpenCLCartNUFFTStreamed(
                     ctx,
                     queue,
                     par,
@@ -595,7 +594,7 @@ class PyOpenCLSMSNUFFT(PyOpenCLFFT):
                 wait_for=s.events+self.tmp_fft_array.events))
 
 
-class PyOpenCLRadialNUFFTStreamed:
+class PyOpenCLRadialNUFFTStreamed(PyOpenCLFFT):
     def __init__(
             self,
             ctx,
@@ -811,14 +810,13 @@ class PyOpenCLRadialNUFFTStreamed:
                       sg.events))
 
 
-class PyOpenCLCartNUFFTStreamed:
+class PyOpenCLCartNUFFTStreamed(PyOpenCLFFT):
     def __init__(
             self,
             ctx,
             queue,
             par,
             kwidth=5,
-            overgridfactor=2,
             fft_dim=(
                 1,
                 2),
@@ -922,14 +920,13 @@ class PyOpenCLCartNUFFTStreamed:
                 wait_for=s.events+self.tmp_fft_array.events))
 
 
-class PyOpenCLSMSNUFFTStreamed:
+class PyOpenCLSMSNUFFTStreamed(PyOpenCLFFT):
     def __init__(
             self,
             ctx,
             queue,
             par,
             kwidth=5,
-            overgridfactor=2,
             fft_dim=(
                 1,
                 2),

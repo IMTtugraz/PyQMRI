@@ -32,7 +32,6 @@ from mbpq._helper_fun import _utils as utils
 # %inversion joint estimation of coil sensitivities and image content)
 DTYPE = np.complex64
 DTYPE_real = np.float32
-import ipdb
 
 
 def est_coils(data, par, file, args):
