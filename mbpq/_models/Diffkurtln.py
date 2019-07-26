@@ -43,14 +43,13 @@ class Model(BaseModel):
         except KeyError:
             self.b0 = images[0]*par["dscale"]
 
-        self.phase = np.exp(1j*(np.angle(images)-np.angle(images[0])))
         self.guess = self._set_init_scales(images)
 
         self.constraints.append(
             constraints(
-                0 / self.uk_scale[0],
-                100 / self.uk_scale[0],
-                False))
+                -np.inf / self.uk_scale[0],
+                np.log(500) / self.uk_scale[0],
+                True))
         self.constraints.append(
             constraints(
                 (0 / self.uk_scale[1]),
@@ -61,10 +60,6 @@ class Model(BaseModel):
                 (0 / self.uk_scale[2]),
                 (2 / self.uk_scale[2]),
                 True))
-#        for j in range(phase_maps):
-#            self.constraints.append(constraints(
-#                (-2*np.pi / self.uk_scale[-phase_maps + j]),
-#                (2*np.pi / self.uk_scale[-phase_maps + j]), True))
 
     def _execute_forward_2D(self, x, islice):
         print("2D Functions not implemented")
@@ -77,72 +72,37 @@ class Model(BaseModel):
     def _execute_forward_3D(self, x):
         ADC = x[1, ...] * self.uk_scale[1]
         kurt = x[2, ...] * self.uk_scale[2]
-        tmp_exp = (1 /
-                   6 *
-                   ADC**2 *
-                   self.b**2 *
-                   kurt -
-                   ADC *
-                   self.b)
-#        tmp_exp[tmp_exp > 10] = 10
-        S = x[0, ...] * self.uk_scale[0] * \
-            np.exp(tmp_exp)
 
-#        phase = np.exp(1j*x[3:, ...]*np.array(
-#            self.uk_scale[3:])[:, None, None, None])
-        S *= self.phase
+        S = x[0, ...] * self.uk_scale[0] +\
+            (1 / 6 * ADC**2 * self.b**2 * kurt - ADC * self.b)
 
         S[~np.isfinite(S)] = 1e-20
         S = np.array(S, dtype=DTYPE)
         return S
 
     def _execute_gradient_3D(self, x):
-        M0 = x[0, ...]
+
         ADC = x[1, ...]
         kurt = x[2, ...]
-#        M0_sc = self.uk_scale[0]
+
         ADC_sc = self.uk_scale[1]
         kurt_sc = self.uk_scale[2]
 
         ADC = ADC*ADC_sc
 
-        tmp_exp = (1 /
-                   6 *
-                   ADC**2 *
-                   self.b**2 *
-                   kurt *
-                   kurt_sc -
-                   ADC *
-                   self.b)
-#        tmp_exp[tmp_exp > 10] = 10
-        diffexp = np.exp(tmp_exp)
+        grad_ADC = (2 / 6 * ADC * ADC_sc *
+                    self.b**2 * kurt * kurt_sc - self.b * ADC_sc)
 
-        grad_M0 = self.uk_scale[0] * diffexp
+        grad_kurt = 1 / 6 * ADC**2 * self.b**2 * kurt_sc
+        grad_M0 = self.uk_scale[0] * np.ones_like(grad_ADC)
 
-#        phase = np.exp(1j*x[3:, ...]*np.array(
-#            self.uk_scale[3:])[:, None, None, None])
-        grad_M0 *= self.phase
-
-        grad_ADC = M0 * grad_M0 * (2 / 6 * ADC * ADC_sc * self.b**2 *
-                                   kurt * kurt_sc - ADC_sc * self.b)
-
-        grad_kurt = M0 * grad_M0 * \
-            (1 / 6 * ADC**2 * self.b**2 * kurt_sc)
-
-#        grad_phase = (1j*np.array(
-#            self.uk_scale[3:])[
-#              :, None, None, None, None]*grad_M0*M0).astype(DTYPE)
-#
-#        grad = np.concatenate((np.array([grad_M0, grad_ADC, grad_kurt],
-#                                        dtype=DTYPE),
-#                              grad_phase))
         grad = np.array([grad_M0, grad_ADC, grad_kurt],
                         dtype=DTYPE)
         grad[~np.isfinite(grad)] = 1e-20
         return grad
 
     def plot_unknowns(self, x, dim_2D=False):
-        M0 = np.abs(x[0, ...]) * self.uk_scale[0]
+        M0 = np.exp(np.abs(x[0, ...]) * self.uk_scale[0])
         ADC = (np.abs(x[1, ...]) * self.uk_scale[1])
         kurt = (np.abs(x[2, ...]) * self.uk_scale[2])
         M0_min = M0.min()

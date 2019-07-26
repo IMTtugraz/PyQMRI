@@ -160,11 +160,11 @@ def _genImages(myargs, par, data):
                 if par["NSlice"] == 1:
                     images[10*j:10*(j+1), ...] = cgs.run(
                         data[10*j:10*(j+1), ...],
-                        tol=1e-12)[:, None, ...]
+                        tol=1e-3)[:, None, ...]
                 else:
                     images[10*j:10*(j+1), ...] = cgs.run(
                         data[10*j:10*(j+1), ...],
-                        tol=1e-12)
+                        tol=1e-3)
             del cgs
         if np.mod(par["NScan"], 10):
             cgs = CGSolver(par, np.mod(par["NScan"], 10),
@@ -173,15 +173,15 @@ def _genImages(myargs, par, data):
                 if np.mod(par["NScan"], 10) == 1:
                     images[-np.mod(par["NScan"], 10):, ...] = cgs.run(
                             data[-np.mod(par["NScan"], 10):, ...],
-                            tol=1e-12)
+                            tol=1e-3)
                 else:
                     images[-np.mod(par["NScan"], 10):, ...] = cgs.run(
                             data[-np.mod(par["NScan"], 10):, ...],
-                            tol=1e-12)[:, None, ...]
+                            tol=1e-3)[:, None, ...]
             else:
                 images[-np.mod(par["NScan"], 10):, ...] = cgs.run(
                         data[-np.mod(par["NScan"], 10):, ...],
-                        tol=1e-12)
+                        tol=1e-3)
             del cgs
         par["file"].create_dataset("images_cg", images.shape,
                                    dtype=DTYPE, data=images)
@@ -199,7 +199,11 @@ def _genImages(myargs, par, data):
                         np.floor((par["NSlice"]) / 2)):int(
                             slices_images / 2) + int(
                                 np.ceil(par["NSlice"] / 2)), ...].astype(DTYPE)
-
+#    mask = np.ones_like(images)
+#    for j in range(mask.shape[0]):
+#        mask[j, images[0, ...] < 20] = 0
+#    images = images*mask
+#    images[mask == 1] = np.log(np.abs(images[mask == 1])).astype(DTYPE)
     return images
 
 
@@ -251,7 +255,7 @@ def _estScaleNorm(myargs, par, images, data):
         SNR_est = np.abs(sig/noise)
         par["SNR_est"] = SNR_est
         print("Estimated SNR from kspace", SNR_est)
-    return data
+    return data, images
 
 
 def _readInput(myargs, par):
@@ -424,7 +428,7 @@ def start_recon(myargs):
         print("4D Data passed and IRLL model used. Reordering Projections "
               "into 8 Spokes/Frame")
         [NC, reco_Slices, Nproj, N] = data.shape
-        Nproj_new = 5
+        Nproj_new = 13
         NScan = np.floor_divide(Nproj, Nproj_new)
         par["Nproj_measured"] = Nproj
         Nproj = Nproj_new
@@ -512,7 +516,7 @@ def start_recon(myargs):
 ###############################################################################
 # Scale data norm  ############################################################
 ###############################################################################
-    data = _estScaleNorm(myargs, par, images, data)
+    data, images = _estScaleNorm(myargs, par, images, data)
 ###############################################################################
 # initialize operator  ########################################################
 ###############################################################################
@@ -523,9 +527,8 @@ def start_recon(myargs):
         opt.data = images
     else:
         opt.data = data
-
     f = h5py.File(par["outdir"]+"output_" + par["fname"], "a")
-    f.create_dataset("images_ifft_", images.shape, dtype=DTYPE, data=images)
+    f.create_dataset("images_ifft_", data=images)
     f.attrs['data_norm'] = par["dscale"]
     f.close()
 ###############################################################################

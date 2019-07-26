@@ -85,7 +85,7 @@ class CGSolver:
         del self.FT
         del self.FTH
 
-    def run(self, data, iters=100, lambd=1e-1, tol=1e-8, guess=None):
+    def run(self, data, iters=30, lambd=1e-1, tol=1e-8, guess=None):
         if guess is not None:
             x = clarray.to_device(self.queue, guess)
         else:
@@ -125,7 +125,7 @@ class CGSolver:
                 del Ax, \
                     b, res, p, data, res_new
                 return np.squeeze(x.get())
-
+#            print("Res after iteration %i: %1.3e." % (i, delta))
             beta = (clarray.vdot(res_new, res_new) /
                     clarray.vdot(res, res)).real.get()
             p = res_new+beta*p

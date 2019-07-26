@@ -241,7 +241,6 @@ class ModelReco:
 # output: optimal value of x ##################################################
 ###############################################################################
     def execute_3D(self, TV=0):
-
         iters = self.irgn_par["start_iters"]
 
         result = np.copy(self.model.guess)
