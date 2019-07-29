@@ -28,3 +28,4 @@ data/
 dist*
 .egg*
 mbpq.egg*
+pyqmri.egg*
