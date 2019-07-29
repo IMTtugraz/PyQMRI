@@ -1,3 +1,0 @@
-[console_scripts]
-pyqmri = pyqmri.pyqmri:main
-
