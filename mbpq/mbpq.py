@@ -467,6 +467,7 @@ def start_recon(myargs):
     par["unknowns_TGV"] = sig_model.unknowns_TGV
     par["unknowns_H1"] = sig_model.unknowns_H1
     par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
+    par["imagespace"] = myargs.imagespace
     if myargs.weights is None:
         par["weights"] = np.ones((par["unknowns"]), dtype=np.float32)
     else:
