@@ -548,7 +548,7 @@ class ModelReco:
     def irgn_solve_3D_imagespace(self, x, iters, GN_it, TV=0):
 
         x = np.require(np.transpose(x, [1, 0, 2, 3]), requirements='C')
-        DGk = np.zero(self.data_shape, DTYPE)
+        DGk = np.zeros(self.data_shape, DTYPE)
 
         self.op.fwd(
             [DGk],
