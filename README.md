@@ -2,6 +2,7 @@
 
 * Requires [OpenCL](https://www.khronos.org/opencl/) >= 1.2
 * Requires [clfft](https://github.com/clMathLibraries/clFFT)
+* Requires [gpyfft](https://github.com/geggo/gpyfft)
 * Requires Cython, pip >= 19, python >= 3.6
 
 The Software is tested on Linux using the latest Nvidia driver (418.56 CUDA Version: 10.1) but should be compatible with older drivers as well as different hardware (AMD). The following Installation Guide is targeted at Ubuntu but should work on any distribution provided the required packages are present (could be differently named).
