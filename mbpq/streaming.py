@@ -151,6 +151,7 @@ class stream:
         # Warmup Queue 1
         self._streamtodevice(inp, 0)
         self._startcomputation(par, bound_cond=1, odd=0)
+
         # Warmup Queue 1
         self._streamtodevice(inp, 1)
         self._startcomputation(par, bound_cond=0, odd=1)
@@ -255,7 +256,7 @@ class stream:
                                           idev*self.num_dev+odd][
                                               iinp].events,
                                   is_blocking=False))
-            self.queue[4*idev+odd].flush()
+                            self.queue[4*idev+odd].flush()
 
     def _startcomputation(self, par=[], bound_cond=0, odd=0):
         for idev in range(self.num_dev):
@@ -270,8 +271,8 @@ class stream:
                         idev,
                         odd,
                         bound_cond))
+                self.queue[4*idev+odd].flush()
             bound_cond = 0
-            self.queue[4*idev+odd].flush()
 
     def _streamtohost(self, outp, odd):
         for idev in range(self.num_dev):
@@ -287,7 +288,7 @@ class stream:
                       self.outp[ifun][idev*self.num_dev+odd].data,
                       wait_for=self.outp[ifun][idev*self.num_dev+odd].events,
                       is_blocking=False))
-            self.queue[4*idev+2+odd].flush()
+                self.queue[4*idev+2+odd].flush()
 
     def _streamtohostnorm(self, outp, rhs, lhs, odd):
         for idev in range(self.num_dev):
@@ -317,8 +318,8 @@ class stream:
                     else:
                         (rhs, lhs) = self._calcnormreverse(
                             rhs, lhs, idev, ifun, odd)
-            self.queue[4*idev+odd].flush()
-            self.queue[4*idev+2+odd].flush()
+                self.queue[4*idev+odd].flush()
+                self.queue[4*idev+2+odd].flush()
         return (rhs, lhs)
 
     def _resetindex(self):
