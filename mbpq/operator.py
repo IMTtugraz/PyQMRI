@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Wed Jun 12 10:54:14 2019
-
-@author: omaier
-"""
 from abc import ABC, abstractmethod
 import pyopencl.array as clarray
 import numpy as np

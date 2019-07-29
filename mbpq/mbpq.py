@@ -1,22 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Copyright 2019 Oliver Maier
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
-
-
 import numpy as np
 import os
 import h5py
@@ -293,7 +276,17 @@ def _readInput(myargs, par):
     par["file"] = h5py.File(file)
 
 
-def start_recon(myargs):
+def _start_recon(myargs):
+    """
+    The Main Function. Reads in the data and
+    starts the model based reconstruction.
+
+    Parameters
+    ----------
+    myargs
+        Arguments from pythons argparse to modify the behaviour of the
+        reconstruction procedure.
+    """
     sig_model_path = os.path.normpath(myargs.sig_model)
     if len(sig_model_path.split(os.sep)) > 1:
         spec = importlib.util.spec_from_file_location(
@@ -302,7 +295,7 @@ def start_recon(myargs):
         spec.loader.exec_module(sig_model)
     else:
         sig_model = importlib.import_module(
-            "mbpq._models."+str(sig_model_path))
+            "_mbpq.models."+str(sig_model_path))
     if int(myargs.streamed) == 1:
         import mbpq._irgn._reco_streamed as optimizer
     else:
@@ -566,7 +559,7 @@ def start_recon(myargs):
         del opt
 
 
-def str2bool(v):
+def _str2bool(v):
     if isinstance(v, bool):
         return v
     if v.lower() in ('yes', 'true', 't', 'y', '1'):
@@ -584,27 +577,51 @@ def main(recon_type='3D', reg_type='TGV', slices=1, trafo=False,
          OCL_GPU=True, sms=False, devices=0, dz=1, weights=None):
     """
     Start a 3D model based reconstruction. Data can also be selected at
-    start up. \n\n
-    recon_type: 3D (2D currently not supported but 3D works on one slice also)
-    \n
-    reg_type: TGV (default) or TV\n
-    slices: 1 (pass -1 for all). Slices are picked symmetrically from
-    the volume center\n
-    trafo: 1 (radial, default), 0 Cartesian\n
-    streamed: 0 (default, everything on the GPU), 1 streamed packages\n
-    par_slices: 1 number of slices per package. Volume devided by GPU's and
-    par_slices must be an even number!
-    (Stream packages to the GPU)\n
-    data: '' (Select at start) or pass the full path to the .h5 raw data\n
-    model: 'VFA' or pass the path to your own model file.\n
-    config: 'default' or the name of your own .ini\n
-    (Assumed to be in the current folder)\n
-    imagespace: 0 (perform k-space reconstruction, default) or 1\n
-    OCL_GPU: 1 (Use GPU, default, CAVE: CPU FFT not working)\n
-    sms: 1 use Simultaneous Multi Slice Recon (default 0)
-    devices: 1 Device ID of device(s) to use for streaming\n
-    dz: Ratio of physical Z to X/Y dimension.
-    X/Y is assumed to be isotropic.\n
+    start up.
+
+    Parameters
+    ----------
+    recon_type
+        3D (2D currently not supported but 3D works on one slice also)
+    reg_type
+        TGV or TV, defaults to TGV
+    slices
+        The number of slices to reconsturct. Slices are picked symmetrically
+        from the volume center. Pass -1 to select all slices available.
+        Defaults to 1
+    trafo
+      Choos between Radial (1) or Cartesian (0) FFT
+    streamed
+      Toggle between streaming slices to the GPU (1) or computing
+      everything with a single memory transfer (0). Defaults to 0
+    par_slices
+      Number of slices per streamed package. Volume devided by GPU's and
+      par_slices must be an even number! Defaults to 1
+    data
+      The path to the .h5 file containing the data to reconstruct.
+      If left empty, a GUI will open and asks for data file selection. This
+      is also the default behaviour.
+    model
+      The name of the model which should be used to fit the data. Defaults to
+      'VFA'. A path to your own model file can be passed. See the Model Class
+      for further information on how to setup your own model.
+    config
+      The path to the confi gfile used for the IRGN reconstruction. If
+      not specified the default config file will be used. If no default
+      config file is present in the current working directory one will be
+      generated.
+    imagespace
+      Select between fitting in imagespace (1) or in k-space (0). Defaults to 0
+    OCL_GPU
+      Select between GPU (1) or CPU (0) OpenCL devices. Defaults to GPU
+      CAVE: CPU FFT not working.
+    sms
+      use Simultaneous Multi Slice Recon (1) or normal reconstruction (0).
+      Defaults to 0
+    devices
+      The device ID of device(s) to use for streaming/reconstruction
+    dz
+      Ratio of physical Z to X/Y dimension. X/Y is assumed to be isotropic.
     """
     parser = argparse.ArgumentParser(description="T1 quantification from VFA "
                                                  "data. By default runs 3D "
@@ -621,10 +638,10 @@ def main(recon_type='3D', reg_type='TGV', slices=1, trafo=False,
       help="Number of reconstructed slices (default=40). "
            "Symmetrical around the center slice.")
     parser.add_argument(
-      '--trafo', default=trafo, dest='trafo', type=str2bool,
+      '--trafo', default=trafo, dest='trafo', type=_str2bool,
       help='Choos between radial (1, default) and Cartesian (0) sampling. ')
     parser.add_argument(
-      '--streamed', default=streamed, dest='streamed', type=str2bool,
+      '--streamed', default=streamed, dest='streamed', type=_str2bool,
       help='Enable streaming of large data arrays (e.g. >10 slices).')
     parser.add_argument(
       '--par_slices', default=par_slices, dest='par_slices', type=int,
@@ -643,14 +660,14 @@ def main(recon_type='3D', reg_type='TGV', slices=1, trafo=False,
       help="Name of config file to use (assumed to be in the same folder). "
            "If not specified, use default parameters.")
     parser.add_argument(
-      '--imagespace', default=imagespace, dest='imagespace', type=str2bool,
+      '--imagespace', default=imagespace, dest='imagespace', type=_str2bool,
       help="Select if Reco is performed on images (1) or on kspace (0) data. "
            "Defaults to 0")
     parser.add_argument(
-      '--sms', default=sms, dest='sms', type=str2bool,
+      '--sms', default=sms, dest='sms', type=_str2bool,
       help="Switch to SMS reconstruction")
     parser.add_argument(
-      '--OCL_GPU', default=OCL_GPU, dest='use_GPU', type=str2bool,
+      '--OCL_GPU', default=OCL_GPU, dest='use_GPU', type=_str2bool,
       help="Select if CPU or GPU should be used as OpenCL platform. "
            "Defaults to GPU (1). CAVE: CPU FFT not working")
     parser.add_argument(
@@ -667,7 +684,7 @@ def main(recon_type='3D', reg_type='TGV', slices=1, trafo=False,
            "If passed, needs to be in the same size as the number of unknowns",
            nargs='*')
     args = parser.parse_args()
-    start_recon(args)
+    _start_recon(args)
 
 
 if __name__ == '__main__':
@@ -686,10 +703,10 @@ if __name__ == '__main__':
       help="Number of reconstructed slices (default=40). "
            "Symmetrical around the center slice.")
     parser.add_argument(
-      '--trafo', default=False, dest='trafo', type=str2bool,
+      '--trafo', default=False, dest='trafo', type=_str2bool,
       help='Choos between radial (1, default) and Cartesian (0) sampling. ')
     parser.add_argument(
-      '--streamed', default=False, dest='streamed', type=str2bool,
+      '--streamed', default=False, dest='streamed', type=_str2bool,
       help='Enable streaming of large data arrays (e.g. >10 slices).')
     parser.add_argument(
       '--par_slices', default=1, dest='par_slices', type=int,
@@ -708,14 +725,14 @@ if __name__ == '__main__':
       help='Name of config file to use (assumed to be in the same folder). \
  If not specified, use default parameters.')
     parser.add_argument(
-      '--imagespace', default=False, dest='imagespace', type=str2bool,
+      '--imagespace', default=False, dest='imagespace', type=_str2bool,
       help="Select if Reco is performed on images (1) or on kspace (0) data. "
            "Defaults to 0")
     parser.add_argument(
-      '--sms', default=False, dest='sms', type=str2bool,
+      '--sms', default=False, dest='sms', type=_str2bool,
       help="Switch to SMS reconstruction")
     parser.add_argument(
-      '--OCL_GPU', default=True, dest='use_GPU', type=str2bool,
+      '--OCL_GPU', default=True, dest='use_GPU', type=_str2bool,
       help="Select if CPU or GPU should be used as OpenCL platform. "
            "Defaults to GPU (1). CAVE: CPU FFT not working")
     parser.add_argument(
@@ -732,4 +749,4 @@ if __name__ == '__main__':
            "If passed, needs to be in the same size as the number of unknowns",
            nargs='*')
     args = parser.parse_args()
-    start_recon(args)
+    _start_recon(args)

@@ -1,0 +1,6 @@
+MBPQ
+======
+.. automodule:: mbpq.mbpq
+   :members:
+   :undoc-members:
+ 
