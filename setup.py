@@ -26,4 +26,10 @@ setup(name='pyqmri',
       entry_points={
         'console_scripts': ['pyqmri = pyqmri.pyqmri:main'],
         },
-      zip_safe=False) 
+      zip_safe=False,
+      classifiers=[
+        "Development Status :: 4 - Beta",
+        "Programming Language :: Python :: 3",
+        "License :: OSI Approved :: Apache Software License",
+        "Operating System :: POSIX :: Linux",
+    ]) 
