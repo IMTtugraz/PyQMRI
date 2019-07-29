@@ -20,7 +20,7 @@ import numpy as np
 import pyopencl as cl
 import pyopencl.array as clarray
 DTYPE = np.complex64
-import ipdb
+
 
 class stream:
     def __init__(self,
@@ -255,6 +255,7 @@ class stream:
                                           idev*self.num_dev+odd][
                                               iinp].events,
                                   is_blocking=False))
+            self.queue[4*idev+odd].flush()
 
     def _startcomputation(self, par=[], bound_cond=0, odd=0):
         for idev in range(self.num_dev):
@@ -270,6 +271,7 @@ class stream:
                         odd,
                         bound_cond))
             bound_cond = 0
+            self.queue[4*idev+odd].flush()
 
     def _streamtohost(self, outp, odd):
         for idev in range(self.num_dev):
@@ -285,6 +287,7 @@ class stream:
                       self.outp[ifun][idev*self.num_dev+odd].data,
                       wait_for=self.outp[ifun][idev*self.num_dev+odd].events,
                       is_blocking=False))
+            self.queue[4*idev+2+odd].flush()
 
     def _streamtohostnorm(self, outp, rhs, lhs, odd):
         for idev in range(self.num_dev):
@@ -314,6 +317,8 @@ class stream:
                     else:
                         (rhs, lhs) = self._calcnormreverse(
                             rhs, lhs, idev, ifun, odd)
+            self.queue[4*idev+odd].flush()
+            self.queue[4*idev+2+odd].flush()
         return (rhs, lhs)
 
     def _resetindex(self):

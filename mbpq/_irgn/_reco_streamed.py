@@ -253,13 +253,6 @@ class ModelReco:
             outp.data, inp[0].data, inp[1].data, np.float32(par[0]),
             wait_for=outp.events+inp[0].events+inp[1].events+wait_for)
 
-    def permutescanslices(self, outp, inp, par=[], idx=0, idxq=0,
-                          bound_cond=0, wait_for=[]):
-        return self.prg[idx].permutescanslices(
-            outp,
-            inp[0],
-            wait_for=outp.evens + inp[0].events + wait_for)
-
     def eval_const(self):
         num_const = (len(self.model.constraints))
         min_const = np.zeros((num_const), dtype=np.float32)
