@@ -33,9 +33,9 @@ import pyopencl.array as clarray
 
 import argparse
 
-from mbpq._helper_fun import _goldcomp as goldcomp
-from mbpq._helper_fun._est_coils import est_coils
-from mbpq._helper_fun import _utils as utils
+from pyqmri._helper_fun import _goldcomp as goldcomp
+from pyqmri._helper_fun._est_coils import est_coils
+from pyqmri._helper_fun import _utils as utils
 
 DTYPE = np.complex64
 DTYPE_real = np.float32
@@ -50,11 +50,11 @@ def start_recon(args):
         spec.loader.exec_module(sig_model)
     else:
         sig_model = importlib.import_module(
-            "mbpq._models."+str(sig_model_path))
+            "pyqmri._models."+str(sig_model_path))
     if int(args.streamed) == 1:
-        import mbpq._irgn._reco_streamed as optimizer
+        import pyqmri._irgn._reco_streamed as optimizer
     else:
-        import mbpq._irgn._reco as optimizer
+        import pyqmri._irgn._reco as optimizer
     np.seterr(divide='ignore', invalid='ignore')
 
 # Create par struct to store everyting

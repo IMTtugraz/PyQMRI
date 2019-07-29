@@ -10,7 +10,7 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
-from mbpq._models.template import BaseModel, constraints, DTYPE
+from pyqmri._models.template import BaseModel, constraints, DTYPE
 
 matplotlib.use("Qt5agg")
 plt.ion()

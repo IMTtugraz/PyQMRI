@@ -1,0 +1,11 @@
+Metadata-Version: 1.2
+Name: pyqmri
+Version: 0.1
+Summary: Model-based parameter quantification using OpenCL and Python
+Home-page: https://github.com/IMTtugraz/PyQMRI
+Author: Oliver Maier
+Author-email: oliver.maier@tugraz.at
+License: Apache-2.0
+Description: UNKNOWN
+Platform: UNKNOWN
+Requires-Python: >=3.6

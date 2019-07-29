@@ -7,7 +7,7 @@ Created on Wed Jan 30 11:10:07 2019
 """
 import numpy as np
 import configparser
-from mbpq._transforms._pyopencl_nufft import PyOpenCLNUFFT
+from pyqmri._transforms._pyopencl_nufft import PyOpenCLNUFFT
 
 DTYPE = np.complex64
 DTYPE_real = np.float32

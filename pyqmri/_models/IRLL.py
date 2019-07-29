@@ -5,7 +5,7 @@ Created on Fri Jun  9 11:33:09 2017
 
 @author: omaier
 """
-from mbpq._models.template import BaseModel, constraints, DTYPE
+from pyqmri._models.template import BaseModel, constraints, DTYPE
 import numexpr as ne
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt

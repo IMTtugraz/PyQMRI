@@ -1,0 +1,9 @@
+cython
+pyopencl
+numpy
+h5py
+mako
+matplotlib
+gpyfft@ git+https://github.com/geggo/gpyfft.git#egg=gpyfft
+ipyparallel
+pyfftw

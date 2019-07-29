@@ -16,7 +16,7 @@
 import numpy as np
 import time
 import pyfftw
-from mbpq._helper_fun._fftshift2 import fftshift2
+from pyqmri._helper_fun._fftshift2 import fftshift2
 
 
 def nlinvns(Y, n, *arg):  # *returnProfiles,**realConstr):

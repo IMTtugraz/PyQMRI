@@ -25,7 +25,7 @@ from pkg_resources import resource_filename
 import pyopencl as cl
 import pyopencl.array as clarray
 
-import mbpq._transforms._pyopencl_nufft_slicefirst as NUFFT
+import pyqmri._transforms._pyopencl_nufft_slicefirst as NUFFT
 
 DTYPE = np.complex64
 DTYPE_real = np.float32
@@ -122,7 +122,7 @@ class ModelReco:
                     self.ctx[j],
                     open(
                         resource_filename(
-                            'mbpq',
+                            'pyqmri',
                             'kernels/OpenCL_Kernels_streamed.c')).read()))
 
     def operator_forward_kspace(self, out, x, idx=0, idxq=0, wait_for=[]):

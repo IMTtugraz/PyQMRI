@@ -24,9 +24,9 @@ import numpy as np
 import sys
 import ipyparallel as ipp
 import pyopencl.array as clarray
-from mbpq._helper_fun import _nlinvns as nlinvns
-from mbpq._helper_fun import _goldcomp as goldcomp
-from mbpq._helper_fun import _utils as utils
+from pyqmri._helper_fun import _nlinvns as nlinvns
+from pyqmri._helper_fun import _goldcomp as goldcomp
+from pyqmri._helper_fun import _utils as utils
 
 # % Estimates sensitivities and complex image.
 # %(see Martin Uecker: Image reconstruction by regularized nonlinear

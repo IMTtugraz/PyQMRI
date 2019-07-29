@@ -1,13 +1,13 @@
 from setuptools import setup, find_packages
 
-setup(name='mbpq',
+setup(name='pyqmri',
       version='0.1',
       description='Model-based parameter quantification using OpenCL and Python',
-      url='https://github.com/MaierOli2010/MBPQ',
+      url='https://github.com/IMTtugraz/PyQMRI',
       author='Oliver Maier',
       author_email='oliver.maier@tugraz.at',
       license='Apache-2.0',
-      package_data={'mbpq': ['kernels/*.c']},
+      package_data={'pyqmri': ['kernels/*.c']},
       include_package_data=True,
       exclude_package_data = {'': ['data*','output*']},
       packages=find_packages(exclude=("output*","data*")),
@@ -24,6 +24,6 @@ setup(name='mbpq',
         'ipyparallel',
         'pyfftw'],
       entry_points={
-        'console_scripts': ['mbpq = mbpq.mbpq:main'],
+        'console_scripts': ['pyqmri = pyqmri.pyqmri:main'],
         },
       zip_safe=False) 
