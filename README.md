@@ -1,4 +1,4 @@
-# MBPQ - Model-Based Parameter Quantification
+# PyQMRI - Model-Based Parameter Quantification
 
 * Requires [OpenCL](https://www.khronos.org/opencl/) >= 1.2
 * Requires [clfft](https://github.com/clMathLibraries/clFFT)
