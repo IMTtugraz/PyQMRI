@@ -1,64 +1,63 @@
 PyQMRI - Model-Based Parameter Quantification
 =============================================
 
-* Requires [OpenCL](https://www.khronos.org/opencl/) >= 1.2
-* Requires [clfft](https://github.com/clMathLibraries/clFFT)
-* Requires [gpyfft](https://github.com/geggo/gpyfft)
+* Requires OpenCL_ >= 1.2
+.._OpenCL:https://www.khronos.org/opencl/
+* Requires clfft_
+.._clfft: https://github.com/clMathLibraries/clFFT
+* Requires gpyfft_
+.._gpyfft: https://github.com/geggo/gpyfft
 * Requires Cython, pip >= 19, python >= 3.6
 
 The Software is tested on Linux using the latest Nvidia driver (418.56 CUDA Version: 10.1) but should be compatible with older drivers as well as different hardware (AMD). The following Installation Guide is targeted at Ubuntu but should work on any distribution provided the required packages are present (could be differently named).
 
 * It is highly recommended to use an Anaconda environment
 
+.. role:: bash(code)
+   :language: bash
+
 Quick Installing Guide:
 ------------------------
 First make sure that you have a working OpenCL installation
   - OpenCL is usually shipped with GPU driver (Nvidia/AMD)
   - Install the ocl_icd and the OpenCL-Headers
-    ``
-    apt-get install ocl_icd* opencl-headers
-    `` 
-Possible restart of system after installing new drivers
-  - Build [clinfo](https://github.com/Oblomov/clinfo)
-  - Run clinfo in terminal and check for errors
+    :bash:`apt-get install ocl_icd* opencl-headers`
+Possible restart of system after installing new drivers and check if OpenCL is working
+  - Build clinfo_:
+  .._clinfo: https://github.com/Oblomov/clinfo
+  - Run clinfo_ in terminal and check for errors
 
 Install clFFT library:  
   - Either use the package repository,e.g.:
-    ``
-    apt-get install libclfft*
-    ``
-  - Or download a prebuild binary of [clfft](https://github.com/clMathLibraries/clFFT) 
-    - Please refer to the [clFFT](https://github.com/clMathLibraries/clFFT) docs regarding building
-    - If build from source symlink clfft libraries from lib64 to the lib folder and run `` ldconfig ``
+    :bash:`apt-get install libclfft*`
+  - Or download a prebuild binary of clfft_
+    - Please refer to the clfft_ docs regarding building
+    - If build from source symlink clfft_ libraries from lib64 to the lib folder and run :bash:`ldconfig`
     
-  - Install [gpyfft](https://github.com/geggo/gpyfft) by following the instruction on the GitHub page. 
+  - Install gpyfft_ by following the instruction on the GitHub page. 
   
   - A simple
-    ``
-    pip install pyqmri
-    ``
+    :bash:`pip install pyqmri`
     should be sufficient to install the latest release.
     
   - Alternatively, clone the git repository and navigate to the root directory of PyQMRI. Typing
-    ``
-    pip install .
-    ``
+    :bash:`pip install .`
     should take care of the other dependencies using PyPI and install the package. 
     
  
 In case OCL > 1.2 is present, e.g. by some CPU driver, and NVidia GPUs needs to be used the flag
 PRETENED_OCL 1.2 has to be passed to PyOpenCL during the build process. This 
 can be done by:
-``
-./configure.py --cl-pretend-version=1.2
-rm -Rf build
-python setup.py install
-``
+.. bash::
+    ./configure.py --cl-pretend-version=1.2
+    rm -Rf build
+    python setup.py install
+
 
 Sample Data
 -----------
-
-In-vivo datasets used in the original publication (doi: [10.1002/mrm.27502](http://onlinelibrary.wiley.com/doi/10.1002/mrm.27502/full)) can be found at 
+.._[10.1002/mrm.27502]: http://onlinelibrary.wiley.com/doi/10.1002/mrm.27502/full
+In-vivo datasets used in the original publication (doi: [10.1002/mrm.27502]) can be found at 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.1410918.svg)](https://doi.org/10.5281/zenodo.1410918)    
 
 Prerequests on the .h5 file:
