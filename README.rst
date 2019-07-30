@@ -1,4 +1,5 @@
-# PyQMRI - Model-Based Parameter Quantification
+PyQMRI - Model-Based Parameter Quantification
+=============================================
 
 * Requires [OpenCL](https://www.khronos.org/opencl/) >= 1.2
 * Requires [clfft](https://github.com/clMathLibraries/clFFT)
@@ -10,57 +11,58 @@ The Software is tested on Linux using the latest Nvidia driver (418.56 CUDA Vers
 * It is highly recommended to use an Anaconda environment
 
 Quick Installing Guide:
----------------
+------------------------
 First make sure that you have a working OpenCL installation
   - OpenCL is usually shipped with GPU driver (Nvidia/AMD)
   - Install the ocl_icd and the OpenCL-Headers
-    ```
+    ``
     apt-get install ocl_icd* opencl-headers
-    ```  
+    `` 
 Possible restart of system after installing new drivers
   - Build [clinfo](https://github.com/Oblomov/clinfo)
   - Run clinfo in terminal and check for errors
 
 Install clFFT library:  
   - Either use the package repository,e.g.:
-    ```
+    ``
     apt-get install libclfft*
-    ```  
+    ``
   - Or download a prebuild binary of [clfft](https://github.com/clMathLibraries/clFFT) 
     - Please refer to the [clFFT](https://github.com/clMathLibraries/clFFT) docs regarding building
-    - If build from source symlink clfft libraries from lib64 to the lib folder and run ``` ldconfig ```
+    - If build from source symlink clfft libraries from lib64 to the lib folder and run `` ldconfig ``
     
   - Install [gpyfft](https://github.com/geggo/gpyfft) by following the instruction on the GitHub page. 
   
   - A simple
-    ```
+    ``
     pip install pyqmri
-    ```
+    ``
     should be sufficient to install the latest release.
     
   - Alternatively, clone the git repository and navigate to the root directory of PyQMRI. Typing
-    ```
+    ``
     pip install .
-    ```
+    ``
     should take care of the other dependencies using PyPI and install the package. 
     
  
 In case OCL > 1.2 is present, e.g. by some CPU driver, and NVidia GPUs needs to be used the flag
 PRETENED_OCL 1.2 has to be passed to PyOpenCL during the build process. This 
 can be done by:
-```
+``
 ./configure.py --cl-pretend-version=1.2
 rm -Rf build
 python setup.py install
-```
+``
 
-## Sample Data
+Sample Data
+-----------
 
 In-vivo datasets used in the original publication (doi: [10.1002/mrm.27502](http://onlinelibrary.wiley.com/doi/10.1002/mrm.27502/full)) can be found at 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.1410918.svg)](https://doi.org/10.5281/zenodo.1410918)    
 
 Prerequests on the .h5 file:
--------------------------
+-----------------------------
 The toolbox expects a .h5 file with a certain structure. 
   - kspace data (assumed to be 5D for VFA) and passed as:
     - real_dat (Scans, Coils, Slices, Projections, Samples)
@@ -89,27 +91,27 @@ The toolbox expects a .h5 file with a certain structure.
   If predetermined coil sensitivity maps are available they can be passed as complex dataset, which can saved bedirectly using Python. Matlab users would need to write/use low level hdf5 functions to save a complex array to .h5 file. Coil sensitivities are assumed to have the same number of slices as the original volume and are intesity normalized. The corresponding .h5 entry is named "Coils". If no "Coils" parameter is found or the number of "Coil" slices is less than the number of reconstructed slices, the coil sensitivities are determined using the [NLINV](https://doi.org/10.1002/mrm.21691) algorithm and saved into the file. 
 
 Running the reconstruction:
--------------------------    
+---------------------------
 First, start an ipcluster for speeding up the coil sensitivity estimation:
-```
+``
 ipcluster start -n N
-```
+``
 where N amounts to the number of processe to be used. If -n N is ommited, 
 as many processes as number of CPU cores available are started.
 
 Reconstruction of the parameter maps can be started either using the terminal by typing:
-```
+``
 pyqmri
-```
+``
 or from python by:
-```
+``
 import pyqmri
 pyqmri.run()
-```
+``
 A list of accepted flags can be printed using 
-```
+``
 pyqmri -h
-```
+``
 
 or by fewing the documentation of pyqmri.pyqmri in python.
 
@@ -137,7 +139,7 @@ A default config file will be generated if no path to a config file is passed as
   - omega_dec: Decrease factor for omega after each GN step
 
 Limitations and known Issues:
--------------------------
+------------------------------
 Currently runs only on GPUs due to having only basic CPU support for the clfft.
 
 Citation:
@@ -145,7 +147,7 @@ Citation:
 Please cite "Oliver Maier, Matthias Schloegl, Kristian Bredies, and Rudolf Stollberger; 3D Model-Based Parameter Quantification on Resource Constrained Hardware using Double-Buffering. Proceedings of the 27th meeting of the ISMRM, 2019, Montreal, Canada" if using the software or parts of it, specifically the PyOpenCL based NUFFT, in your work.
 
 Older Releases:
----------
+----------------
 You can find the code for 
 
 Maier O, Schoormans J,Schloegl M, Strijkers GJ, Lesch A, Benkert T, Block T, Coolen BF, Bredies K, Stollberger R <br>
