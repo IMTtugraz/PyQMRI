@@ -19,18 +19,21 @@ The Software is tested on Linux using the latest Nvidia driver (418.56 CUDA Vers
    
 Quick Installing Guide:
 ------------------------
+
 First make sure that you have a working OpenCL installation
+
   - OpenCL is usually shipped with GPU driver (Nvidia/AMD)
   - Install the ocl_icd and the OpenCL-Headers
   
     :bash:`apt-get install ocl_icd* opencl-headers`
     
 Possible restart of system after installing new drivers and check if OpenCL is working
-  - Build clinfo_:
 
+  - Build clinfo_:
   - Run clinfo_ in terminal and check for errors
 
 Install clFFT library:  
+
   - Either use the package repository,e.g.:
   
     :bash:`apt-get install libclfft*`
@@ -41,19 +44,19 @@ Install clFFT library:
     
     :bash:`ldconfig`
     
-  - Install gpyfft_ by following the instruction on the GitHub page. 
+Install gpyfft_ by following the instruction on the GitHub page. 
   
-  - A simple
+To Install PyQMRI, a simple
   
     :bash:`pip install pyqmri`
     
-    should be sufficient to install the latest release.
+should be sufficient to install the latest release.
     
-  - Alternatively, clone the git repository and navigate to the root directory of PyQMRI. Typing
+Alternatively, clone the git repository and navigate to the root directory of PyQMRI. Typing
   
     :bash:`pip install .`
     
-    should take care of the other dependencies using PyPI and install the package. 
+should take care of the other dependencies using PyPI and install the package. 
      
 In case OCL > 1.2 is present, e.g. by some CPU driver, and NVidia GPUs needs to be used the flag
 PRETENED_OCL 1.2 has to be passed to PyOpenCL during the build process. This 
@@ -73,25 +76,33 @@ In-vivo datasets used in the original publication (doi: `[10.1002/mrm.27502]`_) 
 Prerequests on the .h5 file:
 -----------------------------
 The toolbox expects a .h5 file with a certain structure. 
+
   - kspace data (assumed to be 5D for VFA) and passed as:
+  
     - real_dat (Scans, Coils, Slices, Projections, Samples)
     - imag_dat (Scans, Coils, Slices, Projections, Samples)
     
     If radial sampling is used the trajectory is expected to be:
-    - real_traj (Scans, Projections, Samples)
-    - imag_traj (Scans, Projections, Samples)
     
-    Density compensation is performed internally assuming a simple ramp
+    * real_traj (Scans, Projections, Samples)
+    * imag_traj (Scans, Projections, Samples)
+    
+    Density compensation is performed internally assuming a simple ramp.
     
     For Cartesian data Projections and Samples are replaced by ky and kx encodings points and no trajectory is needed.  
     
     Data is assumed to be 2D stack-of-stars, i.e. already Fourier transformed along the fully sampled z-direction.
     
   - flip angle correction (optional) can be passed as:
+  
     - fa_corr (Scans, Coils, Slices, dimY, dimX)
+    
   - The image dimension for the full dataset is passed as attribute consiting of:
+  
     - image_dimensions = (dimX, dimY, NSlice)
+    
   - Parameters specific to the used model (e.g. TR or flip angle) need to be set as attributes e.g.:
+  
     - TR = 5.38
     - flip_angle(s) = (1,3,5,7,9,11,13,15,17,19)
     
