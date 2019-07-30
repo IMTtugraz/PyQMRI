@@ -479,26 +479,48 @@ def main(recon_type='3D', reg_type='TGV', slices=1, trafo=1, streamed=0,
          OCL_GPU=1, devices=0, dz=1):
     """
     Start a 3D model based reconstruction. Data can also be selected at
-    start up. \n\n
-    recon_type: 3D (2D currently not supported but 3D works on one slice also)
-    \n
-    reg_type: TGV (default) or TV\n
-    slices: 1 (pass -1 for all). Slices are picked symmetrically from
-    the volume center\n
-    trafo: 1 (radial, default), 0 Cartesian\n
-    streamed: 0 (default, everything on the GPU), 1 streamed packages\n
-    par_slices: 1 number of slices per package. Volume devided by GPU's and
-    par_slices must be an even number!
-    (Stream packages to the GPU)\n
-    data: '' (Select at start) or pass the full path to the .h5 raw data\n
-    model: 'VFA' or pass the path to your own model file.\n
-    config: 'default' or the name of your own .ini\n
-    (Assumed to be in the current folder)\n
-    imagespace: 0 (perform k-space reconstruction, default) or 1\n
-    OCL_GPU: 1 (Use GPU, default, CAVE: CPU FFT not working)\n
-    devices: 1 Device ID of device(s) to use for streaming\n
-    dz: Ratio of physical Z to X/Y dimension.
-    X/Y is assumed to be isotropic.\n
+    start up.
+
+    Parameters
+    ----------
+    recon_type
+        3D (2D currently not supported but 3D works on one slice also)
+    reg_type
+        TGV or TV, defaults to TGV
+    slices
+        The number of slices to reconsturct. Slices are picked symmetrically
+        from the volume center. Pass -1 to select all slices available.
+        Defaults to 1
+    trafo
+      Choos between Radial (1) or Cartesian (0) FFT
+    streamed
+      Toggle between streaming slices to the GPU (1) or computing
+      everything with a single memory transfer (0). Defaults to 0
+    par_slices
+      Number of slices per streamed package. Volume devided by GPU's and
+      par_slices must be an even number! Defaults to 1
+    data
+      The path to the .h5 file containing the data to reconstruct.
+      If left empty, a GUI will open and asks for data file selection. This
+      is also the default behaviour.
+    model
+      The name of the model which should be used to fit the data. Defaults to
+      'VFA'. A path to your own model file can be passed. See the Model Class
+      for further information on how to setup your own model.
+    config
+      The path to the confi gfile used for the IRGN reconstruction. If
+      not specified the default config file will be used. If no default
+      config file is present in the current working directory one will be
+      generated.
+    imagespace
+      Select between fitting in imagespace (1) or in k-space (0). Defaults to 0
+    OCL_GPU
+      Select between GPU (1) or CPU (0) OpenCL devices. Defaults to GPU
+      CAVE: CPU FFT not working.
+    devices
+      The device ID of device(s) to use for streaming/reconstruction
+    dz
+      Ratio of physical Z to X/Y dimension. X/Y is assumed to be isotropic.
     """
     parser = argparse.ArgumentParser(description="T1 quantification from VFA "
                                                  "data. By default runs 3D "
