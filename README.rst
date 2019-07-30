@@ -171,7 +171,7 @@ You can find the code for
 | **Rapid T1 quantification from high resolution 3D data with model‐based reconstruction.**
 | *Magn Reson Med.*, 2018; 00:1–16 doi: `[10.1002/mrm.27502]`_
 
-at `[v0.1.0] <(https://github.com/IMTtugraz/PyQMRI/tree/v.0.1.0)>`_
+at `[v0.1.0] <https://github.com/IMTtugraz/PyQMRI/tree/v.0.1.0>`_
 
 .. _OpenCL: https://www.khronos.org/opencl/
 .. _clfft: https://github.com/clMathLibraries/clFFT
