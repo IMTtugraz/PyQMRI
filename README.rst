@@ -118,7 +118,7 @@ or from python by:
 .. code-block:: python
 
           import pyqmri
-          pyqmri.run()`
+          pyqmri.run()
 
 A list of accepted flags can be printed using 
 
