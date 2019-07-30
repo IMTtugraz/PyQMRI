@@ -2,11 +2,8 @@ PyQMRI - Model-Based Parameter Quantification
 =============================================
 
 * Requires OpenCL_ >= 1.2
-.. _OpenCL: https://www.khronos.org/opencl/
 * Requires clfft_
-.. _clfft: https://github.com/clMathLibraries/clFFT
 * Requires gpyfft_
-.. _gpyfft: https://github.com/geggo/gpyfft
 * Requires Cython, pip >= 19, python >= 3.6
 
 The Software is tested on Linux using the latest Nvidia driver (418.56 CUDA Version: 10.1) but should be compatible with older drivers as well as different hardware (AMD). The following Installation Guide is targeted at Ubuntu but should work on any distribution provided the required packages are present (could be differently named).
@@ -19,6 +16,7 @@ The Software is tested on Linux using the latest Nvidia driver (418.56 CUDA Vers
 .. role:: python(code)
    :language: python
    
+   
 Quick Installing Guide:
 ------------------------
 First make sure that you have a working OpenCL installation
@@ -29,7 +27,7 @@ First make sure that you have a working OpenCL installation
     
 Possible restart of system after installing new drivers and check if OpenCL is working
   - Build clinfo_:
-.. _clinfo: https://github.com/Oblomov/clinfo
+
   - Run clinfo_ in terminal and check for errors
 
 Install clFFT library:  
@@ -61,7 +59,9 @@ Install clFFT library:
 In case OCL > 1.2 is present, e.g. by some CPU driver, and NVidia GPUs needs to be used the flag
 PRETENED_OCL 1.2 has to be passed to PyOpenCL during the build process. This 
 can be done by:
-.. bash::
+
+.. code-block:: bash
+
     ./configure.py --cl-pretend-version=1.2
     rm -Rf build
     python setup.py install
@@ -69,9 +69,7 @@ can be done by:
 
 Sample Data
 -----------
-.. _doi: http://onlinelibrary.wiley.com/doi/10.1002/mrm.27502/full
-.. _zenodo: https://doi.org/10.5281/zenodo.1410918
-In-vivo datasets used in the original publication (doi_) can be found at zenodo_.
+In-vivo datasets used in the original publication (doi: `[10.1002/mrm.27502]`_) can be found at zenodo_.
 
 Prerequests on the .h5 file:
 -----------------------------
@@ -100,7 +98,7 @@ The toolbox expects a .h5 file with a certain structure.
     
     The specific structure is determined according to the Model file.
     
-  If predetermined coil sensitivity maps are available they can be passed as complex dataset, which can saved bedirectly using Python. Matlab users would need to write/use low level hdf5 functions to save a complex array to .h5 file. Coil sensitivities are assumed to have the same number of slices as the original volume and are intesity normalized. The corresponding .h5 entry is named "Coils". If no "Coils" parameter is found or the number of "Coil" slices is less than the number of reconstructed slices, the coil sensitivities are determined using the [NLINV](https://doi.org/10.1002/mrm.21691) algorithm and saved into the file. 
+  If predetermined coil sensitivity maps are available they can be passed as complex dataset, which can saved bedirectly using Python. Matlab users would need to write/use low level hdf5 functions to save a complex array to .h5 file. Coil sensitivities are assumed to have the same number of slices as the original volume and are intesity normalized. The corresponding .h5 entry is named "Coils". If no "Coils" parameter is found or the number of "Coil" slices is less than the number of reconstructed slices, the coil sensitivities are determined using the NLINV_ algorithm and saved into the file. 
 
 Running the reconstruction:
 ---------------------------
@@ -117,8 +115,10 @@ Reconstruction of the parameter maps can be started either using the terminal by
 
 or from python by:
 
-:python:` | import pyqmri
-          | pyqmri.run()`
+.. code-block:: python
+
+          import pyqmri
+          pyqmri.run()`
 
 A list of accepted flags can be printed using 
 
@@ -161,10 +161,21 @@ Older Releases:
 ----------------
 You can find the code for 
 
-Maier O, Schoormans J,Schloegl M, Strijkers GJ, Lesch A, Benkert T, Block T, Coolen BF, Bredies K, Stollberger R <br>
-  __Rapid T1 quantification from high
-resolution 3D data with model‐based reconstruction.__<br>
-  _Magn Reson Med._, 2018; 00:1–16<br>
-  doi: `[10.1002/mrm.27502] <(http://onlinelibrary.wiley.com/doi/10.1002/mrm.27502/full)>`_
+Maier O, Schoormans J,Schloegl M, Strijkers GJ, Lesch A, Benkert T, Block T, Coolen BF, Bredies K, Stollberger R 
 
-at [v0.1.0](https://github.com/IMTtugraz/PyQMRI/tree/v.0.1.0)
+**Rapid T1 quantification from high
+resolution 3D data with model‐based reconstruction.**
+*Magn Reson Med.*, 2018; 00:1–16
+doi: `[10.1002/mrm.27502]`_
+
+at `[v0.1.0] <(https://github.com/IMTtugraz/PyQMRI/tree/v.0.1.0)>`_
+
+
+
+.. _OpenCL: https://www.khronos.org/opencl/
+.. _clfft: https://github.com/clMathLibraries/clFFT
+.. _gpyfft: https://github.com/geggo/gpyfft
+.. _clinfo: https://github.com/Oblomov/clinfo
+.. _`[10.1002/mrm.27502]`: http://onlinelibrary.wiley.com/doi/10.1002/mrm.27502/full
+.. _zenodo: https://doi.org/10.5281/zenodo.1410918
+.. _NLINV: https://doi.org/10.1002/mrm.21691
