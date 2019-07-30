@@ -14,9 +14,6 @@ class Model(BaseModel):
     def __init__(self, par, images):
         super().__init__(par)
         self.images = images
-        self.NSlice = par['NSlice']
-
-        self.figure_phase = None
 
         self.b = np.ones((self.NScan, 1, 1, 1))
         self.dir = par["DWI_dir"].T

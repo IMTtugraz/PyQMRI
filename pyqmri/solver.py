@@ -51,9 +51,11 @@ class CGSolver:
         self._NC = par["NC"]
         self._queue = par["queue"][0]
         self._prg = Program(
-            self.ctx,
-            open(resource_filename('mbpq', 'kernels/OpenCL_Kernels.c')).read())
-        self._coil_buf = cl.Buffer(self.ctx,
+            par["ctx"][0],
+            open(
+                resource_filename(
+                    'pyqmri', 'kernels/OpenCL_Kernels.c')).read())
+        self._coil_buf = cl.Buffer(par["ctx"][0],
                                    cl.mem_flags.READ_ONLY |
                                    cl.mem_flags.COPY_HOST_PTR,
                                    hostbuf=par["C"].data)

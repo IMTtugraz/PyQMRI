@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from Models.Model import BaseModel, constraints, DTYPE
+from pyqmri.models.template import BaseModel, constraints, DTYPE
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
@@ -14,24 +14,32 @@ class Model(BaseModel):
         super().__init__(par)
 
         self.b = np.ones((self.NScan, 1, 1, 1))
-        try:
-            self.NScan = par["b_value"].size
-            for i in range(self.NScan):
-                self.b[i, ...] = par["b_value"][i] * np.ones((1, 1, 1)) / 1000
-        except BaseException:
-            self.NScan = par["TE"].size
-            for i in range(self.NScan):
-                self.b[i, ...] = par["TE"][i] * np.ones((1, 1, 1))
 
-        for i in range(unknowns_TGV + unknowns_H1):
+        for i in range(self.NScan):
+            self.b[i, ...] = par["b_value"][i] * np.ones((1, 1, 1))
+
+        if np.max(self.b) > 100:
+            self.b /= 1000
+
+        self.uk_scale = []
+        for j in range(unknowns_TGV + unknowns_H1):
             self.uk_scale.append(1)
-        self.uk_scale[0] = 1 / np.max(np.abs(images))
 
+        self.unknowns = par["unknowns_TGV"] + par["unknowns_H1"]
+        try:
+            self.b0 = np.flip(
+                np.transpose(par["file"]["b0"][()], (0, 2, 1)), 0)
+        except KeyError:
+            if par["imagespace"] is True:
+                self.b0 = images[0]
+            else:
+                self.b0 = images[0]*par["dscale"]
+        self.phase = np.exp(1j*(np.angle(images)-np.angle(images[0])))
         self.guess = self._set_init_scales()
 
         self.constraints.append(
             constraints(
-                1e-4 /
+                0 /
                 self.uk_scale[0],
                 100 /
                 self.uk_scale[0],
@@ -43,14 +51,14 @@ class Model(BaseModel):
                 True))
         self.constraints.append(
             constraints(
-                (5e-6 / self.uk_scale[2]),
-                ((1e-2) / self.uk_scale[2]),
-                False))
+                (0 / self.uk_scale[2]),
+                (3 / self.uk_scale[2]),
+                True))
         self.constraints.append(
             constraints(
-                (1e-3 / self.uk_scale[3]),
-                ((1e1) / self.uk_scale[3]),
-                False))
+                (0 / self.uk_scale[3]),
+                (0.5 / self.uk_scale[3]),
+                True))
 
     def _execute_forward_2D(self, x, islice):
         print("2D Functions not implemented")
@@ -65,24 +73,15 @@ class Model(BaseModel):
         f = x[1, ...] * self.uk_scale[1]
         ADC1 = (x[2, ...]) * self.uk_scale[2]
         ADC2 = (x[3, ...]) * self.uk_scale[3]
-#    print('M0', np.linalg.norm(M0))
-#    print('f', np.linalg.norm(f))
-#    print('ADC1', np.linalg.norm(ADC1))
-#    print('ADC2', np.linalg.norm(ADC2))
+
         tmp = np.exp(-self.b * (ADC1 + ADC2))
-        tmp[np.abs(tmp) < 1e-8] = 0
         tmp2 = np.exp(-ADC1 * self.b)
-        tmp2[np.abs(tmp2) < 1e-8] = 0
+
         S = M0 * (f * tmp + (-f + 1) * tmp2)
-        S = np.nan_to_num(S.astype(DTYPE))
-        S[~np.isfinite(S)] = 1e-20
-#    S[np.abs(S)>np.max(np.abs(S[0,...]))] = 0
-#    S = np.array(S,dtype=DTYPE)
-#    if not np.isfinite(np.linalg.norm(S)):
-#      import ipdb
-#      import multislice_viewer as msv
-#      import matplotlib.pyplot as plt
-#      ipdb.set_trace()
+
+        S *= self.phase
+        S[~np.isfinite(S)] = 0
+        S = S.astype(DTYPE)
         return S
 
     def _execute_gradient_3D(self, x):
@@ -94,34 +93,30 @@ class Model(BaseModel):
         f_sc = self.uk_scale[1]
         ADC1_sc = self.uk_scale[2]
         ADC2_sc = self.uk_scale[3]
-        grad_M0 = M0_sc * (f * f_sc * np.exp(-self.b * (ADC1 * ADC1_sc + ADC2 *
-                                                        ADC2_sc)) + (-f * f_sc + 1) * np.exp(-ADC1 * ADC1_sc * self.b))
+        grad_M0 = M0_sc * (f * f_sc *
+                           np.exp(-self.b * (ADC1 * ADC1_sc + ADC2 * ADC2_sc))
+                           + (-f * f_sc + 1) *
+                           np.exp(-ADC1 * ADC1_sc * self.b)) * self.phase
+
         grad_f = M0 * M0_sc * (-f_sc * np.exp(-ADC1 * ADC1_sc * self.b) +
-                               f_sc * np.exp(-self.b * (ADC1 * ADC1_sc + ADC2 * ADC2_sc)))
-        grad_ADC1 = M0 * M0_sc * (-ADC1_sc * self.b * f * f_sc * np.exp(-self.b * (ADC1 * ADC1_sc +
-                                                                                   ADC2 * ADC2_sc)) - ADC1_sc * self.b * (-f * f_sc + 1) * np.exp(-ADC1 * ADC1_sc * self.b))
+                               f_sc * np.exp(-self.b *
+                                             (ADC1 * ADC1_sc +
+                                              ADC2 * ADC2_sc))) * self.phase
+
+        grad_ADC1 = M0 * M0_sc * self.phase * (-ADC1_sc * self.b * f * f_sc *
+                                               np.exp(
+                                                 -self.b * (ADC1 * ADC1_sc +
+                                                            ADC2 * ADC2_sc)) -
+                                               ADC1_sc * self.b * (
+                                                   -f * f_sc + 1) *
+                                               np.exp(
+                                                   -ADC1 * ADC1_sc * self.b))
+
         grad_ADC2 = -ADC2_sc * M0 * M0_sc * self.b * f * f_sc * \
-            np.exp(-self.b * (ADC1 * ADC1_sc + ADC2 * ADC2_sc))
+            np.exp(-self.b * (ADC1 * ADC1_sc + ADC2 * ADC2_sc)) * self.phase
+
         grad = np.array([grad_M0, grad_f, grad_ADC1, grad_ADC2], dtype=DTYPE)
         grad[~np.isfinite(grad)] = 1e-20
-        print(
-            'Grad Scaling',
-            np.linalg.norm(
-                np.abs(grad_M0)) /
-            np.linalg.norm(
-                np.abs(grad_ADC1)))
-        print(
-            'Grad Scaling',
-            np.linalg.norm(
-                np.abs(grad_M0)) /
-            np.linalg.norm(
-                np.abs(grad_ADC2)))
-        print(
-            'Grad Scaling',
-            np.linalg.norm(
-                np.abs(grad_M0)) /
-            np.linalg.norm(
-                np.abs(grad_f)))
         return grad
 
     def plot_unknowns(self, x, dim_2D=False):
@@ -295,95 +290,15 @@ class Model(BaseModel):
                 plt.pause(1e-10)
 
     def _set_init_scales(self):
-        test_M0 = 1  # *np.sqrt((dimX*np.pi/2)/par['Nproj'])
-        ADC1 = np.reshape(
-            np.linspace(
-                5e-6,
-                1e-2,
-                self.dimX *
-                self.dimY *
-                self.NSlice),
-            (self.NSlice,
-             self.dimX,
-             self.dimY))
-        test_f = 0.5  # np.mean(images,0)
-        ADC1 = 1 / self.uk_scale[2] * ADC1 * \
-            np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
-        ADC2 = np.reshape(
-            np.linspace(
-                1e-3,
-                1e1,
-                self.dimX *
-                self.dimY *
-                self.NSlice),
-            (self.NSlice,
-             self.dimX,
-             self.dimY))
-        ADC2 = 1 / self.uk_scale[3] * ADC2 * \
-            np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
-#
-        G_x = self._execute_forward_3D(
-            np.array(
-                [
-                    test_M0 /
-                    self.uk_scale[0] *
-                    np.ones(
-                        (self.NSlice,
-                         self.dimY,
-                         self.dimX),
-                        dtype=DTYPE),
-                    test_f /
-                    self.uk_scale[1] *
-                    np.ones(
-                        (self.NSlice,
-                         self.dimY,
-                         self.dimX),
-                        dtype=DTYPE),
-                    ADC1,
-                    ADC2],
-                dtype=DTYPE))
-#    self.uk_scale[0] = self.uk_scale[0]*np.max(np.abs(images))/np.median(np.abs(G_x))
-        self.uk_scale[0] *= 1 / np.max(np.abs(G_x))
+        test_M0 = self.b0
+        f = 0.3 * np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+        ADC_1 = 1 * np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+        ADC_2 = 0.1 * np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
 
-        DG_x = self._execute_gradient_3D(
-            np.array(
-                [
-                    test_M0 /
-                    self.uk_scale[0] *
-                    np.ones(
-                        (self.NSlice,
-                         self.dimY,
-                         self.dimX),
-                        dtype=DTYPE),
-                    test_f /
-                    self.uk_scale[1] *
-                    np.ones(
-                        (self.NSlice,
-                         self.dimY,
-                         self.dimX),
-                        dtype=DTYPE),
-                    ADC1,
-                    ADC2],
-                dtype=DTYPE))
-        self.uk_scale[1] = self.uk_scale[1] * np.linalg.norm(
-            np.abs(DG_x[0, ...])) / np.linalg.norm(np.abs(DG_x[1, ...]))
-        self.uk_scale[2] = self.uk_scale[2] * np.linalg.norm(
-            np.abs(DG_x[0, ...])) / np.linalg.norm(np.abs(DG_x[2, ...]))
-        self.uk_scale[3] = self.uk_scale[3] * np.linalg.norm(
-            np.abs(DG_x[0, ...])) / np.linalg.norm(np.abs(DG_x[3, ...]))
-#    DG_x =  self.execute_gradient_3D(np.array([test_M0/self.uk_scale[0]*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE),test_f/self.uk_scale[1]*np.ones((self.NSlice,self.dimY,self.dimX),dtype=DTYPE),ADC1/self.uk_scale[2],ADC2/self.uk_scale[3]],dtype=DTYPE))
-#    print('Grad Scaling init', np.linalg.norm(np.abs(DG_x[0,...]))/np.linalg.norm(np.abs(DG_x[1,...])))
-        print('M0 scale: ', self.uk_scale[0])
-        print('f scale: ', self.uk_scale[1])
-        print('ADC1 scale: ', self.uk_scale[2])
-        print('ADC2 scale: ', self.uk_scale[3])
-
-        return np.array([1 /
-                         self.uk_scale[0] *
-                         np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE), 0.02 /
-                         self.uk_scale[1] *
-                         np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE), (1e-3 /
-                                                                                     self.uk_scale[2] *
-                                                                                     np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)), (5e-2 /
-                                                                                                                                                  self.uk_scale[3] *
-                                                                                                                                                  np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE))], dtype=DTYPE)
+        x = np.array(
+                [test_M0,
+                 f,
+                 ADC_1,
+                 ADC_2],
+                dtype=DTYPE)
+        return x

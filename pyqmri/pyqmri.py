@@ -16,6 +16,7 @@ import argparse
 from pyqmri._helper_fun import _goldcomp as goldcomp
 from pyqmri._helper_fun._est_coils import est_coils
 from pyqmri._helper_fun import _utils as utils
+from pyqmri.solver import CGSolver
 
 DTYPE = np.complex64
 DTYPE_real = np.float32
@@ -133,7 +134,6 @@ def _genImages(myargs, par, data):
 
     #    del par["file"]["images_cg"]
     if "images_cg" not in list(par["file"].keys()):
-        from mbpq.solver import CGSolver
         images = np.zeros((par["NScan"],
                            par["NSlice"],
                            par["dimY"],
@@ -421,7 +421,7 @@ def _start_recon(myargs):
         print("4D Data passed and IRLL model used. Reordering Projections "
               "into 8 Spokes/Frame")
         [NC, reco_Slices, Nproj, N] = data.shape
-        Nproj_new = 13
+        Nproj_new = 5
         NScan = np.floor_divide(Nproj, Nproj_new)
         par["Nproj_measured"] = Nproj
         Nproj = Nproj_new
