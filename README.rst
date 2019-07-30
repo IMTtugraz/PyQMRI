@@ -2,11 +2,11 @@ PyQMRI - Model-Based Parameter Quantification
 =============================================
 
 * Requires OpenCL_ >= 1.2
-.._OpenCL:https://www.khronos.org/opencl/
+.. _OpenCL: https://www.khronos.org/opencl/
 * Requires clfft_
-.._clfft: https://github.com/clMathLibraries/clFFT
+.. _clfft: https://github.com/clMathLibraries/clFFT
 * Requires gpyfft_
-.._gpyfft: https://github.com/geggo/gpyfft
+.. _gpyfft: https://github.com/geggo/gpyfft
 * Requires Cython, pip >= 19, python >= 3.6
 
 The Software is tested on Linux using the latest Nvidia driver (418.56 CUDA Version: 10.1) but should be compatible with older drivers as well as different hardware (AMD). The following Installation Guide is targeted at Ubuntu but should work on any distribution provided the required packages are present (could be differently named).
@@ -15,33 +15,46 @@ The Software is tested on Linux using the latest Nvidia driver (418.56 CUDA Vers
 
 .. role:: bash(code)
    :language: bash
-
+   
+.. role:: python(code)
+   :language: python
+   
 Quick Installing Guide:
 ------------------------
 First make sure that you have a working OpenCL installation
   - OpenCL is usually shipped with GPU driver (Nvidia/AMD)
   - Install the ocl_icd and the OpenCL-Headers
+  
     :bash:`apt-get install ocl_icd* opencl-headers`
+    
 Possible restart of system after installing new drivers and check if OpenCL is working
   - Build clinfo_:
-  .._clinfo: https://github.com/Oblomov/clinfo
+.. _clinfo: https://github.com/Oblomov/clinfo
   - Run clinfo_ in terminal and check for errors
 
 Install clFFT library:  
   - Either use the package repository,e.g.:
+  
     :bash:`apt-get install libclfft*`
+    
   - Or download a prebuild binary of clfft_
     - Please refer to the clfft_ docs regarding building
-    - If build from source symlink clfft_ libraries from lib64 to the lib folder and run :bash:`ldconfig`
+    - If build from source symlink clfft_ libraries from lib64 to the lib folder and run 
+    
+    :bash:`ldconfig`
     
   - Install gpyfft_ by following the instruction on the GitHub page. 
   
   - A simple
+  
     :bash:`pip install pyqmri`
+    
     should be sufficient to install the latest release.
     
   - Alternatively, clone the git repository and navigate to the root directory of PyQMRI. Typing
+  
     :bash:`pip install .`
+    
     should take care of the other dependencies using PyPI and install the package. 
     
  
@@ -56,9 +69,9 @@ can be done by:
 
 Sample Data
 -----------
-.._[10.1002/mrm.27502]: http://onlinelibrary.wiley.com/doi/10.1002/mrm.27502/full
-In-vivo datasets used in the original publication (doi: [10.1002/mrm.27502]) can be found at 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.1410918.svg)](https://doi.org/10.5281/zenodo.1410918)    
+.. _doi: http://onlinelibrary.wiley.com/doi/10.1002/mrm.27502/full
+.. _zenodo: https://doi.org/10.5281/zenodo.1410918
+In-vivo datasets used in the original publication (doi_) can be found at zenodo_.
 
 Prerequests on the .h5 file:
 -----------------------------
@@ -92,25 +105,24 @@ The toolbox expects a .h5 file with a certain structure.
 Running the reconstruction:
 ---------------------------
 First, start an ipcluster for speeding up the coil sensitivity estimation:
-``
-ipcluster start -n N
-``
+
+:bash:`ipcluster start -n N`
+
 where N amounts to the number of processe to be used. If -n N is ommited, 
 as many processes as number of CPU cores available are started.
 
 Reconstruction of the parameter maps can be started either using the terminal by typing:
-``
-pyqmri
-``
+
+:bash:`pyqmri`
+
 or from python by:
-``
-import pyqmri
-pyqmri.run()
-``
+
+:python:` | import pyqmri
+          | pyqmri.run()`
+
 A list of accepted flags can be printed using 
-``
-pyqmri -h
-``
+
+:bash:`pyqmri -h`
 
 or by fewing the documentation of pyqmri.pyqmri in python.
 
@@ -139,7 +151,7 @@ A default config file will be generated if no path to a config file is passed as
 
 Limitations and known Issues:
 ------------------------------
-Currently runs only on GPUs due to having only basic CPU support for the clfft.
+Currently runs only on GPUs due to having only basic CPU support for the clfft_.
 
 Citation:
 ----------
@@ -153,6 +165,6 @@ Maier O, Schoormans J,Schloegl M, Strijkers GJ, Lesch A, Benkert T, Block T, Coo
   __Rapid T1 quantification from high
 resolution 3D data with model‐based reconstruction.__<br>
   _Magn Reson Med._, 2018; 00:1–16<br>
-  doi: [10.1002/mrm.27502](http://onlinelibrary.wiley.com/doi/10.1002/mrm.27502/full)
+  doi: `[10.1002/mrm.27502] <(http://onlinelibrary.wiley.com/doi/10.1002/mrm.27502/full)>`_
 
 at [v0.1.0](https://github.com/IMTtugraz/PyQMRI/tree/v.0.1.0)
