@@ -26,5 +26,5 @@ SMS/
 data/
 *.ini
 dist*
-*egg*
-mbpq.egg*
+.egg*
+pyqmri.egg*

@@ -1,2 +1,1 @@
-from ._clprogram import CLProgram as CLProgram
-
+from ._clprogram import CLProgram

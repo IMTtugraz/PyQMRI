@@ -2,9 +2,9 @@ from setuptools import setup, find_packages
 from os import path
 
 this_directory = path.abspath(path.dirname(__file__))
-with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
+with open(path.join(this_directory, 'README.rst'), encoding='utf-8') as f:
     long_description = f.read()
-    
+
 setup(name='pyqmri',
       version='0.2.1',
       description='Model-based parameter quantification using OpenCL and Python',
@@ -40,4 +40,4 @@ setup(name='pyqmri',
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: Apache Software License",
         "Operating System :: POSIX :: Linux",
-    ]) 
+    ])

@@ -27,6 +27,7 @@ import pyopencl.array as clarray
 from pyqmri._helper_fun import _nlinvns as nlinvns
 from pyqmri._helper_fun import _goldcomp as goldcomp
 from pyqmri._helper_fun import _utils as utils
+
 # % Estimates sensitivities and complex image.
 # %(see Martin Uecker: Image reconstruction by regularized nonlinear
 # %inversion joint estimation of coil sensitivities and image content)

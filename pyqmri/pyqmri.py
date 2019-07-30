@@ -3,6 +3,7 @@
 import numpy as np
 import os
 import h5py
+import sys
 import time
 from tkinter import filedialog
 from tkinter import Tk
@@ -255,7 +256,7 @@ def _readInput(myargs, par):
                 print("Please specify a h5 file. Press cancel to exit.")
             elif file == ():
                 print("Exiting...")
-                return 0
+                sys.exit()
             else:
                 select_file = False
     else:
@@ -569,7 +570,7 @@ def _str2bool(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
-def run(recon_type='3D', reg_type='TGV', slices=1, trafo=False,
+def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
         streamed=False,
         par_slices=1, data='', model='VFA', config='default',
         imagespace=False,
@@ -702,7 +703,7 @@ if __name__ == '__main__':
       help="Number of reconstructed slices (default=40). "
            "Symmetrical around the center slice.")
     parser.add_argument(
-      '--trafo', default=False, dest='trafo', type=_str2bool,
+      '--trafo', default=True, dest='trafo', type=_str2bool,
       help='Choos between radial (1, default) and Cartesian (0) sampling. ')
     parser.add_argument(
       '--streamed', default=False, dest='streamed', type=_str2bool,

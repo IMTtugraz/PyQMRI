@@ -11,6 +11,7 @@ import pyopencl.array as clarray
 import pyqmri.operator as operator
 from pyqmri._helper_fun import CLProgram as Program
 import h5py
+
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
@@ -48,7 +49,9 @@ class ModelReco:
         self.weight = par["weights"]
         self.prg = Program(
             self.ctx,
-            open(resource_filename('pyqmri', 'kernels/OpenCL_Kernels.c')).read())
+            open(
+                resource_filename(
+                    'pyqmri', 'kernels/OpenCL_Kernels.c')).read())
         if imagespace:
             self.coil_buf = []
             self.op = operator.OperatorImagespace(par, self.prg)
