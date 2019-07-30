@@ -59,7 +59,7 @@ class ModelReco:
                     self.ctx[j],
                     open(
                         resource_filename(
-                            'mbpq',
+                            'pyqmri',
                             'kernels/OpenCL_Kernels_streamed.c')).read()))
 
         self.ratio = []

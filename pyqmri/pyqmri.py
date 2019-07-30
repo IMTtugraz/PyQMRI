@@ -281,9 +281,8 @@ def _start_recon(myargs):
     The Main Function. Reads in the data and
     starts the model based reconstruction.
 
-    Parameters
-    ----------
-    myargs
+    Args:
+      myargs:
         Arguments from pythons argparse to modify the behaviour of the
         reconstruction procedure.
     """
@@ -579,49 +578,49 @@ def run(recon_type='3D', reg_type='TGV', slices=1, trafo=False,
     Start a 3D model based reconstruction. Data can also be selected at
     start up.
 
-    Parameters
-    ----------
-    recon_type
+    Args:
+      recon_type (str):
         3D (2D currently not supported but 3D works on one slice also)
-    reg_type
+      reg_type (str):
         TGV or TV, defaults to TGV
-    slices
+      slices (int):
         The number of slices to reconsturct. Slices are picked symmetrically
         from the volume center. Pass -1 to select all slices available.
         Defaults to 1
-    trafo
-      Choos between Radial (1) or Cartesian (0) FFT
-    streamed
-      Toggle between streaming slices to the GPU (1) or computing
-      everything with a single memory transfer (0). Defaults to 0
-    par_slices
-      Number of slices per streamed package. Volume devided by GPU's and
-      par_slices must be an even number! Defaults to 1
-    data
-      The path to the .h5 file containing the data to reconstruct.
-      If left empty, a GUI will open and asks for data file selection. This
-      is also the default behaviour.
-    model
-      The name of the model which should be used to fit the data. Defaults to
-      'VFA'. A path to your own model file can be passed. See the Model Class
-      for further information on how to setup your own model.
-    config
-      The path to the confi gfile used for the IRGN reconstruction. If
-      not specified the default config file will be used. If no default
-      config file is present in the current working directory one will be
-      generated.
-    imagespace
-      Select between fitting in imagespace (1) or in k-space (0). Defaults to 0
-    OCL_GPU
-      Select between GPU (1) or CPU (0) OpenCL devices. Defaults to GPU
-      CAVE: CPU FFT not working.
-    sms
-      use Simultaneous Multi Slice Recon (1) or normal reconstruction (0).
-      Defaults to 0
-    devices
-      The device ID of device(s) to use for streaming/reconstruction
-    dz
-      Ratio of physical Z to X/Y dimension. X/Y is assumed to be isotropic.
+      trafo (bool):
+        Choos between Radial (1) or Cartesian (0) FFT
+      streamed (bool):
+        Toggle between streaming slices to the GPU (1) or computing
+        everything with a single memory transfer (0). Defaults to 0
+      par_slices (int):
+        Number of slices per streamed package. Volume devided by GPU's and
+        par_slices must be an even number! Defaults to 1
+      data (str):
+        The path to the .h5 file containing the data to reconstruct.
+        If left empty, a GUI will open and asks for data file selection. This
+        is also the default behaviour.
+      model (str):
+        The name of the model which should be used to fit the data. Defaults to
+        'VFA'. A path to your own model file can be passed. See the Model Class
+        for further information on how to setup your own model.
+      config (str):
+        The path to the confi gfile used for the IRGN reconstruction. If
+        not specified the default config file will be used. If no default
+        config file is present in the current working directory one will be
+        generated.
+      imagespace (bool):
+        Select between fitting in imagespace (1) or in k-space (0).
+        Defaults to 0
+      OCL_GPU (bool):
+        Select between GPU (1) or CPU (0) OpenCL devices. Defaults to GPU
+        CAVE: CPU FFT not working.
+      sms (bool):
+        use Simultaneous Multi Slice Recon (1) or normal reconstruction (0).
+        Defaults to 0
+      devices (list of ints):
+        The device ID of device(s) to use for streaming/reconstruction
+      dz (float):
+        Ratio of physical Z to X/Y dimension. X/Y is assumed to be isotropic.
     """
     parser = argparse.ArgumentParser(description="T1 quantification from VFA "
                                                  "data. By default runs 3D "

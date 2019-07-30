@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+""" This module holds the class for streaming operations on the GPU.
+
+
+Attribues:
+  DTYPE (complex64):
+    Complex working precission. Currently single precission only.
+"""
 import numpy as np
 import pyopencl as cl
 import pyopencl.array as clarray
@@ -7,6 +14,50 @@ DTYPE = np.complex64
 
 
 class stream:
+    """ Basic streaming Class
+
+    This Class is responsible for performing asynchroneous transfer
+    and computation on the GPU for arbitrary large numpy data.
+
+    Attributes:
+      fun (list of functions):
+        This list contains all functions that should be executed on the GPU.
+        The functions are executed in order from first to last element of the
+        list.
+      num_dev (int):
+        Number of computation devices.
+      slices (int):
+        Number of slices computed in one transfer on the GPU.
+      overlap (int):
+        Overlap of adjacent blocks
+      queue (list of PyOpenCL.Queue):
+        The OpenCL queues used for transfer and computation. 4 queues are used
+        per device.
+      reverse (bool):
+        Indicator of the streaming direction. If False, streaming will start
+        at the first and end at the last slice. If True streaming will be
+        performed vice versa
+      NSlice (int):
+        Total number of slices
+      num_fun (int):
+        Total number of functions to stream (length of fun)
+      lhs (list of bool):
+        Indicator for the norm calculation in the line search of TGV.
+        lhs refers to left hand side.
+      at_end (bool):
+        Specifies if the end of the data slice dimension is reached
+      inp (list of list of list of PyOpenCL.Array):
+        For each function a list of devices and a list of inputs is generated.
+        Example:
+
+          For one function which needs two inputs and one computation device
+          the list would have dimensions [1][1][2]
+      outp (list of list of PyOpenCL.Array):
+        For each function a list of devices with a single output is generated.
+        Example:
+
+          For one function and one device the list would have dimension [1][1]
+    """
     def __init__(self,
                  fun,
                  outp_shape,
@@ -18,7 +69,38 @@ class stream:
                  num_dev,
                  reverse=False,
                  lhs=[]):
-
+        """ Setup a Streaming Object
+        Args:
+         fun (list of functions):
+            This list contains all functions that should be executed on the
+            GPU. The functions are executed in order from first to last
+            element of the list.
+          outp_shape (list of tuple):
+            The shape of the output array. Slice dimension is assumed to
+            be the same as number of parallel slices plus overlap.
+          inp_shape (list of list of tuple):
+            The shape of the input arrays. Slice dimension is assumed to
+            be the same as number of parallel slices plus overlap.
+          par_slices (int):
+            Number of slices computed in one transfer on the GPU.
+          overlap (int):
+            Overlap of adjacent blocks
+          NSlice (int):
+            Total number of slices
+          queue (list of PyOpenCL.Queue):
+            The OpenCL queues used for transfer and computation. 4 queues are
+            used per device.
+          num_dev (int):
+            Number of computation devices.
+          reverse (bool):
+            Indicator of the streaming direction. If False, streaming will
+            start at the first and end at the last slice. If True streaming
+            will be performed vice versa
+          lhs (list of bool):
+            Indicator for the norm calculation in the line search of TGV.
+            lhs refers to left hand side. Needs to be passed if a norm should
+            be computed.
+        """
         self.fun = fun
         self.num_dev = num_dev
         self.slices = par_slices
@@ -36,14 +118,26 @@ class stream:
         self.outp = []
         self._alloctmparrays(inp_shape, outp_shape)
 
+    def __add__(self, other):
+        """ Overloading add
+
+        Concatinates the functions, inputs and outputs of one stremaing
+        object to another.
+
+        Args:
+          other (class stream):
+            The object which should be added.
+        Returns:
+          The combined objects
+        """
+        for j in range(other.num_fun):
+            self.fun.append(other.fun[j])
+            self.inp.append(other.inp[j])
+            self.outp.append(other.outp[j])
+        self.num_fun += other.num_fun
+        return self
+
     def __del__(self):
-#        for j in range(len(self.inp)-1, 0, -1):
-#            for i in range(len(self.inp[0])-1, 0, -1):
-#                for k in range(len(self.inp[0][0])-1, 0, -1):
-#                    del self.inp[j][i][k]
-#        for j in range(len(self.outp)-1, 0, -1):
-#            for i in range(len(self.outp[0])-1, 0, -1):
-#                del self.outp[j][i]
         del self.queue
 
     def _alloctmparrays(self,
@@ -72,14 +166,6 @@ class stream:
                         self.queue[4*int(i/2)],
                         ((block_size, )+outp_shape[j][1:]),
                         dtype=DTYPE))
-
-    def __add__(self, other):
-        for j in range(other.num_fun):
-            self.fun.append(other.fun[j])
-            self.inp.append(other.inp[j])
-            self.outp.append(other.outp[j])
-        self.num_fun += other.num_fun
-        return self
 
     def _getindtodev(self):
         if self.reverse:
@@ -130,6 +216,19 @@ class stream:
             return tmp_return
 
     def eval(self, outp, inp, par=[]):
+        """ Evaluate all functions of the object
+
+        Perform asynchroneous evaluation of the functions stored in
+        fun.
+
+        Args:
+          outp (list of np.arrays):
+            Result of the computation for each function as numpy array
+          inp (list of list of np.arrays):
+            For each function contains a list of numpy arrays used as input.
+          par (list of list of parameters):
+            Optional list of parameters which should be passed to a function.
+        """
         # Reset Array Index
         self._resetindex()
         # Warmup Queue 1
@@ -170,6 +269,24 @@ class stream:
             self.queue[4*i+3].finish()
 
     def evalwithnorm(self, outp, inp, par=[]):
+        """The same as eval but also returns norms for in-output
+
+        Perform asynchroneous evaluation of the functions stored in
+        fun. Same as eval but also computes the norm relevant for the
+        linesearch in the TGV algorithm
+
+        Args:
+          outp (list of np.arrays):
+            Result of the computation for each function as numpy array
+          inp (list of list of np.arrays):
+            For each function contains a list of numpy arrays used as input.
+          par (list of list of parameters):
+            Optional list of parameters which should be passed to a function.
+        Returns:
+          tuple of floats:
+            (lhs, rhs) The lhs and rhs for the linesearch used in the TGV
+            algorithm.
+        """
         # Reset Array Index
         self._resetindex()
         rhs = 0
@@ -320,13 +437,39 @@ class stream:
             self.idx_tohost_stop = (self.slices + self.overlap)
 
     def connectouttoin(self, outpos, inpos):
+        """Connects output to input of functions
+
+        This function can be used to connect the output of a function to the
+        input of another one used in the same stream object.
+
+        Args:
+          outpos (int):
+            The position in the list of outputs which should be connected to
+            an input
+          inpos (list of list of np.arrays:
+            The position in the list of inputs which should be connected
+            with an output
+        """
         for j in range(2*self.num_dev):
             self.inp[inpos[0]][j][inpos[1]] = self.outp[outpos][j]
 
-    def resettmparrays(self):
-        for j in range(self.num_fun):
-            for i in range(2*self.num_dev):
-                self.outp[j][i] = clarray.empty_like(self.outp[j][i])
+#    def resettmparrays(self):
+#        """Connects output to input of functions
+#
+#        This function can be used to connect the output of a function to the
+#        input of another one used in the same stream object.
+#
+#        Args:
+#          outpos (int):
+#            The position in the list of outputs which should be connected to
+#            an input
+#          inpos (list of list of np.arrays:
+#            The position in the list of inputs which should be connected
+#            with an output
+#        """
+#        for j in range(self.num_fun):
+#            for i in range(2*self.num_dev):
+#                self.outp[j][i] = clarray.empty_like(self.outp[j][i])
 
     def _calcnormreverse(self, rhs, lhs, idev, ifun, odd=0):
         if self.lhs[ifun] is False:

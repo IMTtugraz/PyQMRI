@@ -48,7 +48,7 @@ class ModelReco:
         self.weight = par["weights"]
         self.prg = Program(
             self.ctx,
-            open(resource_filename('mbpq', 'kernels/OpenCL_Kernels.c')).read())
+            open(resource_filename('pyqmri', 'kernels/OpenCL_Kernels.c')).read())
         if imagespace:
             self.coil_buf = []
             self.op = operator.OperatorImagespace(par, self.prg)

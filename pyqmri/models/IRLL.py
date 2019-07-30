@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Fri Jun  9 11:33:09 2017
-
-@author: omaier
-"""
 from pyqmri.models.template import BaseModel, constraints, DTYPE
 import numexpr as ne
 import matplotlib.gridspec as gridspec
