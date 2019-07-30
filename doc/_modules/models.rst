@@ -1,13 +1,13 @@
 Models
 ======
-.. automodule:: mbpq._models.template
+.. automodule:: pyqmri.models.template
    :members:
    :undoc-members:
 
-.. automodule:: mbpq._models.VFA
+.. automodule:: pyqmri.models.VFA
    :members:
    :undoc-members:
     
-.. automodule:: mbpq._models.IRLL
+.. automodule:: pyqmri.models.IRLL
    :members:
    :undoc-members:

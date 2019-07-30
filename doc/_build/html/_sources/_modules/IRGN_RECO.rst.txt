@@ -1,6 +1,6 @@
 Recon
 =========
-.. automodule:: mbpq._irgn._reco
+.. automodule:: pyqmri.irgn.reco
    :members:
    :undoc-members:
    :private-members: 

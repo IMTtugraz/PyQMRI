@@ -1,6 +1,6 @@
 Operators
 =========
-.. automodule:: mbpq.operator
+.. automodule:: pyqmri.operator
    :members:
    :undoc-members:
     

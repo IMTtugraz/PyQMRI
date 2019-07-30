@@ -1,6 +1,5 @@
 Streaming
 =========
-.. automodule:: mbpq.streaming
+.. automodule:: pyqmri.streaming
    :members:
    :undoc-members:
-   :private-members: 

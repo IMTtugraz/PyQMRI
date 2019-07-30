@@ -1,6 +1,6 @@
-MBPQ
+PyQMRI
 ======
-.. automodule:: mbpq.mbpq
+.. automodule:: pyqmri.pyqmri
    :members:
    :undoc-members:
  

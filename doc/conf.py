@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.abspath('..'))
 
 # -- Project information -----------------------------------------------------
 
-project = 'MBPQ'
+project = 'PyQMRI'
 copyright = '2019, Oliver Maier'
 author = 'Oliver Maier'
 

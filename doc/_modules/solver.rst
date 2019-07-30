@@ -1,6 +1,6 @@
 Solver
 ======
-.. automodule:: mbpq.solver
+.. automodule:: pyqmri.solver
    :members:
    :undoc-members:
    :private-members:
