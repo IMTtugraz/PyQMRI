@@ -30,11 +30,20 @@ Install clFFT library:
     - Please refer to the [clFFT](https://github.com/clMathLibraries/clFFT) docs regarding building
     - If build from source symlink clfft libraries from lib64 to the lib folder and run ``` ldconfig ```
     
-  - Navigate to the root directory of MBPQ and typing
+  - Install [gpyfft](https://github.com/geggo/gpyfft) by following the instruction on the GitHub page. 
+  
+  - A simple
+    ```
+    pip install pyqmri
+    ```
+    should be sufficient to install the latest release.
+    
+  - Alternatively, clone the git repository and navigate to the root directory of PyQMRI. Typing
     ```
     pip install .
     ```
-    should take care of the other dependencies using PyPI and install the package.
+    should take care of the other dependencies using PyPI and install the package. 
+    
  
 In case OCL > 1.2 is present, e.g. by some CPU driver, and NVidia GPUs needs to be used the flag
 PRETENED_OCL 1.2 has to be passed to PyOpenCL during the build process. This 
@@ -90,19 +99,19 @@ as many processes as number of CPU cores available are started.
 
 Reconstruction of the parameter maps can be started either using the terminal by typing:
 ```
-mbpq
+pyqmri
 ```
 or from python by:
 ```
-import mbpq
-mbpq.mbpq()
+import pyqmri
+pyqmri.run()
 ```
 A list of accepted flags can be printed using 
 ```
-mbpq -h
+pyqmri -h
 ```
 
-or by fewing the documentation of mbpq.mbpq in python.
+or by fewing the documentation of pyqmri.pyqmri in python.
 
 If reconstructing fewer slices from the volume than acquired, slices will be picked symmetrically from the center of the volume. E.g. reconstructing only a single slice will reconstruct the center slice of the volume. 
 
@@ -145,4 +154,4 @@ resolution 3D data with model‐based reconstruction.__<br>
   _Magn Reson Med._, 2018; 00:1–16<br>
   doi: [10.1002/mrm.27502](http://onlinelibrary.wiley.com/doi/10.1002/mrm.27502/full)
 
-at [v0.1.0](https://github.com/IMTtugraz/MBPQ/tree/v.0.1.0)
+at [v0.1.0](https://github.com/IMTtugraz/PyQMRI/tree/v.0.1.0)
