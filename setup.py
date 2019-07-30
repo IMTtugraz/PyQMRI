@@ -6,7 +6,7 @@ with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
     
 setup(name='pyqmri',
-      version='0.2.0',
+      version='0.2.1',
       description='Model-based parameter quantification using OpenCL and Python',
       long_description=long_description,
       long_description_content_type="text/markdown",
