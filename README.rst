@@ -19,7 +19,6 @@ The Software is tested on Linux using the latest Nvidia driver (418.56 CUDA Vers
    
 Quick Installing Guide:
 ------------------------
-
 First make sure that you have a working OpenCL installation
 
   - OpenCL is usually shipped with GPU driver (Nvidia/AMD)
@@ -39,10 +38,9 @@ Install clFFT library:
     :bash:`apt-get install libclfft*`
     
   - Or download a prebuild binary of clfft_
+  
     - Please refer to the clfft_ docs regarding building
-    - If build from source symlink clfft_ libraries from lib64 to the lib folder and run 
-    
-    :bash:`ldconfig`
+    - If build from source symlink clfft_ libraries from lib64 to the lib folder and run :bash:`ldconfig`
     
 Install gpyfft_ by following the instruction on the GitHub page. 
   
@@ -108,7 +106,7 @@ The toolbox expects a .h5 file with a certain structure.
     
     The specific structure is determined according to the Model file.
     
-  If predetermined coil sensitivity maps are available they can be passed as complex dataset, which can saved bedirectly using Python. Matlab users would need to write/use low level hdf5 functions to save a complex array to .h5 file. Coil sensitivities are assumed to have the same number of slices as the original volume and are intesity normalized. The corresponding .h5 entry is named "Coils". If no "Coils" parameter is found or the number of "Coil" slices is less than the number of reconstructed slices, the coil sensitivities are determined using the NLINV_ algorithm and saved into the file. 
+If predetermined coil sensitivity maps are available they can be passed as complex dataset, which can saved bedirectly using Python. Matlab users would need to write/use low level hdf5 functions to save a complex array to .h5 file. Coil sensitivities are assumed to have the same number of slices as the original volume and are intesity normalized. The corresponding .h5 entry is named "Coils". If no "Coils" parameter is found or the number of "Coil" slices is less than the number of reconstructed slices, the coil sensitivities are determined using the NLINV_ algorithm and saved into the file. 
 
 Running the reconstruction:
 ---------------------------
@@ -171,12 +169,9 @@ Older Releases:
 ----------------
 You can find the code for 
 
-Maier O, Schoormans J,Schloegl M, Strijkers GJ, Lesch A, Benkert T, Block T, Coolen BF, Bredies K, Stollberger R 
-
-**Rapid T1 quantification from high
-resolution 3D data with model‐based reconstruction.**
-*Magn Reson Med.*, 2018; 00:1–16
-doi: `[10.1002/mrm.27502]`_
+| Maier O, Schoormans J,Schloegl M, Strijkers GJ, Lesch A, Benkert T, Block T, Coolen BF, Bredies K, Stollberger R 
+| **Rapid T1 quantification from high resolution 3D data with model‐based reconstruction.**
+| *Magn Reson Med.*, 2018; 00:1–16 doi: `[10.1002/mrm.27502]`_
 
 at `[v0.1.0] <(https://github.com/IMTtugraz/PyQMRI/tree/v.0.1.0)>`_
 
