@@ -21,38 +21,38 @@ Quick Installing Guide:
 ------------------------
 First make sure that you have a working OpenCL installation
 
-  - OpenCL is usually shipped with GPU driver (Nvidia/AMD)
-  - Install the ocl_icd and the OpenCL-Headers
-  
-    :bash:`apt-get install ocl_icd* opencl-headers`
+* OpenCL is usually shipped with GPU driver (Nvidia/AMD)
+* Install the ocl_icd and the OpenCL-Headers
+
+  :bash:`apt-get install ocl_icd* opencl-headers`
     
 Possible restart of system after installing new drivers and check if OpenCL is working
 
-  - Build clinfo_:
-  - Run clinfo_ in terminal and check for errors
+* Build clinfo_:
+* Run clinfo_ in terminal and check for errors
 
 Install clFFT library:  
 
-  - Either use the package repository,e.g.:
-  
-    :bash:`apt-get install libclfft*`
-    
-  - Or download a prebuild binary of clfft_
-  
-    - Please refer to the clfft_ docs regarding building
-    - If build from source symlink clfft_ libraries from lib64 to the lib folder and run :bash:`ldconfig`
+* Either use the package repository,e.g.:
+
+  :bash:`apt-get install libclfft*`
+
+* Or download a prebuild binary of clfft_
+
+  - Please refer to the clfft_ docs regarding building
+  - If build from source symlink clfft_ libraries from lib64 to the lib folder and run :bash:`ldconfig`
     
 Install gpyfft_ by following the instruction on the GitHub page. 
   
 To Install PyQMRI, a simple
   
-    :bash:`pip install pyqmri`
+:bash:`pip install pyqmri`
     
 should be sufficient to install the latest release.
     
 Alternatively, clone the git repository and navigate to the root directory of PyQMRI. Typing
   
-    :bash:`pip install .`
+:bash:`pip install .`
     
 should take care of the other dependencies using PyPI and install the package. 
      
@@ -75,36 +75,34 @@ Prerequests on the .h5 file:
 -----------------------------
 The toolbox expects a .h5 file with a certain structure. 
 
-  - kspace data (assumed to be 5D for VFA) and passed as:
+* kspace data (assumed to be 5D for VFA) and passed as:
+
+  - real_dat (Scans, Coils, Slices, Projections, Samples)
+  - imag_dat (Scans, Coils, Slices, Projections, Samples)
   
-    - real_dat (Scans, Coils, Slices, Projections, Samples)
-    - imag_dat (Scans, Coils, Slices, Projections, Samples)
-    
-    If radial sampling is used the trajectory is expected to be:
-    
-    * real_traj (Scans, Projections, Samples)
-    * imag_traj (Scans, Projections, Samples)
-    
-    Density compensation is performed internally assuming a simple ramp.
-    
-    For Cartesian data Projections and Samples are replaced by ky and kx encodings points and no trajectory is needed.  
-    
-    Data is assumed to be 2D stack-of-stars, i.e. already Fourier transformed along the fully sampled z-direction.
-    
-  - flip angle correction (optional) can be passed as:
+  If radial sampling is used the trajectory is expected to be:
   
-    - fa_corr (Scans, Coils, Slices, dimY, dimX)
-    
-  - The image dimension for the full dataset is passed as attribute consiting of:
-  
-    - image_dimensions = (dimX, dimY, NSlice)
-    
-  - Parameters specific to the used model (e.g. TR or flip angle) need to be set as attributes e.g.:
-  
-    - TR = 5.38
-    - flip_angle(s) = (1,3,5,7,9,11,13,15,17,19)
-    
-    The specific structure is determined according to the Model file.
+  - real_traj (Scans, Projections, Samples)
+  - imag_traj (Scans, Projections, Samples)
+
+  | Density compensation is performed internally assuming a simple ramp.
+  | For Cartesian data Projections and Samples are replaced by ky and kx encodings points and no trajectory is needed.  
+  | Data is assumed to be 2D stack-of-stars, i.e. already Fourier transformed along the fully sampled z-direction.
+
+* flip angle correction (optional) can be passed as:
+
+  - fa_corr (Scans, Coils, Slices, dimY, dimX)
+
+* The image dimension for the full dataset is passed as attribute consiting of:
+
+  - image_dimensions = (dimX, dimY, NSlice)
+
+* Parameters specific to the used model (e.g. TR or flip angle) need to be set as attributes e.g.:
+
+  - TR = 5.38
+  - flip_angle(s) = (1,3,5,7,9,11,13,15,17,19)
+
+The specific structure is determined according to the Model file.
     
 If predetermined coil sensitivity maps are available they can be passed as complex dataset, which can saved bedirectly using Python. Matlab users would need to write/use low level hdf5 functions to save a complex array to .h5 file. Coil sensitivities are assumed to have the same number of slices as the original volume and are intesity normalized. The corresponding .h5 entry is named "Coils". If no "Coils" parameter is found or the number of "Coil" slices is less than the number of reconstructed slices, the coil sensitivities are determined using the NLINV_ algorithm and saved into the file. 
 
@@ -140,22 +138,22 @@ The config file (\*.ini):
 -------------------------   
 A default config file will be generated if no path to a config file is passed as an argument or if no default.ini file is present in the current working directory. After the initial generation the values can be altered to influence regularization or the number of iterations. Seperate values for TV and TGV regularization can be used. 
 
-  - max_iters: Maximum primal-dual (PD) iterations
-  - start_iters: PD iterations in the first Gauss-Newton step
-  - max_gn_it: Maximum number of Gauss Newton iterations
-  - lambd: Data weighting
-  - gamma: TGV weighting
-  - delta: L2-step-penalty weighting (inversely weighted)
-  - omega: optional H1 regularization (should be set to 0 if no H1 is used)
-  - display_iterations: Flag for displaying grafical output
-  - gamma_min: Minimum TGV weighting
-  - delta_max: Maximum L2-step-penalty weighting
-  - omega_min: Minimum H1 weighting (should be set to 0 if no H1 is used)
-  - tol: relative convergence toleranze for PD and Gauss-Newton iterations
-  - stag: optional stagnation detection between successive PD steps
-  - delta_inc: Increase factor for delta after each GN step
-  - gamma_dec: Decrease factor for gamma after each GN step
-  - omega_dec: Decrease factor for omega after each GN step
+- max_iters: Maximum primal-dual (PD) iterations
+- start_iters: PD iterations in the first Gauss-Newton step
+- max_gn_it: Maximum number of Gauss Newton iterations
+- lambd: Data weighting
+- gamma: TGV weighting
+- delta: L2-step-penalty weighting (inversely weighted)
+- omega: optional H1 regularization (should be set to 0 if no H1 is used)
+- display_iterations: Flag for displaying grafical output
+- gamma_min: Minimum TGV weighting
+- delta_max: Maximum L2-step-penalty weighting
+- omega_min: Minimum H1 weighting (should be set to 0 if no H1 is used)
+- tol: relative convergence toleranze for PD and Gauss-Newton iterations
+- stag: optional stagnation detection between successive PD steps
+- delta_inc: Increase factor for delta after each GN step
+- gamma_dec: Decrease factor for gamma after each GN step
+- omega_dec: Decrease factor for omega after each GN step
 
 Limitations and known Issues:
 ------------------------------
