@@ -146,6 +146,7 @@ class Model(BaseModel):
 
         S *= self.phase
         S[~np.isfinite(S)] = 0
+        S = S.astype(DTYPE)
         return S
 
     def _execute_gradient_3D(self, x):
