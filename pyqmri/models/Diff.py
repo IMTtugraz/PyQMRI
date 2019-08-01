@@ -32,7 +32,7 @@ class Model(BaseModel):
                 np.transpose(
                     par["file"]["b0"][()], (0, 2, 1)), 0)
         except KeyError:
-            self.b0 = images[0]*par["dscale"]
+            self.b0 = images[0]
 
         self.dscale = par["dscale"]
         self.guess = self._set_init_scales(images)

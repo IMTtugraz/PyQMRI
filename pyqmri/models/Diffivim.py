@@ -33,7 +33,7 @@ class Model(BaseModel):
             if par["imagespace"] is True:
                 self.b0 = images[0]
             else:
-                self.b0 = images[0]*par["dscale"]
+                self.b0 = images[0]
         self.phase = np.exp(1j*(np.angle(images)-np.angle(images[0])))
         self.guess = self._set_init_scales()
 
@@ -52,12 +52,12 @@ class Model(BaseModel):
         self.constraints.append(
             constraints(
                 (0 / self.uk_scale[2]),
-                (3 / self.uk_scale[2]),
+                (5 / self.uk_scale[2]),
                 True))
         self.constraints.append(
             constraints(
                 (0 / self.uk_scale[3]),
-                (0.5 / self.uk_scale[3]),
+                (50 / self.uk_scale[3]),
                 True))
 
     def _execute_forward_2D(self, x, islice):
@@ -71,13 +71,11 @@ class Model(BaseModel):
     def _execute_forward_3D(self, x):
         M0 = x[0, ...] * self.uk_scale[0]
         f = x[1, ...] * self.uk_scale[1]
-        ADC1 = (x[2, ...]) * self.uk_scale[2]
-        ADC2 = (x[3, ...]) * self.uk_scale[3]
+        ADCs = (x[2, ...]) * self.uk_scale[2]
+        ADCf = (x[3, ...]) * self.uk_scale[3]
 
-        tmp = np.exp(-self.b * (ADC1 + ADC2))
-        tmp2 = np.exp(-ADC1 * self.b)
-
-        S = M0 * (f * tmp + (-f + 1) * tmp2)
+        S = M0 * (f * np.exp(-self.b * ADCf) +
+                  (-f + 1) * np.exp(-self.b * ADCs))
 
         S *= self.phase
         S[~np.isfinite(S)] = 0
@@ -87,35 +85,31 @@ class Model(BaseModel):
     def _execute_gradient_3D(self, x):
         M0 = x[0, ...]
         f = x[1, ...]
-        ADC1 = (x[2, ...])
-        ADC2 = (x[3, ...])
+        ADCs = (x[2, ...])
+        ADCf = (x[3, ...])
         M0_sc = self.uk_scale[0]
         f_sc = self.uk_scale[1]
-        ADC1_sc = self.uk_scale[2]
-        ADC2_sc = self.uk_scale[3]
+        ADCs_sc = self.uk_scale[2]
+        ADCf_sc = self.uk_scale[3]
+
         grad_M0 = M0_sc * (f * f_sc *
-                           np.exp(-self.b * (ADC1 * ADC1_sc + ADC2 * ADC2_sc))
+                           np.exp(-self.b * ADCf * ADCf_sc)
                            + (-f * f_sc + 1) *
-                           np.exp(-ADC1 * ADC1_sc * self.b)) * self.phase
+                           np.exp(-self.b * ADCs * ADCs_sc)) * self.phase
 
-        grad_f = M0 * M0_sc * (-f_sc * np.exp(-ADC1 * ADC1_sc * self.b) +
-                               f_sc * np.exp(-self.b *
-                                             (ADC1 * ADC1_sc +
-                                              ADC2 * ADC2_sc))) * self.phase
+        grad_f = M0 * M0_sc * (f_sc * np.exp(-self.b * ADCf * ADCf_sc)
+                               - f_sc * np.exp(-ADCs * ADCs_sc * self.b)
+                               ) * self.phase
 
-        grad_ADC1 = M0 * M0_sc * self.phase * (-ADC1_sc * self.b * f * f_sc *
+        grad_ADCs = M0 * M0_sc * self.phase * (- ADCs_sc * self.b *
+                                               (-f * f_sc + 1) *
                                                np.exp(
-                                                 -self.b * (ADC1 * ADC1_sc +
-                                                            ADC2 * ADC2_sc)) -
-                                               ADC1_sc * self.b * (
-                                                   -f * f_sc + 1) *
-                                               np.exp(
-                                                   -ADC1 * ADC1_sc * self.b))
+                                                   -ADCs * ADCs_sc * self.b))
 
-        grad_ADC2 = -ADC2_sc * M0 * M0_sc * self.b * f * f_sc * \
-            np.exp(-self.b * (ADC1 * ADC1_sc + ADC2 * ADC2_sc)) * self.phase
+        grad_ADCf = -ADCf_sc * self.b * M0 * M0_sc * f * f_sc * \
+            np.exp(-self.b * ADCf * ADCf_sc) * self.phase
 
-        grad = np.array([grad_M0, grad_f, grad_ADC1, grad_ADC2], dtype=DTYPE)
+        grad = np.array([grad_M0, grad_f, grad_ADCs, grad_ADCf], dtype=DTYPE)
         grad[~np.isfinite(grad)] = 1e-20
         return grad
 
@@ -125,15 +119,15 @@ class Model(BaseModel):
         M0_max = M0.max()
 
         f = np.abs(x[1, ...]) * self.uk_scale[1]
-        ADC1 = (np.abs(x[2, ...]) * self.uk_scale[2])
+        ADCs = (np.abs(x[2, ...]) * self.uk_scale[2])
         f_min = f.min()
         f_max = f.max()
-        ADC1_min = ADC1.min()
-        ADC1_max = ADC1.max()
+        ADCs_min = ADCs.min()
+        ADCs_max = ADCs.max()
 
-        ADC2 = (np.abs(x[3, ...]) * self.uk_scale[3])
-        ADC2_min = ADC2.min()
-        ADC2_max = ADC2.max()
+        ADCf = (np.abs(x[3, ...]) * self.uk_scale[3])
+        ADCf_min = ADCf.min()
+        ADCf_max = ADCf.max()
 
         if dim_2D:
             if not self.figure:
@@ -143,18 +137,18 @@ class Model(BaseModel):
                 self.ax[0].set_title('Proton Density in a.u.')
                 self.ax[0].axis('off')
                 self.figure.colorbar(self.f_plot, ax=self.ax[0])
-                self.ADC_plot = self.ax[1].imshow((ADC1))
-                self.ax[1].set_title('ADC1 in  ms')
+                self.ADC_plot = self.ax[1].imshow((ADCs))
+                self.ax[1].set_title('ADCs in  ms')
                 self.ax[1].axis('off')
-                self.figure.colorbar(self.ADC1_plot, ax=self.ax[1])
+                self.figure.colorbar(self.ADCs_plot, ax=self.ax[1])
                 self.figure.tight_layout()
                 plt.draw()
                 plt.pause(1e-10)
             else:
                 self.f_plot.set_data((f))
                 self.f_plot.set_clim([f_min, f_max])
-                self.ADC1_plot.set_data((ADC1))
-                self.ADC1_plot.set_clim([ADC1_min, ADC1_max])
+                self.ADCs_plot.set_data((ADCs))
+                self.ADCs_plot.set_clim([ADCs_min, ADCs_max])
                 plt.draw()
                 plt.pause(1e-10)
         else:
@@ -220,34 +214,34 @@ class Model(BaseModel):
                 for spine in cbar.ax.spines:
                     cbar.ax.spines[spine].set_color('white')
 
-                self.ADC1_plot = self.ax[3].imshow(
-                    (ADC1[int(self.NSlice / 2), ...]))
-                self.ADC1_plot_cor = self.ax[16].imshow(
-                    (ADC1[:, int(ADC1.shape[1] / 2), ...]))
-                self.ADC1_plot_sag = self.ax[4].imshow(
-                    np.flip((ADC1[:, :, int(ADC1.shape[-1] / 2)]).T, 1))
-                self.ax[3].set_title('ADC1', color='white')
+                self.ADCs_plot = self.ax[3].imshow(
+                    (ADCs[int(self.NSlice / 2), ...]))
+                self.ADCs_plot_cor = self.ax[16].imshow(
+                    (ADCs[:, int(ADCs.shape[1] / 2), ...]))
+                self.ADCs_plot_sag = self.ax[4].imshow(
+                    np.flip((ADCs[:, :, int(ADCs.shape[-1] / 2)]).T, 1))
+                self.ax[3].set_title('ADCs', color='white')
                 self.ax[3].set_anchor('SE')
                 self.ax[4].set_anchor('SW')
                 self.ax[16].set_anchor('NW')
                 cax = plt.subplot(self.gs[:, 5])
-                cbar = self.figure.colorbar(self.ADC1_plot, cax=cax)
+                cbar = self.figure.colorbar(self.ADCs_plot, cax=cax)
                 cbar.ax.tick_params(labelsize=12, colors='white')
                 for spine in cbar.ax.spines:
                     cbar.ax.spines[spine].set_color('white')
 
-                self.ADC2_plot = self.ax[10].imshow(
-                    (ADC2[int(self.NSlice / 2), ...]))
-                self.ADC2_plot_cor = self.ax[23].imshow(
-                    (ADC2[:, int(ADC2.shape[1] / 2), ...]))
-                self.ADC2_plot_sag = self.ax[11].imshow(
-                    np.flip((ADC2[:, :, int(ADC2.shape[-1] / 2)]).T, 1))
-                self.ax[10].set_title('ADC2', color='white')
+                self.ADCf_plot = self.ax[10].imshow(
+                    (ADCf[int(self.NSlice / 2), ...]))
+                self.ADCf_plot_cor = self.ax[23].imshow(
+                    (ADCf[:, int(ADCf.shape[1] / 2), ...]))
+                self.ADCf_plot_sag = self.ax[11].imshow(
+                    np.flip((ADCf[:, :, int(ADCf.shape[-1] / 2)]).T, 1))
+                self.ax[10].set_title('ADCf', color='white')
                 self.ax[10].set_anchor('SE')
                 self.ax[11].set_anchor('SW')
                 self.ax[23].set_anchor('NW')
                 cax = plt.subplot(self.gs[:, 12])
-                cbar = self.figure.colorbar(self.ADC2_plot, cax=cax)
+                cbar = self.figure.colorbar(self.ADCf_plot, cax=cax)
                 cbar.ax.tick_params(labelsize=12, colors='white')
                 for spine in cbar.ax.spines:
                     cbar.ax.spines[spine].set_color('white')
@@ -262,14 +256,14 @@ class Model(BaseModel):
                 self.M0_plot.set_clim([M0_min, M0_max])
                 self.M0_plot_cor.set_clim([M0_min, M0_max])
                 self.M0_plot_sag.set_clim([M0_min, M0_max])
-                self.ADC1_plot.set_data((ADC1[int(self.NSlice / 2), ...]))
-                self.ADC1_plot_cor.set_data(
-                    (ADC1[:, int(ADC1.shape[1] / 2), ...]))
-                self.ADC1_plot_sag.set_data(
-                    np.flip((ADC1[:, :, int(ADC1.shape[-1] / 2)]).T, 1))
-                self.ADC1_plot.set_clim([ADC1_min, ADC1_max])
-                self.ADC1_plot_sag.set_clim([ADC1_min, ADC1_max])
-                self.ADC1_plot_cor.set_clim([ADC1_min, ADC1_max])
+                self.ADCs_plot.set_data((ADCs[int(self.NSlice / 2), ...]))
+                self.ADCs_plot_cor.set_data(
+                    (ADCs[:, int(ADCs.shape[1] / 2), ...]))
+                self.ADCs_plot_sag.set_data(
+                    np.flip((ADCs[:, :, int(ADCs.shape[-1] / 2)]).T, 1))
+                self.ADCs_plot.set_clim([ADCs_min, ADCs_max])
+                self.ADCs_plot_sag.set_clim([ADCs_min, ADCs_max])
+                self.ADCs_plot_cor.set_clim([ADCs_min, ADCs_max])
 
                 self.f_plot.set_data((f[int(self.NSlice / 2), ...]))
                 self.f_plot_cor.set_data((f[:, int(f.shape[1] / 2), ...]))
@@ -278,14 +272,14 @@ class Model(BaseModel):
                 self.f_plot.set_clim([f_min, f_max])
                 self.f_plot_cor.set_clim([f_min, f_max])
                 self.f_plot_sag.set_clim([f_min, f_max])
-                self.ADC2_plot.set_data((ADC2[int(self.NSlice / 2), ...]))
-                self.ADC2_plot_cor.set_data(
-                    (ADC2[:, int(ADC2.shape[1] / 2), ...]))
-                self.ADC2_plot_sag.set_data(
-                    np.flip((ADC2[:, :, int(ADC2.shape[-1] / 2)]).T, 1))
-                self.ADC2_plot.set_clim([ADC2_min, ADC2_max])
-                self.ADC2_plot_sag.set_clim([ADC2_min, ADC2_max])
-                self.ADC2_plot_cor.set_clim([ADC2_min, ADC2_max])
+                self.ADCf_plot.set_data((ADCf[int(self.NSlice / 2), ...]))
+                self.ADCf_plot_cor.set_data(
+                    (ADCf[:, int(ADCf.shape[1] / 2), ...]))
+                self.ADCf_plot_sag.set_data(
+                    np.flip((ADCf[:, :, int(ADCf.shape[-1] / 2)]).T, 1))
+                self.ADCf_plot.set_clim([ADCf_min, ADCf_max])
+                self.ADCf_plot_sag.set_clim([ADCf_min, ADCf_max])
+                self.ADCf_plot_cor.set_clim([ADCf_min, ADCf_max])
                 plt.draw()
                 plt.pause(1e-10)
 
@@ -293,7 +287,7 @@ class Model(BaseModel):
         test_M0 = self.b0
         f = 0.3 * np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         ADC_1 = 1 * np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
-        ADC_2 = 0.1 * np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+        ADC_2 = 5 * np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
 
         x = np.array(
                 [test_M0,

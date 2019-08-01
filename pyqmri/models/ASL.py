@@ -13,13 +13,18 @@ class Model(BaseModel):
     def __init__(self, par, images):
         super().__init__(par)
         self.constraints = []
-        self.T1b = par["file"]["T1b"][()]
-        self.T1 = par["file"]["T1"][()]
-        self.lambd = par["file"]["lambd"][()]
-        self.M0 = par["file"]["M0"][()]
-        self.tau = par["file"]["tau"][()]
+        full_slices = par["file"]["T1b"].shape[0]
+        sliceind = slice(int(full_slices / 2) -
+                         int(np.floor((par["NSlice"]) / 2)),
+                         int(full_slices / 2) +
+                         int(np.ceil(par["NSlice"] / 2)))
+        self.T1b = par["file"]["T1b"][sliceind]
+        self.T1 = par["file"]["T1"][sliceind]
+        self.lambd = par["file"]["lambd"][sliceind]
+        self.M0 = par["file"]["M0"][sliceind]
+        self.tau = par["file"]["tau"][:, sliceind]
         self.t = par['t']
-        self.alpha = par["file"]["alpha"][()]
+        self.alpha = par["file"]["alpha"][sliceind]
 
         self.NScan = par["NScan"]
         self.NSlice = par["NSlice"]
@@ -179,12 +184,13 @@ class Model(BaseModel):
     def plot_unknowns(self, x, dim_2D=False):
         images = self._execute_forward_3D(x)
         f = np.abs(x[0, ...] * self.uk_scale[0]/self.dscale)
-        del_t = np.abs(x[1, ...] * self.uk_scale[1])
+        del_t = np.abs(x[1, ...] * self.uk_scale[1])*60
+        del_t[f <= 15] = 0
         f_min = f.min()
         f_max = f.max()
         del_t_min = del_t.min()
         del_t_max = del_t.max()
-        ind = 30  # int(images.shape[-1]/2)
+        ind = 80  # int(images.shape[-1]/2) 30, 60
         if dim_2D:
             if not self.figure:
                 plt.ion()
@@ -218,7 +224,7 @@ class Model(BaseModel):
                     3, 6,
                     width_ratios=[
                         x / (20 * z), x / z, 1, x / z, 1, x / (20 * z)],
-                    height_ratios=[x / z, 1, 1])
+                    height_ratios=[x / z, 1, x/z])
                 self.figure.tight_layout()
                 self.figure.patch.set_facecolor(plt.cm.viridis.colors[0])
                 for grid in self.gs:
@@ -327,14 +333,16 @@ class Model(BaseModel):
                                        int(self.NSlice/2),
                                        ind,
                                        ind]).max() * 0.01)
-
+#                print("Norm data images: ", np.abs(np.max(self.images[:, int(self.NSlice/2), ind, ind])))
+#                print("Norm model iamges: ", np.abs(np.max(images[:, int(self.NSlice/2), ind, ind])))
+#                print("Ratio: ", np.abs(np.max(self.images[:, int(self.NSlice/2), ind, ind]))/np.abs(np.max(images[:, int(self.NSlice/2), ind, ind])))
                 plt.draw()
                 plt.pause(1e-10)
 
     def _set_init_scales(self, images):
-        test_f = 70 * self.dscale * np.ones(
+        test_f = 10 * self.dscale * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
-        test_del_t = 1.5/60 * np.ones(
+        test_del_t = 1/60 * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         x = np.array([test_f,
                       test_del_t], dtype=DTYPE)

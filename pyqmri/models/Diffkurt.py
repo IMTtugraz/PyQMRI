@@ -33,7 +33,7 @@ class Model(BaseModel):
             self.b0 = np.flip(
                 np.transpose(par["file"]["b0"][()], (0, 2, 1)), 0)
         except KeyError:
-            self.b0 = images[0]*par["dscale"]
+            self.b0 = images[0]
 
         self.phase = np.exp(1j*(np.angle(images)-np.angle(images[0])))
         self.guess = self._set_init_scales(images)

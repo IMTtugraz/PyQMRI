@@ -38,7 +38,7 @@ class Model(BaseModel):
             if par["imagespace"] is True:
                 self.b0 = images[0]
             else:
-                self.b0 = images[0]*par["dscale"]
+                self.b0 = images[0]
         self.phase = np.exp(1j*(np.angle(images)-np.angle(images[0])))
         self.guess = self._set_init_scales(images)
 

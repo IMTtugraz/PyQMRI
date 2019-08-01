@@ -201,6 +201,7 @@ def _estScaleNorm(myargs, par, images, data):
         dscale = (DTYPE_real(np.sqrt(2*1e3*par["NSlice"]/par["MB"])) /
                   (np.linalg.norm(data.flatten())))
         par["dscale"] = dscale
+        images = images*dscale
         data = data*dscale
 
     if myargs.trafo:
@@ -267,13 +268,12 @@ def _readInput(myargs, par):
 
     name = os.path.normpath(file)
     par["fname"] = name.split(os.sep)[-1]
-    outdir = time.strftime("%Y-%m-%d  %H-%M-%S_MRI_" +
-                           par["fname"][:-3])
-    if not os.path.exists('./output'):
-        os.makedirs('./output')
-    if not os.path.exists('./output/' + outdir):
-        os.makedirs("output/" + outdir)
-    par["outdir"] = './output/'+outdir+'/'
+    outdir = os.sep.join(name.split(os.sep)[:-1]) + os.sep + "PyQMRI_out" + \
+        os.sep + myargs.sig_model + os.sep + \
+        time.strftime("%Y-%m-%d  %H-%M-%S") + os.sep
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+    par["outdir"] = outdir
     par["file"] = h5py.File(file)
 
 

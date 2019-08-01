@@ -30,7 +30,7 @@ setup(name='pyqmri',
         'matplotlib',
         'ipyparallel',
         'pyfftw',
-        'pyqt5'],
+        'pyqt5<5.13'],
       entry_points={
         'console_scripts': ['pyqmri = pyqmri.pyqmri:run'],
         },
