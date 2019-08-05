@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+""" This module holds the classes for different linear Operator.
+
+Attribues:
+  DTYPE (complex64):
+    Complex working precission. Currently single precission only.
+"""
 from abc import ABC, abstractmethod
 import pyopencl.array as clarray
 import numpy as np

@@ -99,40 +99,6 @@ def _setupOCL(myargs, par):
 
 
 def _genImages(myargs, par, data):
-    #    #    par['C'] = np.require(par['C'][:,16,...][:,None,...],
-    #                               requirements='C')
-    #    FFT = utils.NUFFT(par, trafo=myargs.trafo, SMS=myargs.sms)
-    #    #    data = data/(FFT.deblurring[None, None, None, :, None])
-    #    import pyopencl.array as clarray
-    #
-    #    def nFTH(x, fft, par):
-    #        siz = np.shape(x)
-    #        MB = int(par["MB"])
-    #        result = np.zeros(
-    #            (par["NC"], par["NSlice"], par["NScan"],
-    #             par["dimY"], par["dimX"]), dtype=DTYPE)
-    #        tmp_result = clarray.empty(fft.queue, (par["NScan"], 1, MB,
-    #                                   par["dimY"], par["dimX"]), dtype=DTYPE)
-    #        for j in range(siz[1]):
-    #            for k in range(siz[2]):
-    #                inp = clarray.to_device(fft.queue,
-    #                                        np.require(x[:, j, k, ...]
-    #                                                    [:, None, None, ...],
-    #                                                   requirements='C'))
-    #                fft.FFTH(tmp_result, inp)
-    #                if myargs.sms:
-    #                    ind = slice(k, siz[2]+k+1, siz[2])
-    #                    result[j, ind, ...] = np.transpose(
-    #                        (tmp_result.get()), (1, 2, 0, 3, 4))
-    #                else:
-    #                    result[j, k, ...] = np.squeeze(tmp_result.get())
-    #        return np.transpose(result, (2, 0, 1, 3, 4))
-    #    images = np.require(np.sum(nFTH(data, FFT, par) *
-    #                               (np.conj(par["C"])), axis=1),
-    #                        requirements='C')
-    #    del FFT, nFTH
-
-    #    del par["file"]["images_cg"]
     if "images_cg" not in list(par["file"].keys()):
         images = np.zeros((par["NScan"],
                            par["NSlice"],

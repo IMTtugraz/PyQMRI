@@ -10,49 +10,6 @@ unknowns_TGV = 22
 unknowns_H1 = 0
 
 
-def _S(M0, M0sc, ADC, meanADC, kurt, b):
-    return ne.evaluate("M0 * M0sc * \
-                       exp(1 / 6 * meanADC**2 * b**2 * kurt - ADC * b)")
-
-
-def _diffexp(ADC, meanADC, kurt, b):
-    return ne.evaluate("exp(1 / 6 * meanADC**2 * b**2 * kurt - ADC * b)")
-
-
-def _meanSquared(M0, gradM0, meanADC, b):
-    return ne.evaluate("M0 * gradM0 * 1 / 6 * meanADC**2 * b**2")
-
-
-def _comADCGrad(M0, gradM0, meanADC, b, kurt):
-    return ne.evaluate("M0 * gradM0 * 2 / 6 * 1 / 3 * meanADC * b**2 * kurt")
-
-
-def _gradADCDia(comADCfac, ADCscale, M0, gradM0, bdir, b):
-    return ne.evaluate("comADCfac * ADCscale - M0 * gradM0 * ADCscale * \
-                        bdir**2 * b")
-
-
-def _gradADCOff(M0, gradM0, ADCScale, bdir1, bdir2, b):
-    return ne.evaluate("M0 * gradM0 * (-2 * ADCScale * bdir1 * bdir2 * b)")
-
-
-def _gradKurtDia(comKurtfac, Kurtscale, bdir):
-    return ne.evaluate("comKurtfac * Kurtscale * bdir**4")
-
-
-def _gradKurtOff2(comKurtfac, Kurtscale, bdir1, bdir2):
-    return ne.evaluate("comKurtfac * Kurtscale * 4 *  bdir1**3 * bdir2")
-
-
-def _gradKurtOffSym(comKurtfac, Kurtscale, bdir1, bdir2):
-    return ne.evaluate("comKurtfac * Kurtscale * 6 *  bdir1**2 * bdir2**2")
-
-
-def _gradKurtOff3(comKurtfac, Kurtscale, bdir1, bdir2, bdir3):
-    return ne.evaluate("comKurtfac * Kurtscale * 12 * \
-                       bdir1**2 * bdir2 * bdir3")
-
-
 class Model(BaseModel):
     """ Test """
     def __init__(self, par, images):
@@ -128,6 +85,50 @@ class Model(BaseModel):
             self.constraints.append(constraints(
                 (-Kmax / self.uk_scale[j + 19]),
                 (Kmax / self.uk_scale[j + 19]), True))
+
+    @staticmethod
+    def _S(M0, M0sc, ADC, meanADC, kurt, b):
+        return ne.evaluate("M0 * M0sc * \
+                           exp(1 / 6 * meanADC**2 * b**2 * kurt - ADC * b)")
+
+    @staticmethod
+    def _diffexp(ADC, meanADC, kurt, b):
+        return ne.evaluate("exp(1 / 6 * meanADC**2 * b**2 * kurt - ADC * b)")
+
+    @staticmethod
+    def _meanSquared(M0, gradM0, meanADC, b):
+        return ne.evaluate("M0 * gradM0 * 1 / 6 * meanADC**2 * b**2")
+
+    @staticmethod
+    def _comADCGrad(M0, gradM0, meanADC, b, kurt):
+        return ne.evaluate("M0 * gradM0 * 2 / 6 * 1 / 3 * \
+                           meanADC * b**2 * kurt")
+
+    @staticmethod
+    def _gradADCDia(comADCfac, ADCscale, M0, gradM0, bdir, b):
+        return ne.evaluate("comADCfac * ADCscale - M0 * gradM0 * ADCscale * \
+                            bdir**2 * b")
+
+    @staticmethod
+    def _gradADCOff(M0, gradM0, ADCScale, bdir1, bdir2, b):
+        return ne.evaluate("M0 * gradM0 * (-2 * ADCScale * bdir1 * bdir2 * b)")
+
+    @staticmethod
+    def _gradKurtDia(comKurtfac, Kurtscale, bdir):
+        return ne.evaluate("comKurtfac * Kurtscale * bdir**4")
+
+    @staticmethod
+    def _gradKurtOff2(comKurtfac, Kurtscale, bdir1, bdir2):
+        return ne.evaluate("comKurtfac * Kurtscale * 4 *  bdir1**3 * bdir2")
+
+    @staticmethod
+    def _gradKurtOffSym(comKurtfac, Kurtscale, bdir1, bdir2):
+        return ne.evaluate("comKurtfac * Kurtscale * 6 *  bdir1**2 * bdir2**2")
+
+    @staticmethod
+    def _gradKurtOff3(comKurtfac, Kurtscale, bdir1, bdir2, bdir3):
+        return ne.evaluate("comKurtfac * Kurtscale * 12 * \
+                           bdir1**2 * bdir2 * bdir3")
 
     def _execute_forward_2D(self, x, islice):
         print("2D Functions not implemented")
