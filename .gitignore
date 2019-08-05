@@ -27,5 +27,7 @@ data/
 *.ini
 dist*
 .egg*
-mbpq.egg*
 pyqmri.egg*
+*_build*
+*_static*
+*_template*

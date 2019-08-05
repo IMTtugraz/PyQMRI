@@ -11,6 +11,7 @@
                                expected.u32, next.u32);
        } while( current.u32 != expected.u32 );
 }
+
   __kernel void make_complex(__global float2 *out,__global float *re, __global float* im)
   {
     size_t k = get_global_id(0);
@@ -182,11 +183,34 @@ __kernel void copy(__global float2 *out, __global float2 *in, const float scale)
 
   }
 
+__kernel void copyMaskingDeblurr(__global float2 *out, __global float2 *in, __global float* debl, __global float *mask)
+  {
+    size_t x = get_global_id(2);
+    size_t X = get_global_size(2);
+    size_t y = get_global_id(1);
+    size_t Y = get_global_size(1);
+    size_t k = get_global_id(0);
+
+    out[x+y*X+X*Y*k] = in[x+y*X+X*Y*k]*mask[x+y*X+X*Y*k]*debl[y];
+
+  }
+
 __kernel void masking(__global float2 *ksp, __global float *mask)
   {
     size_t x = get_global_id(0);
     ksp[x] = ksp[x]*mask[x];
   }
+
+__kernel void maskingcpy(__global float2* out, __global float2 *ksp, __global float *mask)
+  {
+    size_t x = get_global_id(2);
+    size_t dimX = get_global_size(2);
+    size_t y = get_global_id(1);
+    size_t dimY = get_global_size(1);
+    size_t n = get_global_id(0);
+    out[x+y*dimX+dimX*dimY*n] = ksp[x+y*dimX+dimX*dimY*n]*mask[x+y*dimX];
+  }
+
 __kernel void fftshift(__global float2* ksp, __global float *check)
   {
     size_t x = get_global_id(2);
@@ -197,3 +221,4 @@ __kernel void fftshift(__global float2* ksp, __global float *check)
 
     ksp[x+dimX*y+dimX*dimY*n] = ksp[x+dimX*y+dimX*dimY*n]*check[x]*check[y];
   }
+

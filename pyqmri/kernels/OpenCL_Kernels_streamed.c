@@ -39,7 +39,7 @@ __kernel void update_z2(__global float16 *z_new, __global float16 *z, __global f
   }
 }
 __kernel void update_z1(__global float8 *z_new, __global float8 *z, __global float8 *gx,__global float8 *gx_,
-                          __global float8 *vx,__global float8 *vx_, const float sigma, const float theta, const float alphainv,
+                          __global float8 *vx, __global float8 *vx_, const float sigma, const float theta, const float alphainv,
                           const int NUk_tgv, const int NUk_H1, const float h1inv) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
@@ -600,6 +600,7 @@ __kernel void update_Kyk1(__global float2 *out, __global float2 *in,
   }
 
 }
+
 __kernel void operator_fwd_imagespace(__global float2 *out, __global float2 *in, __global float2 *grad, const int NScan, const int Nuk)
 {
   size_t X = get_global_size(2);
@@ -743,4 +744,18 @@ __kernel void update_Kyk1_imagespace(__global float2 *out, __global float2 *in,
   out[i] = sum - (val.s01+val.s23+val.s45/dz);
   i += X*Y;
   }
+}
+
+__kernel void perumtescansslices(__global float2 *out, __global float2 *in)
+{
+  size_t XY = get_global_size(2);
+  size_t NSl = get_global_size(1);
+  size_t ScanCoil = get_global_size(0);
+  size_t xy = get_global_id(2);
+  size_t sl = get_global_id(1);
+  size_t sc = get_global_id(0);
+
+  out[xy + XY*sc + XY*ScanCoil*sl] = in[xy + XY*sl + XY*NSl*sc];
+
+
 }

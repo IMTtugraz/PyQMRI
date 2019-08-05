@@ -7,8 +7,7 @@ Created on Wed Jan 30 11:10:07 2019
 """
 import numpy as np
 import configparser
-from pyqmri._transforms._pyopencl_nufft import PyOpenCLNUFFT
-
+from pyqmri.transforms.pyopencl_nufft import PyOpenCLFFT
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
@@ -27,13 +26,13 @@ def prime_factors(n):
     return factors
 
 
-def NUFFT(par, trafo=1):
+def NUFFT(par, trafo=True):
     NC = par["NC"]
     NSlice = par["NSlice"]
     par["NC"] = 1
     par["NSlice"] = 1
-    FFT = PyOpenCLNUFFT(par["ctx"][0], par["queue"][0], par,
-                        radial=trafo)
+    FFT = PyOpenCLFFT.create(par["ctx"][0], par["queue"][0], par,
+                             radial=trafo)
     par["NC"] = NC
     par["NSlice"] = NSlice
     return FFT
