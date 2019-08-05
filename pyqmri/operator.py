@@ -861,7 +861,7 @@ class OperatorKspaceSMSStreamed(Operator):
         self._tmp_Kyk1 = np.zeros(unknown_shape,
                                   dtype=DTYPE)
 
-        self._updateKyk1SMSstreamed = self._defineoperator(
+        self._updateKyk1SMSStreamed = self._defineoperator(
             [self._updateKyk1SMS],
             [unknown_shape],
             [[unknown_shape,
@@ -915,7 +915,7 @@ class OperatorKspaceSMSStreamed(Operator):
                 self._tmp_fft2, self.dat_trans_axes),
             requirements='C')
         self.adjstr.eval([self._tmp_Kyk1], [[self._tmp_fft1]+inp[0][2:-1]])
-        self.updateKyk1SMSstreamed.eval(
+        self._updateKyk1SMSStreamed.eval(
             out,
             [[self._tmp_Kyk1]+[inp[0][1]]+[inp[0][-1]]], par)
 
@@ -951,7 +951,7 @@ class OperatorKspaceSMSStreamed(Operator):
                 self._tmp_fft2, self.dat_trans_axes),
             requirements='C')
         self.adjstr.eval([self._tmp_Kyk1], [[self._tmp_fft1]+inp[0][2:-1]])
-        return self.updateKyk1SMSstreamed.evalwithnorm(
+        return self._updateKyk1SMSStreamed.evalwithnorm(
             out,
             [[self._tmp_Kyk1]+[inp[0][1]]+[inp[0][-1]]], par)
 
