@@ -1,9 +1,9 @@
 Welcome to MBPQ's documentation!
-================================================================    
+================================================================
 .. toctree::
    :maxdepth: 6
    :caption: Contents:
-   
+
    ./_modules/mbpq
    ./_modules/solver
    ./_modules/streaming
@@ -12,7 +12,7 @@ Welcome to MBPQ's documentation!
    ./_modules/FFT
    ./_modules/IRGN_RECO
    ./_modules/IRGN_RECO_STREAMED
-   
+
 
 Indices and tables
 ==================
