@@ -159,12 +159,12 @@ def _genImages(myargs, par, data):
 
 def _estScaleNorm(myargs, par, images, data):
     if myargs.imagespace:
-        dscale = DTYPE_real(np.sqrt(2*1e3*par["NSlice"]/par["MB"]) /
+        dscale = DTYPE_real(np.sqrt(2*1e3*par["NSlice"]) /
                             (np.linalg.norm(images.flatten())))
         par["dscale"] = dscale
         images = images*dscale
     else:
-        dscale = (DTYPE_real(np.sqrt(2*1e3*par["NSlice"]/par["MB"])) /
+        dscale = (DTYPE_real(np.sqrt(2*1e3*par["NSlice"])) /
                   (np.linalg.norm(data.flatten())))
         par["dscale"] = dscale
         images = images*dscale
@@ -196,13 +196,13 @@ def _estScaleNorm(myargs, par, images, data):
             int(par["N"]/2-centerX):int(par["N"]/2+centerX)] = 1
         ind = np.fft.fftshift(ind)
         sig = np.sum(
-            data[..., int(par["NSlice"]/2/par["MB"]), ind] *
+            data[..., int(par["NSlice"]/2), ind] *
             np.conj(
-                data[..., int(par["NSlice"]/2/par["MB"]), ind]))/np.sum(ind)
+                data[..., int(par["NSlice"]/2), ind]))/np.sum(ind)
         noise = np.sum(
-            data[..., int(par["NSlice"]/2/par["MB"]), ~ind] *
+            data[..., int(par["NSlice"]/2), ~ind] *
             np.conj(
-                data[..., int(par["NSlice"]/2/par["MB"]), ~ind]))/np.sum(~ind)
+                data[..., int(par["NSlice"]/2), ~ind]))/np.sum(~ind)
         SNR_est = np.abs(sig/noise)
         par["SNR_est"] = SNR_est
         print("Estimated SNR from kspace", SNR_est)
