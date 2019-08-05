@@ -62,7 +62,6 @@ class Operator(ABC):
         from image to k-space and vice versa.
       prg (PyOpenCL.Program):
         The PyOpenCL program containing all compiled kernels.
-
     """
     def __init__(self, par, prg):
         """ Setup a Operator object
@@ -98,13 +97,11 @@ class Operator(ABC):
     @abstractmethod
     def fwd(self, out, inp, wait_for=[]):
         """ Apply the linear operator from parameter space to measurement space
-
         If streamed operations are used the PyOpenCL.Arrays are replaced
         by Numpy.Array
-
         Args:
           out (PyOpenCL.Array):
-            The complex measurement space data which is the result of the
+            The complex measurement space data which is the result of the \
             computation.
           inp (PyOpenCL.Array):
             The complex parameter space data which is used as input.
@@ -122,7 +119,7 @@ class Operator(ABC):
         by Numpy.Array
         Args:
           out (PyOpenCL.Array):
-            The complex parameter space data which is the result of the
+            The complex parameter space data which is the result of the \
             computation.
           inp (PyOpenCL.Array):
             The complex measurement space data which is used as input.

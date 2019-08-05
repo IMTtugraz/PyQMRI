@@ -41,15 +41,16 @@ def _gradKurtDia(comKurtfac, Kurtscale, bdir):
 
 
 def _gradKurtOff2(comKurtfac, Kurtscale, bdir1, bdir2):
-    return ne.evaluate("comKurtfac * Kurtscale * 4 *  bdir**3 * bdir2")
+    return ne.evaluate("comKurtfac * Kurtscale * 4 *  bdir1**3 * bdir2")
 
 
 def _gradKurtOffSym(comKurtfac, Kurtscale, bdir1, bdir2):
-    return ne.evaluate("comKurtfac * Kurtscale * 6 *  bdir**2 * bdir2**2")
+    return ne.evaluate("comKurtfac * Kurtscale * 6 *  bdir1**2 * bdir2**2")
 
 
 def _gradKurtOff3(comKurtfac, Kurtscale, bdir1, bdir2, bdir3):
-    return ne.evaluate("comKurtfac * Kurtscale * 12 * bdir**2 * bdir2 * bdir3")
+    return ne.evaluate("comKurtfac * Kurtscale * 12 * \
+                       bdir1**2 * bdir2 * bdir3")
 
 
 class Model(BaseModel):
