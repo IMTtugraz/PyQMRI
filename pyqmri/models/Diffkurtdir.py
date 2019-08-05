@@ -4,9 +4,60 @@ from pyqmri.models.template import BaseModel, constraints, DTYPE
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
+import numexpr as ne
 plt.ion()
 unknowns_TGV = 22
 unknowns_H1 = 0
+
+
+def _S(M0, M0sc, ADC, meanADC, kurt, b):
+    return ne.evaluate("M0 * M0sc * \
+                       exp(1 / 6 * meanADC**2 * b**2 * kurt - ADC * b)")
+
+
+def _diffexp(ADC, meanADC, kurt, b):
+    return ne.evaluate("\
+        exp(1 / 6 * meanADC**2 * b**2 * kurt - ADC * b)")
+
+
+def _meanSquared(M0, gradM0, meanADC, b):
+    return ne.evaluate("\
+        M0 * gradM0 * 1 / 6 * meanADC**2 * b**2")
+
+
+def _comADCGrad(M0, gradM0, meanADC, b, kurt):
+    return ne.evaluate("\
+        M0 * gradM0 * 2 / 6 * 1 / 3 * meanADC * b**2 * kurt")
+
+
+def _gradADCDia(comADCfac, ADCscale, M0, gradM0, bdir, b):
+    return ne.evaluate("\
+        meanADC * ADCscale - M0 * gradM0 * ADCscale * bdir**2 * b")
+
+
+def _gradADCOff(M0, gradM0, ADCScale, bdir1, bdir2, b):
+    return ne.evaluate("\
+        M0 * gradM0 * (-2 * ADCScale * bdir1 * bdir2 * b)")
+
+
+def _gradKurtDia(comKurtfac, Kurtscale, bdir):
+    return ne.evaluate("\
+        comKurtfac * Kurtscale * bdir**4")
+
+
+def _gradKurtOff2(comKurtfac, Kurtscale, bdir1, bdir2):
+    return ne.evaluate("\
+        comKurtfac * Kurtscale * 4 *  bdir**3 * bdir2")
+
+
+def _gradKurtOffSym(comKurtfac, Kurtscale, bdir1, bdir2):
+    return ne.evaluate("\
+        comKurtfac * Kurtscale * 6 *  bdir**2 * bdir2**2")
+
+
+def _gradKurtOff3(comKurtfac, Kurtscale, bdir1, bdir2, bdir3):
+    return ne.evaluate("\
+        comKurtfac * Kurtscale * 12 *  bdir**2 * bdir2 * bdir3")
 
 
 class Model(BaseModel):
@@ -25,6 +76,9 @@ class Model(BaseModel):
             self.b /= 1000
 
         self.dir = self.dir[:, None, None, None, :]
+        self.dirsqr = self.dir**2
+        self.dircub = self.dir**3
+        self.dir4th = self.dir**4
 
         self.uk_scale = []
         for j in range(unknowns_TGV + unknowns_H1):
@@ -47,54 +101,25 @@ class Model(BaseModel):
                 0 / self.uk_scale[0],
                 100 / self.uk_scale[0],
                 False))
-        self.constraints.append(
-            constraints(
-                (0 / self.uk_scale[1]),
-                (3 / self.uk_scale[1]),
-                True))
-        self.constraints.append(
-            constraints(
-                (-1e0 / self.uk_scale[2]),
-                (1e0 / self.uk_scale[2]),
-                True))
-        self.constraints.append(
-            constraints(
-                (0 / self.uk_scale[3]),
-                (3 / self.uk_scale[3]),
-                True))
-        self.constraints.append(
-            constraints(
-                (-1e0 / self.uk_scale[4]),
-                (1e0 / self.uk_scale[4]),
-                True))
-        self.constraints.append(
-            constraints(
-                (0 / self.uk_scale[5]),
-                (3 / self.uk_scale[5]),
-                True))
-        self.constraints.append(
-            constraints(
-                (-1e0 / self.uk_scale[6]),
-                (1e0 / self.uk_scale[6]),
-                True))
+        for j in range(3):
+            self.constraints.append(
+                constraints(
+                    (0 / self.uk_scale[2*j+1]),
+                    (3 / self.uk_scale[2*j+1]),
+                    True))
+            self.constraints.append(
+                constraints(
+                    (-1e0 / self.uk_scale[2*j+2]),
+                    (1e0 / self.uk_scale[2*j+2]),
+                    True))
 
         Kmax = 2.5
-
-        self.constraints.append(
-            constraints(
-                (0 / self.uk_scale[7]),
-                (Kmax / self.uk_scale[7]),
-                True))
-        self.constraints.append(
-            constraints(
-                (0 / self.uk_scale[8]),
-                (Kmax / self.uk_scale[8]),
-                True))
-        self.constraints.append(
-            constraints(
-                (0 / self.uk_scale[9]),
-                (Kmax / self.uk_scale[9]),
-                True))
+        for j in range(3):
+            self.constraints.append(
+                constraints(
+                    (0 / self.uk_scale[j+7]),
+                    (Kmax / self.uk_scale[j+7]),
+                    True))
 
         for j in range(6):
             self.constraints.append(constraints(
@@ -120,9 +145,9 @@ class Model(BaseModel):
         raise NotImplementedError
 
     def _execute_forward_3D(self, x):
-        ADC = x[1, ...] * self.uk_scale[1] * self.dir[..., 0]**2 + \
-              x[3, ...] * self.uk_scale[3] * self.dir[..., 1]**2 + \
-              x[5, ...] * self.uk_scale[5] * self.dir[..., 2]**2 + \
+        ADC = x[1, ...] * self.uk_scale[1] * self.dirsqr[..., 0] + \
+              x[3, ...] * self.uk_scale[3] * self.dirsqr[..., 1] + \
+              x[5, ...] * self.uk_scale[5] * self.dirsqr[..., 2] + \
               2*x[2, ...]*self.uk_scale[2]*self.dir[..., 0]*self.dir[..., 1] +\
               2*x[4, ...]*self.uk_scale[4]*self.dir[..., 0]*self.dir[..., 2] +\
               2*x[6, ...]*self.uk_scale[6]*self.dir[..., 1]*self.dir[..., 2]
@@ -131,46 +156,45 @@ class Model(BaseModel):
                            * self.uk_scale[3] + x[5, ...] * self.uk_scale[5])
 
         kurt = (
-          x[7, ...] * self.uk_scale[7] * self.dir[..., 0]**4 +
-          x[8, ...] * self.uk_scale[8] * self.dir[..., 1]**4 +
-          x[9, ...] * self.uk_scale[9] * self.dir[..., 2]**4 +
+          x[7, ...] * self.uk_scale[7] * self.dir4th[..., 0] +
+          x[8, ...] * self.uk_scale[8] * self.dir4th[..., 1] +
+          x[9, ...] * self.uk_scale[9] * self.dir4th[..., 2] +
           4 * x[10, ...] * self.uk_scale[10] *
-          self.dir[..., 0]**3 * self.dir[..., 1] +
+          self.dircub[..., 0] * self.dir[..., 1] +
           4 * x[11, ...] * self.uk_scale[11] *
-          self.dir[..., 0]**3 * self.dir[..., 2] +
+          self.dircub[..., 0] * self.dir[..., 2] +
           4 * x[12, ...] * self.uk_scale[12] *
-          self.dir[..., 1]**3 * self.dir[..., 0] +
+          self.dircub[..., 1] * self.dir[..., 0] +
           4 * x[13, ...] * self.uk_scale[13] *
-          self.dir[..., 1]**3 * self.dir[..., 2] +
+          self.dircub[..., 1] * self.dir[..., 2] +
           4 * x[14, ...] * self.uk_scale[14] *
-          self.dir[..., 2]**3 * self.dir[..., 0] +
+          self.dircub[..., 2] * self.dir[..., 0] +
           4 * x[15, ...] * self.uk_scale[15] *
-          self.dir[..., 2]**3 * self.dir[..., 1] +
+          self.dircub[..., 2] * self.dir[..., 1] +
           6 * x[16, ...] * self.uk_scale[16] *
-          self.dir[..., 0]**2 * self.dir[..., 1]**2 +
+          self.dirsqr[..., 0] * self.dirsqr[..., 1] +
           6 * x[17, ...] * self.uk_scale[17] *
-          self.dir[..., 0]**2 * self.dir[..., 2]**2 +
+          self.dirsqr[..., 0] * self.dirsqr[..., 2] +
           6 * x[18, ...] * self.uk_scale[18] *
-          self.dir[..., 1]**2 * self.dir[..., 2]**2 +
+          self.dirsqr[..., 1] * self.dirsqr[..., 2] +
           12 * x[19, ...] * self.uk_scale[19] *
-          self.dir[..., 0]**2 * self.dir[..., 1] * self.dir[..., 2] +
+          self.dirsqr[..., 0] * self.dir[..., 1] * self.dir[..., 2] +
           12 * x[20, ...] * self.uk_scale[20] *
-          self.dir[..., 0] * self.dir[..., 1]**2 * self.dir[..., 2] +
+          self.dir[..., 0] * self.dirsqr[..., 1] * self.dir[..., 2] +
           12 * x[21, ...] * self.uk_scale[21] *
-          self.dir[..., 0] * self.dir[..., 1] * self.dir[..., 2]**2)
+          self.dir[..., 0] * self.dir[..., 1] * self.dirsqr[..., 2])
 
-        S = (x[0, ...] * self.uk_scale[0] *
-             np.exp(1 / 6 * meanADC**2 * self.b**2 *
-                    kurt - ADC * self.b)).astype(DTYPE)
+        S = _S(x[0], self.uk_scale[0],
+               ADC, meanADC, kurt, self.b).astype(DTYPE)
 
         S *= self.phase
         S[~np.isfinite(S)] = 0
         return S
 
     def _execute_gradient_3D(self, x):
-        ADC = x[1, ...] * self.uk_scale[1] * self.dir[..., 0]**2 + \
-              x[3, ...] * self.uk_scale[3] * self.dir[..., 1]**2 + \
-              x[5, ...] * self.uk_scale[5] * self.dir[..., 2]**2 + \
+        ADC = x[1, ...] * self.uk_scale[1] * self.dirsqr[..., 0] + \
+              x[3, ...] * self.uk_scale[3] * self.dirsqr[..., 1] + \
+              x[5, ...] * self.uk_scale[5] * self.dirsqr[..., 2] + \
               2*x[2, ...]*self.uk_scale[2]*self.dir[..., 0]*self.dir[..., 1] +\
               2*x[4, ...]*self.uk_scale[4]*self.dir[..., 0]*self.dir[..., 2] +\
               2*x[6, ...]*self.uk_scale[6]*self.dir[..., 1]*self.dir[..., 2]
@@ -179,139 +203,127 @@ class Model(BaseModel):
                            * self.uk_scale[3] + x[5, ...] * self.uk_scale[5])
 
         kurt = (
-          x[7, ...] * self.uk_scale[7] * self.dir[..., 0]**4 +
-          x[8, ...] * self.uk_scale[8] * self.dir[..., 1]**4 +
-          x[9, ...] * self.uk_scale[9] * self.dir[..., 2]**4 +
+          x[7, ...] * self.uk_scale[7] * self.dir4th[..., 0] +
+          x[8, ...] * self.uk_scale[8] * self.dir4th[..., 1] +
+          x[9, ...] * self.uk_scale[9] * self.dir4th[..., 2] +
           4 * x[10, ...] * self.uk_scale[10] *
-          self.dir[..., 0]**3 * self.dir[..., 1] +
+          self.dircub[..., 0] * self.dir[..., 1] +
           4 * x[11, ...] * self.uk_scale[11] *
-          self.dir[..., 0]**3 * self.dir[..., 2] +
+          self.dircub[..., 0] * self.dir[..., 2] +
           4 * x[12, ...] * self.uk_scale[12] *
-          self.dir[..., 1]**3 * self.dir[..., 0] +
+          self.dircub[..., 1] * self.dir[..., 0] +
           4 * x[13, ...] * self.uk_scale[13] *
-          self.dir[..., 1]**3 * self.dir[..., 2] +
+          self.dircub[..., 1] * self.dir[..., 2] +
           4 * x[14, ...] * self.uk_scale[14] *
-          self.dir[..., 2]**3 * self.dir[..., 0] +
+          self.dircub[..., 2] * self.dir[..., 0] +
           4 * x[15, ...] * self.uk_scale[15] *
-          self.dir[..., 2]**3 * self.dir[..., 1] +
+          self.dircub[..., 2] * self.dir[..., 1] +
           6 * x[16, ...] * self.uk_scale[16] *
-          self.dir[..., 0]**2 * self.dir[..., 1]**2 +
+          self.dirsqr[..., 0] * self.dirsqr[..., 1] +
           6 * x[17, ...] * self.uk_scale[17] *
-          self.dir[..., 0]**2 * self.dir[..., 2]**2 +
+          self.dirsqr[..., 0] * self.dirsqr[..., 2] +
           6 * x[18, ...] * self.uk_scale[18] *
-          self.dir[..., 1]**2 * self.dir[..., 2]**2 +
+          self.dirsqr[..., 1] * self.dirsqr[..., 2] +
           12 * x[19, ...] * self.uk_scale[19] *
-          self.dir[..., 0]**2 * self.dir[..., 1] * self.dir[..., 2] +
+          self.dirsqr[..., 0] * self.dir[..., 1] * self.dir[..., 2] +
           12 * x[20, ...] * self.uk_scale[20] *
-          self.dir[..., 0] * self.dir[..., 1]**2 * self.dir[..., 2] +
+          self.dir[..., 0] * self.dirsqr[..., 1] * self.dir[..., 2] +
           12 * x[21, ...] * self.uk_scale[21] *
-          self.dir[..., 0] * self.dir[..., 1] * self.dir[..., 2]**2)
+          self.dir[..., 0] * self.dir[..., 1] * self.dirsqr[..., 2])
 
-        diffexp = np.exp(1 / 6 * meanADC**2 * self.b**2 * kurt - ADC * self.b)
+        diffexp = _diffexp(ADC, meanADC, kurt, self.b)
         del ADC
 
         grad_M0 = self.uk_scale[0] * diffexp
         del diffexp
 
         grad_M0 *= self.phase
-        mean_squared = x[0, ...] * grad_M0 * 1 / 6 * meanADC**2 * self.b**2
-        meanADC = (x[0, ...] * grad_M0 * 2 / 6 * 1 / 3 *
-                   meanADC * self.b**2 * kurt)
+        mean_squared = _meanSquared(x[0, ...], grad_M0, meanADC, self.b)
+        meanADC = _comADCGrad(x[0, ...], grad_M0, meanADC, self.b, kurt)
 
-        grad_ADC_x = (meanADC * self.uk_scale[1] -
-                      x[0, ...] * grad_M0 * self.uk_scale[1] *
-                      self.dir[..., 0]**2 * self.b)
-        grad_ADC_xy = x[0, ...] * grad_M0 * \
-            (-2 * self.uk_scale[2] * self.dir[..., 0] *
-             self.dir[..., 1] * self.b)
+        grad_ADC_x = _gradADCDia(meanADC, self.uk_scale[1], x[0],
+                                 grad_M0, self.dir[..., 0], self.b)
 
-        grad_ADC_y = (meanADC * self.uk_scale[3] -
-                      x[0, ...] * grad_M0 * self.uk_scale[3] *
-                      self.dir[..., 1]**2 * self.b)
-        grad_ADC_xz = x[0, ...] * grad_M0 * \
-            (-2 * self.uk_scale[4] * self.dir[..., 0] *
-             self.dir[..., 2] * self.b)
+        grad_ADC_xy = _gradADCOff(x[0], grad_M0, self.uk_scale[2],
+                                  self.dir[..., 0], self.dir[..., 1],
+                                  self.b)
 
-        grad_ADC_z = (meanADC * self.uk_scale[5] -
-                      x[0, ...] * grad_M0 *
-                      self.uk_scale[5] * self.dir[..., 2]**2 * self.b)
-        grad_ADC_yz = x[0, ...] * grad_M0 * \
-            (-2 * self.uk_scale[6] * self.dir[..., 1] *
-             self.dir[..., 2] * self.b)
+        grad_ADC_y = _gradADCDia(meanADC, self.uk_scale[3], x[0],
+                                 grad_M0, self.dir[..., 1], self.b)
+
+        grad_ADC_xz = _gradADCOff(x[0], grad_M0, self.uk_scale[4],
+                                  self.dir[..., 0], self.dir[..., 2],
+                                  self.b)
+
+        grad_ADC_z = _gradADCDia(meanADC, self.uk_scale[5], x[0],
+                                 grad_M0, self.dir[..., 2], self.b)
+
+        grad_ADC_yz = _gradADCOff(x[0], grad_M0, self.uk_scale[6],
+                                  self.dir[..., 1], self.dir[..., 2],
+                                  self.b)
 
         del meanADC
-        grad_kurt_xxxx = (mean_squared *
-                          self.uk_scale[7] *
-                          self.dir[..., 0]**4)
-        grad_kurt_yyyy = (mean_squared *
-                          self.uk_scale[8] *
-                          self.dir[..., 1]**4)
-        grad_kurt_zzzz = (mean_squared *
-                          self.uk_scale[9] *
-                          self.dir[..., 2]**4)
-        grad_kurt_xxxy = (mean_squared *
-                          self.uk_scale[10] *
-                          4 *
-                          self.dir[..., 0]**3 *
-                          self.dir[..., 1])
-        grad_kurt_xxxz = (mean_squared *
-                          self.uk_scale[11] *
-                          4 *
-                          self.dir[..., 0]**3 *
-                          self.dir[..., 2])
-        grad_kurt_xyyy = (mean_squared *
-                          self.uk_scale[12] *
-                          4 *
-                          self.dir[..., 1]**3 *
-                          self.dir[..., 0])
-        grad_kurt_yyyz = (mean_squared *
-                          self.uk_scale[13] *
-                          4 *
-                          self.dir[..., 1]**3 *
-                          self.dir[..., 2])
-        grad_kurt_xzzz = (mean_squared *
-                          self.uk_scale[14] *
-                          4 *
-                          self.dir[..., 2]**3 *
-                          self.dir[..., 0])
-        grad_kurt_yzzz = (mean_squared *
-                          self.uk_scale[15] *
-                          4 *
-                          self.dir[..., 2]**3 *
-                          self.dir[..., 1])
-        grad_kurt_xxyy = (mean_squared *
-                          self.uk_scale[16] *
-                          6 *
-                          self.dir[..., 0]**2 *
-                          self.dir[..., 1]**2)
-        grad_kurt_xxzz = (mean_squared *
-                          self.uk_scale[17] *
-                          6 *
-                          self.dir[..., 0]**2 *
-                          self.dir[..., 2]**2)
-        grad_kurt_yyzz = (mean_squared *
-                          self.uk_scale[18] *
-                          6 *
-                          self.dir[..., 1]**2 *
-                          self.dir[..., 2]**2)
-        grad_kurt_xxyz = (mean_squared *
-                          self.uk_scale[19] *
-                          12 *
-                          self.dir[..., 0]**2 *
-                          self.dir[..., 1] *
-                          self.dir[..., 2])
-        grad_kurt_xyyz = (mean_squared *
-                          self.uk_scale[20] *
-                          12 *
-                          self.dir[..., 0] *
-                          self.dir[..., 1]**2 *
-                          self.dir[..., 2])
-        grad_kurt_xyzz = (mean_squared *
-                          self.uk_scale[21] *
-                          12 *
-                          self.dir[..., 0] *
-                          self.dir[..., 1] *
-                          self.dir[..., 2]**2)
+        grad_kurt_xxxx = _gradKurtDia(mean_squared,
+                                      self.uk_scale[7],
+                                      self.dir[..., 0])
+        grad_kurt_yyyy = _gradKurtDia(mean_squared,
+                                      self.uk_scale[8],
+                                      self.dir[..., 1])
+        grad_kurt_zzzz = _gradKurtDia(mean_squared,
+                                      self.uk_scale[9],
+                                      self.dir[..., 2])
+
+        grad_kurt_xxxy = _gradKurtOff2(mean_squared,
+                                       self.uk_scale[10],
+                                       self.dir[..., 0],
+                                       self.dir[..., 1])
+        grad_kurt_xxxz = _gradKurtOff2(mean_squared,
+                                       self.uk_scale[11],
+                                       self.dir[..., 0],
+                                       self.dir[..., 2])
+        grad_kurt_xyyy = _gradKurtOff2(mean_squared,
+                                       self.uk_scale[12],
+                                       self.dir[..., 1],
+                                       self.dir[..., 0])
+        grad_kurt_yyyz = _gradKurtOff2(mean_squared,
+                                       self.uk_scale[13],
+                                       self.dir[..., 1],
+                                       self.dir[..., 2])
+        grad_kurt_xzzz = _gradKurtOff2(mean_squared,
+                                       self.uk_scale[14],
+                                       self.dir[..., 2],
+                                       self.dir[..., 0])
+        grad_kurt_yzzz = _gradKurtOff2(mean_squared,
+                                       self.uk_scale[15],
+                                       self.dir[..., 2],
+                                       self.dir[..., 1])
+        grad_kurt_xxyy = _gradKurtOffSym(mean_squared,
+                                         self.uk_scale[16],
+                                         self.dir[..., 0],
+                                         self.dir[..., 1])
+        grad_kurt_xxzz = _gradKurtOffSym(mean_squared,
+                                         self.uk_scale[17],
+                                         self.dir[..., 0],
+                                         self.dir[..., 2])
+        grad_kurt_yyzz = _gradKurtOffSym(mean_squared,
+                                         self.uk_scale[18],
+                                         self.dir[..., 1],
+                                         self.dir[..., 2])
+        grad_kurt_xxyz = _gradKurtOff3(mean_squared,
+                                       self.uk_scale[19],
+                                       self.dir[..., 0],
+                                       self.dir[..., 1],
+                                       self.dir[..., 2])
+        grad_kurt_xyyz = _gradKurtOff3(mean_squared,
+                                       self.uk_scale[20],
+                                       self.dir[..., 1],
+                                       self.dir[..., 0],
+                                       self.dir[..., 2])
+        grad_kurt_xyzz = _gradKurtOff3(mean_squared,
+                                       self.uk_scale[21],
+                                       self.dir[..., 2],
+                                       self.dir[..., 1],
+                                       self.dir[..., 0])
         del mean_squared
 
         grad = np.array([grad_M0,

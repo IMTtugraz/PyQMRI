@@ -4,9 +4,78 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from pyqmri.models.template import BaseModel, constraints, DTYPE
+import numexpr as ne
 plt.ion()
 unknowns_TGV = 2
 unknowns_H1 = 0
+
+
+def _expAttT1b(del_t, del_t_sc, T1b):
+    return ne.evaluate(
+        "exp(-(del_t*del_t_sc)/T1b)")
+
+
+def _T1pr(T1, f, f_sc, lambd):
+    return ne.evaluate(
+        "1/T1+f*f_sc/lambd")
+
+
+def _S1(M0, alpha, lambd, f, T1, T1p, del_t,  t, tau, expAttT1b):
+    return ne.evaluate(
+        "2*alpha*M0/lambd * f/T1p * expAttT1b * \
+        (1-exp(-(t-del_t) * T1p))")
+
+
+def _S2(M0, alpha, lambd, f, T1, T1p, del_t, t, tau, expAttT1b):
+    return ne.evaluate(
+        "2*alpha*M0/lambd * f/T1p * expAttT1b * \
+         exp(-(t-del_t-tau) * T1p) * \
+         (1-exp(-tau * T1p))")
+
+
+def _delCBF1(M0, alpha, lambd, f, f_sc, T1, del_t,
+             del_t_sc, T1b, t, tau, T1p, expAttT1b):
+    return ne.evaluate(
+        "(-2*M0*f*f_sc**2*(del_t*del_t_sc - t) *\
+         exp((del_t*del_t_sc - t) * T1p) * expAttT1b / (lambd**2*T1p) -\
+         2*M0*f*f_sc**2 * (-exp((del_t*del_t_sc - t) * T1p) + 1) * expAttT1b /\
+         (lambd**2*T1p**2) +\
+         2*M0*f_sc*(-exp((del_t*del_t_sc - t) * T1p) + 1) * expAttT1b /\
+         (lambd*T1p))*alpha")
+
+
+def _delCBF2(M0, alpha, lambd, f, f_sc, T1, del_t,
+             del_t_sc, T1b, t, tau, T1p, expAttT1b):
+    return ne.evaluate(
+        "(2*M0*f*f_sc**2*tau *  exp(-tau*T1p) *\
+          exp(T1p * (del_t*del_t_sc - t + tau)) * expAttT1b / (lambd**2*T1p) +\
+          2*M0*f*f_sc**2 * (1 - exp(-tau*T1p)) * (del_t*del_t_sc - t + tau) *\
+          exp(T1p * (del_t*del_t_sc - t + tau)) * expAttT1b / (lambd**2*T1p) -\
+          2*M0*f*f_sc**2 * (1 - exp(-tau*T1p)) * \
+          exp(T1p * (del_t*del_t_sc - t + tau)) * \
+          expAttT1b / (lambd**2*T1p**2) +\
+          2*M0*f_sc * (1 - exp(-tau*T1p)) * \
+          exp(T1p * (del_t*del_t_sc - t + tau)) * expAttT1b / (lambd*T1p)) *\
+          alpha")
+
+
+def _delATT1(M0, alpha, lambd, f, f_sc, T1, del_t,
+             del_t_sc, T1b, t, tau, T1p, expAttT1b):
+    return ne.evaluate(
+        "(-2*M0*del_t_sc*f*f_sc * exp((del_t*del_t_sc - t) * T1p) *\
+          expAttT1b/lambd -\
+          2*M0*del_t_sc*f*f_sc*(- exp((del_t*del_t_sc - t) * T1p) + 1) *\
+          expAttT1b / (T1b*lambd*T1p))*alpha")
+
+
+def _delATT2(M0, alpha, lambd, f, f_sc, T1, del_t,
+             del_t_sc, T1b, t, tau, T1p, expAttT1b):
+    return ne.evaluate(
+        "(2*M0*del_t_sc*f*f_sc * (1 - exp(-tau*T1p)) *\
+          exp(T1p * (del_t*del_t_sc - t + tau)) * expAttT1b/lambd -\
+          2*M0*del_t_sc*f*f_sc * (1 - exp(-tau*T1p)) *\
+          exp(T1p * (del_t*del_t_sc - t + tau)) * expAttT1b /\
+          (T1b*lambd*T1p))*alpha")
 
 
 class Model(BaseModel):
@@ -37,10 +106,7 @@ class Model(BaseModel):
         for j in range(unknowns_TGV + unknowns_H1):
             self.uk_scale.append(1)
         self.guess = self._set_init_scales(images)
-#        self.f = par["file"]["f"][()]*self.dscale
-#        self.del_t = par["file"]["del_t"][()]
-#        self.guess = np.array((self.f, self.del_t), dtype=DTYPE)
-#        self.images = np.transpose(self.images, [0, 2, 3, 1])
+
         self.constraints.append(
             constraints(0,
                         200 * self.dscale,
@@ -59,138 +125,88 @@ class Model(BaseModel):
         raise NotImplementedError
 
     def _execute_forward_3D(self, x):
+#        import ipdb
+#        ipdb.set_trace()
         f = x[0, ...] * self.uk_scale[0]
         del_t = x[1, ...] * self.uk_scale[1]
 
         S = np.zeros((self.NScan, self.NSlice, self.dimY, self.dimX),
                      dtype=DTYPE)
+
+        T1prinv = _T1pr(self.T1, x[0], self.uk_scale[0], self.lambd)
+        expAtt = _expAttT1b(x[1], self.uk_scale[1], self.T1b)
         for j in range((self.t).size):
             ind_low = self.t[j] >= del_t
             ind_high = self.t[j] < (del_t+self.tau[j])
             ind = ind_low & ind_high
             if np.any(ind):
-                S[j, ind] = 2*self.alpha[ind]*self.M0[ind]/self.lambd[ind] *\
-                            f[ind]/(1/self.T1[ind]+f[ind]/self.lambd[ind]) * \
-                            np.exp(-(del_t[ind])/self.T1b[ind]) * \
-                            (1-np.exp(-(self.t[j]-del_t[ind]) *
-                             (1/self.T1[ind]+f[ind]/self.lambd[ind])))
+                S[j, ind] = _S1(self.M0[ind], self.alpha[ind], self.lambd[ind],
+                                f[ind], self.T1[ind], T1prinv[ind], del_t[ind],
+                                self.t[j], self.tau[j, ind], expAtt[ind])
             ind = self.t[j] >= del_t + self.tau[j]
             if np.any(ind):
-                S[j, ind] = 2*self.alpha[ind]*self.M0[ind]/self.lambd[ind] *\
-                            f[ind]/(1/self.T1[ind]+f[ind]/self.lambd[ind]) * \
-                            np.exp(-(del_t[ind])/self.T1b[ind]) * \
-                            np.exp(-(self.t[j]-del_t[ind]-self.tau[j, ind]) *
-                                   (1/self.T1[ind]+f[ind]/self.lambd[ind])) * \
-                            (1-np.exp(-self.tau[j, ind] *
-                                      (1/self.T1[ind]+f[ind]/self.lambd[ind])))
+                S[j, ind] = _S2(self.M0[ind], self.alpha[ind], self.lambd[ind],
+                                f[ind], self.T1[ind], T1prinv[ind], del_t[ind],
+                                self.t[j], self.tau[j, ind], expAtt[ind])
         S[~np.isfinite(S)] = 1e-20
         S = np.array(S, dtype=DTYPE)
         return S
 
     def _execute_gradient_3D(self, x):
         f_sc = self.uk_scale[0]
-        del_t = x[1, ...]
         del_t_sc = self.uk_scale[1]
+        del_t = x[1]*del_t_sc
         grad = np.zeros((self.unknowns, self.NScan,
                          self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         t = self.t
+        T1prinv = _T1pr(self.T1, x[0], self.uk_scale[0], self.lambd)
+        expAtt = _expAttT1b(x[1], self.uk_scale[1], self.T1b)
         for j in range((self.t).size):
-            ind_low = self.t[j] >= x[1, ...]*self.uk_scale[1]
-            ind_high = self.t[j] < (x[1, ...]*self.uk_scale[1]+self.tau[j])
+            ind_low = self.t[j] >= del_t
+            ind_high = self.t[j] < (del_t+self.tau[j])
             ind = ind_low & ind_high
-            M0 = self.M0[ind]
-            T1 = self.T1[ind]
-            T1b = self.T1b[ind]
-            lambd = self.lambd[ind]
-            tau = self.tau[j, ind]
-            alpha = self.alpha[ind]
-            f = x[0, ind]
-            del_t = x[1, ind]
             if np.any(ind):
-                grad[0, j, ind] = (-2*M0*f*f_sc**2*(del_t*del_t_sc - t[j]) *
-                                   np.exp((del_t*del_t_sc - t[j]) *
-                                          (f*f_sc/lambd + 1/T1)) *
-                                   np.exp(-del_t*del_t_sc/T1b) /
-                                   (lambd**2*(f*f_sc/lambd + 1/T1)) -
-                                   2*M0*f*f_sc**2 *
-                                   (-np.exp((del_t*del_t_sc - t[j]) *
-                                            (f*f_sc/lambd + 1/T1)) + 1) *
-                                   np.exp(-del_t*del_t_sc/T1b) /
-                                   (lambd**2*(f*f_sc/lambd + 1/T1)**2) +
-                                   2*M0*f_sc*(-np.exp(
-                                       (del_t*del_t_sc - t[j]) *
-                                       (f*f_sc/lambd + 1/T1)) + 1) *
-                                   np.exp(-del_t*del_t_sc/T1b) /
-                                   (lambd*(f*f_sc/lambd + 1/T1)))*alpha
-                grad[1, j, ind] = (-2*M0*del_t_sc*f*f_sc *
-                                   np.exp((del_t*del_t_sc - t[j]) *
-                                          (f*f_sc/lambd + 1/T1)) *
-                                   np.exp(-del_t*del_t_sc/T1b)/lambd -
-                                   2*M0*del_t_sc*f*f_sc*(
-                                       - np.exp((del_t*del_t_sc - t[j]) *
-                                                (f*f_sc/lambd + 1/T1)) + 1) *
-                                   np.exp(-del_t*del_t_sc/T1b) /
-                                   (T1b*lambd*(f*f_sc/lambd + 1/T1)))*alpha
-            ind = self.t[j] >= x[1, ...]*self.uk_scale[1] + self.tau[j]
-            M0 = self.M0[ind]
-            T1 = self.T1[ind]
-            T1b = self.T1b[ind]
-            lambd = self.lambd[ind]
-            tau = self.tau[j, ind]
-            alpha = self.alpha[ind]
-            f = x[0, ind]
-            del_t = x[1, ind]
+                grad[0, j, ind] = _delCBF1(self.M0[ind], self.alpha[ind],
+                                           self.lambd[ind], x[0, ind], f_sc,
+                                           self.T1[ind], x[1, ind],
+                                           del_t_sc, self.T1b[ind], t[j],
+                                           self.tau[j, ind], T1prinv[ind],
+                                           expAtt[ind])
+                grad[1, j, ind] = _delATT1(self.M0[ind], self.alpha[ind],
+                                           self.lambd[ind], x[0, ind], f_sc,
+                                           self.T1[ind], x[1, ind],
+                                           del_t_sc, self.T1b[ind], t[j],
+                                           self.tau[j, ind], T1prinv[ind],
+                                           expAtt[ind])
+
+            ind = self.t[j] >= del_t + self.tau[j]
             if np.any(ind):
-                grad[0, j, ind] = (2*M0*f*f_sc**2*tau *
-                                   np.exp(-tau*(f*f_sc/lambd + 1/T1)) *
-                                   np.exp((f*f_sc/lambd + 1/T1) *
-                                          (del_t*del_t_sc - t[j] + tau)) *
-                                   np.exp(-del_t*del_t_sc/T1b) /
-                                   (lambd**2*(f*f_sc/lambd + 1/T1)) +
-                                   2*M0*f*f_sc**2 *
-                                   (1 - np.exp(-tau*(f*f_sc/lambd + 1/T1))) *
-                                   (del_t*del_t_sc - t[j] + tau) *
-                                   np.exp((f*f_sc/lambd + 1/T1) *
-                                          (del_t*del_t_sc - t[j] + tau)) *
-                                   np.exp(-del_t*del_t_sc/T1b) /
-                                   (lambd**2*(f*f_sc/lambd + 1/T1)) -
-                                   2*M0*f*f_sc**2 *
-                                   (1 - np.exp(-tau*(f*f_sc/lambd + 1/T1))) *
-                                   np.exp((f*f_sc/lambd + 1/T1) *
-                                          (del_t*del_t_sc - t[j] + tau)) *
-                                   np.exp(-del_t*del_t_sc/T1b) /
-                                   (lambd**2*(f*f_sc/lambd + 1/T1)**2) +
-                                   2*M0*f_sc *
-                                   (1 - np.exp(-tau*(f*f_sc/lambd + 1/T1))) *
-                                   np.exp((f*f_sc/lambd + 1/T1) *
-                                          (del_t*del_t_sc - t[j] + tau)) *
-                                   np.exp(-del_t*del_t_sc/T1b) /
-                                   (lambd*(f*f_sc/lambd + 1/T1)))*alpha
-                grad[1, j, ind] = (2*M0*del_t_sc*f*f_sc *
-                                   (1 - np.exp(-tau*(f*f_sc/lambd + 1/T1))) *
-                                   np.exp((f*f_sc/lambd + 1/T1) *
-                                          (del_t*del_t_sc - t[j] + tau)) *
-                                   np.exp(-del_t*del_t_sc/T1b)/lambd -
-                                   2*M0*del_t_sc*f*f_sc *
-                                   (1 - np.exp(-tau*(f*f_sc/lambd + 1/T1))) *
-                                   np.exp((f*f_sc/lambd + 1/T1) *
-                                          (del_t*del_t_sc - t[j] + tau)) *
-                                   np.exp(-del_t*del_t_sc/T1b) /
-                                   (T1b*lambd*(f*f_sc/lambd + 1/T1)))*alpha
+                grad[0, j, ind] = _delCBF2(self.M0[ind], self.alpha[ind],
+                                           self.lambd[ind], x[0, ind], f_sc,
+                                           self.T1[ind], x[1, ind],
+                                           del_t_sc, self.T1b[ind], t[j],
+                                           self.tau[j, ind], T1prinv[ind],
+                                           expAtt[ind])
+                grad[1, j, ind] = _delATT2(self.M0[ind], self.alpha[ind],
+                                           self.lambd[ind], x[0, ind], f_sc,
+                                           self.T1[ind], x[1, ind],
+                                           del_t_sc, self.T1b[ind], t[j],
+                                           self.tau[j, ind], T1prinv[ind],
+                                           expAtt[ind])
         grad[~np.isfinite(grad)] = 1e-20
         grad = np.array(grad, dtype=DTYPE)
         return grad
 
     def plot_unknowns(self, x, dim_2D=False):
-        images = self._execute_forward_3D(x)
+#        images = self._execute_forward_3D(x)
         f = np.abs(x[0, ...] * self.uk_scale[0]/self.dscale)
         del_t = np.abs(x[1, ...] * self.uk_scale[1])*60
-        del_t[f <= 15] = 0
+#        del_t[f <= 15] = 0
         f_min = f.min()
         f_max = f.max()
         del_t_min = del_t.min()
         del_t_max = del_t.max()
-        ind = 80  # int(images.shape[-1]/2) 30, 60
+        ind = 60  # int(images.shape[-1]/2) 30, 60
         if dim_2D:
             if not self.figure:
                 plt.ion()
@@ -267,36 +283,37 @@ class Model(BaseModel):
                     cbar.ax.spines[spine].set_color('white')
                 plt.draw()
                 plt.pause(1e-10)
-                self.plot_ax = plt.subplot(self.gs[-1, :])
-
-                self.time_course_ref = self.plot_ax.plot(
-                    self.t, np.abs(
-                        self.images[:, int(self.NSlice/2), ind, ind]), 'g')[0]
-                self.time_course = self.plot_ax.plot(
-                    self.t, np.abs(
-                        images[:, int(self.NSlice/2), ind, ind]), 'r')[0]
-                self.plot_ax.set_ylim(
-                    np.abs(self.images[:,
-                                       int(self.NSlice/2),
-                                       ind,
-                                       ind]).min() - np.abs(
-                            self.images[:,
-                                        int(self.NSlice/2),
-                                        ind,
-                                        ind]).min() * 0.01,
-                    np.abs(self.images[:,
-                                       int(self.NSlice/2),
-                                       ind,
-                                       ind]).max() + np.abs(
-                           self.images[:,
-                                       int(self.NSlice/2),
-                                       ind,
-                                       ind]).max() * 0.01)
-                for spine in self.plot_ax.spines:
-                    self.plot_ax.spines[spine].set_color('white')
-                plt.draw()
-                plt.show()
-                plt.pause(1e-4)
+#                self.plot_ax = plt.subplot(self.gs[-1, :])
+#
+#                self.time_course_ref = self.plot_ax.scatter(
+#                    self.t*60, np.real(
+#                        self.images[:, int(self.NSlice/2), ind, ind]),
+#                    color='g', marker="2")
+#                self.time_course = self.plot_ax.plot(
+#                    self.t*60, np.real(
+#                        images[:, int(self.NSlice/2), ind, ind]), 'r')[0]
+#                self.plot_ax.set_ylim(
+#                    np.real(self.images[:,
+#                                        int(self.NSlice/2),
+#                                        ind,
+#                                        ind]).min() - np.real(
+#                            self.images[:,
+#                                        int(self.NSlice/2),
+#                                        ind,
+#                                        ind]).min() * 0.01,
+#                    np.real(self.images[:,
+#                                        int(self.NSlice/2),
+#                                        ind,
+#                                        ind]).max() + np.real(
+#                           self.images[:,
+#                                       int(self.NSlice/2),
+#                                       ind,
+#                                       ind]).max() * 0.01)
+#                for spine in self.plot_ax.spines:
+#                    self.plot_ax.spines[spine].set_color('white')
+#                plt.draw()
+#                plt.show()
+#                plt.pause(1e-4)
             else:
                 self.f_plot.set_data((f[int(self.NSlice / 2), ...]))
                 self.f_plot_cor.set_data((f[:, int(f.shape[1] / 2), ...]))
@@ -314,25 +331,25 @@ class Model(BaseModel):
                 self.del_t_plot_sag.set_clim([del_t_min, del_t_max])
                 self.del_t_plot_cor.set_clim([del_t_min, del_t_max])
 
-                self.time_course.set_ydata(
-                    np.abs(images[:, int(self.NSlice/2), ind, ind]))
-                self.plot_ax.set_ylim(
-                    np.abs(self.images[:,
-                                       int(self.NSlice/2),
-                                       ind,
-                                       ind]).min() - np.abs(
-                            self.images[:,
-                                        int(self.NSlice/2),
-                                        ind,
-                                        ind]).min() * 0.01,
-                    np.abs(self.images[:,
-                                       int(self.NSlice/2),
-                                       ind,
-                                       ind]).max() + np.abs(
-                           self.images[:,
-                                       int(self.NSlice/2),
-                                       ind,
-                                       ind]).max() * 0.01)
+#                self.time_course.set_ydata(
+#                    np.real(images[:, int(self.NSlice/2), ind, ind]))
+#                self.plot_ax.set_ylim(
+#                    np.real(self.images[:,
+#                                        int(self.NSlice/2),
+#                                        ind,
+#                                        ind]).min() - np.real(
+#                            self.images[:,
+#                                        int(self.NSlice/2),
+#                                        ind,
+#                                        ind]).min() * 0.01,
+#                    np.real(self.images[:,
+#                                        int(self.NSlice/2),
+#                                        ind,
+#                                        ind]).max() + np.real(
+#                           self.images[:,
+#                                       int(self.NSlice/2),
+#                                       ind,
+#                                       ind]).max() * 0.01)
 #                print("Norm data images: ", np.abs(np.max(self.images[:, int(self.NSlice/2), ind, ind])))
 #                print("Norm model iamges: ", np.abs(np.max(images[:, int(self.NSlice/2), ind, ind])))
 #                print("Ratio: ", np.abs(np.max(self.images[:, int(self.NSlice/2), ind, ind]))/np.abs(np.max(images[:, int(self.NSlice/2), ind, ind])))
