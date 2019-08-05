@@ -28,7 +28,7 @@ def _comADCGrad(M0, gradM0, meanADC, b, kurt):
 
 
 def _gradADCDia(comADCfac, ADCscale, M0, gradM0, bdir, b):
-    return ne.evaluate("meanADC * ADCscale - M0 * gradM0 * ADCscale * \
+    return ne.evaluate("comADCfac * ADCscale - M0 * gradM0 * ADCscale * \
                         bdir**2 * b")
 
 

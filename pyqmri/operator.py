@@ -9,7 +9,74 @@ DTYPE = np.complex64
 
 
 class Operator(ABC):
+    """ Abstract base class for linear Operators used in the optimization.
+
+    This class serves as the base class for all linear operators used in
+    the varous optimization algorithms. it requires to implement a forward
+    and backward application in and out of place.
+
+    Attributes:
+      NScan (int):
+        Number of total measurements (Scans)
+      NC (int):
+        Number of complex coils
+      NSlice (int):
+        Number ofSlices
+      dimX (int):
+        X dimension of the parameter maps
+      dimY (int):
+        Y dimension of the parameter maps
+      N (int):
+        N number of samples per readout
+      Nproj (int):
+        Number of rreadouts
+      unknowns_TGV (int):
+        Number of unknowns which should be regularized with TGV. It is assumed
+        that these occure first in the unknown vector. Currently at least 1
+        TGV unknown is required.
+      unknowns_H1 (int):
+        Number of unknowns which should be regularized with H1. It is assumed
+        that these occure after all TGV unknowns in the unknown vector.
+        Currently this number can be zero which implies that no H1
+        regularization is used.
+      unknowns (int):
+        The sum of TGV and H1 unknowns.
+      ctx ((list of) PyOpenCL.Context):
+        The context for the PyOpenCL computations. If streamed operations are
+        used a list of ctx is required. One for each computation device.
+      queue ((list of) PyOpenCL.Queue):
+        The computation Queue for the PyOpenCL kernels. If streamed operations
+        are used a list of queues is required. Four for each computation
+        device.
+      dz (float):
+        The ratio between the physical X,Y dimensions vs the Z dimension.
+        This allows for anisotrpic regularization along the Z dimension.
+      num_dev (int):
+        Number of compute devices
+      tmp_result (list):
+        A placeholder for an list of temporary PyOpenCL.Arrays if streamed
+        operators are used. In the case of one large block of data this
+        reduces to a single PyOpenCL.Array.
+      NUFFT (PyQMRI.transforms.PyOpenCLFFT):
+        A PyOpenCLFFT object to perform forward and backword transformations
+        from image to k-space and vice versa.
+      prg (PyOpenCL.Program):
+        The PyOpenCL program containing all compiled kernels.
+
+    """
     def __init__(self, par, prg):
+        """ Setup a Operator object
+        Args:
+          par (dict): A python dict containing the necessary information to
+            setup the object. Needs to contain the number of slices (NSlice),
+            number of scans (NScan), image dimensions (dimX, dimY), number of
+            coils (NC), sampling points (N) and read outs (NProj)
+            a PyOpenCL queue (queue) and the complex coil
+            sensitivities (C).
+          prg (PyOpenCL.Program):
+            The PyOpenCL.Program object containing the necessary kernels to
+            execute the linear Operator.
+        """
         self.NSlice = par["NSlice"]
         self.NScan = par["NScan"]
         self.dimX = par["dimX"]
@@ -30,18 +97,78 @@ class Operator(ABC):
 
     @abstractmethod
     def fwd(self, out, inp, wait_for=[]):
+        """ Apply the linear operator from parameter space to measurement space
+
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+
+        Args:
+          out (PyOpenCL.Array):
+            The complex measurement space data which is the result of the
+            computation.
+          inp (PyOpenCL.Array):
+            The complex parameter space data which is used as input.
+          wait_for (list of PyopenCL.Event):
+            A List of PyOpenCL events to wait for.
+        Returns:
+          PyOpenCL.Event: A PyOpenCL event to wait for.
+        """
         ...
 
     @abstractmethod
     def adj(self, out, inp, wait_for=[]):
+        """ Apply the linear operator from measurement space to parameter space
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+        Args:
+          out (PyOpenCL.Array):
+            The complex parameter space data which is the result of the
+            computation.
+          inp (PyOpenCL.Array):
+            The complex measurement space data which is used as input.
+          wait_for (list of PyopenCL.Event):
+            A List of PyOpenCL events to wait for.
+        Returns:
+          PyOpenCL.Event: A PyOpenCL event to wait for.
+        """
         ...
 
     @abstractmethod
-    def fwdoop(self, out, inp, wait_for=[]):
+    def fwdoop(self, inp, wait_for=[]):
+        """ Apply the linear operator from parameter space to measurement space
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+        This method need to generate a temporary array and will return it as
+        the result.
+
+        Args:
+          inp (PyOpenCL.Array):
+            The complex parameter space data which is used as input.
+          wait_for (list of PyopenCL.Event):
+            A List of PyOpenCL events to wait for.
+        Returns:
+          PyOpenCL.Array: A PyOpenCL array containing the result of the
+          computation.
+        """
         ...
 
     @abstractmethod
-    def adjoop(self, out, inp, wait_for=[]):
+    def adjoop(self, inp, wait_for=[]):
+        """ Apply the linear operator from measurement space to parameter space
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+        This method need to generate a temporary array and will return it as
+        the result.
+
+        Args:
+          inp (PyOpenCL.Array):
+            The complex measurement space which is used as input.
+          wait_for (list of PyopenCL.Event):
+            A List of PyOpenCL events to wait for.
+        Returns:
+          PyOpenCL.Array: A PyOpenCL array containing the result of the
+          computation.
+        """
         ...
 
     def _defineoperator(self,
@@ -67,63 +194,93 @@ class Operator(ABC):
 
 
 class OperatorImagespace(Operator):
+    """ Imagespace based Operator
+    This class serves as linear operator between parameter and imagespace.
+
+    Use this operator if you want to perform complex parameter fitting from
+    complex image space data without the need of performing FFTs.
+    """
     def __init__(self, par, prg):
         super().__init__(par, prg)
         self.queue = self.queue[0]
         self.ctx = self.ctx[0]
 
     def fwd(self, out, inp, wait_for=[]):
-            return self.prg.operator_fwd_imagespace(
-                self.queue, (self.NSlice, self.dimY, self.dimX), None,
-                out.data, inp[0].data, inp[2],
-                np.int32(self.NScan),
-                np.int32(self.unknowns),
-                wait_for=inp[0].events + out.events + wait_for)
+        return self.prg.operator_fwd_imagespace(
+            self.queue, (self.NSlice, self.dimY, self.dimX), None,
+            out.data, inp[0].data, inp[2],
+            np.int32(self.NScan),
+            np.int32(self.unknowns),
+            wait_for=inp[0].events + out.events + wait_for)
 
     def fwdoop(self, inp, wait_for=[]):
-            tmp_result = clarray.empty(
-                  self.queue, (self.NScan, self.NSlice, self.dimY, self.dimX),
-                  DTYPE, "C")
-            tmp_result.add_event(self.prg.operator_fwd_imagespace(
-                self.queue, (self.NSlice, self.dimY, self.dimX), None,
-                tmp_result.data, inp[0].data, inp[1],
-                np.int32(self.NScan),
-                np.int32(self.unknowns),
-                wait_for=inp[0].events + wait_for))
-            return tmp_result
+        tmp_result = clarray.empty(
+              self.queue, (self.NScan, self.NSlice, self.dimY, self.dimX),
+              DTYPE, "C")
+        tmp_result.add_event(self.prg.operator_fwd_imagespace(
+            self.queue, (self.NSlice, self.dimY, self.dimX), None,
+            tmp_result.data, inp[0].data, inp[1],
+            np.int32(self.NScan),
+            np.int32(self.unknowns),
+            wait_for=inp[0].events + wait_for))
+        return tmp_result
 
     def adj(self, out, inp, wait_for=[]):
-            return self.prg.operator_ad_imagespace(
-                out.queue, (self.NSlice, self.dimY, self.dimX), None,
-                out.data, inp[0].data, inp[2],
-                np.int32(self.NScan),
-                np.int32(self.unknowns),
-                wait_for=wait_for + inp[0].events + out.events)
+        return self.prg.operator_ad_imagespace(
+            out.queue, (self.NSlice, self.dimY, self.dimX), None,
+            out.data, inp[0].data, inp[2],
+            np.int32(self.NScan),
+            np.int32(self.unknowns),
+            wait_for=wait_for + inp[0].events + out.events)
 
     def adjoop(self, inp, wait_for=[]):
-            out = clarray.empty(
-                self.queue, (self.unkowns, self.NSlice, self.dimY, self.dimX),
-                dtype=DTYPE)
-            self.prg.operator_ad_imagespace(
-                out.queue, (self.NSlice, self.dimY, self.dimX), None,
-                out.data, inp[0].data, inp[1],
-                np.int32(self.NScan),
-                np.int32(self.unknowns),
-                wait_for=wait_for + inp[0].events + out.events).wait()
-            return out
+        out = clarray.empty(
+            self.queue, (self.unkowns, self.NSlice, self.dimY, self.dimX),
+            dtype=DTYPE)
+        self.prg.operator_ad_imagespace(
+            out.queue, (self.NSlice, self.dimY, self.dimX), None,
+            out.data, inp[0].data, inp[1],
+            np.int32(self.NScan),
+            np.int32(self.unknowns),
+            wait_for=wait_for + inp[0].events + out.events).wait()
+        return out
 
     def adjKyk1(self, out, inp, wait_for=[]):
-            return self.prg.update_Kyk1_imagespace(
-                self.queue, (self.NSlice, self.dimY, self.dimX), None,
-                out.data, inp[0].data, inp[3], inp[1].data,
-                np.int32(self.NScan),
-                inp[4].data,
-                np.int32(self.unknowns),
-                np.float32(self.dz),
-                wait_for=inp[0].events + out.events + inp[1].events + wait_for)
+        """ Apply the linear operator from image space to parameter space
+
+        This method fully implements the combined linear operator
+        consisting of the data part as well as the TGV regularization part.
+
+        Args:
+          out (PyOpenCL.Array):
+            The complex parameter space data which is the result of the
+            computation.
+          inp (PyOpenCL.Array):
+            The complex image space data which is used as input.
+          wait_for (list of PyopenCL.Event):
+            A List of PyOpenCL events to wait for.
+        Returns:
+          PyOpenCL.Event: A PyOpenCL event to wait for.
+        """
+        return self.prg.update_Kyk1_imagespace(
+            self.queue, (self.NSlice, self.dimY, self.dimX), None,
+            out.data, inp[0].data, inp[3], inp[1].data,
+            np.int32(self.NScan),
+            inp[4].data,
+            np.int32(self.unknowns),
+            np.float32(self.dz),
+            wait_for=inp[0].events + out.events + inp[1].events + wait_for)
 
 
 class OperatorKspace(Operator):
+    """ k-Space based Operator
+
+    This class serves as linear operator between parameter and k-space.
+
+    Use this operator if you want to perform complex parameter fitting from
+    complex k-space data. The type of fft is defined through the NUFFT object.
+    The NUFFT object can also be used for simple Cartesian FFTs.
+    """
     def __init__(self, par, prg, trafo=True):
         super().__init__(par, prg)
         self.queue = self.queue[0]
@@ -204,6 +361,22 @@ class OperatorKspace(Operator):
         return out
 
     def adjKyk1(self, out, inp, wait_for=[]):
+        """ Apply the linear operator from parameter space to k-space
+
+        This method fully implements the combined linear operator
+        fully implements the combined linear operator
+        consisting of the data part as well as the TGV regularization part.
+
+        Args:
+          out (PyOpenCL.Array):
+            The complex parameter space data which is used as input.
+          inp (PyOpenCL.Array):
+            The complex parameter space data which is used as input.
+          wait_for (list of PyopenCL.Event):
+            A List of PyOpenCL events to wait for.
+        Returns:
+          PyOpenCL.Event: A PyOpenCL event to wait for.
+        """
         self.tmp_result.add_event(
             self.NUFFT.FFTH(
                 self.tmp_result, inp[0], wait_for=wait_for + inp[0].events))
@@ -219,6 +392,19 @@ class OperatorKspace(Operator):
 
 
 class OperatorKspaceSMS(Operator):
+    """ k-Space based Operator for SMS reconstruction
+
+    This class serves as linear operator between parameter and k-space.
+    It implements simultaneous-multi-slice (SMS) reconstruction.
+
+    Use this operator if you want to perform complex parameter fitting from
+    complex k-space data measured with SMS. Currently only Cartesian FFTs are
+    supported.
+
+    Attributes:
+      packs (int):
+        Number of SMS packs.
+    """
     def __init__(self, par, prg, trafo=False):
         super().__init__(par, prg)
         self.queue = self.queue[0]
@@ -301,6 +487,21 @@ class OperatorKspaceSMS(Operator):
         return out
 
     def adjKyk1(self, out, inp, wait_for=[]):
+        """ Apply the linear operator from parameter space to k-space
+
+        This method fully implements the combined linear operator
+        consisting of the data part as well as the TGV regularization part.
+
+        Args:
+          out (PyOpenCL.Array):
+            The complex parameter space data which is used as input.
+          inp (PyOpenCL.Array):
+            The complex parameter space data which is used as input.
+          wait_for (list of PyopenCL.Event):
+            A List of PyOpenCL events to wait for.
+        Returns:
+          PyOpenCL.Event: A PyOpenCL event to wait for.
+        """
         self.tmp_result.add_event(
             self.NUFFT.FFTH(
                 self.tmp_result, inp[0], wait_for=wait_for + inp[0].events))
@@ -316,6 +517,26 @@ class OperatorKspaceSMS(Operator):
 
 
 class OperatorImagespaceStreamed(Operator):
+    """ The streamed version of the Imagespace based Operator
+
+    This class serves as linear operator between parameter and imagespace.
+    All calculations are performed in a streamed fashion.
+
+    Use this operator if you want to perform complex parameter fitting from
+    complex image space data without the need of performing FFTs.
+    In contrast to non-streaming classes no out of place operations
+    are implemented.
+
+    Attributes:
+      overlap (int):
+        Number of slices that overlap between adjacent blocks.
+      par_slices (int):
+        Number of slices per streamed block
+      fwdstr (PyQMRI.Stream):
+        The streaming object to perform the forward evaluation
+      adjstr (PyQMRI.Stream):
+        The streaming object to perform the adjoint evaluation
+    """
     def __init__(self, par, prg):
         super().__init__(par, prg)
         par["overlap"] = 1
@@ -360,7 +581,18 @@ class OperatorImagespaceStreamed(Operator):
     def adjoop(self, inp, wait_for=[]):
         raise NotImplementedError
 
-    def adjKyk1(self, out, inp, wait_for=[]):
+    def adjKyk1(self, out, inp):
+        """ Apply the linear operator from parameter space to image space
+
+        This method fully implements the combined linear operator
+        consisting of the data part as well as the TGV regularization part.
+
+        Args:
+          out (Numpy.Array):
+            The complex parameter space data which is used as input.
+          inp (Numpy.Array):
+            The complex parameter space data which is used as input.
+        """
         self.adjstr.eval(out, inp)
 
     def _fwdstreamed(self, outp, inp, par=[], idx=0, idxq=0,
@@ -389,6 +621,31 @@ class OperatorImagespaceStreamed(Operator):
 
 
 class OperatorKspaceStreamed(Operator):
+    """ The streamed version of the k-space based Operator
+
+    This class serves as linear operator between parameter and k-space.
+    All calculations are performed in a streamed fashion.
+
+    Use this operator if you want to perform complex parameter fitting from
+    complex k-space data without the need of performing FFTs.
+    In contrast to non-streaming classes no out of place operations
+    are implemented.
+
+    Attributes:
+      overlap (int):
+        Number of slices that overlap between adjacent blocks.
+      par_slices (int):
+        Number of slices per streamed block
+      fwdstr (PyQMRI.Stream):
+        The streaming object to perform the forward evaluation
+      adjstr (PyQMRI.Stream):
+        The streaming object to perform the adjoint evaluation
+      NUFFT (list of PyQMRI.transforms.PyOpenCLFFT):
+        A list of NUFFT objects. One for each context.
+      FTstr (PyQMRI.Stream):
+        A streamed version of the used (non-uniform) FFT, applied forward.
+
+    """
     def __init__(self, par, prg, trafo=True):
         super().__init__(par, prg)
         par["overlap"] = 1
@@ -453,7 +710,18 @@ class OperatorKspaceStreamed(Operator):
     def adjoop(self, inp, wait_for=[]):
         raise NotImplementedError
 
-    def adjKyk1(self, out, inp, wait_for=[]):
+    def adjKyk1(self, out, inp):
+        """ Apply the linear operator from parameter space to k-space
+
+        This method fully implements the combined linear operator
+        consisting of the data part as well as the TGV regularization part.
+
+        Args:
+          out (Numpy.Array):
+            The complex parameter space data which is used as input.
+          inp (Numpy.Array):
+            The complex parameter space data which is used as input.
+        """
         self.adjstr.eval(out, inp)
 
     def _fwdstreamed(self, outp, inp, par=[], idx=0, idxq=0,
@@ -499,6 +767,35 @@ class OperatorKspaceStreamed(Operator):
 
 
 class OperatorKspaceSMSStreamed(Operator):
+    """ The streamed version of the k-space based SMS Operator
+
+
+    This class serves as linear operator between parameter and k-space.
+    It implements simultaneous-multi-slice (SMS) reconstruction.
+
+    All calculations are performed in a streamed fashion.
+
+    Use this operator if you want to perform complex parameter fitting from
+    complex k-space data measured with SMS. Currently only Cartesian FFTs are
+    supported.
+
+    Attributes:
+      overlap (int):
+        Number of slices that overlap between adjacent blocks.
+      par_slices (int):
+        Number of slices per streamed block
+      fwdstr (PyQMRI.Stream):
+        The streaming object to perform the forward evaluation
+      adjstr (PyQMRI.Stream):
+        The streaming object to perform the adjoint evaluation
+      NUFFT (list of PyQMRI.transforms.PyOpenCLFFT):
+        A list of NUFFT objects. One for each context.
+      FTstr (PyQMRI.Stream):
+        A streamed version of the used (non-uniform) FFT, applied forward.
+      FTHstr (PyQMRI.Stream):
+        A streamed version of the used (non-uniform) FFT, applied adjoint.
+      updateKyk1SMSstreamed
+    """
     def __init__(self, par, prg, trafo=True):
         super().__init__(par, prg)
         par["overlap"] = 1
@@ -547,28 +844,28 @@ class OperatorKspaceSMSStreamed(Operator):
               model_grad_shape]])
 
         self.FTstr = self._defineoperatorSMS(
-            [self.FT],
+            [self._FT],
             [data_shape_T],
             [[trans_shape_T]])
         self.FTHstr = self._defineoperatorSMS(
-            [self.FTH],
+            [self._FTH],
             [trans_shape_T],
             [[data_shape_T]])
 
-        self.tmp_fft1 = np.zeros((self.NSlice, self.NScan, self.NC,
-                                 self.dimY, self.dimX),
-                                 dtype=DTYPE)
-        self.tmp_fft2 = np.zeros((self.NScan, self.NC, self.NSlice,
-                                  self.dimY, self.dimX),
-                                 dtype=DTYPE)
-        self.tmp_transformed = np.zeros((self.NScan, self.NC, self.packs,
+        self._tmp_fft1 = np.zeros((self.NSlice, self.NScan, self.NC,
+                                   self.dimY, self.dimX),
+                                  dtype=DTYPE)
+        self._tmp_fft2 = np.zeros((self.NScan, self.NC, self.NSlice,
+                                   self.dimY, self.dimX),
+                                  dtype=DTYPE)
+        self._tmp_transformed = np.zeros((self.NScan, self.NC, self.packs,
                                          self.dimY, self.dimX),
-                                        dtype=DTYPE)
-        self.tmp_Kyk1 = np.zeros(unknown_shape,
-                                 dtype=DTYPE)
+                                         dtype=DTYPE)
+        self._tmp_Kyk1 = np.zeros(unknown_shape,
+                                  dtype=DTYPE)
 
-        self.update_Kyk1SMS_streamed = self._defineoperator(
-            [self.update_Kyk1SMS],
+        self._updateKyk1SMSstreamed = self._defineoperator(
+            [self._updateKyk1SMS],
             [unknown_shape],
             [[unknown_shape,
               grad_shape,
@@ -580,56 +877,86 @@ class OperatorKspaceSMSStreamed(Operator):
         raise NotImplementedError
 
     def fwdoop(self, inp, wait_for=[]):
-        self.fwdstr.eval([self.tmp_fft1], inp)
-        self.tmp_fft2 = np.require(
+        self.fwdstr.eval([self._tmp_fft1], inp)
+        self._tmp_fft2 = np.require(
             np.transpose(
-                self.tmp_fft1, (1, 2, 0, 3, 4)),
+                self._tmp_fft1, (1, 2, 0, 3, 4)),
             requirements='C')
         self.FTstr.eval(
-            [self.tmp_transformed],
-            [[self.tmp_fft2]])
+            [self._tmp_transformed],
+            [[self._tmp_fft2]])
         return np.require(
             np.transpose(
-                self.tmp_transformed,
+                self._tmp_transformed,
                 self.dat_trans_axes),
             requirements='C')
 
-    def adj(self, out, inp, par=[], wait_for=[]):
-        self.tmp_transformed = np.require(
+    def adj(self, out, inp, par=[]):
+        """ Apply the linear operator from measurement space to parameter space
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+        Args:
+          out (Numpy.Array):
+            The complex parameter space data which is used as input.
+          inp (Numpy.Array):
+            The complex parameter space data which is used as input.
+          par (list):
+            List of constant parameters for the streamed function.
+        Returns:
+          tupel of floats:
+            The lhs and rhs for the line search of the primal-dual algorithm.
+        """
+        self._tmp_transformed = np.require(
             np.transpose(
                 inp[0][0], (1, 2, 0, 3, 4)),
             requirements='C')
         self.FTHstr.eval(
-            [self.tmp_fft2],
-            [[self.tmp_transformed]])
-        self.tmp_fft1 = np.require(
+            [self._tmp_fft2],
+            [[self._tmp_transformed]])
+        self._tmp_fft1 = np.require(
             np.transpose(
-                self.tmp_fft2, self.dat_trans_axes),
+                self._tmp_fft2, self.dat_trans_axes),
             requirements='C')
-        self.adjstr.eval([self.tmp_Kyk1], [[self.tmp_fft1]+inp[0][2:-1]])
-        self.update_Kyk1SMS_streamed.eval(
+        self.adjstr.eval([self._tmp_Kyk1], [[self._tmp_fft1]+inp[0][2:-1]])
+        self.updateKyk1SMSstreamed.eval(
             out,
-            [[self.tmp_Kyk1]+[inp[0][1]]+[inp[0][-1]]], par)
+            [[self._tmp_Kyk1]+[inp[0][1]]+[inp[0][-1]]], par)
 
     def adjoop(self, inp, wait_for=[]):
         raise NotImplementedError
 
-    def adjKyk1(self, out, inp, par=[], wait_for=[]):
-        self.tmp_transformed = np.require(
+    def adjKyk1(self, out, inp, par=[]):
+        """ Apply the linear operator from parameter space to k-space
+
+        This method fully implements the combined linear operator
+        consisting of the data part as well as the TGV regularization part.
+
+        Args:
+          out (Numpy.Array):
+            The complex parameter space data which is used as input.
+          inp (Numpy.Array):
+            The complex parameter space data which is used as input.
+          par (list):
+            List of constant parameters for the streamed function.
+        Returns:
+          tupel of floats:
+            The lhs and rhs for the line search of the primal-dual algorithm.
+        """
+        self._tmp_transformed = np.require(
             np.transpose(
                 inp[0][0], (1, 2, 0, 3, 4)),
             requirements='C')
         self.FTHstr.eval(
-            [self.tmp_fft2],
-            [[self.tmp_transformed]])
-        self.tmp_fft1 = np.require(
+            [self._tmp_fft2],
+            [[self._tmp_transformed]])
+        self._tmp_fft1 = np.require(
             np.transpose(
-                self.tmp_fft2, self.dat_trans_axes),
+                self._tmp_fft2, self.dat_trans_axes),
             requirements='C')
-        self.adjstr.eval([self.tmp_Kyk1], [[self.tmp_fft1]+inp[0][2:-1]])
-        return self.update_Kyk1SMS_streamed.evalwithnorm(
+        self.adjstr.eval([self._tmp_Kyk1], [[self._tmp_fft1]+inp[0][2:-1]])
+        return self.updateKyk1SMSstreamed.evalwithnorm(
             out,
-            [[self.tmp_Kyk1]+[inp[0][1]]+[inp[0][-1]]], par)
+            [[self._tmp_Kyk1]+[inp[0][1]]+[inp[0][-1]]], par)
 
     def _fwdstreamed(self, outp, inp, par=[], idx=0, idxq=0,
                      bound_cond=0, wait_for=[]):
@@ -659,15 +986,15 @@ class OperatorKspaceSMSStreamed(Operator):
                 outp.events+inp[1].events +
                 inp[2].events + wait_for))
 
-    def FT(self, outp, inp, par=[], idx=0, idxq=0,
-           bound_cond=0, wait_for=[]):
+    def _FT(self, outp, inp, par=[], idx=0, idxq=0,
+            bound_cond=0, wait_for=[]):
         return self.NUFFT[2*idx+idxq].FFT(outp, inp[0])
 
-    def FTH(self, outp, inp, par=[], idx=0, idxq=0,
-            bound_cond=0, wait_for=[]):
+    def _FTH(self, outp, inp, par=[], idx=0, idxq=0,
+             bound_cond=0, wait_for=[]):
         return self.NUFFT[2*idx+idxq].FFTH(outp, inp[0])
 
-    def update_Kyk1SMS(self, outp, inp, par=[], idx=0, idxq=0,
+    def _updateKyk1SMS(self, outp, inp, par=[], idx=0, idxq=0,
                        bound_cond=0, wait_for=[]):
         return self.prg[idx].update_Kyk1SMS(
             self.queue[4*idx+idxq],
