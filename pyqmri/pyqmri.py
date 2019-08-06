@@ -101,88 +101,88 @@ def _setupOCL(myargs, par):
 
 
 def _genImages(myargs, par, data):
-#    FFT = utils.NUFFT(par, trafo=myargs.trafo, SMS=myargs.sms)
-#    #    data = data/(FFT.deblurring[None, None, None, :, None])
-#    import pyopencl.array as clarray
-#
-#    def nFTH(x, fft, par):
-#        siz = np.shape(x)
-#        MB = int(par["MB"])
-#        result = np.zeros(
-#            (par["NC"], par["NSlice"], par["NScan"],
-#             par["dimY"], par["dimX"]), dtype=DTYPE)
-#        tmp_result = clarray.empty(fft.queue, (par["NScan"], 1, MB,
-#                                   par["dimY"], par["dimX"]), dtype=DTYPE)
-#        for j in range(siz[1]):
-#            for k in range(siz[2]):
-#                inp = clarray.to_device(fft.queue,
-#                                        np.require(x[:, j, k, ...]
-#                                                    [:, None, None, ...],
-#                                                   requirements='C'))
-#                fft.FFTH(tmp_result, inp)
-#                if myargs.sms:
-#                    ind = slice(k, siz[2]+k+1, siz[2])
-#                    result[j, ind, ...] = np.transpose(
-#                        (tmp_result.get()), (1, 2, 0, 3, 4))
-#                else:
-#                    result[j, k, ...] = np.squeeze(tmp_result.get())
-#        return np.transpose(result, (2, 0, 1, 3, 4))
-#    images = np.require(np.sum(nFTH(data, FFT, par) *
-#                               (np.conj(par["C"])), axis=1),
-#                        requirements='C')
-#    del FFT, nFTH
+    FFT = utils.NUFFT(par, trafo=myargs.trafo, SMS=myargs.sms)
+    #    data = data/(FFT.deblurring[None, None, None, :, None])
+    import pyopencl.array as clarray
 
-    del par["file"]["images_cg"]
-    if "images_cg" not in list(par["file"].keys()):
-        images = np.zeros((par["NScan"],
-                           par["NSlice"],
-                           par["dimY"],
-                           par["dimX"]), dtype=DTYPE)
-        if par["NScan"]/10 >= 1:
-            cgs = CGSolver(par, 10, myargs.trafo, myargs.sms)
-            for j in range(int(par["NScan"]/10)):
-                if par["NSlice"] == 1:
-                    images[10*j:10*(j+1), ...] = cgs.run(
-                        data[10*j:10*(j+1), ...],
-                        tol=1e-3)[:, None, ...]
+    def nFTH(x, fft, par):
+        siz = np.shape(x)
+        MB = int(par["MB"])
+        result = np.zeros(
+            (par["NC"], par["NSlice"], par["NScan"],
+             par["dimY"], par["dimX"]), dtype=DTYPE)
+        tmp_result = clarray.empty(fft.queue, (par["NScan"], 1, MB,
+                                   par["dimY"], par["dimX"]), dtype=DTYPE)
+        for j in range(siz[1]):
+            for k in range(siz[2]):
+                inp = clarray.to_device(fft.queue,
+                                        np.require(x[:, j, k, ...]
+                                                    [:, None, None, ...],
+                                                   requirements='C'))
+                fft.FFTH(tmp_result, inp)
+                if myargs.sms:
+                    ind = slice(k, siz[2]+k+1, siz[2])
+                    result[j, ind, ...] = np.transpose(
+                        (tmp_result.get()), (1, 2, 0, 3, 4))
                 else:
-                    images[10*j:10*(j+1), ...] = cgs.run(
-                        data[10*j:10*(j+1), ...],
-                        tol=1e-3)
-            del cgs
-        if np.mod(par["NScan"], 10):
-            cgs = CGSolver(par, np.mod(par["NScan"], 10),
-                           myargs.trafo, myargs.sms)
-            if par["NSlice"] == 1:
-                if np.mod(par["NScan"], 10) == 1:
-                    images[-np.mod(par["NScan"], 10):, ...] = cgs.run(
-                            data[-np.mod(par["NScan"], 10):, ...],
-                            tol=1e-3)
-                else:
-                    images[-np.mod(par["NScan"], 10):, ...] = cgs.run(
-                            data[-np.mod(par["NScan"], 10):, ...],
-                            tol=1e-3)[:, None, ...]
-            else:
-                images[-np.mod(par["NScan"], 10):, ...] = cgs.run(
-                        data[-np.mod(par["NScan"], 10):, ...],
-                        tol=1e-3)
-            del cgs
-        par["file"].create_dataset("images_cg", images.shape,
-                                   dtype=DTYPE, data=images)
-    else:
-        images = par["file"]['images_cg']
-        if images.shape[1] < par["NSlice"]:
-            del par["file"]["images_cg"]
-            images = _genImages(myargs, par, data)
-        else:
-            print("Using precomputed images")
-            slices_images = par["file"]['images_cg'][()].shape[1]
-            images = \
-                par["file"]['images_cg'][
-                    :, int(slices_images / 2) - int(
-                        np.floor((par["NSlice"]) / 2)):int(
-                            slices_images / 2) + int(
-                                np.ceil(par["NSlice"] / 2)), ...].astype(DTYPE)
+                    result[j, k, ...] = np.squeeze(tmp_result.get())
+        return np.transpose(result, (2, 0, 1, 3, 4))
+    images = np.require(np.sum(nFTH(data, FFT, par) *
+                               (np.conj(par["C"])), axis=1),
+                        requirements='C')
+    del FFT, nFTH
+
+#    del par["file"]["images_cg"]
+#    if "images_cg" not in list(par["file"].keys()):
+#        images = np.zeros((par["NScan"],
+#                           par["NSlice"],
+#                           par["dimY"],
+#                           par["dimX"]), dtype=DTYPE)
+#        if par["NScan"]/10 >= 1:
+#            cgs = CGSolver(par, 10, myargs.trafo, myargs.sms)
+#            for j in range(int(par["NScan"]/10)):
+#                if par["NSlice"] == 1:
+#                    images[10*j:10*(j+1), ...] = cgs.run(
+#                        data[10*j:10*(j+1), ...],
+#                        tol=1e-3)[:, None, ...]
+#                else:
+#                    images[10*j:10*(j+1), ...] = cgs.run(
+#                        data[10*j:10*(j+1), ...],
+#                        tol=1e-3)
+#            del cgs
+#        if np.mod(par["NScan"], 10):
+#            cgs = CGSolver(par, np.mod(par["NScan"], 10),
+#                           myargs.trafo, myargs.sms)
+#            if par["NSlice"] == 1:
+#                if np.mod(par["NScan"], 10) == 1:
+#                    images[-np.mod(par["NScan"], 10):, ...] = cgs.run(
+#                            data[-np.mod(par["NScan"], 10):, ...],
+#                            tol=1e-3)
+#                else:
+#                    images[-np.mod(par["NScan"], 10):, ...] = cgs.run(
+#                            data[-np.mod(par["NScan"], 10):, ...],
+#                            tol=1e-3)[:, None, ...]
+#            else:
+#                images[-np.mod(par["NScan"], 10):, ...] = cgs.run(
+#                        data[-np.mod(par["NScan"], 10):, ...],
+#                        tol=1e-3)
+#            del cgs
+#        par["file"].create_dataset("images_cg", images.shape,
+#                                   dtype=DTYPE, data=images)
+#    else:
+#        images = par["file"]['images_cg']
+#        if images.shape[1] < par["NSlice"]:
+#            del par["file"]["images_cg"]
+#            images = _genImages(myargs, par, data)
+#        else:
+#            print("Using precomputed images")
+#            slices_images = par["file"]['images_cg'][()].shape[1]
+#            images = \
+#                par["file"]['images_cg'][
+#                    :, int(slices_images / 2) - int(
+#                        np.floor((par["NSlice"]) / 2)):int(
+#                            slices_images / 2) + int(
+#                                np.ceil(par["NSlice"] / 2)), ...].astype(DTYPE)
     return images
 
 
