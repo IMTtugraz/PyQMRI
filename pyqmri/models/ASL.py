@@ -210,7 +210,7 @@ class Model(BaseModel):
         return grad
 
     def plot_unknowns(self, x, dim_2D=False):
-#        images = self._execute_forward_3D(x)
+        images = self._execute_forward_3D(x)
         f = np.abs(x[0, ...] * self.uk_scale[0]/self.dscale)
         del_t = np.abs(x[1, ...] * self.uk_scale[1])*60
 #        del_t[f <= 15] = 0
@@ -295,37 +295,37 @@ class Model(BaseModel):
                     cbar.ax.spines[spine].set_color('white')
                 plt.draw()
                 plt.pause(1e-10)
-#                self.plot_ax = plt.subplot(self.gs[-1, :])
-#
-#                self.time_course_ref = self.plot_ax.scatter(
-#                    self.t*60, np.real(
-#                        self.images[:, int(self.NSlice/2), ind, ind]),
-#                    color='g', marker="2")
-#                self.time_course = self.plot_ax.plot(
-#                    self.t*60, np.real(
-#                        images[:, int(self.NSlice/2), ind, ind]), 'r')[0]
-#                self.plot_ax.set_ylim(
-#                    np.real(self.images[:,
-#                                        int(self.NSlice/2),
-#                                        ind,
-#                                        ind]).min() - np.real(
-#                            self.images[:,
-#                                        int(self.NSlice/2),
-#                                        ind,
-#                                        ind]).min() * 0.01,
-#                    np.real(self.images[:,
-#                                        int(self.NSlice/2),
-#                                        ind,
-#                                        ind]).max() + np.real(
-#                           self.images[:,
-#                                       int(self.NSlice/2),
-#                                       ind,
-#                                       ind]).max() * 0.01)
-#                for spine in self.plot_ax.spines:
-#                    self.plot_ax.spines[spine].set_color('white')
-#                plt.draw()
-#                plt.show()
-#                plt.pause(1e-4)
+                self.plot_ax = plt.subplot(self.gs[-1, :])
+
+                self.time_course_ref = self.plot_ax.scatter(
+                    self.t*60, np.real(
+                        self.images[:, int(self.NSlice/2), ind, ind]),
+                    color='g', marker="2")
+                self.time_course = self.plot_ax.plot(
+                    self.t*60, np.real(
+                        images[:, int(self.NSlice/2), ind, ind]), 'r')[0]
+                self.plot_ax.set_ylim(
+                    np.real(self.images[:,
+                                        int(self.NSlice/2),
+                                        ind,
+                                        ind]).min() - np.real(
+                            self.images[:,
+                                        int(self.NSlice/2),
+                                        ind,
+                                        ind]).min() * 0.01,
+                    np.real(self.images[:,
+                                        int(self.NSlice/2),
+                                        ind,
+                                        ind]).max() + np.real(
+                           self.images[:,
+                                       int(self.NSlice/2),
+                                       ind,
+                                       ind]).max() * 0.01)
+                for spine in self.plot_ax.spines:
+                    self.plot_ax.spines[spine].set_color('white')
+                plt.draw()
+                plt.show()
+                plt.pause(1e-4)
             else:
                 self.f_plot.set_data((f[int(self.NSlice / 2), ...]))
                 self.f_plot_cor.set_data((f[:, int(f.shape[1] / 2), ...]))
@@ -343,25 +343,25 @@ class Model(BaseModel):
                 self.del_t_plot_sag.set_clim([del_t_min, del_t_max])
                 self.del_t_plot_cor.set_clim([del_t_min, del_t_max])
 
-#                self.time_course.set_ydata(
-#                    np.real(images[:, int(self.NSlice/2), ind, ind]))
-#                self.plot_ax.set_ylim(
-#                    np.real(self.images[:,
-#                                        int(self.NSlice/2),
-#                                        ind,
-#                                        ind]).min() - np.real(
-#                            self.images[:,
-#                                        int(self.NSlice/2),
-#                                        ind,
-#                                        ind]).min() * 0.01,
-#                    np.real(self.images[:,
-#                                        int(self.NSlice/2),
-#                                        ind,
-#                                        ind]).max() + np.real(
-#                           self.images[:,
-#                                       int(self.NSlice/2),
-#                                       ind,
-#                                       ind]).max() * 0.01)
+                self.time_course.set_ydata(
+                    np.real(images[:, int(self.NSlice/2), ind, ind]))
+                self.plot_ax.set_ylim(
+                    np.real(self.images[:,
+                                        int(self.NSlice/2),
+                                        ind,
+                                        ind]).min() - np.real(
+                            self.images[:,
+                                        int(self.NSlice/2),
+                                        ind,
+                                        ind]).min() * 0.01,
+                    np.real(self.images[:,
+                                        int(self.NSlice/2),
+                                        ind,
+                                        ind]).max() + np.real(
+                           self.images[:,
+                                       int(self.NSlice/2),
+                                       ind,
+                                       ind]).max() * 0.01)
                 plt.draw()
                 plt.pause(1e-10)
 
