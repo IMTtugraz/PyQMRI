@@ -5,6 +5,8 @@
 Attribues:
   DTYPE (complex64):
     Complex working precission. Currently single precission only.
+  DTYPE_real (float32):
+    Real working precission. Currently single precission only.
 """
 from abc import ABC, abstractmethod
 import pyopencl.array as clarray
@@ -12,6 +14,7 @@ import numpy as np
 from pyqmri.transforms.pyopencl_nufft import PyOpenCLFFT as CLFFT
 import pyqmri.streaming as streaming
 DTYPE = np.complex64
+DTYPE_real = np.float32
 
 
 class Operator(ABC):
@@ -1028,3 +1031,130 @@ class OperatorKspaceSMSStreamed(Operator):
             self.num_dev,
             reverse_dir,
             posofnorm)
+
+
+class OperatorFiniteGradient(Operator):
+    def __init__(self, par, prg):
+        super().__init__(par, prg)
+        self.queue = self.queue[0]
+        self.ctx = self.ctx[0]
+        self._ratio = clarray.to_device(
+            self.queue,
+            (1 /
+             self.unknowns *
+             np.ones(
+                 self.unknowns)).astype(
+                dtype=DTYPE_real))
+        self._weights = par["weights"]
+        self._dz = par["dz"]
+
+    def fwd(self, out, inp, wait_for=[]):
+        return self.prg.gradient(
+            self.queue, inp.shape[1:], None, out.data, inp.data,
+            np.int32(self.unknowns),
+            self._ratio.data, np.float32(self.dz),
+            wait_for=out.events + inp.events + wait_for)
+
+    def fwdoop(self, inp, wait_for=[]):
+        tmp_result = clarray.empty(
+              self.queue, (self.NScan, self.NSlice, self.dimY, self.dimX, 4),
+              DTYPE, "C")
+        tmp_result.add_event(self.prg.gradient(
+            self.queue, inp.shape[1:], None, tmp_result.data, inp.data,
+            np.int32(self.unknowns),
+            self._ratio.data, np.float32(self.dz),
+            wait_for=tmp_result.events + inp.events + wait_for))
+        return tmp_result
+
+    def adj(self, out, inp, wait_for=[]):
+        return self.prg.divergence(
+            self.queue, inp.shape[1:-1], None, out.data, inp.data,
+            np.int32(self.unknowns), self._ratio.data,
+            np.float32(self.dz),
+            wait_for=out.events + inp.events + wait_for)
+
+    def adjoop(self, inp, wait_for=[]):
+        tmp_result = clarray.empty(
+              self.queue, (self.NScan, self.NSlice, self.dimY, self.dimX),
+              DTYPE, "C")
+        tmp_result.add_event(self.prg.divergence(
+            self.queue, inp.shape[1:-1], None, tmp_result.data, inp.data,
+            np.int32(self.unknowns), self._ratio.data,
+            np.float32(self.dz),
+            wait_for=tmp_result.events + inp.events + wait_for))
+        return tmp_result
+
+    def updateRatio(self, x):
+        x = clarray.to_device(self.queue, x)
+        grad = clarray.to_device(self.queue, np.zeros(x.shape + (4,),
+                                 dtype=DTYPE))
+        grad.add_event(
+            self.fwd(
+                grad,
+                x,
+                wait_for=grad.events +
+                x.events))
+        x = x.get()
+        grad = grad.get()
+        scale = np.reshape(
+            x, (self.unknowns,
+                self.NSlice * self.dimY * self.dimX))
+        grad = np.reshape(
+            grad, (self.unknowns,
+                   self.NSlice *
+                   self.dimY *
+                   self.dimX * 4))
+        print("Diff between x: ", np.linalg.norm(scale, axis=-1))
+        print("Diff between grad x: ", np.linalg.norm(grad, axis=-1))
+        scale = np.linalg.norm(grad, axis=-1)
+        scale = 1/scale
+        scale[~np.isfinite(scale)] = 1
+        sum_scale = np.linalg.norm(
+            scale[:self.unknowns_TGV]) /\
+            (1000/np.sqrt(self.NSlice))
+        for j in range(x.shape[0])[:self.unknowns_TGV]:
+            self._ratio[j] = scale[j] / sum_scale * self._weights[j]
+        sum_scale = np.linalg.norm(
+            scale[self.unknowns_TGV:])/(1000)
+        for j in range(x.shape[0])[self.unknowns_TGV:]:
+            self._ratio[j] = scale[j] / sum_scale * self._weights[j]
+        print("Ratio: ", self._ratio)
+
+
+class OperatorFiniteSymGradient(Operator):
+    def __init__(self, par, prg):
+        super().__init__(par, prg)
+        self.queue = self.queue[0]
+        self.ctx = self.ctx[0]
+
+    def fwd(self, out, inp, wait_for=[]):
+        return self.prg.sym_grad(
+            self.queue, inp.shape[1:-1], None, out.data, inp.data,
+            np.int32(self.unknowns_TGV), np.float32(self.dz),
+            wait_for=out.events + inp.events + wait_for)
+
+    def fwdoop(self, inp, wait_for=[]):
+        tmp_result = clarray.empty(
+              self.queue, (self.NScan, self.NSlice, self.dimY, self.dimX, 8),
+              DTYPE, "C")
+        tmp_result.add_event(self.prg.sym_grad(
+            self.queue, inp.shape[1:-1], None, tmp_result.data, inp.data,
+            np.int32(self.unknowns_TGV), np.float32(self.dz),
+            wait_for=tmp_result.events + inp.events + wait_for))
+        return tmp_result
+
+    def adj(self, out, inp, wait_for=[]):
+        return self.prg.sym_divergence(
+            self._queue, inp.shape[1:-1], None, out.data, inp.data,
+            np.int32(self.unknowns_TGV), np.float32(self.dz),
+            wait_for=out.events + inp.events + wait_for)
+
+    def adjoop(self, inp, wait_for=[]):
+        tmp_result = clarray.empty(
+              self.queue, (self.NScan, self.NSlice, self.dimY, self.dimX, 4),
+              DTYPE, "C")
+        tmp_result.add_event(self.prg.sym_divergence(
+            self._queue, inp.shape[1:-1], None, tmp_result.data, inp.data,
+            np.int32(self.unknowns_TGV), np.float32(self.dz),
+            wait_for=tmp_result.events + inp.events + wait_for))
+        return tmp_result
