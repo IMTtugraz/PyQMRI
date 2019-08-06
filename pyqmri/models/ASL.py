@@ -211,7 +211,7 @@ class Model(BaseModel):
 
     def plot_unknowns(self, x, dim_2D=False):
         images = self._execute_forward_3D(x)
-        f = np.abs(x[0, ...] * self.uk_scale[0]/self.dscale)
+        f = np.abs(x[0, ...] * self.uk_scale[0] / self.dscale)
         del_t = np.abs(x[1, ...] * self.uk_scale[1])*60
 #        del_t[f <= 15] = 0
         f_min = f.min()

@@ -101,6 +101,38 @@ def _setupOCL(myargs, par):
 
 
 def _genImages(myargs, par, data):
+#    FFT = utils.NUFFT(par, trafo=myargs.trafo, SMS=myargs.sms)
+#    #    data = data/(FFT.deblurring[None, None, None, :, None])
+#    import pyopencl.array as clarray
+#
+#    def nFTH(x, fft, par):
+#        siz = np.shape(x)
+#        MB = int(par["MB"])
+#        result = np.zeros(
+#            (par["NC"], par["NSlice"], par["NScan"],
+#             par["dimY"], par["dimX"]), dtype=DTYPE)
+#        tmp_result = clarray.empty(fft.queue, (par["NScan"], 1, MB,
+#                                   par["dimY"], par["dimX"]), dtype=DTYPE)
+#        for j in range(siz[1]):
+#            for k in range(siz[2]):
+#                inp = clarray.to_device(fft.queue,
+#                                        np.require(x[:, j, k, ...]
+#                                                    [:, None, None, ...],
+#                                                   requirements='C'))
+#                fft.FFTH(tmp_result, inp)
+#                if myargs.sms:
+#                    ind = slice(k, siz[2]+k+1, siz[2])
+#                    result[j, ind, ...] = np.transpose(
+#                        (tmp_result.get()), (1, 2, 0, 3, 4))
+#                else:
+#                    result[j, k, ...] = np.squeeze(tmp_result.get())
+#        return np.transpose(result, (2, 0, 1, 3, 4))
+#    images = np.require(np.sum(nFTH(data, FFT, par) *
+#                               (np.conj(par["C"])), axis=1),
+#                        requirements='C')
+#    del FFT, nFTH
+
+    del par["file"]["images_cg"]
     if "images_cg" not in list(par["file"].keys()):
         images = np.zeros((par["NScan"],
                            par["NSlice"],
@@ -151,11 +183,6 @@ def _genImages(myargs, par, data):
                         np.floor((par["NSlice"]) / 2)):int(
                             slices_images / 2) + int(
                                 np.ceil(par["NSlice"] / 2)), ...].astype(DTYPE)
-#    mask = np.ones_like(images)
-#    for j in range(mask.shape[0]):
-#        mask[j, images[0, ...] < 20] = 0
-#    images = images*mask
-#    images[mask == 1] = np.log(np.abs(images[mask == 1])).astype(DTYPE)
     return images
 
 
@@ -231,7 +258,7 @@ def _readInput(myargs, par):
     else:
         if not myargs.file.endswith((('.h5'), ('.hdf5'))):
             print("Please specify a h5 file. ")
-            return 0
+            sys.exit()
         file = myargs.file
 
     name = os.path.normpath(file)
@@ -257,8 +284,17 @@ def _start_recon(myargs):
     """
     sig_model_path = os.path.normpath(myargs.sig_model)
     if len(sig_model_path.split(os.sep)) > 1:
-        spec = importlib.util.spec_from_file_location(
-            sig_model_path.split(os.sep)[-1], sig_model_path)
+        if os.path.splitext(sig_model_path)[-1] == '':
+            spec = importlib.util.spec_from_file_location(
+                    sig_model_path.split(os.sep)[-1]+'.py',
+                    sig_model_path+'.py')
+        elif os.path.splitext(sig_model_path) == '.py':
+            spec = importlib.util.spec_from_file_location(
+                    sig_model_path.split(os.sep)[-1], sig_model_path)
+        else:
+            raise argparse.ArgumentTypeError(
+                "Specified model file does not end with .py nor does it have "
+                "no extension at all. Please specify a valid python file.")
         sig_model = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(sig_model)
     else:
