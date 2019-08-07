@@ -102,7 +102,6 @@ def _setupOCL(myargs, par):
 
 def _genImages(myargs, par, data):
     FFT = utils.NUFFT(par, trafo=myargs.trafo, SMS=myargs.sms)
-    #    data = data/(FFT.deblurring[None, None, None, :, None])
     import pyopencl.array as clarray
 
     def nFTH(x, fft, par):
@@ -132,8 +131,8 @@ def _genImages(myargs, par, data):
                         requirements='C')
     del FFT, nFTH
 
-#    del par["file"]["images_cg"]
-#    if "images_cg" not in list(par["file"].keys()):
+#    del par["file"]["images"]
+#    if "images" not in list(par["file"].keys()):
 #        images = np.zeros((par["NScan"],
 #                           par["NSlice"],
 #                           par["dimY"],
@@ -167,18 +166,18 @@ def _genImages(myargs, par, data):
 #                        data[-np.mod(par["NScan"], 10):, ...],
 #                        tol=1e-3)
 #            del cgs
-#        par["file"].create_dataset("images_cg", images.shape,
+#        par["file"].create_dataset("images", images.shape,
 #                                   dtype=DTYPE, data=images)
 #    else:
-#        images = par["file"]['images_cg']
+#        images = par["file"]['images']
 #        if images.shape[1] < par["NSlice"]:
-#            del par["file"]["images_cg"]
+#            del par["file"]["images"]
 #            images = _genImages(myargs, par, data)
 #        else:
 #            print("Using precomputed images")
-#            slices_images = par["file"]['images_cg'][()].shape[1]
+#            slices_images = par["file"]['images'][()].shape[1]
 #            images = \
-#                par["file"]['images_cg'][
+#                par["file"]['images'][
 #                    :, int(slices_images / 2) - int(
 #                        np.floor((par["NSlice"]) / 2)):int(
 #                            slices_images / 2) + int(
@@ -288,7 +287,7 @@ def _start_recon(myargs):
             spec = importlib.util.spec_from_file_location(
                     sig_model_path.split(os.sep)[-1]+'.py',
                     sig_model_path+'.py')
-        elif os.path.splitext(sig_model_path) == '.py':
+        elif os.path.splitext(sig_model_path)[-1] == '.py':
             spec = importlib.util.spec_from_file_location(
                     sig_model_path.split(os.sep)[-1], sig_model_path)
         else:

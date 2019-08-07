@@ -260,13 +260,6 @@ class PDSolver:
             self.run = self.runTV3D
         else:
             self.run = self.runTGV3D
-        self._ratio = clarray.to_device(
-            self._queue,
-            (1 /
-             self.unknowns *
-             np.ones(
-                 self.unknowns)).astype(
-                dtype=DTYPE_real))
 
     def __del__(self):
         """ Destructor
@@ -329,7 +322,7 @@ class PDSolver:
                                         [r, z1,
                                          self._coil_buf,
                                          self.grad_buf,
-                                         self._ratio]))
+                                         self.grad_op._ratio]))
         Kyk2.add_event(self.update_Kyk2(Kyk2, z2, z1))
 
         for i in range(iters):
@@ -364,7 +357,7 @@ class PDSolver:
                                                     [r_new, z1_new,
                                                      self._coil_buf,
                                                      self.grad_buf,
-                                                     self._ratio]))
+                                                     self.grad_op._ratio]))
                 Kyk2_new.add_event(self.update_Kyk2(Kyk2_new, z2_new, z1_new))
 
                 ynorm = (
@@ -683,7 +676,7 @@ class PDSolver:
                                         [r, z1,
                                          self._coil_buf,
                                          self.grad_buf,
-                                         self._ratio]))
+                                         self.grad_op._ratio]))
 
         for i in range(iters):
             x_new.add_event(self.update_primal(x_new, x, Kyk1, xk, tau,
@@ -713,7 +706,7 @@ class PDSolver:
                                                     [r_new, z1_new,
                                                      self._coil_buf,
                                                      self.grad_buf,
-                                                     self._ratio]))
+                                                     self.grad_op._ratio]))
 
                 ynorm = ((clarray.vdot(r_new - r, r_new - r) +
                           clarray.vdot(z1_new - z1, z1_new - z1))**(1 / 2)
