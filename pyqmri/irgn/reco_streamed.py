@@ -435,12 +435,12 @@ class ModelReco:
         f.close()
 
 ###############################################################################
-### Precompute constant terms of the GN linearization step ####################
-### input: linearization point x ##############################################
-########## numeber of innner iterations iters #################################
-########## Data ###############################################################
-########## bool to switch between TV (1) and TGV (0) regularization ###########
-### output: optimal value of x for the inner GN step ##########################
+# Precompute constant terms of the GN linearization step ######################
+# input: linearization point x ################################################
+# numeber of innner iterations iters ##########################################
+# Data ########################################################################
+# bool to switch between TV (1) and TGV (0) regularization ####################
+# output: optimal value of x for the inner GN step ############################
 ###############################################################################
 ###############################################################################
     def irgn_solve_3D_kspace(self, x, iters, GN_it, TV=0):
