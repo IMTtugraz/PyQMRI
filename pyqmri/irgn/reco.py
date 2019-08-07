@@ -128,7 +128,9 @@ class ModelReco:
             start = time.time()
             self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
             self._balanceModelGradients(result, ign)
+
             self.pdop.grad_op.updateRatio(result)
+            self.grad_op._ratio = self.pdop.grad_op._ratio
 
             self.step_val = np.nan_to_num(self.model.execute_forward(result))
             self.grad_buf = cl.Buffer(self._ctx,
