@@ -11,6 +11,7 @@ sudo: required
 before_install:
   - sudo apt-get install -y opencl-headers libclfft* pocl
   - git clone https://github.com/geggo/gpyfft.git
+  - pip install cython
   - cd gpyfft
   - pip install .
 addons:
@@ -29,9 +30,7 @@ addons:
 #      env: PATH=/c/Python37:/c/Python37/Scripts:$PATH
 install: 
   - pip install --upgrade pip  
-  - pip install cython
   - pip install -r requirements.txt
-  - pip install 
   - pip install .
 # all three OSes agree about 'pip3'
 # 'python' points to Python 2.7 on macOS but points to Python 3.7 on Linux and Windows
