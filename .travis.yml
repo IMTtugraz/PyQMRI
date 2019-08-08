@@ -10,7 +10,6 @@ python: 3.7           # this works for Linux but is ignored on macOS or Windows
 sudo: required
 before_install:
   - sudo apt-get install -y opencl-headers libclfft*
-  - ./install_oclfft.sh
   - git clone https://github.com/geggo/gpyfft.git
   - cd gpyfft
   - pip install .
