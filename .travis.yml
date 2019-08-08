@@ -2,15 +2,15 @@ language: python
 
 
 
-matrix:
-  include:
-    - name: "Python 3.7.1 on Xenial Linux"
-      python: 3.7           # this works for Linux but is ignored on macOS or Windows
-      dist: xenial          # required for Python >= 3.7
-      sudo: required
-      before_install:
-        - sudo apt-get update -qq
-        - sudo apt-get install opencl-headers libclfft*
+#matrix:
+#  include:
+#    - name: "Python 3.7.1 on Xenial Linux"
+dist: bionic          # required for Python >= 3.7
+python: 3.7           # this works for Linux but is ignored on macOS or Windows
+sudo: required
+before_install:
+  - sudo apt-get update -qq
+  - sudo apt-get install opencl-headers libclfft*
 #    - name: "Python 3.7.2 on macOS"
 #      os: osx
 #      osx_image: xcode10.2  # Python 3.7.2 running on macOS 10.14.3
@@ -29,4 +29,4 @@ install:
 # all three OSes agree about 'pip3'
 # 'python' points to Python 2.7 on macOS but points to Python 3.7 on Linux and Windows
 # 'python3' is a 'command not found' error on Windows but 'py' works on Windows only
-script: python3 ./pyqmri/pyqmri.py || python ./pyqmri/pyqmri.py
+script: pyqmri --help
