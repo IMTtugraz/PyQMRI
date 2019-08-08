@@ -1,6 +1,3 @@
-.. image:: https://travis-ci.com/MaierOli2010/PyQMRI.svg?token=zBUBysVrnTP2LLozTy75&branch=OpenCL
-    :target: https://travis-ci.com/MaierOli2010/PyQMRI
-    
 PyQMRI - Model-Based Parameter Quantification
 =============================================
 
