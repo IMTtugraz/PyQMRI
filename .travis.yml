@@ -10,7 +10,7 @@ matrix:
       sudo: required
       before_install:
         - sudo apt-get update -qq
-        - sudo apt-get install ocl_icd* opencl-headers libclfft*
+        - sudo apt-get install opencl-headers libclfft*
     - name: "Python 3.7.2 on macOS"
       os: osx
       osx_image: xcode10.2  # Python 3.7.2 running on macOS 10.14.3
