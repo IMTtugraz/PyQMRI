@@ -1,0 +1,18 @@
+language: python
+
+dist: bionic          # required for Python >= 3.7
+python: 3.7           
+sudo: required
+before_install:
+  - ./install_oclfft.sh
+addons:
+  apt:
+    update: true
+
+install: 
+  - pip install --upgrade pip  
+  - pip install -r requirements.txt
+  - pip install .
+
+script: 
+  - pyqmri --help
