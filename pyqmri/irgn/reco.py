@@ -101,6 +101,7 @@ class ModelReco:
                                            np.float32(1 / np.sqrt(L)),
                                            self._fval_init, self._prg, TV)
             self.pdop.grad_op = self.grad_op
+            self.grad_op = self.pdop.grad_op
             self.pdop.symgrad_op = self.symgrad_op
 
         self.pdop._coil_buf = self._coil_buf
@@ -130,7 +131,6 @@ class ModelReco:
             self._balanceModelGradients(result, ign)
 
             self.pdop.grad_op.updateRatio(result)
-            self.grad_op._ratio = self.pdop.grad_op._ratio
 
             self.step_val = np.nan_to_num(self.model.execute_forward(result))
             self.grad_buf = cl.Buffer(self._ctx,
