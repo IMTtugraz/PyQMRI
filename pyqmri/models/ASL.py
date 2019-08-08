@@ -42,7 +42,7 @@ class Model(BaseModel):
         self.constraints.append(
             constraints(0,
                         200 * self.dscale,
-                        False))
+                        True))
         self.constraints.append(
             constraints(0,
                         4/60,
