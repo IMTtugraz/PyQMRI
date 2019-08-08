@@ -33,4 +33,4 @@ install:
 # 'python3' is a 'command not found' error on Windows but 'py' works on Windows only
 script: 
   - pyqmri --help
-  - pyqmri --data ./tests/smalltest.h5
+#  - pyqmri --data ./tests/smalltest.h5
