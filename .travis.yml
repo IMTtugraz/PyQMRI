@@ -9,12 +9,7 @@ dist: bionic          # required for Python >= 3.7
 python: 3.7           # this works for Linux but is ignored on macOS or Windows
 sudo: required
 before_install:
-  - sudo apt-get install -y opencl-headers libclfft*
-  - git clone https://github.com/geggo/gpyfft.git
-  - pip install cython
-  - cd gpyfft
-  - pip install .
-  - cd ..
+  - ./install_oclfft.sh
 addons:
   apt:
     update: true
