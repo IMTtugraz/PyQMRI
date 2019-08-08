@@ -9,6 +9,8 @@ dist: bionic          # required for Python >= 3.7
 python: 3.7           # this works for Linux but is ignored on macOS or Windows
 sudo: required
 before_install:
+  - sudo apt-get update -qq
+  - sudo apt-get install opencl-headers libclfft*
   - ./install_oclfft.sh
 #    - name: "Python 3.7.2 on macOS"
 #      os: osx
