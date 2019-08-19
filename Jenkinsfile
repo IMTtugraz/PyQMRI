@@ -2,6 +2,7 @@ pipeline {
   agent {
     dockerfile {
       filename 'Dockerfile'
+      args '--gpus all -u root'
     }
 
   }
@@ -28,5 +29,12 @@ pipeline {
         sh 'rm -r ./test/__pycache__'
       }
     }
+  }
+  post {
+      always {
+          cobertura coberturaReportFile: 'coverage.xml'
+          junit 'results.xml'
+          recordIssues enabledForFailure: true, tool: pyLint(pattern: 'pylint.log')
+      }
   }
 }
