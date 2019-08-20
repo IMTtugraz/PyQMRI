@@ -51,11 +51,13 @@ class CGSolver:
         self._dimY = par["dimY"]
         self._NC = par["NC"]
         self._queue = par["queue"][0]
+        file = open(
+            resource_filename(
+                'pyqmri', 'kernels/OpenCL_Kernels.c'))
         self._prg = Program(
             par["ctx"][0],
-            open(
-                resource_filename(
-                    'pyqmri', 'kernels/OpenCL_Kernels.c')).read())
+            file.read())
+        file.close()
         self._coil_buf = cl.Buffer(par["ctx"][0],
                                    cl.mem_flags.READ_ONLY |
                                    cl.mem_flags.COPY_HOST_PTR,
@@ -67,15 +69,15 @@ class CGSolver:
         self._FT = self._op.NUFFT.FFT
         self._FTH = self._op.NUFFT.FFTH
         self._tmp_result = clarray.empty(
-                          self._queue,
-                          (self._NScan, self._NC,
-                           self._NSlice, self._dimY, self._dimX),
-                          DTYPE, "C")
+            self._queue,
+            (self._NScan, self._NC,
+             self._NSlice, self._dimY, self._dimX),
+            DTYPE, "C")
         self._tmp_sino = clarray.empty(
-                          self._queue,
-                          (self._NScan, self._NC,
-                           self._NSlice, par["Nproj"], par["N"]),
-                          DTYPE, "C")
+            self._queue,
+            (self._NScan, self._NC,
+             self._NSlice, par["Nproj"], par["N"]),
+            DTYPE, "C")
         par["NScan"] = NScan_save
 
     def __del__(self):
@@ -221,7 +223,8 @@ class PDSolver:
     This Class performs a CG reconstruction on single precission complex input
     data.
     """
-    def __init__(self, par, irgn_par, queue, tau, fval, prg, TV):
+    def __init__(self, par, irgn_par, queue, tau, fval, prg, TV,
+                 data_operator, coil_buffer):
         """ Setup a CG reconstruction Object
 
         Args:
@@ -256,6 +259,16 @@ class PDSolver:
         self._fval_init = fval
         self._prg = prg
         self._queue = queue
+        self._op = data_operator
+        self._coil_buf = coil_buffer
+        self.grad_buf = None
+        self.model = None
+        self.grad_op = None
+        self.symgrad_op = None
+        self.min_const = None
+        self.max_const = None
+        self.real_const = None
+        self.irgn_par = {}
         if TV:
             self.run = self.runTV3D
         else:
@@ -377,9 +390,9 @@ class PDSolver:
             (Kyk1, Kyk1_new, Kyk2, Kyk2_new, Axold, Ax, z1, z1_new,
              z2, z2_new, r, r_new, gradx_xold, gradx, symgrad_v_vold,
              symgrad_v, tau) = (
-             Kyk1_new, Kyk1, Kyk2_new, Kyk2, Ax, Axold, z1_new, z1,
-             z2_new, z2, r_new, r, gradx, gradx_xold, symgrad_v,
-             symgrad_v_vold, tau_new)
+                 Kyk1_new, Kyk1, Kyk2_new, Kyk2, Ax, Axold, z1_new, z1,
+                 z2_new, z2, r_new, r, gradx, gradx_xold, symgrad_v,
+                 symgrad_v_vold, tau_new)
 
             if not np.mod(i, 50):
                 if self.display_iterations:
@@ -456,23 +469,23 @@ class PDSolver:
         return (x.get(), v.get())
 
     def runTGV3DExplicit(self, x, res, iters):
+        self._updateConstraints()
         alpha = self.irgn_par["gamma"]
         beta = self.irgn_par["gamma"] * 2
 
         tau = self.tau
         tau_new = np.float32(0)
 
-        self._set_scale(x)
         x = clarray.to_device(self._queue, x)
         xk = x.copy()
         x_new = clarray.empty_like(x)
         ATd = clarray.empty_like(x)
 
-        z1 = clarray.to_device(self._queue, self.z1)
+        z1 = clarray.zeros(self._queue, x.shape+(4,), dtype=DTYPE)
         z1_new = clarray.empty_like(z1)
-        z2 = clarray.to_device(self._queue, self.z2)
+        z2 = clarray.zeros(self._queue, x.shape+(8,), dtype=DTYPE)
         z2_new = clarray.empty_like(z2)
-        v = clarray.to_device(self._queue, self.v)
+        v = clarray.zeros(self._queue, x.shape+(4,), dtype=DTYPE)
         v_new = clarray.empty_like(v)
         res = clarray.to_device(self._queue, res.astype(DTYPE))
 
@@ -490,9 +503,9 @@ class PDSolver:
         primal = np.float32(0.0)
         primal_new = np.float32(0)
         dual = np.float32(0.0)
-        gap_min = np.float32(0.0)
+        gap_init = np.float32(0.0)
+        gap_old = np.float32(0.0)
         gap = np.float32(0.0)
-        self._eval_const()
 
         Kyk1 = clarray.empty_like(x)
         Kyk1_new = clarray.empty_like(x)
@@ -579,48 +592,32 @@ class PDSolver:
 
                 gap = np.abs(primal_new - dual)
                 if i == 0:
-                    gap_min = gap
-                if np.abs(primal - primal_new) <\
-                   (self.lambd * self.par["NSlice"]) * \
-                   self.irgn_par["tol"]:
-                    print("Terminated at iteration %d because the energy \
-                          decrease in the primal problem was less than %.3e" %
-                          (i, abs(primal - primal_new).get() /
-                           (self.lambd * self.par["NSlice"])))
-                    self.v = v_new.get()
-                    self.z1 = z1.get()
-                    self.z2 = z2.get()
-                    return x_new.get()
-                if (gap > gap_min * self.irgn_par["stag"]) and i > 1:
-                    self.v = v_new.get()
-                    self.z1 = z1.get()
-                    self.z2 = z2.get()
-                    print("Terminated at iteration %d \
-                          because the method stagnated" % (i))
-                    return x.get()
-                if np.abs(gap - gap_min) < \
-                   (self.lambd * self.par["NSlice"]) * \
-                   self.irgn_par["tol"] \
-                   and i > 1:
-                    self.v = v_new.get()
-                    self.z1 = z1.get()
-                    self.z2 = z2.get()
-                    print("Terminated at iteration %d because the energy \
-                          decrease in the PD gap was less than %.3e" %
-                          (i, abs(gap - gap_min).get() /
-                           (self.lambd * self.par["NSlice"])))
-                    return x_new.get()
+                    gap_init = gap.get()
+                if np.abs(primal - primal_new)/self._fval_init <\
+                   self.tol:
+                    print("Terminated at iteration %d because the energy "
+                          "decrease in the primal problem was less than %.3e" %
+                          (i,
+                           np.abs(primal - primal_new).get()/self._fval_init))
+                    return (x_new.get(), v_new.get())
+                if gap > gap_old * self.stag and i > 1:
+                    print("Terminated at iteration %d "
+                          "because the method stagnated" % (i))
+                    return (x_new.get(), v_new.get())
+                if np.abs((gap - gap_old) / gap_init) < self.tol:
+                    print("Terminated at iteration %d because the "
+                          "relative energy decrease of the PD gap was "
+                          "less than %.3e"
+                          % (i, np.abs((gap - gap_old).get() / gap_init)))
+                    return (x_new.get(), v_new.get())
                 primal = primal_new
-                gap_min = np.minimum(gap, gap_min)
+                gap_old = gap
                 sys.stdout.write(
-                    "Iteration: %d ---- Primal: %f, Dual: %f, Gap: %f \r" %
-                    (i,
-                     primal.get() / (self.lambd *
-                                     self.par["NSlice"]),
-                     dual.get() / (self.lambd *
-                                   self.par["NSlice"]),
-                     gap.get() / (self.lambd *
-                                  self.par["NSlice"])))
+                    "Iteration: %04d ---- Primal: %2.2e, "
+                    "Dual: %2.2e, Gap: %2.2e \r" %
+                    (i, 1000*primal.get() / self._fval_init,
+                     1000*dual.get() / self._fval_init,
+                     1000*gap.get() / self._fval_init))
                 sys.stdout.flush()
 
             (x, x_new) = (x_new, x)
@@ -719,10 +716,10 @@ class PDSolver:
                 else:
                     tau_new = tau_new * mu_line
 
-            (Kyk1, Kyk1_new,  Axold, Ax, z1, z1_new, r, r_new, gradx_xold,
+            (Kyk1, Kyk1_new, Axold, Ax, z1, z1_new, r, r_new, gradx_xold,
              gradx, tau) = (
-             Kyk1_new, Kyk1,  Ax, Axold, z1_new, z1, r_new, r, gradx,
-             gradx_xold, tau_new)
+                 Kyk1_new, Kyk1, Ax, Axold, z1_new, z1, r_new, r, gradx,
+                 gradx_xold, tau_new)
 
             if not np.mod(i, 50):
                 if self.display_iterations:
@@ -769,7 +766,7 @@ class PDSolver:
                     print("Terminated at iteration %d because the energy "
                           "decrease in the primal problem was less than %.3e" %
                           (i, np.abs(primal - primal_new).get() /
-                              self._fval_init))
+                           self._fval_init))
                     return x_new.get()
                 if (gap > gap_old * self.stag) and i > 1:
                     print("Terminated at iteration %d "

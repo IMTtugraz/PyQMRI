@@ -10,6 +10,78 @@ unknowns_TGV = 2
 unknowns_H1 = 0
 
 
+def _expAttT1b(del_t, del_t_sc, T1b):
+    return ne.evaluate(
+        "exp(-(del_t*del_t_sc)/T1b)")
+
+
+def _T1pr(T1, f, f_sc, lambd):
+    return ne.evaluate(
+        "1/T1+f*f_sc/lambd")
+
+
+def _S1(M0, alpha, lambd, f, T1, T1p, del_t,  t, tau, expAttT1b):
+    return ne.evaluate(
+        "2*alpha*M0/lambd * f/T1p * expAttT1b * \
+        (1-exp(-(t-del_t) * T1p))")
+
+
+def _S2(M0, alpha, lambd, f, T1, T1p, del_t, t, tau, expAttT1b):
+    return ne.evaluate(
+        "2*alpha*M0/lambd * f/T1p * expAttT1b * \
+         exp(-(t-del_t-tau) * T1p) * \
+         (1-exp(-tau * T1p))")
+
+
+def _delCBF1(M0, alpha, lambd, f, f_sc, T1, del_t,
+             del_t_sc, T1b, t, tau, T1p, expAttT1b):
+    return ne.evaluate(
+        "(-2*M0*f*f_sc**2*(del_t*del_t_sc - t) *\
+         exp((del_t*del_t_sc - t) * T1p) * expAttT1b / (lambd**2*T1p) -\
+         2*M0*f*f_sc**2 * (-exp((del_t*del_t_sc - t) * T1p) + 1) * \
+         expAttT1b / (lambd**2*T1p**2) +\
+         2*M0*f_sc*(-exp((del_t*del_t_sc - t) * T1p) + 1) * expAttT1b /\
+         (lambd*T1p))*alpha")
+
+
+def _delCBF2(M0, alpha, lambd, f, f_sc, T1, del_t,
+             del_t_sc, T1b, t, tau, T1p, expAttT1b):
+    return ne.evaluate(
+        "(2*M0*f*f_sc**2*tau *  exp(-tau*T1p) *\
+          exp(T1p * (del_t*del_t_sc - t + tau)) * \
+          expAttT1b / (lambd**2*T1p) +\
+          2*M0*f*f_sc**2 * (1 - exp(-tau*T1p)) * \
+          (del_t*del_t_sc - t + tau) *\
+          exp(T1p * (del_t*del_t_sc - t + tau)) * \
+          expAttT1b / (lambd**2*T1p) -\
+          2*M0*f*f_sc**2 * (1 - exp(-tau*T1p)) * \
+          exp(T1p * (del_t*del_t_sc - t + tau)) * \
+          expAttT1b / (lambd**2*T1p**2) +\
+          2*M0*f_sc * (1 - exp(-tau*T1p)) * \
+          exp(T1p * (del_t*del_t_sc - t + tau)) * \
+          expAttT1b / (lambd*T1p)) *\
+          alpha")
+
+
+def _delATT1(M0, alpha, lambd, f, f_sc, T1, del_t,
+             del_t_sc, T1b, t, tau, T1p, expAttT1b):
+    return ne.evaluate(
+        "(-2*M0*del_t_sc*f*f_sc * exp((del_t*del_t_sc - t) * T1p) *\
+          expAttT1b/lambd -\
+          2*M0*del_t_sc*f*f_sc*(- exp((del_t*del_t_sc - t) * T1p) + 1) *\
+          expAttT1b / (T1b*lambd*T1p))*alpha")
+
+
+def _delATT2(M0, alpha, lambd, f, f_sc, T1, del_t,
+             del_t_sc, T1b, t, tau, T1p, expAttT1b):
+    return ne.evaluate(
+        "(2*M0*del_t_sc*f*f_sc * (1 - exp(-tau*T1p)) *\
+          exp(T1p * (del_t*del_t_sc - t + tau)) * expAttT1b/lambd -\
+          2*M0*del_t_sc*f*f_sc * (1 - exp(-tau*T1p)) *\
+          exp(T1p * (del_t*del_t_sc - t + tau)) * expAttT1b /\
+          (T1b*lambd*T1p))*alpha")
+
+
 class Model(BaseModel):
     def __init__(self, par, images):
         super().__init__(par)
@@ -48,78 +120,6 @@ class Model(BaseModel):
                         4/60,
                         True))
 
-    @staticmethod
-    def _expAttT1b(del_t, del_t_sc, T1b):
-        return ne.evaluate(
-            "exp(-(del_t*del_t_sc)/T1b)")
-
-    @staticmethod
-    def _T1pr(T1, f, f_sc, lambd):
-        return ne.evaluate(
-            "1/T1+f*f_sc/lambd")
-
-    @staticmethod
-    def _S1(M0, alpha, lambd, f, T1, T1p, del_t,  t, tau, expAttT1b):
-        return ne.evaluate(
-            "2*alpha*M0/lambd * f/T1p * expAttT1b * \
-            (1-exp(-(t-del_t) * T1p))")
-
-    @staticmethod
-    def _S2(M0, alpha, lambd, f, T1, T1p, del_t, t, tau, expAttT1b):
-        return ne.evaluate(
-            "2*alpha*M0/lambd * f/T1p * expAttT1b * \
-             exp(-(t-del_t-tau) * T1p) * \
-             (1-exp(-tau * T1p))")
-
-    @staticmethod
-    def _delCBF1(M0, alpha, lambd, f, f_sc, T1, del_t,
-                 del_t_sc, T1b, t, tau, T1p, expAttT1b):
-        return ne.evaluate(
-            "(-2*M0*f*f_sc**2*(del_t*del_t_sc - t) *\
-             exp((del_t*del_t_sc - t) * T1p) * expAttT1b / (lambd**2*T1p) -\
-             2*M0*f*f_sc**2 * (-exp((del_t*del_t_sc - t) * T1p) + 1) * \
-             expAttT1b / (lambd**2*T1p**2) +\
-             2*M0*f_sc*(-exp((del_t*del_t_sc - t) * T1p) + 1) * expAttT1b /\
-             (lambd*T1p))*alpha")
-
-    @staticmethod
-    def _delCBF2(M0, alpha, lambd, f, f_sc, T1, del_t,
-                 del_t_sc, T1b, t, tau, T1p, expAttT1b):
-        return ne.evaluate(
-            "(2*M0*f*f_sc**2*tau *  exp(-tau*T1p) *\
-              exp(T1p * (del_t*del_t_sc - t + tau)) * \
-              expAttT1b / (lambd**2*T1p) +\
-              2*M0*f*f_sc**2 * (1 - exp(-tau*T1p)) * \
-              (del_t*del_t_sc - t + tau) *\
-              exp(T1p * (del_t*del_t_sc - t + tau)) * \
-              expAttT1b / (lambd**2*T1p) -\
-              2*M0*f*f_sc**2 * (1 - exp(-tau*T1p)) * \
-              exp(T1p * (del_t*del_t_sc - t + tau)) * \
-              expAttT1b / (lambd**2*T1p**2) +\
-              2*M0*f_sc * (1 - exp(-tau*T1p)) * \
-              exp(T1p * (del_t*del_t_sc - t + tau)) * \
-              expAttT1b / (lambd*T1p)) *\
-              alpha")
-
-    @staticmethod
-    def _delATT1(M0, alpha, lambd, f, f_sc, T1, del_t,
-                 del_t_sc, T1b, t, tau, T1p, expAttT1b):
-        return ne.evaluate(
-            "(-2*M0*del_t_sc*f*f_sc * exp((del_t*del_t_sc - t) * T1p) *\
-              expAttT1b/lambd -\
-              2*M0*del_t_sc*f*f_sc*(- exp((del_t*del_t_sc - t) * T1p) + 1) *\
-              expAttT1b / (T1b*lambd*T1p))*alpha")
-
-    @staticmethod
-    def _delATT2(M0, alpha, lambd, f, f_sc, T1, del_t,
-                 del_t_sc, T1b, t, tau, T1p, expAttT1b):
-        return ne.evaluate(
-            "(2*M0*del_t_sc*f*f_sc * (1 - exp(-tau*T1p)) *\
-              exp(T1p * (del_t*del_t_sc - t + tau)) * expAttT1b/lambd -\
-              2*M0*del_t_sc*f*f_sc * (1 - exp(-tau*T1p)) *\
-              exp(T1p * (del_t*del_t_sc - t + tau)) * expAttT1b /\
-              (T1b*lambd*T1p))*alpha")
-
     def _execute_forward_2D(self, x, islice):
         print("2D Functions not implemented")
         raise NotImplementedError
@@ -135,23 +135,23 @@ class Model(BaseModel):
         S = np.zeros((self.NScan, self.NSlice, self.dimY, self.dimX),
                      dtype=DTYPE)
 
-        T1prinv = Model._T1pr(self.T1, x[0], self.uk_scale[0], self.lambd)
-        expAtt = Model._expAttT1b(x[1], self.uk_scale[1], self.T1b)
+        T1prinv = _T1pr(self.T1, x[0], self.uk_scale[0], self.lambd)
+        expAtt = _expAttT1b(x[1], self.uk_scale[1], self.T1b)
         for j in range((self.t).size):
             ind_low = self.t[j] >= del_t
             ind_high = self.t[j] < (del_t+self.tau[j])
             ind = ind_low & ind_high
             if np.any(ind):
-                S[j, ind] = Model._S1(self.M0[ind], self.alpha[ind],
-                                      self.lambd[ind], f[ind], self.T1[ind],
-                                      T1prinv[ind], del_t[ind],
-                                      self.t[j], self.tau[j, ind], expAtt[ind])
+                S[j, ind] = _S1(self.M0[ind], self.alpha[ind],
+                                self.lambd[ind], f[ind], self.T1[ind],
+                                T1prinv[ind], del_t[ind],
+                                self.t[j], self.tau[j, ind], expAtt[ind])
             ind = self.t[j] >= del_t + self.tau[j]
             if np.any(ind):
-                S[j, ind] = Model._S2(self.M0[ind], self.alpha[ind],
-                                      self.lambd[ind], f[ind], self.T1[ind],
-                                      T1prinv[ind], del_t[ind],
-                                      self.t[j], self.tau[j, ind], expAtt[ind])
+                S[j, ind] = _S2(self.M0[ind], self.alpha[ind],
+                                self.lambd[ind], f[ind], self.T1[ind],
+                                T1prinv[ind], del_t[ind],
+                                self.t[j], self.tau[j, ind], expAtt[ind])
         S[~np.isfinite(S)] = 1e-20
         S = np.array(S, dtype=DTYPE)
         return S
@@ -163,48 +163,48 @@ class Model(BaseModel):
         grad = np.zeros((self.unknowns, self.NScan,
                          self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         t = self.t
-        T1prinv = Model._T1pr(self.T1, x[0], self.uk_scale[0], self.lambd)
-        expAtt = Model._expAttT1b(x[1], self.uk_scale[1], self.T1b)
+        T1prinv = _T1pr(self.T1, x[0], self.uk_scale[0], self.lambd)
+        expAtt = _expAttT1b(x[1], self.uk_scale[1], self.T1b)
         for j in range((self.t).size):
             ind_low = self.t[j] >= del_t
             ind_high = self.t[j] < (del_t+self.tau[j])
             ind = ind_low & ind_high
             if np.any(ind):
-                grad[0, j, ind] = Model._delCBF1(self.M0[ind], self.alpha[ind],
-                                                 self.lambd[ind], x[0, ind],
-                                                 f_sc,
-                                                 self.T1[ind], x[1, ind],
-                                                 del_t_sc, self.T1b[ind], t[j],
-                                                 self.tau[j, ind],
-                                                 T1prinv[ind],
-                                                 expAtt[ind])
-                grad[1, j, ind] = Model._delATT1(self.M0[ind], self.alpha[ind],
-                                                 self.lambd[ind], x[0, ind],
-                                                 f_sc,
-                                                 self.T1[ind], x[1, ind],
-                                                 del_t_sc, self.T1b[ind], t[j],
-                                                 self.tau[j, ind],
-                                                 T1prinv[ind],
-                                                 expAtt[ind])
+                grad[0, j, ind] = _delCBF1(self.M0[ind], self.alpha[ind],
+                                           self.lambd[ind], x[0, ind],
+                                           f_sc,
+                                           self.T1[ind], x[1, ind],
+                                           del_t_sc, self.T1b[ind], t[j],
+                                           self.tau[j, ind],
+                                           T1prinv[ind],
+                                           expAtt[ind])
+                grad[1, j, ind] = _delATT1(self.M0[ind], self.alpha[ind],
+                                           self.lambd[ind], x[0, ind],
+                                           f_sc,
+                                           self.T1[ind], x[1, ind],
+                                           del_t_sc, self.T1b[ind], t[j],
+                                           self.tau[j, ind],
+                                           T1prinv[ind],
+                                           expAtt[ind])
 
             ind = self.t[j] >= del_t + self.tau[j]
             if np.any(ind):
-                grad[0, j, ind] = Model._delCBF2(self.M0[ind], self.alpha[ind],
-                                                 self.lambd[ind], x[0, ind],
-                                                 f_sc,
-                                                 self.T1[ind], x[1, ind],
-                                                 del_t_sc, self.T1b[ind], t[j],
-                                                 self.tau[j, ind],
-                                                 T1prinv[ind],
-                                                 expAtt[ind])
-                grad[1, j, ind] = Model._delATT2(self.M0[ind], self.alpha[ind],
-                                                 self.lambd[ind], x[0, ind],
-                                                 f_sc,
-                                                 self.T1[ind], x[1, ind],
-                                                 del_t_sc, self.T1b[ind], t[j],
-                                                 self.tau[j, ind],
-                                                 T1prinv[ind],
-                                                 expAtt[ind])
+                grad[0, j, ind] = _delCBF2(self.M0[ind], self.alpha[ind],
+                                           self.lambd[ind], x[0, ind],
+                                           f_sc,
+                                           self.T1[ind], x[1, ind],
+                                           del_t_sc, self.T1b[ind], t[j],
+                                           self.tau[j, ind],
+                                           T1prinv[ind],
+                                           expAtt[ind])
+                grad[1, j, ind] = _delATT2(self.M0[ind], self.alpha[ind],
+                                           self.lambd[ind], x[0, ind],
+                                           f_sc,
+                                           self.T1[ind], x[1, ind],
+                                           del_t_sc, self.T1b[ind], t[j],
+                                           self.tau[j, ind],
+                                           T1prinv[ind],
+                                           expAtt[ind])
         grad[~np.isfinite(grad)] = 1e-20
         grad = np.array(grad, dtype=DTYPE)
         return grad

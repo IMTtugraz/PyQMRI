@@ -28,3 +28,4 @@ data/
 dist*
 .egg*
 pyqmri.egg*
+.coverage

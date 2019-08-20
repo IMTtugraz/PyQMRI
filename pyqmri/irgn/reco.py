@@ -9,16 +9,18 @@ Attribues:
     Real working precission. Currently single precission only.
 """
 from __future__ import division
-
-import numpy as np
 import time
+import numpy as np
+
 from pkg_resources import resource_filename
 import pyopencl as cl
 import pyopencl.array as clarray
+import h5py
+
 import pyqmri.operator as operator
 import pyqmri.solver as optimizer
 from pyqmri._helper_fun import CLProgram as Program
-import h5py
+from pyqmri._helper_fun import _utils as utils
 
 DTYPE = np.complex64
 DTYPE_real = np.float32
@@ -41,7 +43,8 @@ class ModelReco:
         The residual values for of each Gauss-Newton step. Each iteration
         appends its value to the list.
     """
-    def __init__(self, par, trafo=1, imagespace=False, SMS=0):
+    def __init__(self, par, trafo=1, imagespace=False, SMS=0, reg_type='TGV',
+                 config='', model=None):
         self.par = par
         self._fval_old = 0
         self._fval = 0
@@ -49,49 +52,85 @@ class ModelReco:
         self._ctx = par["ctx"][0]
         self._queue = par["queue"][0]
         self.gn_res = []
-        self._prg = Program(
-            self._ctx,
-            open(
-                resource_filename(
-                    'pyqmri', 'kernels/OpenCL_Kernels.c')).read())
+        self.irgn_par = utils.read_config(config, reg_type)
+        self.model = model
+        self.reg_type = reg_type
+        if DTYPE == np.complex128:
+            self._prg = Program(
+                self._ctx,
+                open(
+                    resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels_double.c')).read())
+        else:
+            self._prg = Program(
+                self._ctx,
+                open(
+                    resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels.c')).read())
         self._imagespace = imagespace
         if imagespace:
             self._coil_buf = []
-            self._op = operator.OperatorImagespace(par, self._prg)
+            self._op = operator.OperatorImagespace(par, self._prg, DTYPE=DTYPE,
+                                                   DTYPE_real=DTYPE_real)
         else:
             self._coil_buf = cl.Buffer(self._ctx,
                                        cl.mem_flags.READ_ONLY |
                                        cl.mem_flags.COPY_HOST_PTR,
                                        hostbuf=self.par["C"].data)
             if SMS:
-                self._op = operator.OperatorKspaceSMS(par, self._prg, trafo)
+                self._op = operator.OperatorKspaceSMS(par, self._prg,
+                                                      trafo=trafo, DTYPE=DTYPE,
+                                                      DTYPE_real=DTYPE_real)
             else:
-                self._op = operator.OperatorKspace(par, self._prg, trafo)
+                self._op = operator.OperatorKspace(par, self._prg, trafo=trafo,
+                                                   DTYPE=DTYPE,
+                                                   DTYPE_real=DTYPE_real)
             self._FT = self._op.NUFFT.FFT
 
-    def _setupLinearOps(self, TV):
-        self.grad_op = operator.OperatorFiniteGradient(self.par, self._prg)
-        if TV is not True:
-            self.symgrad_op = operator.OperatorFiniteSymGradient(
+        self.grad_op, self.symgrad_op, self.v = self._setupLinearOps()
+
+        self.step_val = None
+        self.pdop = None
+        self.model_partial_der = None
+        self.grad_buf = None
+        self.delta = None
+        self.delta_max = None
+        self.omega = None
+        self.gamma = None
+        self.data = None  # Needs to be set outside
+
+    def _setupLinearOps(self):
+        grad_op = operator.OperatorFiniteGradient(self.par, self._prg)
+        symgrad_op = None
+        v = None
+        if self.reg_type == 'TGV':
+            symgrad_op = operator.OperatorFiniteSymGradient(
                 self.par, self._prg)
-            self.v = np.zeros(
+            v = np.zeros(
                 ([self.par["unknowns"], self.par["NSlice"],
                   self.par["dimY"], self.par["dimX"], 4]),
                 dtype=DTYPE)
+        return grad_op, symgrad_op, v
 
-    def _setupPDOptimizer(self, TV):
-        if TV == 1:
+    def _setupPDOptimizer(self):
+        if self.reg_type == 'TV':
             self.pdop = optimizer.PDSolver(self.par, self.irgn_par,
                                            self._queue,
                                            np.float32(1 / np.sqrt(8)),
-                                           self._fval_init, self._prg, TV)
+                                           self._fval_init, self._prg,
+                                           self.reg_type,
+                                           self._op,
+                                           self._coil_buf)
             self.pdop.grad_op = self.grad_op
-        elif TV == 0:
+        elif self.reg_type == 'TGV':
             L = np.float32(0.5 * (18.0 + np.sqrt(33)))
             self.pdop = optimizer.PDSolver(self.par, self.irgn_par,
                                            self._queue,
                                            np.float32(1 / np.sqrt(L)),
-                                           self._fval_init, self._prg, TV)
+                                           self._fval_init, self._prg,
+                                           self.reg_type,
+                                           self._op,
+                                           self._coil_buf)
             self.pdop.grad_op = self.grad_op
             self.pdop.symgrad_op = self.symgrad_op
         else:
@@ -99,13 +138,14 @@ class ModelReco:
             self.pdop = optimizer.PDSolver(self.par, self.irgn_par,
                                            self._queue,
                                            np.float32(1 / np.sqrt(L)),
-                                           self._fval_init, self._prg, TV)
+                                           self._fval_init, self._prg,
+                                           self.reg_type,
+                                           self._op,
+                                           self._coil_buf)
+
             self.pdop.grad_op = self.grad_op
-            self.grad_op = self.pdop.grad_op
             self.pdop.symgrad_op = self.symgrad_op
 
-        self.pdop._coil_buf = self._coil_buf
-        self.pdop._op = self._op
         self.pdop.model = self.model
 
 ###############################################################################
@@ -115,19 +155,19 @@ class ModelReco:
 # input: bool to switch between TV (1) and TGV (0) regularization #############
 # output: optimal value of x ##################################################
 ###############################################################################
-    def _executeIRGN3D(self, TV=0):
+    def _executeIRGN3D(self):
         iters = self.irgn_par["start_iters"]
 
         result = np.copy(self.model.guess)
 
-        self._setupLinearOps(TV)
         self.step_val = np.nan_to_num(self.model.execute_forward(result))
-        self._calcResidual(result, self.data, 0, TV)
-        self._setupPDOptimizer(TV)
+        self._calcResidual(result, self.data, 0)
+        self._setupPDOptimizer()
 
         for ign in range(self.irgn_par["max_gn_it"]):
             start = time.time()
-            self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
+            self.model_partial_der = np.nan_to_num(
+                self.model.execute_gradient(result))
             self._balanceModelGradients(result, ign)
 
             self.pdop.grad_op.updateRatio(result)
@@ -136,13 +176,13 @@ class ModelReco:
             self.grad_buf = cl.Buffer(self._ctx,
                                       cl.mem_flags.READ_ONLY |
                                       cl.mem_flags.COPY_HOST_PTR,
-                                      hostbuf=self.grad_x.data)
+                                      hostbuf=self.model_partial_der.data)
             self.pdop.grad_buf = self.grad_buf
 
             self._updateIRGNRegPar(result, ign)
             self.pdop.updateRegPar(self.irgn_par)
 
-            result = self._irgnSolve3D(result, iters, self.data, ign, TV)
+            result = self._irgnSolve3D(result, iters, self.data, ign)
 
             iters = np.fmin(iters * 2, self.irgn_par["max_iters"])
 
@@ -155,14 +195,14 @@ class ModelReco:
                self.irgn_par["tol"]:
                 print("Terminated at GN-iteration %d because "
                       "the energy decrease was less than %.3e" %
-                      (ign,  np.abs(self._fval_old - self._fval) /
+                      (ign, np.abs(self._fval_old - self._fval) /
                        self._fval_init))
-                self._calcResidual(result, self.data, ign+1, TV)
-                self._saveToFile(ign, self.model.rescale(result), TV)
+                self._calcResidual(result, self.data, ign+1)
+                self._saveToFile(ign, self.model.rescale(result))
                 break
             self._fval_old = self._fval
-            self._saveToFile(ign, self.model.rescale(result), TV)
-        self._calcResidual(result, self.data, ign+1, TV)
+            self._saveToFile(ign, self.model.rescale(result))
+        self._calcResidual(result, self.data, ign+1)
 
     def _updateIRGNRegPar(self, result, ign):
         self.irgn_par["delta_max"] = (self.delta_max /
@@ -180,7 +220,7 @@ class ModelReco:
 
     def _balanceModelGradients(self, result, ind):
         scale = np.reshape(
-            self.grad_x,
+            self.model_partial_der,
             (self.par["unknowns"],
              self.par["NScan"] * self.par["NSlice"] *
              self.par["dimY"] * self.par["dimX"]))
@@ -192,12 +232,12 @@ class ModelReco:
             for uk in range(self.par["unknowns"]):
                 self.model.constraints[uk].update(scale[uk])
                 result[uk, ...] *= self.model.uk_scale[uk]
-                self.grad_x[uk] /= self.model.uk_scale[uk]
+                self.model_partial_der[uk] /= self.model.uk_scale[uk]
                 self.model.uk_scale[uk] *= scale[uk]
                 result[uk, ...] /= self.model.uk_scale[uk]
-                self.grad_x[uk] *= self.model.uk_scale[uk]
+                self.model_partial_der[uk] *= self.model.uk_scale[uk]
         scale = np.reshape(
-            self.grad_x,
+            self.model_partial_der,
             (self.par["unknowns"],
              self.par["NScan"] * self.par["NSlice"] *
              self.par["dimY"] * self.par["dimX"]))
@@ -207,9 +247,9 @@ class ModelReco:
 ###############################################################################
 # New .hdf5 save files ########################################################
 ###############################################################################
-    def _saveToFile(self, myit, result, TV):
+    def _saveToFile(self, myit, result):
         f = h5py.File(self.par["outdir"]+"output_" + self.par["fname"], "a")
-        if not TV:
+        if self.reg_type == 'TGV':
             f.create_dataset("tgv_result_iter_"+str(myit), result.shape,
                              dtype=DTYPE, data=result)
             f.attrs['res_tgv_iter_'+str(myit)] = self._fval
@@ -228,7 +268,7 @@ class ModelReco:
 # output: optimal value of x for the inner GN step ############################
 ###############################################################################
 ###############################################################################
-    def _irgnSolve3D(self, x, iters, data, GN_it, TV=0):
+    def _irgnSolve3D(self, x, iters, data, GN_it):
         x = clarray.to_device(self._queue, np.require(x, requirements="C"))
         if self._imagespace is False:
             b = clarray.empty(self._queue, data.shape, dtype=DTYPE)
@@ -239,23 +279,23 @@ class ModelReco:
                 [x, self._coil_buf, self.grad_buf]).get()
         else:
             res = data - self.step_val + self._op.fwdoop(
-                [x, self.grad_buf]).get()
+                [x, [], self.grad_buf]).get()
         x = x.get()
         if GN_it > 0:
-            self._calcResidual(x, data, GN_it, TV)
+            self._calcResidual(x, data, GN_it)
 
-        (x, v) = self.pdop.run(x, res, iters)
+        (x, _) = self.pdop.run(x, res, iters)
 
         return x
 
-    def _calcResidual(self, x, data, GN_it, TV=0):
+    def _calcResidual(self, x, data, GN_it):
         x = clarray.to_device(self._queue, np.require(x, requirements="C"))
         if self._imagespace is False:
             b = clarray.empty(self._queue, data.shape, dtype=DTYPE)
             self._FT(b, clarray.to_device(
-                            self._queue,
-                            (self.step_val[:, None, ...] *
-                             self.par["C"]))).wait()
+                self._queue,
+                (self.step_val[:, None, ...] *
+                 self.par["C"]))).wait()
             b = b.get()
         else:
             b = self.step_val
@@ -269,7 +309,7 @@ class ModelReco:
                 x.events))
         x = x.get()
         grad = grad.get()
-        if TV == 1:
+        if self.reg_type == 'TGV':
             self._fval = (self.irgn_par["lambd"] / 2 *
                           np.linalg.norm(data - b)**2 +
                           self.irgn_par["gamma"] *
@@ -277,7 +317,7 @@ class ModelReco:
                           self.irgn_par["omega"] / 2 *
                           np.linalg.norm(grad[self.par["unknowns_TGV"]:])**2)
 
-        elif TV == 0:
+        elif self.reg_type == 'TV':
             v = clarray.to_device(self._queue, self.v)
             sym_grad = clarray.to_device(self._queue,
                                          np.zeros(x.shape+(8,), dtype=DTYPE))
@@ -326,7 +366,7 @@ class ModelReco:
               (GN_it, 1e3*self._fval / self._fval_init))
         print("-" * 75)
 
-    def execute(self, TV=0, imagespace=0, reco_2D=0):
+    def execute(self, reco_2D=0):
         if reco_2D:
             print("2D currently not implemented, \
                   3D can be used with a single slice.")
@@ -337,4 +377,4 @@ class ModelReco:
             self.delta_max = self.irgn_par["delta_max"]
             self.gamma = self.irgn_par["gamma"]
             self.omega = self.irgn_par["omega"]
-            self._executeIRGN3D(TV)
+            self._executeIRGN3D()

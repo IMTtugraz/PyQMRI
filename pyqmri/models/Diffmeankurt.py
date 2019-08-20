@@ -102,10 +102,6 @@ class Model(BaseModel):
 
         S = (x[0, ...] * self.uk_scale[0] * np.exp(- ADC * self.b + 1 / 6 * meanADC**2 * self.b**2 * x[7, ...]*self.uk_scale[7])).astype(DTYPE)
 
-#        phase = np.zeros((phase_maps,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
-#        for j in range(phase_maps):
-#          phase[j,...] = np.exp(1j*x[7+j,...]*self.uk_scale[7+j])
-#          S[int(j*(self.NScan-1)/phase_maps)+1:int((j+1)*(self.NScan-1)/phase_maps)+1,...]*=phase[j]
         S *= self.phase
         S[~np.isfinite(S)] = 0
         return S
@@ -118,13 +114,9 @@ class Model(BaseModel):
         meanADC = 1 / 3 * (x[1, ...] * self.uk_scale[1] + x[3, ...]
                            * self.uk_scale[3] + x[5, ...] * self.uk_scale[5])
 
-#        phase = np.zeros((phase_maps,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
-#        grad_phase = np.zeros((phase_maps,self.NScan,self.NSlice,self.dimY,self.dimX),dtype=DTYPE)
         grad_M0 = self.uk_scale[0] * np.exp(- ADC * self.b + 1 / 6 * meanADC**2 * self.b**2 * x[7, ...]*self.uk_scale[7])
         del ADC
-#        for j in range(phase_maps):
-#          phase[j,...] = np.exp(1j*x[7+j,...]*self.uk_scale[7+j])
-#          grad_M0[int(j*(self.NScan-1)/phase_maps)+1:int((j+1)*(self.NScan-1)/phase_maps)+1,...] *= phase[j]
+
         grad_M0 *= self.phase
         mean_squared = x[0, ...] * grad_M0 * 1 / 6 * meanADC**2 * self.b**2
         meanADC = (x[0, ...] * grad_M0 * 2 / 6 * 1 / 3 *
@@ -182,33 +174,6 @@ class Model(BaseModel):
         ADC_z_max = ADC_z.max()
         ADC_yz_min = ADC_yz.min()
         ADC_yz_max = ADC_yz.max()
-
-#        DT = np.zeros((M0.shape[-3], M0.shape[-1],
-#                       M0.shape[-1], 3, 3), dtype=np.float32)
-#        DT[..., 0, 0] = ADC_x.real
-#        DT[..., 0, 1] = ADC_xy.real
-#        DT[..., 0, 2] = ADC_xz.real
-#        DT[..., 1, 0] = ADC_xy.real
-#        DT[..., 1, 1] = ADC_y.real
-#        DT[..., 1, 2] = ADC_yz.real
-#        DT[..., 2, 0] = ADC_xz.real
-#        DT[..., 2, 1] = ADC_yz.real
-#        DT[..., 2, 2] = ADC_z.real
-#        DT_eig = np.linalg.eigh(DT)[0]
-#        FA = np.sqrt(((DT_eig[..., 0] - DT_eig[..., 1])**2 +
-#                      (DT_eig[..., 1] - DT_eig[..., 2])**2 +
-#                      (DT_eig[..., 0] - DT_eig[..., 2])**2) / 2 *
-#                     (DT_eig[..., 0]**2 + DT_eig[..., 1]**2 +
-#                      DT_eig[..., 2]**2))
-#        FA_min = FA.min()
-#        FA_max = 3#FA.max()
-#
-#        phase = []
-#        for j in range(phase_maps):
-#            phase.append((x[j - phase_maps, ...] *
-#                          self.uk_scale[j - phase_maps]).real)
-#            phase_min = phase[0].min()
-#            phase_max = phase[0].max()
 
         if dim_2D:
             if not self.figure:
@@ -380,50 +345,9 @@ class Model(BaseModel):
                 for spine in cbar.ax.spines:
                     cbar.ax.spines[spine].set_color('white')
 
-#                self.FA_plot = self.ax[41].imshow(
-#                    (FA[int(self.NSlice / 2), ...]))
-#                self.FA_plot_cor = self.ax[51].imshow(
-#                    (FA[:, int(FA.shape[1] / 2), ...]))
-#                self.FA_plot_sag = self.ax[42].imshow(
-#                    np.flip((FA[:, :, int(FA.shape[-1] / 2)]).T, 1))
-#                self.ax[41].set_title('FA', color='white')
-#                self.ax[41].set_anchor('SE')
-#                self.ax[42].set_anchor('SW')
-#                self.ax[51].set_anchor('NE')
-#                cax = plt.subplot(self.gs[4:6, 0])
-#                cbar = self.figure.colorbar(self.FA_plot, cax=cax)
-#                cbar.ax.tick_params(labelsize=12, colors='white')
-#                cax.yaxis.set_ticks_position('left')
-#                for spine in cbar.ax.spines:
-#                    cbar.ax.spines[spine].set_color('white')
                 plt.draw()
                 plt.pause(1e-10)
                 self.figure.canvas.draw_idle()
-#
-#                plot_dim = int(np.ceil(np.sqrt(len(phase))))
-#                plt.ion()
-#                if phase_maps:
-#                    self.figure_phase = plt.figure(figsize=(12, 6))
-#                    self.figure_phase.subplots_adjust(hspace=0, wspace=0)
-#                    self.gs_phase = gridspec.GridSpec(plot_dim, plot_dim)
-#                    self.figure_phase.tight_layout()
-#                    self.figure_phase.patch.set_facecolor(
-#                        plt.cm.viridis.colors[0])
-#                    for grid in self.gs_phase:
-#                        self.ax_phase.append(plt.subplot(grid))
-#                        self.ax_phase[-1].axis('off')
-#                    self.phase_plot = []
-#                    for j in range(phase_maps):
-#                        self.phase_plot.append(self.ax_phase[j].imshow(
-#                            (phase[j][int(self.NSlice / 2), ...])))
-#                        self.ax_phase[j].set_title(
-#                            'Phase of dir: ' + str(j), color='white')
-    #             cax = plt.subplot(self.gs_phase[:2,0])
-    #             cbar = self.figure_phase.colorbar(self.phase_plot, cax=cax)
-    #             cbar.ax.tick_params(labelsize=12,colors='white')
-    #             cax.yaxis.set_ticks_position('left')
-    #             for spine in cbar.ax.spines:
-    #              cbar.ax.spines[spine].set_color('white')
 
                 plt.draw()
                 plt.pause(1e-10)
@@ -491,48 +415,18 @@ class Model(BaseModel):
                 self.ADC_yz_plot_sag.set_clim([ADC_yz_min, ADC_yz_max])
                 self.ADC_yz_plot_cor.set_clim([ADC_yz_min, ADC_yz_max])
 
-#                self.FA_plot.set_data((FA[int(self.NSlice / 2), ...]))
-#                self.FA_plot_cor.set_data((FA[:, int(FA.shape[1] / 2), ...]))
-#                self.FA_plot_sag.set_data(
-#                    np.flip((FA[:, :, int(FA.shape[-1] / 2)]).T, 1))
-#                self.FA_plot.set_clim([FA_min, FA_max])
-#                self.FA_plot_sag.set_clim([FA_min, FA_max])
-#                self.FA_plot_cor.set_clim([FA_min, FA_max])
-
                 self.figure.canvas.draw_idle()
-
-#                for j in range(phase_maps):
-#                    self.phase_plot[j].set_data(
-#                        (phase[j][int(self.NSlice / 2), ...]))
-#                    self.phase_plot[j].set_clim([phase_min, phase_max])
 
                 plt.draw()
                 plt.pause(1e-10)
 
     def _set_init_scales(self, images):
-#        phase = np.zeros(
-#            (phase_maps,
-#             self.NSlice,
-#             self.dimY,
-#             self.dimX),
-#            dtype=DTYPE)
+
         test_M0 = self.b0
         ADC = 1 * np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         kurt = 0 * np.ones((self.NSlice, self.dimY,
                             self.dimX), dtype=DTYPE)
-#        x = np.concatenate(
-#            (np.array(
-#                [
-#                    test_M0 / self.uk_scale[0],
-#                    ADC,
-#                    0 * ADC,
-#                    ADC,
-#                    0 * ADC,
-#                    ADC,
-#                    0 * ADC],
-#                dtype=DTYPE),
-#                phase),
-#            axis=0)
+
         x = np.array(
                 [
                     test_M0 / self.uk_scale[0],

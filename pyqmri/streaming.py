@@ -2,18 +2,14 @@
 # -*- coding: utf-8 -*-
 """ This module holds the class for streaming operations on the GPU.
 
-
-Attribues:
-  DTYPE (complex64):
-    Complex working precission. Currently single precission only.
 """
+
 import numpy as np
 import pyopencl as cl
 import pyopencl.array as clarray
-DTYPE = np.complex64
 
 
-class stream:
+class Stream:
     """ Basic streaming Class
 
     This Class is responsible for performing asynchroneous transfer
@@ -64,11 +60,12 @@ class stream:
                  inp_shape,
                  par_slices,
                  overlap,
-                 NSlice,
+                 nslice,
                  queue,
                  num_dev,
                  reverse=False,
-                 lhs=[]):
+                 lhs=None,
+                 DTYPE=np.complex64):
         """ Setup a Streaming Object
         Args:
          fun (list of functions):
@@ -85,7 +82,7 @@ class stream:
             Number of slices computed in one transfer on the GPU.
           overlap (int):
             Overlap of adjacent blocks
-          NSlice (int):
+          nslice (int):
             Total number of slices
           queue (list of PyOpenCL.Queue):
             The OpenCL queues used for transfer and computation. 4 queues are
@@ -107,15 +104,21 @@ class stream:
         self.overlap = overlap
         self.queue = queue
         self.reverse = reverse
-        self.NSlice = NSlice
+        self.nslice = nslice
         self.num_fun = len(self.fun)
+        self.dtype = DTYPE
 
         self.lhs = lhs
         self.at_end = False
+        self.idx_todev_start = 0
+        self.idx_todev_stop = 0
+        self.idx_tohost_start = 0
+        self.idx_tohost_stop = 0
         self._resetindex()
 
         self.inp = []
         self.outp = []
+
         self._alloctmparrays(inp_shape, outp_shape)
 
     def __add__(self, other):
@@ -149,12 +152,12 @@ class stream:
             for i in range(2*self.num_dev):
                 self.inp[j].append([])
                 for k in range(len(inp_shape[j])):
-                    if not inp_shape[j][k] == []:
+                    if not len(inp_shape[j][k]) == 0:
                         self.inp[j][i].append(
                             clarray.empty(
                                 self.queue[4*int(i/2)],
                                 ((block_size, )+inp_shape[j][k][1:]),
-                                dtype=DTYPE))
+                                dtype=self.dtype))
                     else:
                         self.inp[j][i].append([])
 
@@ -165,7 +168,7 @@ class stream:
                     clarray.empty(
                         self.queue[4*int(i/2)],
                         ((block_size, )+outp_shape[j][1:]),
-                        dtype=DTYPE))
+                        dtype=self.dtype))
 
     def _getindtodev(self):
         if self.reverse:
@@ -176,18 +179,17 @@ class stream:
             if self.idx_todev_start < 0:
                 self.idx_todev_start = 0
                 self.idx_todev_stop = self.slices + self.overlap
-            return tmp_return
         else:
             tmp_return = slice(self.idx_todev_start,
                                self.idx_todev_stop)
             self.idx_todev_start += self.slices
             self.idx_todev_stop += self.slices
-            if self.idx_todev_stop > self.NSlice:
-                self.idx_todev_start = (self.NSlice -
+            if self.idx_todev_stop > self.nslice:
+                self.idx_todev_start = (self.nslice -
                                         self.slices -
                                         self.overlap)
-                self.idx_todev_stop = self.NSlice
-            return tmp_return
+                self.idx_todev_stop = self.nslice
+        return tmp_return
 
     def _getindtohost(self):
         if self.reverse:
@@ -200,22 +202,21 @@ class stream:
                 self.at_end = True
                 self.idx_tohost_start = 0
                 self.idx_tohost_stop = self.slices + self.overlap
-            return tmp_return
         else:
             tmp_return = slice(self.idx_tohost_start,
                                self.idx_tohost_stop)
             self.idx_tohost_start += self.slices
             self.idx_tohost_stop += self.slices
             self.at_end = False
-            if self.idx_tohost_stop > self.NSlice:
+            if self.idx_tohost_stop > self.nslice:
                 self.at_end = True
-                self.idx_tohost_start = (self.NSlice -
+                self.idx_tohost_start = (self.nslice -
                                          self.slices -
                                          self.overlap)
-                self.idx_tohost_stop = self.NSlice
-            return tmp_return
+                self.idx_tohost_stop = self.nslice
+        return tmp_return
 
-    def eval(self, outp, inp, par=[]):
+    def eval(self, outp, inp, par=None):
         """ Evaluate all functions of the object
 
         Perform asynchroneous evaluation of the functions stored in
@@ -241,7 +242,7 @@ class stream:
         # Start Streaming
         islice = 2*self.slices*self.num_dev
         odd = True
-        while islice < self.NSlice:
+        while islice < self.nslice:
             # Collect Previous Block
             odd = not odd
             self._streamtohost(outp, odd)
@@ -255,7 +256,7 @@ class stream:
         if odd:
             self._streamtohost(outp, 0)
             self._streamtohost(outp, 1)
-        elif (self.NSlice/(self.slices*self.num_dev) <
+        elif (self.nslice/(self.slices*self.num_dev) <
               2*(self.slices*self.num_dev)):
             self._streamtohost(outp, 1)
             self._streamtohost(outp, 0)
@@ -268,7 +269,7 @@ class stream:
             self.queue[4*i+2].finish()
             self.queue[4*i+3].finish()
 
-    def evalwithnorm(self, outp, inp, par=[]):
+    def evalwithnorm(self, outp, inp, par=None):
         """The same as eval but also returns norms for in-output
 
         Perform asynchroneous evaluation of the functions stored in
@@ -301,7 +302,7 @@ class stream:
         # Start Streaming
         islice = 2*self.slices*self.num_dev
         odd = True
-        while islice < self.NSlice:
+        while islice < self.nslice:
             odd = not odd
             # Collect Previous Block
             (rhs, lhs) = self._streamtohostnorm(
@@ -318,7 +319,7 @@ class stream:
         if odd:
             (rhs, lhs) = self._streamtohostnorm(outp, rhs, lhs, 0)
             (rhs, lhs) = self._streamtohostnorm(outp, rhs, lhs, 1)
-        elif (self.NSlice/(self.slices*self.num_dev) <
+        elif (self.nslice/(self.slices*self.num_dev) <
               2*(self.slices*self.num_dev)):
             (rhs, lhs) = self._streamtohostnorm(outp, rhs, lhs, 1)
             (rhs, lhs) = self._streamtohostnorm(outp, rhs, lhs, 0)
@@ -336,42 +337,42 @@ class stream:
         for idev in range(self.num_dev):
             idx = self._getindtodev()
             for ifun in range(self.num_fun):
-                if not inp[ifun] == []:
+                if not len(inp[ifun]) == 0:
                     for iinp in range(len(self.inp[ifun][idev])):
-                        if not inp[ifun][iinp] == []:
+                        if not len(inp[ifun][iinp]) == 0:
                             self.inp[
                                 ifun][
                                     idev*self.num_dev+odd][
                                         iinp].add_event(
-                                cl.enqueue_copy(
-                                  self.queue[4*idev+odd],
-                                  self.inp[
-                                      ifun][
-                                          idev*self.num_dev+odd][
-                                              iinp].data,
-                                  inp[
-                                      ifun][
-                                          iinp][idx, ...],
-                                  wait_for=self.inp[
-                                      ifun][
-                                          idev*self.num_dev+odd][
-                                              iinp].events,
-                                  is_blocking=False))
+                                            cl.enqueue_copy(
+                                                self.queue[4*idev+odd],
+                                                self.inp[
+                                                    ifun][
+                                                        idev*self.num_dev+odd][
+                                                            iinp].data,
+                                                inp[
+                                                    ifun][
+                                                        iinp][idx, ...],
+                                                wait_for=self.inp[
+                                                    ifun][
+                                                        idev*self.num_dev+odd][
+                                                            iinp].events,
+                                                is_blocking=False))
                             self.queue[4*idev+odd].flush()
 
-    def _startcomputation(self, par=[], bound_cond=0, odd=0):
+    def _startcomputation(self, par=None, bound_cond=0, odd=0):
         for idev in range(self.num_dev):
             for ifun in range(self.num_fun):
                 self.outp[
                     ifun][
                         idev*self.num_dev+odd].add_event(
-                    self.fun[ifun](
-                        self.outp[ifun][idev*self.num_dev+odd],
-                        self.inp[ifun][idev*self.num_dev+odd][:],
-                        par,
-                        idev,
-                        odd,
-                        bound_cond))
+                            self.fun[ifun](
+                                self.outp[ifun][idev*self.num_dev+odd],
+                                self.inp[ifun][idev*self.num_dev+odd][:],
+                                par,
+                                idev,
+                                odd,
+                                bound_cond))
                 self.queue[4*idev+odd].flush()
             bound_cond = 0
 
@@ -384,11 +385,11 @@ class stream:
             for ifun in range(self.num_fun):
                 self.outp[ifun][idev*self.num_dev+odd].add_event(
                     cl.enqueue_copy(
-                      self.queue[4*idev+2+odd],
-                      outp[ifun][idx, ...],
-                      self.outp[ifun][idev*self.num_dev+odd].data,
-                      wait_for=self.outp[ifun][idev*self.num_dev+odd].events,
-                      is_blocking=False))
+                        self.queue[4*idev+2+odd],
+                        outp[ifun][idx, ...],
+                        self.outp[ifun][idev*self.num_dev+odd].data,
+                        wait_for=self.outp[ifun][idev*self.num_dev+odd].events,
+                        is_blocking=False))
                 self.queue[4*idev+2+odd].flush()
 
     def _streamtohostnorm(self, outp, rhs, lhs, odd):
@@ -400,11 +401,11 @@ class stream:
             for ifun in range(self.num_fun):
                 self.outp[ifun][idev*self.num_dev+odd].add_event(
                     cl.enqueue_copy(
-                      self.queue[4*idev+2+odd],
-                      outp[ifun][idx, ...],
-                      self.outp[ifun][idev*self.num_dev+odd].data,
-                      wait_for=self.outp[ifun][idev*self.num_dev+odd].events,
-                      is_blocking=False))
+                        self.queue[4*idev+2+odd],
+                        outp[ifun][idx, ...],
+                        self.outp[ifun][idev*self.num_dev+odd].data,
+                        wait_for=self.outp[ifun][idev*self.num_dev+odd].events,
+                        is_blocking=False))
                 if self.reverse:
                     if not self.at_end:
                         (rhs, lhs) = self._calcnormreverse(
@@ -425,11 +426,11 @@ class stream:
 
     def _resetindex(self):
         if self.reverse:
-            self.idx_todev_start = self.NSlice - (self.slices + self.overlap)
-            self.idx_todev_stop = self.NSlice
-            self.idx_tohost_start = self.NSlice - (self.slices +
+            self.idx_todev_start = self.nslice - (self.slices + self.overlap)
+            self.idx_todev_stop = self.nslice
+            self.idx_tohost_start = self.nslice - (self.slices +
                                                    self.overlap)
-            self.idx_tohost_stop = self.NSlice
+            self.idx_tohost_stop = self.nslice
         else:
             self.idx_todev_start = 0
             self.idx_todev_stop = (self.slices + self.overlap)

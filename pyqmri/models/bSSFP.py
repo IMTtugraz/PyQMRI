@@ -17,6 +17,7 @@ class Model(BaseModel):
         self.TR = par['TR']
         self.fa_bl = par['fa_bl']
         self.fa_corr = par['fa_corr']
+        self.figure = None
 
         phi_corr = np.zeros_like(images, dtype=DTYPE)
 
@@ -32,26 +33,33 @@ class Model(BaseModel):
 
         self._set_init_scales()
 
-        result = np.array([1 / self.uk_scale[0] * np.ones((self.NSlice,
-                                                           self.dimY,
-                                                           self.dimX),
-                                                          dtype=DTYPE),
-                           1 / self.uk_scale[1] * np.exp(-self.TR / (1600 * np.ones((self.NSlice,
-                                                                                     self.dimY,
-                                                                                     self.dimX),
-                                                                                    dtype=DTYPE))),
-                           1 / self.uk_scale[2] * np.exp(-self.TR / (80 * np.ones((self.NSlice,
-                                                                                   self.dimY,
-                                                                                   self.dimX),
-                                                                                  dtype=DTYPE)))],
-                          dtype=DTYPE)
+        result = np.array(
+            [1 / self.uk_scale[0] * np.ones((self.NSlice,
+                                             self.dimY,
+                                             self.dimX),
+                                            dtype=DTYPE),
+             1 / self.uk_scale[1] * np.exp(
+                 -self.TR / (1600 * np.ones((self.NSlice,
+                                             self.dimY,
+                                             self.dimX),
+                                            dtype=DTYPE))),
+             1 / self.uk_scale[2] * np.exp(
+                 -self.TR / (80 * np.ones((self.NSlice,
+                                           self.dimY,
+                                           self.dimX),
+                                          dtype=DTYPE)))],
+            dtype=DTYPE)
         self.guess = result
         self.constraints.append(
             constraints(-10 / self.uk_scale[0], 10 / self.uk_scale[0], False))
         self.constraints.append(constraints(
-            np.exp(-self.TR / (10)) / self.uk_scale[1], np.exp(-self.TR / (5500)) / self.uk_scale[1], True))
+            np.exp(-self.TR / (10)) / self.uk_scale[1],
+            np.exp(-self.TR / (5500)) / self.uk_scale[1],
+            True))
         self.constraints.append(constraints(
-            np.exp(-self.TR / (0)) / self.uk_scale[2], np.exp(-self.TR / (2500)) / self.uk_scale[2], True))
+            np.exp(-self.TR / (0)) / self.uk_scale[2],
+            np.exp(-self.TR / (2500)) / self.uk_scale[2],
+            True))
 
     def _execute_forward_2D(self, x, islice):
         print("2D Functions not implemented")
@@ -68,8 +76,9 @@ class Model(BaseModel):
         M0_sc = self.uk_scale[0]
         T1_sc = self.uk_scale[1]
         T2_sc = self.uk_scale[2]
-        S = M0 * M0_sc * (-E1 * T1_sc + 1) * self.sin_phi_bl / (-E1 * E2 * \
-                          T1_sc * T2_sc - (E1 * T1_sc - E2 * T2_sc) * self.cos_phi_bl + 1)
+        S = M0 * M0_sc * (-E1 * T1_sc + 1) * self.sin_phi_bl / \
+            (-E1 * E2 * T1_sc * T2_sc -
+             (E1 * T1_sc - E2 * T2_sc) * self.cos_phi_bl + 1)
         S[~np.isfinite(S)] = 1e-20
         S = np.array(S, dtype=DTYPE)
         return S
@@ -82,17 +91,25 @@ class Model(BaseModel):
         T1_sc = self.uk_scale[1]
         T2_sc = self.uk_scale[2]
 
-        grad_M0 = (M0_sc * (-E1 * T1_sc + 1) * self.sin_phi_bl / (-E1 * E2 * \
-                   T1_sc * T2_sc - (E1 * T1_sc - E2 * T2_sc) * self.cos_phi_bl + 1))
-        grad_T1 = (-M0 * M0_sc * T1_sc * self.sin_phi_bl / (-E1 * E2 * T1_sc * T2_sc - (E1 * T1_sc - E2 * T2_sc) * self.cos_phi_bl + 1) + M0 * M0_sc * (-E1 * T1_sc + 1)
-                   * (E2 * T1_sc * T2_sc + T1_sc * self.cos_phi_bl) * self.sin_phi_bl / (-E1 * E2 * T1_sc * T2_sc - (E1 * T1_sc - E2 * T2_sc) * self.cos_phi_bl + 1)**2)
-        grad_T2 = M0 * M0_sc * (-E1 * T1_sc + 1) * (E1 * T1_sc * T2_sc - T2_sc * self.cos_phi_bl) * \
-            self.sin_phi_bl / (-E1 * E2 * T1_sc * T2_sc - (E1 * T1_sc - E2 * T2_sc) * self.cos_phi_bl + 1)**2
+        grad_M0 = (M0_sc * (-E1 * T1_sc + 1) * self.sin_phi_bl /
+                   (-E1 * E2 * T1_sc * T2_sc -
+                    (E1 * T1_sc - E2 * T2_sc) * self.cos_phi_bl + 1))
+        grad_T1 = (-M0 * M0_sc * T1_sc * self.sin_phi_bl /
+                   (-E1 * E2 * T1_sc * T2_sc - (E1 * T1_sc - E2 * T2_sc) *
+                    self.cos_phi_bl + 1) + M0 * M0_sc * (-E1 * T1_sc + 1) *
+                   (E2 * T1_sc * T2_sc + T1_sc * self.cos_phi_bl) *
+                   self.sin_phi_bl / (-E1 * E2 * T1_sc * T2_sc -
+                                      (E1 * T1_sc - E2 * T2_sc) *
+                                      self.cos_phi_bl + 1)**2)
+        grad_T2 = M0 * M0_sc * (-E1 * T1_sc + 1) * \
+            (E1 * T1_sc * T2_sc - T2_sc * self.cos_phi_bl) * \
+            self.sin_phi_bl / (-E1 * E2 * T1_sc * T2_sc -
+                               (E1 * T1_sc - E2 * T2_sc) *
+                               self.cos_phi_bl + 1)**2
 
         grad = np.array([grad_M0, grad_T1, grad_T2], dtype=DTYPE)
         grad[~np.isfinite(grad)] = 1e-20
-#    print('Grad Scaling E1', np.linalg.norm(np.abs(grad[0]))/np.linalg.norm(np.abs(grad[1])))
-#    print('Grad Scaling E2', np.linalg.norm(np.abs(grad[0]))/np.linalg.norm(np.abs(grad[2])))
+
         return grad
 
     def plot_unknowns(self, x, dim_2D=False):
@@ -254,7 +271,8 @@ class Model(BaseModel):
         test_T2 = 1 / self.uk_scale[2] * np.exp(-self.TR / (test_T2))
 
         G_x = self._execute_forward_3D(
-            np.array([test_M0 / self.uk_scale[0], test_T1, test_T2], dtype=DTYPE))
+            np.array([test_M0 / self.uk_scale[0], test_T1, test_T2],
+                     dtype=DTYPE))
         self.uk_scale[0] *= 1 / np.median(np.abs(G_x))
 
         DG_x = self._execute_gradient_3D(
@@ -273,7 +291,8 @@ class Model(BaseModel):
 
         for j in range(unknowns_TGV + unknowns_H1 - 1):
             self.uk_scale[j + 1] *= np.linalg.norm(
-                np.abs(DG_x[0, ...])) / np.linalg.norm(np.abs(DG_x[j + 1, ...]))
+                np.abs(DG_x[0, ...])) / np.linalg.norm(
+                    np.abs(DG_x[j + 1, ...]))
 
         print('T1 scale: ', self.uk_scale[1], '/ T2_scale: ', self.uk_scale[2],
               '/ M0_scale: ', self.uk_scale[0])

@@ -14,7 +14,7 @@ class Model(BaseModel):
     def __init__(self, par, images):
         super().__init__(par)
         if len(par['TR']) > 1:
-            self.par['TR'] = par['TR'][0]
+            self.TR = par['TR'][0]
         else:
             self.TR = par['TR']
 
@@ -34,8 +34,8 @@ class Model(BaseModel):
                 self.fa_bl) +
             np.size(
                 self.fa_fl)):
-            phi_corr[i, :, :, :] = self.fa_bl[i -
-                                              np.size(self.fa_fl)] * self.fa_corr
+            phi_corr[i, :, :, :] = self.fa_bl[
+                i - np.size(self.fa_fl)] * self.fa_corr
 
         self.sin_phi_fl = np.sin(phi_corr[:NScan_VFA])
         self.cos_phi_fl = np.cos(phi_corr[:NScan_VFA])
@@ -55,9 +55,13 @@ class Model(BaseModel):
                 1000 / self.uk_scale[0],
                 False))
         self.constraints.append(constraints(
-            np.exp(-self.TR / (1)) / self.uk_scale[1], np.exp(-self.TR / (5500)) / self.uk_scale[1], True))
+            np.exp(-self.TR / (1)) / self.uk_scale[1],
+            np.exp(-self.TR / (5500)) / self.uk_scale[1],
+            True))
         self.constraints.append(constraints(
-            np.exp(-self.TR / (1)) / self.uk_scale[2], np.exp(-self.TR / (2500)) / self.uk_scale[2], True))
+            np.exp(-self.TR / (1)) / self.uk_scale[2],
+            np.exp(-self.TR / (2500)) / self.uk_scale[2],
+            True))
         self.constraints.append(
             constraints(
                 0 / self.uk_scale[3],
@@ -299,23 +303,15 @@ class Model(BaseModel):
                                  self.dimX), dtype=DTYPE)
         test_M0 = np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         test_T1 = 1 / self.uk_scale[1] * np.exp(-self.TR / (
-            test_T1 * np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)))
+            test_T1 * np.ones((self.NSlice, self.dimY, self.dimX),
+                              dtype=DTYPE)))
         test_T2 = 1 / self.uk_scale[2] * np.exp(-self.TR / (
-            test_T2 * np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)))
+            test_T2 * np.ones((self.NSlice, self.dimY, self.dimX),
+                              dtype=DTYPE)))
         test_M02 = 1 / \
-            self.uk_scale[3] * np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+            self.uk_scale[3] * np.ones((self.NSlice, self.dimY, self.dimX),
+                                       dtype=DTYPE)
 
         x = np.array([test_M0, test_T1, test_T2, test_M02], dtype=DTYPE)
-#        G_x = self._execute_forward_3D(x)
-#
-#        self.uk_scale[0] *= 1 / np.median(np.abs(G_x))
-#        x[0] /= self.uk_scale[0]
-#
-#        DG_x = self._execute_gradient_3D(x)
-#
-#        for i in range(unknowns_TGV + unknowns_H1 - 1):
-#            self.uk_scale[i + 1] *= np.linalg.norm(
-#                np.abs(DG_x[0, ...])) / np.linalg.norm(np.abs(DG_x[i + 1, ...]))
-#            x[i + 1] /= self.uk_scale[i + 1]
 
         return x
