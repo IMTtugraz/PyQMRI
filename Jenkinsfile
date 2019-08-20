@@ -24,17 +24,13 @@ pipeline {
         sh 'coverage xml'
       }
     }
-    stage('Cleaning Up') {
-      steps {
-        sh 'rm -r ./test/__pycache__'
-      }
-    }
   }
   post {
       always {
           cobertura coberturaReportFile: 'coverage.xml'
           junit 'results.xml'
           recordIssues enabledForFailure: true, tool: pyLint(pattern: 'pylint.log')
+          cleanWs()
       }
   }
 }
