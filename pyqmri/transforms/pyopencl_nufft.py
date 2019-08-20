@@ -11,7 +11,7 @@ from pyqmri._helper_fun._calckbkernel import calckbkernel
 from pyqmri._helper_fun import CLProgram as Program
 
 
-class PyOpenCLFFT(object):
+class PyOpenCLFFT():
     """ Base class for FFT calculation.
 
     This class serves as the base class for all FFT object used in
@@ -41,7 +41,6 @@ class PyOpenCLFFT(object):
           DTYPE_real (Numpy.Type):
             The real precission type. Currently float32 is used.
         """
-        super().__init__()
         self.DTYPE = DTYPE
         self.DTYPE_real = DTYPE_real
         self.ctx = ctx
@@ -98,6 +97,10 @@ class PyOpenCLFFT(object):
           PyOpenCLFFT object:
             The setup FFT object.
 
+        Raises:
+          AssertionError:
+            If the Combination of passed flags to choose the
+            FFT aren't compatible with each other. E.g.: Radial and SMS True.
         """
         if not streamed:
             if radial is True:
@@ -105,79 +108,77 @@ class PyOpenCLFFT(object):
                     ctx,
                     queue,
                     par,
-                    kwidth=5,
-                    fft_dim=(
-                        1,
-                        2),
-                    klength=200,
-                    DTYPE=np.complex64,
-                    DTYPE_real=np.float32)
-            else:
+                    kwidth=kwidth,
+                    fft_dim=fft_dim,
+                    klength=klength,
+                    DTYPE=DTYPE,
+                    DTYPE_real=DTYPE_real)
+            elif radial is False:
                 obj = PyOpenCLCartNUFFT(
                     ctx,
                     queue,
                     par,
-                    fft_dim=(
-                        1,
-                        2),
-                    DTYPE=np.complex64,
-                    DTYPE_real=np.float32)
+                    fft_dim=fft_dim,
+                    DTYPE=DTYPE,
+                    DTYPE_real=DTYPE_real)
+            else:
+                raise AssertionError("Combination of parameters not allowed")
             if DTYPE == np.complex128:
                 print('Using double precission')
+                file = open(
+                    resource_filename(
+                        'pyqmri', 'kernels/OpenCL_gridding_double.c'))
                 obj.prg = Program(
                     obj.ctx,
-                    open(
-                        resource_filename(
-                            'pyqmri',
-                            'kernels/OpenCL_gridding_double.c')).read())
+                    file.read())
             else:
                 print('Using single precission')
+                file = open(
+                    resource_filename(
+                        'pyqmri', 'kernels/OpenCL_gridding_single.c'))
                 obj.prg = Program(
                     obj.ctx,
-                    open(
-                        resource_filename(
-                            'pyqmri',
-                            'kernels/OpenCL_gridding_single.c')).read())
+                    file.read())
         else:
             if radial is True:
                 obj = PyOpenCLRadialNUFFTStreamed(
                     ctx,
                     queue,
                     par,
-                    kwidth=5,
-                    fft_dim=(
-                        1,
-                        2),
-                    klength=200,
-                    DTYPE=np.complex64,
-                    DTYPE_real=np.float32)
-            else:
+                    kwidth=kwidth,
+                    fft_dim=fft_dim,
+                    klength=klength,
+                    DTYPE=DTYPE,
+                    DTYPE_real=DTYPE_real)
+            elif radial is False:
                 obj = PyOpenCLCartNUFFTStreamed(
                     ctx,
                     queue,
                     par,
-                    fft_dim=(
-                        1,
-                        2),
-                    DTYPE=np.complex64,
-                    DTYPE_real=np.float32)
-
+                    fft_dim=fft_dim,
+                    DTYPE=DTYPE,
+                    DTYPE_real=DTYPE_real)
+            else:
+                raise AssertionError("Combination of parameters not allowed")
             if DTYPE == np.complex128:
                 print('Using double precission')
+                file = open(
+                    resource_filename(
+                        'pyqmri',
+                        'kernels/OpenCL_gridding_slicefirst_double.c'))
                 obj.prg = Program(
                     obj.ctx,
-                    open(
-                      resource_filename(
-                        'pyqmri',
-                        'kernels/OpenCL_gridding_slicefirst_double.c')).read())
+                    file.read())
             else:
                 print('Using single precission')
+                file = open(
+                    resource_filename(
+                        'pyqmri',
+                        'kernels/OpenCL_gridding_slicefirst_single.c'))
                 obj.prg = Program(
                     obj.ctx,
-                    open(
-                      resource_filename(
-                        'pyqmri',
-                        'kernels/OpenCL_gridding_slicefirst_single.c')).read())
+                    file.read())
+        file.close()
         return obj
 
 
@@ -381,18 +382,18 @@ class PyOpenCLRadialNUFFT(PyOpenCLFFT):
                 self._tmp_fft_array.data,
                 self._check.data))
         return self.prg.deapo_adj(
-                  self.queue,
-                  (sg.shape[0] * sg.shape[1] *
-                   sg.shape[2], sg.shape[3], sg.shape[4]),
-                  None,
-                  sg.data,
-                  self._tmp_fft_array.data,
-                  self.cl_deapo,
-                  np.int32(self._tmp_fft_array.shape[-1]),
-                  self.DTYPE_real(self.fft_scale),
-                  self.DTYPE_real(self.ogf),
-                  wait_for=(wait_for + sg.events + s.events +
-                            self._tmp_fft_array.events))
+            self.queue,
+            (sg.shape[0] * sg.shape[1] *
+             sg.shape[2], sg.shape[3], sg.shape[4]),
+            None,
+            sg.data,
+            self._tmp_fft_array.data,
+            self.cl_deapo,
+            np.int32(self._tmp_fft_array.shape[-1]),
+            self.DTYPE_real(self.fft_scale),
+            self.DTYPE_real(self.ogf),
+            wait_for=(wait_for + sg.events + s.events +
+                      self._tmp_fft_array.events))
 
     def FFT(self, s, sg, wait_for=[]):
         """ Perform the forward NUFFT operation
@@ -583,7 +584,6 @@ class PyOpenCLCartNUFFT(PyOpenCLFFT):
                 s.data,
                 self.mask.data,
                 wait_for=s.events))
-
         for j in range(s.shape[0]):
             self._tmp_fft_array.add_event(
                 self.fft.enqueue_arrays(
@@ -635,7 +635,6 @@ class PyOpenCLCartNUFFT(PyOpenCLFFT):
                     result=self._tmp_fft_array[
                         j * self.par_fft:(j + 1) * self.par_fft, ...],
                     forward=True)[0])
-
         return (
             self.prg.maskingcpy(
                 self.queue,
@@ -777,21 +776,21 @@ class PyOpenCLRadialNUFFTStreamed(PyOpenCLFFT):
         # Grid k-space
         self._tmp_fft_array.add_event(
             self.prg.grid_lut(
-                 self.queue,
-                 (s.shape[0], s.shape[1] * s.shape[2],
-                  s.shape[-2] * self._gridsize),
-                 None,
-                 self._tmp_fft_array.data,
-                 s.data,
-                 self.traj.data,
-                 np.int32(self._gridsize),
-                 np.int32(sg.shape[2]),
-                 self.DTYPE_real(self._kwidth / self._gridsize),
-                 self.dcf.data,
-                 self.cl_kerneltable,
-                 np.int32(self._kernelpoints),
-                 wait_for=(wait_for + sg.events + s.events +
-                           self._tmp_fft_array.events)))
+                self.queue,
+                (s.shape[0], s.shape[1] * s.shape[2],
+                 s.shape[-2] * self._gridsize),
+                None,
+                self._tmp_fft_array.data,
+                s.data,
+                self.traj.data,
+                np.int32(self._gridsize),
+                np.int32(sg.shape[2]),
+                self.DTYPE_real(self._kwidth / self._gridsize),
+                self.dcf.data,
+                self.cl_kerneltable,
+                np.int32(self._kernelpoints),
+                wait_for=(wait_for + sg.events + s.events +
+                          self._tmp_fft_array.events)))
         # FFT
         self._tmp_fft_array.add_event(
             self.prg.fftshift(

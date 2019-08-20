@@ -1,28 +1,30 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import numpy as np
+import pyopencl as cl
+import argparse
 import os
 import h5py
 import sys
 import time
-from tkinter import filedialog
-from tkinter import Tk
-import matplotlib.pyplot as plt
 import importlib
 
-import pyopencl as cl
-import argparse
+import numpy as np
+from tkinter import filedialog
+from tkinter import Tk
+
+import matplotlib.pyplot as plt
 
 from pyqmri._helper_fun import _goldcomp as goldcomp
 from pyqmri._helper_fun._est_coils import est_coils
 from pyqmri._helper_fun import _utils as utils
-from pyqmri.solver import CGSolver
+# from pyqmri.solver import CGSolver
+
 
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
 
-def _setupOCL(myargs, par):
+def _choosePlatform(myargs, par):
     platforms = cl.get_platforms()
     par["GPU"] = False
     par["Platform_Indx"] = 0
@@ -33,7 +35,7 @@ def _setupOCL(myargs, par):
                       "with %i device(s) and OpenCL-version <%s>"
                       % (str(platforms[j].get_info(cl.platform_info.NAME)),
                          len(platforms[j].get_devices(
-                            device_type=cl.device_type.GPU)),
+                             device_type=cl.device_type.GPU)),
                          str(platforms[j].get_info(cl.platform_info.VERSION))))
                 par["GPU"] = True
                 par["Platform_Indx"] = j
@@ -46,11 +48,15 @@ def _setupOCL(myargs, par):
                       "with %i device(s) and OpenCL-version <%s>"
                       % (str(platforms[j].get_info(cl.platform_info.NAME)),
                          len(platforms[j].get_devices(
-                            device_type=cl.device_type.GPU)),
+                             device_type=cl.device_type.GPU)),
                          str(platforms[j].get_info(cl.platform_info.VERSION))))
                 par["GPU"] = False
                 par["Platform_Indx"] = j
+    return platforms
 
+
+def _setupOCL(myargs, par):
+    platforms = _choosePlatform(myargs, par)
     par["ctx"] = []
     par["queue"] = []
     if type(myargs.devices) == int:
@@ -70,90 +76,60 @@ def _setupOCL(myargs, par):
     for device in num_dev:
         dev = []
         dev.append(platforms[par["Platform_Indx"]].get_devices()[device])
-        tmp = cl.Context(dev)
-        par["ctx"].append(tmp)
+        tmpxtx = cl.Context(dev)
+        par["ctx"].append(tmpxtx)
         par["queue"].append(
          cl.CommandQueue(
-          tmp,
+          tmpxtx,
           platforms[par["Platform_Indx"]].get_devices()[device],
           properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE
           | cl.command_queue_properties.PROFILING_ENABLE))
         par["queue"].append(
          cl.CommandQueue(
-          tmp,
+          tmpxtx,
           platforms[par["Platform_Indx"]].get_devices()[device],
           properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE
           | cl.command_queue_properties.PROFILING_ENABLE))
         par["queue"].append(
          cl.CommandQueue(
-          tmp,
+          tmpxtx,
           platforms[par["Platform_Indx"]].get_devices()[device],
           properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE
           | cl.command_queue_properties.PROFILING_ENABLE))
         par["queue"].append(
          cl.CommandQueue(
-          tmp,
+          tmpxtx,
           platforms[par["Platform_Indx"]].get_devices()[device],
           properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE
           | cl.command_queue_properties.PROFILING_ENABLE))
 
 
 def _genImages(myargs, par, data):
-    if "images_cg" not in list(par["file"].keys()):
-        images = np.zeros((par["NScan"],
-                           par["NSlice"],
-                           par["dimY"],
-                           par["dimX"]), dtype=DTYPE)
-        if par["NScan"]/10 >= 1:
-            cgs = CGSolver(par, 10, myargs.trafo)
-            for j in range(int(par["NScan"]/10)):
-                if par["NSlice"] == 1:
-                    images[10*j:10*(j+1), ...] = cgs.run(
-                        data[10*j:10*(j+1), ...],
-                        tol=1e-3)[:, None, ...]
-                else:
-                    images[10*j:10*(j+1), ...] = cgs.run(
-                        data[10*j:10*(j+1), ...],
-                        tol=1e-3)
-            del cgs
-        if np.mod(par["NScan"], 10):
-            cgs = CGSolver(par, np.mod(par["NScan"], 10),
-                           myargs.trafo)
-            if par["NSlice"] == 1:
-                if np.mod(par["NScan"], 10) == 1:
-                    images[-np.mod(par["NScan"], 10):, ...] = cgs.run(
-                            data[-np.mod(par["NScan"], 10):, ...],
-                            tol=1e-3)
-                else:
-                    images[-np.mod(par["NScan"], 10):, ...] = cgs.run(
-                            data[-np.mod(par["NScan"], 10):, ...],
-                            tol=1e-3)[:, None, ...]
-            else:
-                images[-np.mod(par["NScan"], 10):, ...] = cgs.run(
-                        data[-np.mod(par["NScan"], 10):, ...],
-                        tol=1e-3)
-            del cgs
-        par["file"].create_dataset("images_cg", images.shape,
-                                   dtype=DTYPE, data=images)
-    else:
-        images = par["file"]['images_cg']
-        if images.shape[1] < par["NSlice"]:
-            del par["file"]["images_cg"]
-            images = _genImages(myargs, par, data)
-        else:
-            print("Using precomputed images")
-            slices_images = par["file"]['images_cg'][()].shape[1]
-            images = \
-                par["file"]['images_cg'][
-                    :, int(slices_images / 2) - int(
-                        np.floor((par["NSlice"]) / 2)):int(
-                            slices_images / 2) + int(
-                                np.ceil(par["NSlice"] / 2)), ...].astype(DTYPE)
-#    mask = np.ones_like(images)
-#    for j in range(mask.shape[0]):
-#        mask[j, images[0, ...] < 20] = 0
-#    images = images*mask
-#    images[mask == 1] = np.log(np.abs(images[mask == 1])).astype(DTYPE)
+    FFT = utils.NUFFT(par, trafo=myargs.trafo)
+    import pyopencl.array as clarray
+
+    def nFTH(x, fft, par):
+        siz = np.shape(x)
+        MB = int(par["MB"])
+        result = np.zeros(
+            (par["NC"], par["NSlice"], par["NScan"],
+             par["dimY"], par["dimX"]), dtype=DTYPE)
+        tmp_result = clarray.empty(fft.queue, (par["NScan"], 1, MB,
+                                   par["dimY"], par["dimX"]), dtype=DTYPE)
+        for j in range(siz[1]):
+            for k in range(siz[2]):
+                inp = clarray.to_device(fft.queue,
+                                        np.require(x[:, j, k, ...]
+                                                    [:, None, None, ...],
+                                                   requirements='C'))
+                fft.FFTH(tmp_result, inp)
+                result[j, k, ...] = np.squeeze(tmp_result.get())
+        return np.transpose(result, (2, 0, 1, 3, 4))
+    images = np.require(np.sum(nFTH(data, FFT, par) *
+                               (np.conj(par["C"])), axis=1),
+                        requirements='C')
+    del FFT, nFTH
+
     return images
 
 
@@ -229,7 +205,7 @@ def _readInput(myargs, par):
     else:
         if not myargs.file.endswith((('.h5'), ('.hdf5'))):
             print("Please specify a h5 file. ")
-            return 0
+            sys.exit()
         file = myargs.file
 
     name = os.path.normpath(file)
@@ -255,8 +231,17 @@ def _start_recon(myargs):
     """
     sig_model_path = os.path.normpath(myargs.sig_model)
     if len(sig_model_path.split(os.sep)) > 1:
-        spec = importlib.util.spec_from_file_location(
-            sig_model_path.split(os.sep)[-1], sig_model_path)
+        if os.path.splitext(sig_model_path)[-1] == '':
+            spec = importlib.util.spec_from_file_location(
+                    sig_model_path.split(os.sep)[-1]+'.py',
+                    sig_model_path+'.py')
+        elif os.path.splitext(sig_model_path)[-1] == '.py':
+            spec = importlib.util.spec_from_file_location(
+                    sig_model_path.split(os.sep)[-1], sig_model_path)
+        else:
+            raise argparse.ArgumentTypeError(
+                "Specified model file does not end with .py nor does it have "
+                "no extension at all. Please specify a valid python file.")
         sig_model = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(sig_model)
     else:
@@ -285,7 +270,7 @@ def _start_recon(myargs):
     data = par["file"]['real_dat'][
       ..., int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:
       int(NSlice/2)+int(np.ceil(reco_Slices/2))+off, :, :].astype(DTYPE)\
-        + 1j*par["file"]['imag_dat'][
+           + 1j*par["file"]['imag_dat'][
       ..., int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:
       int(NSlice/2)+int(np.ceil(reco_Slices/2))+off, :, :].astype(DTYPE)
     dimreduction = 0
@@ -333,7 +318,7 @@ def _start_recon(myargs):
 ###############################################################################
     if "fa_corr" in list(par["file"].keys()):
         print("Using provied flip angle correction.")
-        NSlice_fa, dimY_fa, dimX_fa = par["file"]['fa_corr'][()].shape
+        NSlice_fa, _, _ = par["file"]['fa_corr'][()].shape
         par["fa_corr"] = np.flip(
             par["file"]['fa_corr'][()].astype(DTYPE),
             0)[
@@ -350,7 +335,7 @@ def _start_recon(myargs):
                                     requirements='C')
     elif "interpol_fa" in list(par["file"].keys()):
         print("Using provied flip angle correction.")
-        NSlice_fa, dimY_fa, dimX_fa = par["file"]['interpol_fa'][()].shape
+        NSlice_fa, _, _ = par["file"]['interpol_fa'][()].shape
         par["fa_corr"] = np.flip(
             par["file"]['interpol_fa'][()].astype(DTYPE),
             0)[
@@ -400,6 +385,8 @@ def _start_recon(myargs):
     par["dimY"] = dimY
     par["dimX"] = dimX
     par["NSlice"] = reco_Slices
+    par["packs"] = 1
+    par["MB"] = 1
     par["NScan"] = NScan
     par["N"] = N
     par["Nproj"] = Nproj
@@ -414,12 +401,12 @@ def _start_recon(myargs):
     if myargs.streamed:
         par["par_slices"] = myargs.par_slices
     if not myargs.trafo:
-        tmp = np.ones_like(np.abs(data[0, 0,  ...]))
-        tmp[np.abs(data[0, 0,  ...]) == 0] = 0
+        tmpmask = np.ones((data[0, 0,  ...]).shape)
+        tmpmask[np.abs(data[0, 0,  ...]) == 0] = 0
         par['mask'] = np.reshape(
-            tmp,
+            tmpmask,
             (data[0, 0, ...].shape)).astype(DTYPE_real)
-        del tmp
+        del tmpmask
     else:
         par['mask'] = None
 ###############################################################################
@@ -458,50 +445,31 @@ def _start_recon(myargs):
 ###############################################################################
     data, images = _estScaleNorm(myargs, par, images, data)
 ###############################################################################
+# Init forward model and initial guess ########################################
+###############################################################################
+    model = sig_model.Model(par, images)
+###############################################################################
 # initialize operator  ########################################################
 ###############################################################################
     opt = optimizer.ModelReco(par, myargs.trafo,
-                              imagespace=myargs.imagespace)
+                              imagespace=myargs.imagespace,
+                              config=myargs.config,
+                              model=model)
     if myargs.imagespace:
         opt.data = images
     else:
         opt.data = data
+
     f = h5py.File(par["outdir"]+"output_" + par["fname"], "a")
     f.create_dataset("images_ifft_", data=images)
     f.attrs['data_norm'] = par["dscale"]
     f.close()
+    par["file"].close()
 ###############################################################################
 # Start Reco ##################################################################
 ###############################################################################
-    if myargs.type == '3D':
-        #######################################################################
-        # Init forward model and initial guess ################################
-        #######################################################################
-        model = sig_model.Model(par, images)
-        par["file"].close()
-        #######################################################################
-        # IRGN - TGV Reco #####################################################
-        #######################################################################
-        if "TGV" in myargs.reg or myargs.reg == 'all':
-            opt.model = model
-            ###################################################################
-            # IRGN Params #####################################################
-            ###################################################################
-            opt.irgn_par = utils.read_config(myargs.config, "3D_TGV")
-            opt.execute(TV=0, imagespace=myargs.imagespace)
-            plt.close('all')
-        #######################################################################
-        # IRGN - TV Reco ######################################################
-        #######################################################################
-        if "TV" in myargs.reg or myargs.reg == 'all':
-            opt.model = model
-            ###################################################################
-            # IRGN Params #####################################################
-            ###################################################################
-            opt.irgn_par = utils.read_config(myargs.config, "3D_TV")
-            opt.execute(TV=1, imagespace=myargs.imagespace)
-            plt.close('all')
-        del opt
+    opt.execute()
+    plt.close('all')
 
 
 def _str2bool(v):
@@ -565,124 +533,126 @@ def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
       dz (float):
         Ratio of physical Z to X/Y dimension. X/Y is assumed to be isotropic.
     """
-    parser = argparse.ArgumentParser(description="T1 quantification from VFA "
-                                                 "data. By default runs 3D "
-                                                 "regularization for TGV.")
-    parser.add_argument(
+    argparrun = argparse.ArgumentParser(
+        description="T1 quantification from VFA "
+                    "data. By default runs 3D "
+                    "regularization for TGV.")
+    argparrun.add_argument(
       '--recon_type', default=recon_type, dest='type',
       help='Choose reconstruction type (currently only 3D)')
-    parser.add_argument(
+    argparrun.add_argument(
       '--reg_type', default=reg_type, dest='reg',
       help="Choose regularization type (default: TGV) "
            "options are: TGV, TV, all")
-    parser.add_argument(
+    argparrun.add_argument(
       '--slices', default=slices, dest='slices', type=int,
       help="Number of reconstructed slices (default=40). "
            "Symmetrical around the center slice.")
-    parser.add_argument(
+    argparrun.add_argument(
       '--trafo', default=trafo, dest='trafo', type=_str2bool,
       help='Choos between radial (1, default) and Cartesian (0) sampling. ')
-    parser.add_argument(
+    argparrun.add_argument(
       '--streamed', default=streamed, dest='streamed', type=_str2bool,
       help='Enable streaming of large data arrays (e.g. >10 slices).')
-    parser.add_argument(
+    argparrun.add_argument(
       '--par_slices', default=par_slices, dest='par_slices', type=int,
       help='number of slices per package. Volume devided by GPU\'s and'
            ' par_slices must be an even number!')
-    parser.add_argument(
+    argparrun.add_argument(
       '--data', default=data, dest='file',
       help="Full path to input data. "
            "If not provided, a file dialog will open.")
-    parser.add_argument(
+    argparrun.add_argument(
       '--model', default=model, dest='sig_model',
       help="Name of the signal model to use. Defaults to VFA. "
            "Please put your signal model file in the Model subfolder.")
-    parser.add_argument(
+    argparrun.add_argument(
       '--config', default=config, dest='config',
       help="Name of config file to use (assumed to be in the same folder). "
            "If not specified, use default parameters.")
-    parser.add_argument(
+    argparrun.add_argument(
       '--imagespace', default=imagespace, dest='imagespace', type=_str2bool,
       help="Select if Reco is performed on images (1) or on kspace (0) data. "
            "Defaults to 0")
-    parser.add_argument(
+    argparrun.add_argument(
       '--OCL_GPU', default=OCL_GPU, dest='use_GPU', type=_str2bool,
       help="Select if CPU or GPU should be used as OpenCL platform. "
            "Defaults to GPU (1). CAVE: CPU FFT not working")
-    parser.add_argument(
+    argparrun.add_argument(
       '--devices', default=devices, dest='devices', type=int,
       help="Device ID of device(s) to use for streaming. "
            "-1 selects all available devices", nargs='*')
-    parser.add_argument(
+    argparrun.add_argument(
       '--dz', default=dz, dest='dz', type=float,
       help="Ratio of physical Z to X/Y dimension. "
            "X/Y is assumed to be isotropic. Defaults to 1")
-    parser.add_argument(
+    argparrun.add_argument(
       '--weights', default=weights, dest='weights', type=float,
       help="Ratio of unkowns to each other. Defaults to 1. "
            "If passed, needs to be in the same size as the number of unknowns",
            nargs='*')
-    args = parser.parse_args()
-    _start_recon(args)
+    argsrun = argparrun.parse_args()
+    _start_recon(argsrun)
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="T1 quantification from VFA "
-                                                 "data. By default runs 3D "
-                                                 "regularization for TGV.")
-    parser.add_argument(
+    argparmain = argparse.ArgumentParser(
+        description="T1 quantification from VFA "
+                    "data. By default runs 3D "
+                    "regularization for TGV.")
+    argparmain.add_argument(
       '--recon_type', default='3D', dest='type',
       help='Choose reconstruction type (currently only 3D)')
-    parser.add_argument(
+    argparmain.add_argument(
       '--reg_type', default='TGV', dest='reg',
       help="Choose regularization type (default: TGV) "
            "options are: TGV, TV, all")
-    parser.add_argument(
+    argparmain.add_argument(
       '--slices', default=-1, dest='slices', type=int,
       help="Number of reconstructed slices (default=40). "
            "Symmetrical around the center slice.")
-    parser.add_argument(
+    argparmain.add_argument(
       '--trafo', default=True, dest='trafo', type=_str2bool,
       help='Choos between radial (1, default) and Cartesian (0) sampling. ')
-    parser.add_argument(
+    argparmain.add_argument(
       '--streamed', default=False, dest='streamed', type=_str2bool,
       help='Enable streaming of large data arrays (e.g. >10 slices).')
-    parser.add_argument(
+    argparmain.add_argument(
       '--par_slices', default=1, dest='par_slices', type=int,
       help='number of slices per package. Volume devided by GPU\'s and'
            ' par_slices must be an even number!')
-    parser.add_argument(
+    argparmain.add_argument(
       '--data', default='', dest='file',
       help="Full path to input data. "
            "If not provided, a file dialog will open.")
-    parser.add_argument(
+    argparmain.add_argument(
       '--model', default='ImageReco', dest='sig_model',
       help='Name of the signal model to use. Defaults to VFA. \
  Please put your signal model file in the Model subfolder.')
-    parser.add_argument(
+    argparmain.add_argument(
       '--config', default='default', dest='config',
       help='Name of config file to use (assumed to be in the same folder). \
  If not specified, use default parameters.')
-    parser.add_argument(
+    argparmain.add_argument(
       '--imagespace', default=False, dest='imagespace', type=_str2bool,
       help="Select if Reco is performed on images (1) or on kspace (0) data. "
            "Defaults to 0")
-    parser.add_argument(
+    argparmain.add_argument(
       '--OCL_GPU', default=True, dest='use_GPU', type=_str2bool,
       help="Select if CPU or GPU should be used as OpenCL platform. "
            "Defaults to GPU (1). CAVE: CPU FFT not working")
-    parser.add_argument(
+    argparmain.add_argument(
       '--devices', default=0, dest='devices', type=int,
       help="Device ID of device(s) to use for streaming. "
            "-1 selects all available devices", nargs='*')
-    parser.add_argument(
+    argparmain.add_argument(
       '--dz', default=1, dest='dz', type=float,
       help="Ratio of physical Z to X/Y dimension. "
            "X/Y is assumed to be isotropic. Defaults to  1")
-    parser.add_argument(
+    argparmain.add_argument(
       '--weights', default=None, dest='weights', type=float,
       help="Ratio of unkowns to each other. Defaults to 1. "
            "If passed, needs to be in the same size as the number of unknowns",
            nargs='*')
-    args = parser.parse_args()
-    _start_recon(args)
+    argsmain = argparmain.parse_args()
+    _start_recon(argsmain)

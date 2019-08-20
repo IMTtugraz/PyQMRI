@@ -8,3 +8,7 @@ ipyparallel
 pyfftw
 pyqt5<5.13
 numexpr
+<<<<<<< HEAD
+=======
+
+>>>>>>> OpenCL

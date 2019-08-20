@@ -11,12 +11,15 @@ import h5py
 import pyqmri.operator as operator
 import pyqmri.streaming as streaming
 from pyqmri._helper_fun import CLProgram as Program
+from pyqmri._helper_fun import _utils as utils
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
 
 class ModelReco:
-    def __init__(self, par, trafo=1, imagespace=False):
+    def __init__(self, par, trafo=1, imagespace=False, reg_type='TGV',
+                 config='', model=None):
+
         par["overlap"] = 1
         self.overlap = par["overlap"]
         self.par_slices = par["par_slices"]
@@ -43,8 +46,11 @@ class ModelReco:
         self.ctx = par["ctx"]
         self.queue = par["queue"]
         self.gn_res = []
+        self.irgn_par = utils.read_config(config, reg_type)
+        self.model = model
+        self.reg_type = reg_type
         self.num_dev = len(par["num_dev"])
-        if (self.NSlice/(self.num_dev*self.par_slices) < 2):
+        if self.NSlice/(self.num_dev*self.par_slices) < 2:
             raise ValueError(
                 "Number of Slices devided by parallel "
                 "computed slices and devices needs to be larger two.")
@@ -81,6 +87,7 @@ class ModelReco:
         else:
             self.NC = par["NC"]
             self.dat_trans_axes = [2, 0, 1, 3, 4]
+
             self.data_shape = (self.NSlice, self.NScan,
                                self.NC, self.Nproj, self.N)
             self.op = operator.OperatorKspaceStreamed(par,
@@ -89,13 +96,23 @@ class ModelReco:
             self.irgn_solve_3D = self.irgn_solve_3D_kspace
             self.calc_residual = self.calc_residual_kspace
 
+        self.step_val = None
+        self.pdop = None
+        self.model_partial_der = None
+        self.grad_buf = None
+        self.delta = None
+        self.delta_max = None
+        self.omega = None
+        self.gamma = None
+        self.data = None  # Needs to be set outside
+
         for j in range(self.num_dev):
             self.ratio.append(
                 clarray.to_device(
                     self.queue[4*j],
                     (np.ones(self.unknowns)).astype(dtype=DTYPE_real)))
 
-    def f_grad(self, outp, inp, par=[], idx=0, idxq=0,
+    def f_grad(self, outp, inp, par=None, idx=0, idxq=0,
                bound_cond=0, wait_for=[]):
         return self.prg[idx].gradient(
             self.queue[4*idx+idxq],
@@ -105,7 +122,7 @@ class ModelReco:
             self.ratio[idx].data, np.float32(self.dz),
             wait_for=outp.events + inp[0].events + wait_for)
 
-    def bdiv(self, outp, inp, par=[], idx=0, idxq=0,
+    def bdiv(self, outp, inp, par=None, idx=0, idxq=0,
              bound_cond=0, wait_for=[]):
         return self.prg[idx].divergence(
             self.queue[4*idx+idxq],
@@ -114,7 +131,7 @@ class ModelReco:
             self.ratio[idx].data, np.int32(bound_cond), np.float32(self.dz),
             wait_for=outp.events + inp[0].events + wait_for)
 
-    def sym_grad(self, outp, inp, par=[], idx=0, idxq=0,
+    def sym_grad(self, outp, inp, par=None, idx=0, idxq=0,
                  bound_cond=0, wait_for=[]):
         return self.prg[idx].sym_grad(
             self.queue[4*idx+idxq],
@@ -123,7 +140,7 @@ class ModelReco:
             np.float32(self.dz),
             wait_for=outp.events + inp[0].events + wait_for)
 
-    def sym_bdiv(self, outp, inp, par=[], idx=0, idxq=0,
+    def sym_bdiv(self, outp, inp, par=None, idx=0, idxq=0,
                  bound_cond=0, wait_for=[]):
         return self.prg[idx].sym_divergence(
             self.queue[4*idx+idxq],
@@ -132,7 +149,7 @@ class ModelReco:
             np.int32(self.unknowns), np.int32(bound_cond), np.float32(self.dz),
             wait_for=outp.events + inp[0].events + wait_for)
 
-    def update_Kyk2(self, outp, inp, par=[], idx=0, idxq=0,
+    def update_Kyk2(self, outp, inp, par=None, idx=0, idxq=0,
                     bound_cond=0, wait_for=[]):
         return self.prg[idx].update_Kyk2(
             self.queue[4*idx+idxq],
@@ -141,7 +158,7 @@ class ModelReco:
             np.int32(self.unknowns), np.int32(bound_cond), np.float32(self.dz),
             wait_for=outp.events + inp[0].events + inp[1].events+wait_for)
 
-    def update_primal(self, outp, inp, par=[], idx=0, idxq=0,
+    def update_primal(self, outp, inp, par=None, idx=0, idxq=0,
                       bound_cond=0, wait_for=[]):
         return self.prg[idx].update_primal(
             self.queue[4*idx+idxq],
@@ -155,7 +172,7 @@ class ModelReco:
                       inp[0].events+inp[1].events +
                       inp[2].events+wait_for))
 
-    def update_z1(self, outp, inp, par=[], idx=0, idxq=0,
+    def update_z1(self, outp, inp, par=None, idx=0, idxq=0,
                   bound_cond=0, wait_for=[]):
         return self.prg[idx].update_z1(
             self.queue[4*idx+idxq],
@@ -168,7 +185,7 @@ class ModelReco:
             wait_for=(outp.events+inp[0].events+inp[1].events +
                       inp[2].events+inp[3].events+inp[4].events+wait_for))
 
-    def update_z1_tv(self, outp, inp, par=[], idx=0, idxq=0,
+    def update_z1_tv(self, outp, inp, par=None, idx=0, idxq=0,
                      bound_cond=0, wait_for=[]):
         return self.prg[idx].update_z1_tv(
             self.queue[4*idx+idxq],
@@ -181,7 +198,7 @@ class ModelReco:
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
 
-    def update_z2(self, outp, inp, par=[], idx=0, idxq=0,
+    def update_z2(self, outp, inp, par=None, idx=0, idxq=0,
                   bound_cond=0, wait_for=[]):
         return self.prg[idx].update_z2(
             self.queue[4*idx+idxq],
@@ -189,11 +206,11 @@ class ModelReco:
             outp.data, inp[0].data, inp[1].data, inp[2].data,
             np.float32(par[0]),
             np.float32(par[1]),
-            np.float32(1/par[2]),  np.int32(self.unknowns),
+            np.float32(1/par[2]), np.int32(self.unknowns),
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
 
-    def update_r(self, outp, inp, par=[], idx=0, idxq=0,
+    def update_r(self, outp, inp, par=None, idx=0, idxq=0,
                  bound_cond=0, wait_for=[]):
         return self.prg[idx].update_r(
             self.queue[4*idx+idxq], (outp.size,), None,
@@ -204,7 +221,7 @@ class ModelReco:
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
 
-    def update_v(self, outp, inp, par=[], idx=0, idxq=0,
+    def update_v(self, outp, inp, par=None, idx=0, idxq=0,
                  bound_cond=0, wait_for=[]):
         return self.prg[idx].update_v(
             self.queue[4*idx+idxq], (outp[..., 0].size,), None,
@@ -263,7 +280,7 @@ class ModelReco:
                 self.ratio[i][j] = scale[j] / sum_scale
         print("Ratio: ", self.ratio[0])
 
-    def execute(self, TV=0, imagespace=0, reco_2D=0):
+    def execute(self, reco_2D=0):
         if reco_2D:
             NotImplementedError("2D currently not implemented, "
                                 "3D can be used with a single slice.")
@@ -273,8 +290,8 @@ class ModelReco:
             self.delta_max = self.irgn_par["delta_max"]
             self.gamma = self.irgn_par["gamma"]
             self.omega = self.irgn_par["omega"]
-            self._setup_reg_tmp_arrays(TV)
-            self.execute_3D(TV)
+            self._setup_reg_tmp_arrays()
+            self.execute_3D()
 
 ###############################################################################
 # Start a 3D Reconstruction, set TV to True to perform TV instead of TGV#######
@@ -283,7 +300,7 @@ class ModelReco:
 # input: bool to switch between TV (1) and TGV (0) regularization #############
 # output: optimal value of x ##################################################
 ###############################################################################
-    def execute_3D(self, TV=0):
+    def execute_3D(self):
 
         iters = self.irgn_par["start_iters"]
         result = np.copy(self.model.guess)
@@ -306,7 +323,7 @@ class ModelReco:
 
             self._update_reg_par(result, ign)
 
-            result = self.irgn_solve_3D(result, iters, ign, TV)
+            result = self.irgn_solve_3D(result, iters, ign)
 
             iters = np.fmin(iters * 2, self.irgn_par["max_iters"])
 
@@ -325,17 +342,17 @@ class ModelReco:
                 self.calc_residual(
                     np.require(np.transpose(result, [1, 0, 2, 3]),
                                requirements='C'),
-                    ign+1, TV)
-                self.savetofile(ign, self.model.rescale(result), TV)
+                    ign+1)
+                self.savetofile(ign, self.model.rescale(result))
                 break
             self.fval_old = self.fval
-            self.savetofile(ign, self.model.rescale(result), TV)
+            self.savetofile(ign, self.model.rescale(result))
 
         self.calc_residual(
             np.require(
                 np.transpose(result, [1, 0, 2, 3]),
                 requirements='C'),
-            ign+1, TV)
+            ign+1)
 
     def _update_reg_par(self, result, ign):
         self.irgn_par["delta_max"] = (self.delta_max /
@@ -375,12 +392,12 @@ class ModelReco:
         scale = np.linalg.norm(scale, axis=-1)
         print("Scale of the model Gradient: \n", scale)
 
-    def _setup_reg_tmp_arrays(self, TV):
-        if TV == 1:
+    def _setup_reg_tmp_arrays(self):
+        if self.reg_type == 'TV':
             self.tau = np.float32(1/np.sqrt(8))
             self.beta_line = 400
             self.theta_line = np.float32(1.0)
-        elif TV == 0:
+        elif self.reg_type == 'TGV':
             L = np.float32(0.5*(18.0 + np.sqrt(33)))
             self.tau = np.float32(1/np.sqrt(L))
             self.beta_line = 400
@@ -393,7 +410,7 @@ class ModelReco:
                 dtype=DTYPE)
         else:
             raise NotImplementedError("Not implemented")
-        self._setupstreamingops(TV)
+        self._setupstreamingops()
 
         self.r = np.zeros_like(self.data, dtype=DTYPE)
         self.r = np.require(np.transpose(self.r, self.dat_trans_axes),
@@ -405,9 +422,9 @@ class ModelReco:
 ###############################################################################
 # New .hdf5 save files ########################################################
 ###############################################################################
-    def savetofile(self, myit, result, TV):
+    def savetofile(self, myit, result):
         f = h5py.File(self.par["outdir"]+"output_" + self.par["fname"], "a")
-        if not TV:
+        if self.reg_type == 'TGV':
             f.create_dataset("tgv_result_iter_"+str(myit), result.shape,
                              dtype=DTYPE, data=result)
             f.attrs['res_tgv_iter_'+str(myit)] = self.fval
@@ -418,15 +435,15 @@ class ModelReco:
         f.close()
 
 ###############################################################################
-### Precompute constant terms of the GN linearization step ####################
-### input: linearization point x ##############################################
-########## numeber of innner iterations iters #################################
-########## Data ###############################################################
-########## bool to switch between TV (1) and TGV (0) regularization ###########
-### output: optimal value of x for the inner GN step ##########################
+# Precompute constant terms of the GN linearization step ######################
+# input: linearization point x ################################################
+# numeber of innner iterations iters ##########################################
+# Data ########################################################################
+# bool to switch between TV (1) and TGV (0) regularization ####################
+# output: optimal value of x for the inner GN step ############################
 ###############################################################################
 ###############################################################################
-    def irgn_solve_3D_kspace(self, x, iters, GN_it, TV=0):
+    def irgn_solve_3D_kspace(self, x, iters, GN_it):
         x = np.require(np.transpose(x, [1, 0, 2, 3]), requirements='C')
         b = np.zeros(self.data_shape, dtype=DTYPE)
         DGk = np.zeros(self.data_shape, dtype=DTYPE)
@@ -440,16 +457,16 @@ class ModelReco:
             [[x, self.C, self.grad_x]])
         res = self.data - b + DGk
 
-        self.calc_residual_kspace(x, GN_it, TV)
+        self.calc_residual_kspace(x, GN_it)
 
-        if TV == 1:
+        if self.reg_type == 'TV':
             x = self.tv_solve_3D(x, res, iters)
-        elif TV == 0:
+        elif self.reg_type == 'TGV':
             x = self.tgv_solve_3D(x, res, iters)
         x = np.require(np.transpose(x, [1, 0, 2, 3]), requirements='C')
         return x
 
-    def irgn_solve_3D_imagespace(self, x, iters, GN_it, TV=0):
+    def irgn_solve_3D_imagespace(self, x, iters, GN_it):
 
         x = np.require(np.transpose(x, [1, 0, 2, 3]), requirements='C')
         DGk = np.zeros(self.data_shape, DTYPE)
@@ -460,30 +477,30 @@ class ModelReco:
 
         res = self.data - self.step_val + DGk
 
-        self.calc_residual_imagespace(x, GN_it, TV)
+        self.calc_residual_imagespace(x, GN_it)
 
-        if TV == 1:
+        if self.reg_type == 'TV':
             x = self.tv_solve_3D(x, res, iters)
-        elif TV == 0:
+        elif self.reg_type == 'TGV':
             x = self.tgv_solve_3D(x, res, iters)
         x = np.require(np.transpose(x, [1, 0, 2, 3]), requirements='C')
         return x
 
-    def calc_residual_kspace(self, x, GN_it, TV=0):
+    def calc_residual_kspace(self, x, GN_it):
         b = np.zeros(self.data_shape, dtype=DTYPE)
-        grad = np.zeros_like(self.z1)
+        grad = np.zeros(self.z1.shape, dtype=DTYPE)
         self.stream_grad.eval([grad], [[x]])
         self.op.FTstr.eval(
             [b],
             [[self.step_val[:, :, None, ...]*self.C[:, None, ...]]])
-        if TV == 1:
+        if self.reg_type == 'TV':
             self.fval = (
                 self.irgn_par["lambd"]/2*np.linalg.norm(self.data - b)**2 +
                 self.irgn_par["gamma"]*np.sum(np.abs(
                     grad[:, :self.unknowns_TGV])) +
                 self.irgn_par["omega"] / 2 *
                 np.linalg.norm(grad[:, self.unknowns_TGV:])**2)
-        elif TV == 0:
+        elif self.reg_type == 'TGV':
             sym_grad = np.zeros_like(self.z2)
             self.sym_grad_streamed.eval([sym_grad], [[self.v]])
             self.fval = (
@@ -503,10 +520,10 @@ class ModelReco:
               (GN_it, 1e3*self.fval / self.fval_init))
         print("-" * 75)
 
-    def calc_residual_imagespace(self, x, GN_it, TV=0):
-        grad = np.zeros_like(self.z1)
+    def calc_residual_imagespace(self, x, GN_it):
+        grad = np.zeros(self.z1.shape, dtype=DTYPE)
         self.stream_grad.eval([grad], [[x]])
-        if TV == 1:
+        if self.reg_type == 'TV':
             self.fval = (
                 self.irgn_par["lambd"]/2 *
                 np.linalg.norm(self.data - self.step_val)**2 +
@@ -514,7 +531,7 @@ class ModelReco:
                     np.abs(grad[:, :self.unknowns_TGV])) +
                 self.irgn_par["omega"] / 2 *
                 np.linalg.norm(grad[:, self.unknowns_TGV:])**2)
-        elif TV == 0:
+        elif self.reg_type == 'TGV':
             sym_grad = np.zeros_like(self.z2)
             self.sym_grad_streamed.eval([sym_grad], [[self.v]])
             self.fval = (
@@ -654,7 +671,7 @@ class ModelReco:
 
                     dual = (
                         - delta/2*np.vdot(-Kyk1.flatten(), -Kyk1.flatten())
-                        - np.vdot(xk.flatten(), (-Kyk1).flatten())
+                        - np.vdot(xk.flatten(), -Kyk1.flatten())
                         + np.sum(Kyk2)
                         - 1/(2*self.irgn_par["lambd"])
                         * np.vdot(r.flatten(), r.flatten())
@@ -672,7 +689,7 @@ class ModelReco:
 
                     dual = (
                         - delta/2*np.vdot(-Kyk1.flatten(), -Kyk1.flatten())
-                        - np.vdot(xk.flatten(), (-Kyk1).flatten())
+                        - np.vdot(xk.flatten(), -Kyk1.flatten())
                         + np.sum(Kyk2)
                         - 1/(2*self.irgn_par["lambd"])
                         * np.vdot(r.flatten(), r.flatten())
@@ -802,9 +819,9 @@ class ModelReco:
                 else:
                     tau_new = tau_new*mu_line
 
-            (Kyk1, Kyk1_new,  Axold, Ax, z1, z1_new, r, r_new, gradx_xold,
+            (Kyk1, Kyk1_new, Axold, Ax, z1, z1_new, r, r_new, gradx_xold,
              gradx, tau) = (
-             Kyk1_new, Kyk1,  Ax, Axold, z1_new, z1, r_new, r, gradx,
+             Kyk1_new, Kyk1, Ax, Axold, z1_new, z1, r_new, r, gradx,
              gradx_xold, tau_new)
 
             if not np.mod(myit, 10):
@@ -821,7 +838,7 @@ class ModelReco:
                                 gradx[:, :self.unknowns_TGV])).real
 
                     dual = (
-                        -delta/2*np.vdot(-Kyk1, -Kyk1) - np.vdot(xk, (-Kyk1))
+                        -delta/2*np.vdot(Kyk1, Kyk1) - np.vdot(xk, (-1)*Kyk1)
                         - 1/(2*self.irgn_par["lambd"])*np.vdot(r, r)
                         - np.vdot(res, r)
                         - 1 / (2 * self.irgn_par["omega"])
@@ -835,7 +852,7 @@ class ModelReco:
                         1/(2*delta)*np.vdot(x_new-xk, x_new-xk)).real
 
                     dual = (
-                        -delta/2*np.vdot(-Kyk1, -Kyk1) - np.vdot(xk, (-Kyk1))
+                        -delta/2*np.vdot(Kyk1, Kyk1) - np.vdot(xk, (-1)*Kyk1)
                         - 1/(2*self.irgn_par["lambd"])*np.vdot(r, r)
                         - np.vdot(res, r)).real
 
@@ -878,11 +895,9 @@ class ModelReco:
         self.z1 = z1
         return x
 
-    def _setupstreamingops(self, TV):
-        if not TV:
+    def _setupstreamingops(self):
+        if self.reg_type == 'TGV':
             symgrad_shape = self.unknown_shape + (8,)
-
-        if not TV:
             self.sym_grad_streamed = self._defineoperator(
                 [self.sym_grad],
                 [symgrad_shape],
@@ -894,15 +909,15 @@ class ModelReco:
             [[]],
             reverse_dir=True)
         self.stream_initial_1 += self.op.fwdstr
-        self.stream_initial_1 += self.op.adjstr
-        if not TV:
+        self.stream_initial_1 += self.op.adjstrKyk1
+        if self.reg_type == 'TGV':
             self.stream_initial_1 += self.sym_grad_streamed
 
         self.stream_grad = self._defineoperator(
             [self.f_grad],
             [self.grad_shape],
             [[self.unknown_shape]])
-        if not TV:
+        if self.reg_type == 'TGV':
             self.stream_Kyk2 = self._defineoperator(
                 [self.update_Kyk2],
                 [self.grad_shape],
@@ -936,7 +951,7 @@ class ModelReco:
         self.update_primal_1.connectouttoin(0, (1, 0))
         self.update_primal_1.connectouttoin(0, (2, 0))
 
-        if not TV:
+        if self.reg_type == 'TGV':
             self.stream_update_v = self._defineoperator(
                 [self.update_v],
                 [self.grad_shape],
@@ -953,7 +968,7 @@ class ModelReco:
             self.update_primal_2 += self.sym_grad_streamed
             self.update_primal_2.connectouttoin(0, (1, 0))
 
-        if TV:
+        if self.reg_type == 'TV':
             self.stream_update_z1 = self._defineoperator(
                 [self.update_z1],
                 [self.grad_shape],
@@ -987,14 +1002,14 @@ class ModelReco:
 
         self.update_dual_1 += self.stream_update_z1
         self.update_dual_1 += self.stream_update_r
-        self.update_dual_1 += self.op.adjstr
+        self.update_dual_1 += self.op.adjstrKyk1
         self.update_dual_1.connectouttoin(0, (2, 1))
         self.update_dual_1.connectouttoin(1, (2, 0))
 
         del self.stream_update_z1, self.stream_update_r, \
             self.stream_update_v, self.stream_primal
 
-        if not TV:
+        if self.reg_type == 'TGV':
             self.stream_update_z2 = self._defineoperator(
                 [self.update_z2],
                 [symgrad_shape],
@@ -1022,7 +1037,7 @@ class ModelReco:
                         slices=None):
         if slices is None:
             slices = self.NSlice
-        return streaming.stream(
+        return streaming.Stream(
             functions,
             outp,
             inp,
