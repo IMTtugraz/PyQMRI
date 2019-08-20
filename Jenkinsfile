@@ -20,6 +20,7 @@ pipeline {
     }
     stage('Unittests') {
       steps {
+        sh 'ipcluster start'
         sh 'pytest --junitxml results.xml --cov=pyqmri test/'
         sh 'coverage xml'
       }
