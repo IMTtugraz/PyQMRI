@@ -98,7 +98,7 @@ class ModelReco:
                                      self.Nproj, self.N)
                 self.op = operator.OperatorKspaceSMSStreamed(par,
                                                              self.prg,
-                                                             trafo)
+                                                             trafo=trafo)
                 self.tgv_solve_3D = self.tgv_solve_3DSMS
                 self._setupstreamingops = self._setupstreamingopsSMS
                 self.irgn_solve_3D = self.irgn_solve_3D_kspaceSMS
@@ -108,7 +108,7 @@ class ModelReco:
                                    self.NC, self.Nproj, self.N)
                 self.op = operator.OperatorKspaceStreamed(par,
                                                           self.prg,
-                                                          trafo)
+                                                          trafo=trafo)
                 self.irgn_solve_3D = self.irgn_solve_3D_kspace
                 self.calc_residual = self.calc_residual_kspace
 
