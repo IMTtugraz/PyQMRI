@@ -92,7 +92,7 @@ class ModelReco:
                                self.NC, self.Nproj, self.N)
             self.op = operator.OperatorKspaceStreamed(par,
                                                       self.prg,
-                                                      trafo)
+                                                      trafo=trafo)
             self.irgn_solve_3D = self.irgn_solve_3D_kspace
             self.calc_residual = self.calc_residual_kspace
 

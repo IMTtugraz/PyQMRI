@@ -110,11 +110,10 @@ def _genImages(myargs, par, data):
 
     def nFTH(x, fft, par):
         siz = np.shape(x)
-        MB = int(par["MB"])
         result = np.zeros(
             (par["NC"], par["NSlice"], par["NScan"],
              par["dimY"], par["dimX"]), dtype=DTYPE)
-        tmp_result = clarray.empty(fft.queue, (par["NScan"], 1, MB,
+        tmp_result = clarray.empty(fft.queue, (par["NScan"], 1, 1,
                                    par["dimY"], par["dimX"]), dtype=DTYPE)
         for j in range(siz[1]):
             for k in range(siz[2]):
@@ -385,8 +384,6 @@ def _start_recon(myargs):
     par["dimY"] = dimY
     par["dimX"] = dimX
     par["NSlice"] = reco_Slices
-    par["packs"] = 1
-    par["MB"] = 1
     par["NScan"] = NScan
     par["N"] = N
     par["Nproj"] = Nproj
