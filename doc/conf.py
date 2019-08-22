@@ -24,7 +24,7 @@ copyright = '2019, Oliver Maier'
 author = 'Oliver Maier'
 
 # The short X.Y version
-version = ''
+version = '0.2'
 # The full version, including alpha/beta/rc tags
 release = '2018'
 
@@ -132,7 +132,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'MBPQ.tex', 'Model Based Parameter Quantification Documentation',
+    (master_doc, 'PyQMRI.tex', 'Model Based Parameter Quantification Documentation',
      'Oliver Maier', 'manual'),
 ]
 
@@ -153,8 +153,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'MBPQ', 'Model Based Parameter Quantification Documentation',
-     author, 'MBPQ', 'One line description of project.',
+    (master_doc, 'PyQMRI', 'Model Based Parameter Quantification Documentation',
+     author, 'PyQMRI', 'One line description of project.',
      'Miscellaneous'),
 ]
 
