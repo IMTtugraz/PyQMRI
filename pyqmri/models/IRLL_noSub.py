@@ -36,7 +36,9 @@ class IRLL_Model:
 
         phi_corr = np.zeros_like(par["fa_corr"], dtype=DTYPE)
         phi_corr = np.real(
-            self.fa) * np.real(par["fa_corr"]) + 1j * np.imag(self.fa) * np.imag(par["fa_corr"])
+            self.fa) * np.real(
+                par["fa_corr"]) + 1j * np.imag(
+                    self.fa) * np.imag(par["fa_corr"])
 
         self.sin_phi = np.sin(phi_corr)
         self.cos_phi = np.cos(phi_corr)
