@@ -131,8 +131,6 @@ class CGSolver:
         p = res
         delta = np.linalg.norm(res.get())**2/np.linalg.norm(b.get())**2
 
-#        print("Initial Residuum: ", delta)
-
         for i in range(iters):
             self.operator_lhs(Ax, p)
             Ax = Ax + lambd*p
@@ -148,7 +146,6 @@ class CGSolver:
                 del Ax, \
                     b, res, p, data, res_new
                 return np.squeeze(x.get())
-#            print("Res after iteration %i: %1.3e." % (i, delta))
             beta = (clarray.vdot(res_new, res_new) /
                     clarray.vdot(res, res)).real.get()
             p = res_new+beta*p
