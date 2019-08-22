@@ -121,9 +121,11 @@ class IRLL_Model:
 
         self.guess = np.array([1 /
                                self.uk_scale[0] *
-                               np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE), 800 /
+                               np.ones((self.NSlice, s
+                                        elf.dimY, self.dimX), dtype=DTYPE), 800 /
                                self.uk_scale[1] *
-                               np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)])
+                               np.ones((self.NSlice,
+                                        self.dimY, self.dimX), dtype=DTYPE)])
 
         self.constraints.append(constraint(-300, 300, False))
         self.constraints.append(
