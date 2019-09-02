@@ -220,7 +220,7 @@ class PDSolver:
     This Class performs a CG reconstruction on single precission complex input
     data.
     """
-    def __init__(self, par, irgn_par, queue, tau, fval, prg, TV,
+    def __init__(self, par, irgn_par, queue, tau, fval, prg, reg_type,
                  data_operator, coil_buffer):
         """ Setup a CG reconstruction Object
 
@@ -266,11 +266,12 @@ class PDSolver:
         self.max_const = None
         self.real_const = None
         self.irgn_par = {}
-        if TV:
+        if reg_type == 'TV':
             self.run = self.runTV3D
-        else:
+        elif self.reg_type == 'TGV':
             self.run = self.runTGV3D
-
+        else:
+           raise ValueError("Unknown Regularization Type")
     def __del__(self):
         """ Destructor
         Releases GPU memory arrays.
@@ -764,16 +765,16 @@ class PDSolver:
                           "decrease in the primal problem was less than %.3e" %
                           (i, np.abs(primal - primal_new).get() /
                            self._fval_init))
-                    return x_new.get()
+                    return (x_new.get(), 0)
                 if (gap > gap_old * self.stag) and i > 1:
                     print("Terminated at iteration %d "
                           "because the method stagnated" % (i))
-                    return x_new.get()
+                    return (x_new.get(), 0)
                 if np.abs((gap - gap_old) / gap_init) < self.tol:
                     print("Terminated at iteration %d because the relative "
                           "energy decrease of the PD gap was less than %.3e" %
                           (i, np.abs((gap - gap_old).get() / gap_init)))
-                    return x_new.get()
+                    return (x_new.get(), 0)
                 primal = primal_new
                 gap_old = gap
                 sys.stdout.write(

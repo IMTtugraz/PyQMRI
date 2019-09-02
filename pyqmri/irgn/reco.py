@@ -114,6 +114,7 @@ class ModelReco:
 
     def _setupPDOptimizer(self):
         if self.reg_type == 'TV':
+            print("TV")
             self.pdop = optimizer.PDSolver(self.par, self.irgn_par,
                                            self._queue,
                                            np.float32(1 / np.sqrt(8)),
@@ -123,6 +124,7 @@ class ModelReco:
                                            self._coil_buf)
             self.pdop.grad_op = self.grad_op
         elif self.reg_type == 'TGV':
+            print("TGV")
             L = np.float32(0.5 * (18.0 + np.sqrt(33)))
             self.pdop = optimizer.PDSolver(self.par, self.irgn_par,
                                            self._queue,
@@ -284,7 +286,7 @@ class ModelReco:
         if GN_it > 0:
             self._calcResidual(x, data, GN_it)
 
-        (x, _) = self.pdop.run(x, res, iters)
+        x = self.pdop.run(x, res, iters)
 
         return x
 

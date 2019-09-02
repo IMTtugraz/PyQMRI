@@ -135,7 +135,7 @@ def _genImages(myargs, par, data):
 #                        requirements='C')
 #    del FFT, nFTH
 
-    del par["file"]["images"]
+#    del par["file"]["images"]
     tol = 1e-6
     if "images" not in list(par["file"].keys()):
         images = np.zeros((par["NScan"],
