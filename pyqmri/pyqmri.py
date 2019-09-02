@@ -107,7 +107,6 @@ def _setupOCL(myargs, par):
 def _genImages(myargs, par, data):
     FFT = utils.NUFFT(par, trafo=myargs.trafo, SMS=myargs.sms)
     import pyopencl.array as clarray
-
     def nFTH(x, fft, par):
         siz = np.shape(x)
         MB = int(par["MB"])

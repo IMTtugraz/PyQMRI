@@ -46,7 +46,15 @@ def est_coils(data, par, file, args):
         if args.sms or "Coils_real" in list(file.keys()):
             print("Using precomputed coil sensitivities")
             slices_coils = file['Coils_real'][()].shape[1]
-            par["C"] = file['Coils_real'][...] + 1j * file['Coils_imag'][...]
+            par["C"] = file['Coils_real'][
+                :,
+                int(slices_coils / 2) - int(np.floor((par["NSlice"]) / 2)):
+                int(slices_coils / 2) + int(np.ceil(par["NSlice"] / 2)),
+                ...] + 1j * file['Coils_imag'][
+                :,
+                int(slices_coils / 2) - int(np.floor((par["NSlice"]) / 2)):
+                int(slices_coils / 2) + int(np.ceil(par["NSlice"] / 2)),
+                ...]
         elif not args.sms and not file['Coils'][()].shape[1] >= par["NSlice"]:
             if args.trafo:
 
@@ -132,13 +140,13 @@ def est_coils(data, par, file, args):
                             nlinvRealConstr))
 
                 for i in range(par["NSlice"]):
-                    par["C"][:, i, :, :] = result[2:, -1, :, :]
+                    par["C"][:, i, :, :] = result[i].get()[2:, -1, :, :]
                     sys.stdout.write("slice %i done \r"
                                      % (i))
                     sys.stdout.flush()
                     if not nlinvRealConstr:
                         par["phase_map"][i, :, :] = np.exp(
-                            1j * np.angle(result[0, -1, :, :]))
+                            1j * np.angle(result[i].get()[0, -1, :, :]))
                 # standardize coil sensitivity profiles
                 sumSqrC = np.sqrt(
                     np.sum(
@@ -218,7 +226,6 @@ def est_coils(data, par, file, args):
                     par["C"] = par["C"] / \
                         np.tile(sumSqrC, (par["NC"], 1, 1, 1))
                 del file['Coils']
-                del file['InScale']
                 del FFT
             file.create_dataset(
                 "Coils",
@@ -239,7 +246,8 @@ def est_coils(data, par, file, args):
                 file['Coils'][:, int(slices_coils / 2) - int(np.floor(
                 (par["NSlice"]) / 2)):int(slices_coils / 2) + int(np.ceil(par["NSlice"] / 2)), ...]
 
-    except BaseException:
+    except BaseException as e:
+        print(str(e))
         if args.trafo:
 
             traj_coil = np.reshape(
