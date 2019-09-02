@@ -782,8 +782,8 @@ class Model(BaseModel):
 
     def _set_init_scales(self, images):
         test_M0 = self.b0
-        ADC_x = 1 * np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
-        kurt_yyyy = 0 * np.ones((self.NSlice, self.dimY,
+        ADC_x = 1.5 * np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+        kurt_yyyy = 1 * np.ones((self.NSlice, self.dimY,
                                  self.dimX), dtype=DTYPE)
         kurt_xxxx = 0 * np.ones((self.NSlice, self.dimY,
                                  self.dimX), dtype=DTYPE)

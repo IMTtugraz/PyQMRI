@@ -218,7 +218,7 @@ class Model(BaseModel):
         f_max = f.max()
         del_t_min = del_t.min()
         del_t_max = del_t.max()
-        ind = 80  # int(images.shape[-1]/2) 30, 60
+        ind = 32  # int(images.shape[-1]/2) 30, 60
         if dim_2D:
             if not self.figure:
                 plt.ion()
