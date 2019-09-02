@@ -33,7 +33,6 @@ class BaseModel(ABC):
 
     def rescale(self, x):
         tmp_x = np.copy(x)
-        print(x.shape)
         for i in range(x.shape[0]):
             tmp_x[i] *= self.uk_scale[i]
         return tmp_x
