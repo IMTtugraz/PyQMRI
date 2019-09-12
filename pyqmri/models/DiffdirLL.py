@@ -47,34 +47,53 @@ class Model(BaseModel):
                 False))
         self.constraints.append(
             constraints(
-                (0 / self.uk_scale[1]),
-                (3 / self.uk_scale[1]),
+                (-5e0 / self.uk_scale[1]),
+                (5e0 / self.uk_scale[1]),
                 True))
         self.constraints.append(
             constraints(
-                (-3e0 / self.uk_scale[2]),
-                (3e0 / self.uk_scale[2]),
+                (-5e0 / self.uk_scale[2]),
+                (5e0 / self.uk_scale[2]),
                 True))
         self.constraints.append(
             constraints(
-                (0 / self.uk_scale[3]),
-                (3 / self.uk_scale[3]),
+                (-5e0 / self.uk_scale[3]),
+                (5e0 / self.uk_scale[3]),
                 True))
         self.constraints.append(
             constraints(
-                (-3e0 / self.uk_scale[4]),
-                (3e0 / self.uk_scale[4]),
+                (-5e0 / self.uk_scale[4]),
+                (5e0 / self.uk_scale[4]),
                 True))
         self.constraints.append(
             constraints(
-                (0 / self.uk_scale[5]),
-                (3 / self.uk_scale[5]),
+                (-5e0 / self.uk_scale[5]),
+                (5e0 / self.uk_scale[5]),
                 True))
         self.constraints.append(
             constraints(
-                (-3e0 / self.uk_scale[6]),
-                (3e0 / self.uk_scale[6]),
+                (-5e0 / self.uk_scale[6]),
+                (5e0 / self.uk_scale[6]),
                 True))
+
+    def rescale(self, x):
+        M0 = x[0, ...] * self.uk_scale[0]
+        ADC_x = (np.real(x[1, ...]**2) * self.uk_scale[1]**2)
+        ADC_xy = (np.real(x[2, ...] * self.uk_scale[2] *
+                          x[1, ...] * self.uk_scale[1]))
+        ADC_y = (np.real(x[2, ...]**2 * self.uk_scale[2]**2 +
+                         x[3, ...]**2 * self.uk_scale[3]**2))
+        ADC_xz = (np.real(x[4, ...] * self.uk_scale[4] *
+                          x[1, ...] * self.uk_scale[1]))
+        ADC_z = (np.real(x[4, ...]**2 * self.uk_scale[4]**2 +
+                         x[5, ...]**2 * self.uk_scale[5]**2 +
+                         x[6, ...]**2 * self.uk_scale[6]**2))
+        ADC_yz = (np.real(x[2, ...] * self.uk_scale[2] *
+                          x[4, ...] * self.uk_scale[4] +
+                          x[6, ...] * self.uk_scale[6] *
+                          x[3, ...] * self.uk_scale[3]))
+
+        return np.array((M0, ADC_x, ADC_xy, ADC_y, ADC_xz, ADC_z, ADC_yz))
 
     def _execute_forward_2D(self, x, islice):
         print("2D Functions not implemented")
@@ -85,14 +104,22 @@ class Model(BaseModel):
         raise NotImplementedError
 
     def _execute_forward_3D(self, x):
-        ADC = x[1, ...] * self.uk_scale[1] * self.dir[..., 0]**2 + \
-              x[3, ...] * self.uk_scale[3] * self.dir[..., 1]**2 + \
-              x[5, ...] * self.uk_scale[5] * self.dir[..., 2]**2 +\
-              2 * x[2, ...] * self.uk_scale[2] * \
+        ADC = x[1, ...]**2 * self.uk_scale[1]**2 * self.dir[..., 0]**2 + \
+              (x[2, ...]**2 * self.uk_scale[2]**2 +
+               x[3, ...]**2 * self.uk_scale[3]**2) * self.dir[..., 1]**2 + \
+              (x[4, ...]**2 * self.uk_scale[4]**2 +
+               x[5, ...]**2 * self.uk_scale[5]**2 +
+               x[6, ...]**2 * self.uk_scale[6]**2) * self.dir[..., 2]**2 +\
+              2 * (x[2, ...] * self.uk_scale[2] *
+                   x[1, ...] * self.uk_scale[1]) * \
               self.dir[..., 0] * self.dir[..., 1] + \
-              2 * x[4, ...] * self.uk_scale[4] * \
+              2 * (x[4, ...] * self.uk_scale[4] *
+                   x[1, ...] * self.uk_scale[1]) *\
               self.dir[..., 0] * self.dir[..., 2] +\
-              2 * x[6, ...] * self.uk_scale[6] * \
+              2 * (x[2, ...] * self.uk_scale[2] *
+                   x[4, ...] * self.uk_scale[4] +
+                   x[6, ...] * self.uk_scale[6] *
+                   x[3, ...] * self.uk_scale[3]) * \
               self.dir[..., 1] * self.dir[..., 2]
 
         S = (x[0, ...] * self.uk_scale[0] *
@@ -103,37 +130,60 @@ class Model(BaseModel):
         return S
 
     def _execute_gradient_3D(self, x):
-        ADC = x[1, ...] * self.uk_scale[1] * self.dir[..., 0]**2 + \
-              x[3, ...] * self.uk_scale[3] * self.dir[..., 1]**2 + \
-              x[5, ...] * self.uk_scale[5] * self.dir[..., 2]**2 +\
-              2 * x[2, ...] * self.uk_scale[2] * \
+        ADC = x[1, ...]**2 * self.uk_scale[1]**2 * self.dir[..., 0]**2 + \
+              (x[2, ...]**2 * self.uk_scale[2]**2 +
+               x[3, ...]**2 * self.uk_scale[3]**2) * self.dir[..., 1]**2 + \
+              (x[4, ...]**2 * self.uk_scale[4]**2 +
+               x[5, ...]**2 * self.uk_scale[5]**2 +
+               x[6, ...]**2 * self.uk_scale[6]**2) * self.dir[..., 2]**2 +\
+              2 * (x[2, ...] * self.uk_scale[2] *
+                   x[1, ...] * self.uk_scale[1]) * \
               self.dir[..., 0] * self.dir[..., 1] + \
-              2 * x[4, ...] * self.uk_scale[4] * \
+              2 * (x[4, ...] * self.uk_scale[4] *
+                   x[1, ...] * self.uk_scale[1]) *\
               self.dir[..., 0] * self.dir[..., 2] +\
-              2 * x[6, ...] * self.uk_scale[6] * \
+              2 * (x[2, ...] * self.uk_scale[2] *
+                   x[4, ...] * self.uk_scale[4] +
+                   x[6, ...] * self.uk_scale[6] *
+                   x[3, ...] * self.uk_scale[3]) * \
               self.dir[..., 1] * self.dir[..., 2]
 
         grad_M0 = self.uk_scale[0] * np.exp(- ADC * self.b)
         del ADC
 
         grad_M0 *= self.phase
-        grad_ADC_x = x[0, ...] * grad_M0 * \
-            (- self.uk_scale[1] * self.dir[..., 0]**2 * self.b)
-        grad_ADC_xy = x[0, ...] * grad_M0 * \
-            (-2 * self.uk_scale[2] *
-             self.dir[..., 0] * self.dir[..., 1] * self.b)
+        grad_ADC_x = -x[0, ...] * self.b * grad_M0 * \
+            (2 * x[1, ...] * self.uk_scale[1]**2 * self.dir[..., 0]**2 +
+             2 * self.uk_scale[1] * x[2, ...] * self.uk_scale[2] *
+             self.dir[..., 0] * self.dir[..., 1] +
+             2 * self.uk_scale[1] * x[4, ...] * self.uk_scale[4] *
+             self.dir[..., 0] * self.dir[..., 2])
+        grad_ADC_xy = -x[0, ...] * self.b * grad_M0 * \
+            (2 * x[1, ...] * self.uk_scale[1] * self.uk_scale[2] *
+             self.dir[..., 0] * self.dir[..., 1] +
+             2 * x[2, ...] * self.uk_scale[2]**2 *
+             self.dir[..., 1]**2 +
+             2 * self.uk_scale[2] * x[4, ...] * self.uk_scale[4] *
+             self.dir[..., 1] * self.dir[..., 2])
 
-        grad_ADC_y = x[0, ...] * grad_M0 * \
-            (- self.uk_scale[3] * self.dir[..., 1]**2 * self.b)
-        grad_ADC_xz = x[0, ...] * grad_M0 * \
-            (-2 * self.uk_scale[4] *
-             self.dir[..., 0] * self.dir[..., 2] * self.b)
+        grad_ADC_y = -x[0, ...] * self.b * grad_M0 *\
+            (2 * x[3, ...] * self.uk_scale[3]**2 * self.dir[..., 1]**2 +
+             2 * self.uk_scale[3] * x[6, ...] * self.uk_scale[6] *
+             self.dir[..., 1] * self.dir[..., 2])
+        grad_ADC_xz = -x[0, ...] * self.b * grad_M0 *\
+            (2 * x[1, ...] * self.uk_scale[1] * self.uk_scale[4] *
+             self.dir[..., 0] * self.dir[..., 2] +
+             2 * x[2, ...] * self.uk_scale[2] * self.uk_scale[4] *
+             self.dir[..., 1] * self.dir[..., 2] +
+             2 * x[4, ...] * self.uk_scale[4]**2 * self.dir[..., 2]**2)
 
-        grad_ADC_z = x[0, ...] * grad_M0 * \
-            (- self.uk_scale[5] * self.dir[..., 2]**2 * self.b)
-        grad_ADC_yz = x[0, ...] * grad_M0 * \
-            (-2 * self.uk_scale[6] *
-             self.dir[..., 1] * self.dir[..., 2] * self.b)
+        grad_ADC_z = -2 * x[5, ...] * self.uk_scale[5]**2 *\
+            x[0, ...]*self.b*self.dir[..., 2]**2*grad_M0
+
+        grad_ADC_yz = - x[0, ...] * self.b * grad_M0 *\
+            (2 * x[3, ...] * self.uk_scale[3] * self.uk_scale[6] *
+             self.dir[..., 1] * self.dir[..., 2] +
+             2 * x[6, ...] * self.uk_scale[6]**2 * self.dir[..., 2]**2)
 
         grad = np.array(
             [grad_M0,
@@ -148,8 +198,9 @@ class Model(BaseModel):
 
     def plot_unknowns(self, x, dim_2D=False):
         M0 = np.abs(x[0, ...]) * self.uk_scale[0]
-        ADC_x = (np.real(x[1, ...]) * self.uk_scale[1])
-        ADC_xy = (np.real(x[2, ...]) * self.uk_scale[2])
+        ADC_x = (np.real(x[1, ...]**2 * self.uk_scale[1]**2))
+        ADC_xy = (np.real(x[2, ...] * self.uk_scale[2] *
+                          x[1, ...] * self.uk_scale[1]))
         M0_min = M0.min()
         M0_max = M0.max()
         ADC_x_min = ADC_x.min()
@@ -157,15 +208,22 @@ class Model(BaseModel):
         ADC_xy_min = ADC_xy.min()
         ADC_xy_max = ADC_xy.max()
 
-        ADC_y = (np.real(x[3, ...]) * self.uk_scale[3])
-        ADC_xz = (np.real(x[4, ...]) * self.uk_scale[4])
+        ADC_y = (np.real(x[2, ...]**2 * self.uk_scale[2]**2 +
+                         x[3, ...]**2 * self.uk_scale[3]**2))
+        ADC_xz = (np.real(x[4, ...] * self.uk_scale[4] *
+                          x[1, ...] * self.uk_scale[1]))
         ADC_y_min = ADC_y.min()
         ADC_y_max = ADC_y.max()
         ADC_xz_min = ADC_xz.min()
         ADC_xz_max = ADC_xz.max()
 
-        ADC_z = (np.real(x[5, ...]) * self.uk_scale[5])
-        ADC_yz = (np.real(x[6, ...]) * self.uk_scale[6])
+        ADC_z = (np.real(x[4, ...]**2 * self.uk_scale[4]**2 +
+                         x[5, ...]**2 * self.uk_scale[5]**2 +
+                         x[6, ...]**2 * self.uk_scale[6]**2))
+        ADC_yz = (np.real(x[2, ...] * self.uk_scale[2] *
+                          x[4, ...] * self.uk_scale[4] +
+                          x[6, ...] * self.uk_scale[6] *
+                          x[3, ...] * self.uk_scale[3]))
         ADC_z_min = ADC_z.min()
         ADC_z_max = ADC_z.max()
         ADC_yz_min = ADC_yz.min()

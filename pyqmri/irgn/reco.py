@@ -191,15 +191,15 @@ class ModelReco:
             print("-" * 75)
             print("GN-Iter: %d  Elapsed time: %f seconds" % (ign, end))
             print("-" * 75)
-            if np.abs(self._fval_old - self._fval) / self._fval_init < \
-               self.irgn_par["tol"]:
-                print("Terminated at GN-iteration %d because "
-                      "the energy decrease was less than %.3e" %
-                      (ign, np.abs(self._fval_old - self._fval) /
-                       self._fval_init))
-                self._calcResidual(result, self.data, ign+1)
-                self._saveToFile(ign, self.model.rescale(result))
-                break
+#            if np.abs(self._fval_old - self._fval) / self._fval_init < \
+#               self.irgn_par["tol"]:
+#                print("Terminated at GN-iteration %d because "
+#                      "the energy decrease was less than %.3e" %
+#                      (ign, np.abs(self._fval_old - self._fval) /
+#                       self._fval_init))
+#                self._calcResidual(result, self.data, ign+1)
+#                self._saveToFile(ign, self.model.rescale(result))
+#                break
             self._fval_old = self._fval
             self._saveToFile(ign, self.model.rescale(result))
         self._calcResidual(result, self.data, ign+1)
