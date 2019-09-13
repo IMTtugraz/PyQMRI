@@ -135,40 +135,41 @@ def _genImages(myargs, par, data):
 #                        requirements='C')
 #    del FFT, nFTH
 
-#    del par["file"]["images"]
-    tol = 1e-6
+    del par["file"]["images"]
+    tol = 1e-5
+    par_scans = 2
     if "images" not in list(par["file"].keys()):
         images = np.zeros((par["NScan"],
                            par["NSlice"],
                            par["dimY"],
                            par["dimX"]), dtype=DTYPE)
-        if par["NScan"]/10 >= 1:
-            cgs = CGSolver(par, 10, myargs.trafo, myargs.sms)
-            for j in range(int(par["NScan"]/10)):
+        if par["NScan"]/par_scans >= 1:
+            cgs = CGSolver(par, par_scans, myargs.trafo, myargs.sms)
+            for j in range(int(par["NScan"]/par_scans)):
                 if par["NSlice"] == 1:
-                    images[10*j:10*(j+1), ...] = cgs.run(
-                        data[10*j:10*(j+1), ...],
+                    images[par_scans*j:par_scans*(j+1), ...] = cgs.run(
+                        data[par_scans*j:par_scans*(j+1), ...],
                         tol=tol)[:, None, ...]
                 else:
-                    images[10*j:10*(j+1), ...] = cgs.run(
-                        data[10*j:10*(j+1), ...],
+                    images[par_scans*j:par_scans*(j+1), ...] = cgs.run(
+                        data[par_scans*j:par_scans*(j+1), ...],
                         tol=tol)
             del cgs
-        if np.mod(par["NScan"], 10):
-            cgs = CGSolver(par, np.mod(par["NScan"], 10),
+        if np.mod(par["NScan"], par_scans):
+            cgs = CGSolver(par, np.mod(par["NScan"], par_scans),
                            myargs.trafo, myargs.sms)
             if par["NSlice"] == 1:
-                if np.mod(par["NScan"], 10) == 1:
-                    images[-np.mod(par["NScan"], 10):, ...] = cgs.run(
-                            data[-np.mod(par["NScan"], 10):, ...],
+                if np.mod(par["NScan"], par_scans) == 1:
+                    images[-np.mod(par["NScan"], par_scans):, ...] = cgs.run(
+                            data[-np.mod(par["NScan"], par_scans):, ...],
                             tol=tol)
                 else:
-                    images[-np.mod(par["NScan"], 10):, ...] = cgs.run(
-                            data[-np.mod(par["NScan"], 10):, ...],
+                    images[-np.mod(par["NScan"], par_scans):, ...] = cgs.run(
+                            data[-np.mod(par["NScan"], par_scans):, ...],
                             tol=tol)[:, None, ...]
             else:
-                images[-np.mod(par["NScan"], 10):, ...] = cgs.run(
-                        data[-np.mod(par["NScan"], 10):, ...],
+                images[-np.mod(par["NScan"], par_scans):, ...] = cgs.run(
+                        data[-np.mod(par["NScan"], par_scans):, ...],
                         tol=tol)
             del cgs
         par["file"].create_dataset("images", images.shape,
@@ -537,7 +538,7 @@ def _start_recon(myargs):
         opt.data = data
 
     f = h5py.File(par["outdir"]+"output_" + par["fname"], "a")
-    f.create_dataset("images_ifft_", data=images)
+    f.create_dataset("images_ifft", data=images)
     f.attrs['data_norm'] = par["dscale"]
     f.close()
     par["file"].close()
