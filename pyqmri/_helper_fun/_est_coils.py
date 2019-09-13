@@ -42,7 +42,6 @@ def est_coils(data, par, file, args):
     c = ipp.Client()
     nlinvNewtonSteps = 6
     nlinvRealConstr = False
-    del file["Coils"]
     if args.sms or "Coils_real" in list(file.keys()):
         print("Using precomputed coil sensitivities")
         slices_coils = file['Coils_real'][()].shape[1]
