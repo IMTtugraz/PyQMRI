@@ -240,7 +240,7 @@ def est_coils(data, par, file, args):
             file.flush()
         else:
             print("Using precomputed coil sensitivities")
-            slices_coils = file['Coils'][()].shape[1]
+            slices_coils = file['Coils'].shape[1]
             par["C"] = \
                 file['Coils'][
                     :,
