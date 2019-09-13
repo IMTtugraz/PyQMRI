@@ -92,13 +92,13 @@ class Model(BaseModel):
         for j in range(3):
             self.constraints.append(
                 constraints(
-                    (0 / self.uk_scale[2*j+1]),
+                    (-3 / self.uk_scale[2*j+1]),
                     (3 / self.uk_scale[2*j+1]),
                     True))
             self.constraints.append(
                 constraints(
-                    (-1e0 / self.uk_scale[2*j+2]),
-                    (1e0 / self.uk_scale[2*j+2]),
+                    (-3e0 / self.uk_scale[2*j+2]),
+                    (3e0 / self.uk_scale[2*j+2]),
                     True))
 
         Kmax = 2.5
