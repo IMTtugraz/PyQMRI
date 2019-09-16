@@ -27,7 +27,7 @@ def _comADCGrad(M0, gradM0, b):
     return ne.evaluate("2*M0*gradM0*b")
 
 
-def _comKurtFacDia(meanADC, comADCGrad, b):
+def _comKurtfac(meanADC, comADCGrad, b):
     return ne.evaluate("1/12*meanADC**2*comADCGrad*b")
 
 
@@ -40,11 +40,11 @@ def _gradKurtOff2(comKurtfac, Kurtscale, bdir1, bdir2):
 
 
 def _gradKurtOffSym(comKurtfac, Kurtscale, bdir1, bdir2):
-    return ne.evaluate("comKurtfac * Kurtscale * 12 *  bdir1**2 * bdir2**2")
+    return ne.evaluate("comKurtfac * Kurtscale * 6 *  bdir1**2 * bdir2**2")
 
 
 def _gradKurtOff3(comKurtfac, Kurtscale, bdir1, bdir2, bdir3):
-    return ne.evaluate("comKurtfac * Kurtscale * 24 * \
+    return ne.evaluate("comKurtfac * Kurtscale * 12 * \
                        bdir1**2 * bdir2 * bdir3")
 
 
@@ -92,13 +92,13 @@ class Model(BaseModel):
         for j in range(3):
             self.constraints.append(
                 constraints(
-                    (-3 / self.uk_scale[2*j+1]),
-                    (3 / self.uk_scale[2*j+1]),
+                    (-2 / self.uk_scale[2*j+1]),
+                    (2 / self.uk_scale[2*j+1]),
                     True))
             self.constraints.append(
                 constraints(
-                    (-3e0 / self.uk_scale[2*j+2]),
-                    (3e0 / self.uk_scale[2*j+2]),
+                    (-1e0 / self.uk_scale[2*j+2]),
+                    (1e0 / self.uk_scale[2*j+2]),
                     True))
 
         Kmax = 2.5
@@ -133,17 +133,17 @@ class Model(BaseModel):
         raise NotImplementedError
 
     def _execute_forward_3D(self, x):
-        ADC = x[1, ...]**2 * self.uk_scale[1]**2 * self.dirsqr[..., 0] + \
+        ADC = x[1, ...]**2 * self.uk_scale[1]**2 * self.dir[..., 0]**2 + \
               (x[2, ...]**2 * self.uk_scale[2]**2 +
-               x[3, ...]**2 * self.uk_scale[3]**2) * self.dirsqr[..., 1] + \
+               x[3, ...]**2 * self.uk_scale[3]**2) * self.dir[..., 1]**2 + \
               (x[4, ...]**2 * self.uk_scale[4]**2 +
                x[5, ...]**2 * self.uk_scale[5]**2 +
-               x[6, ...]**2 * self.uk_scale[6]**2) * self.dirsqr[..., 2] +\
+               x[6, ...]**2 * self.uk_scale[6]**2) * self.dir[..., 2]**2 +\
               2 * (x[2, ...] * self.uk_scale[2] *
                    x[1, ...] * self.uk_scale[1]) * \
               self.dir[..., 0] * self.dir[..., 1] + \
               2 * (x[4, ...] * self.uk_scale[4] *
-                   x[1, ...] * self.uk_scale[1]) * \
+                   x[1, ...] * self.uk_scale[1]) *\
               self.dir[..., 0] * self.dir[..., 2] +\
               2 * (x[2, ...] * self.uk_scale[2] *
                    x[4, ...] * self.uk_scale[4] +
@@ -195,17 +195,17 @@ class Model(BaseModel):
         return S
 
     def _execute_gradient_3D(self, x):
-        ADC = x[1, ...]**2 * self.uk_scale[1]**2 * self.dirsqr[..., 0] + \
+        ADC = x[1, ...]**2 * self.uk_scale[1]**2 * self.dir[..., 0]**2 + \
               (x[2, ...]**2 * self.uk_scale[2]**2 +
-               x[3, ...]**2 * self.uk_scale[3]**2) * self.dirsqr[..., 1] + \
+               x[3, ...]**2 * self.uk_scale[3]**2) * self.dir[..., 1]**2 + \
               (x[4, ...]**2 * self.uk_scale[4]**2 +
                x[5, ...]**2 * self.uk_scale[5]**2 +
-               x[6, ...]**2 * self.uk_scale[6]**2) * self.dirsqr[..., 2] +\
+               x[6, ...]**2 * self.uk_scale[6]**2) * self.dir[..., 2]**2 +\
               2 * (x[2, ...] * self.uk_scale[2] *
                    x[1, ...] * self.uk_scale[1]) * \
               self.dir[..., 0] * self.dir[..., 1] + \
               2 * (x[4, ...] * self.uk_scale[4] *
-                   x[1, ...] * self.uk_scale[1]) * \
+                   x[1, ...] * self.uk_scale[1]) *\
               self.dir[..., 0] * self.dir[..., 2] +\
               2 * (x[2, ...] * self.uk_scale[2] *
                    x[4, ...] * self.uk_scale[4] +
@@ -249,13 +249,8 @@ class Model(BaseModel):
           12 * x[21, ...] * self.uk_scale[21] *
           self.dir[..., 0] * self.dir[..., 1] * self.dirsqr[..., 2])
 
-        diffexp = _diffexp(ADC, meanADC, kurt, self.b)
-        del ADC
-
-        grad_M0 = self.uk_scale[0] * diffexp
-        del diffexp
-
-        grad_M0 *= self.phase
+        grad_M0 = self.uk_scale[0] * _diffexp(ADC, meanADC, kurt, self.b) * \
+            self.phase
 
         bKurtmeanADC = _bKurtmeanADC(self.b, meanADC, kurt)
         comADCGrad = _comADCGrad(x[0, ...], grad_M0, self.b)
@@ -263,18 +258,18 @@ class Model(BaseModel):
         grad_ADC_x = comADCGrad*(
             1/9*x[1, ...]*self.uk_scale[1]**2*bKurtmeanADC -
             (x[1, ...]*self.uk_scale[1]**2*self.dirsqr[..., 0] +
-             self.uk_scale[1]*x[2, ...]*self.uk_scale[2] *
-             self.dir[..., 0]*self.dir[..., 1] +
-             self.uk_scale[1]*x[4, ...]*self.uk_scale[4] *
-             self.dir[..., 0]*self.dir[..., 2]))
+             self.uk_scale[1]*x[2, ...] *
+             self.uk_scale[2]*self.dir[..., 0]*self.dir[..., 1] +
+             self.uk_scale[1]*x[4, ...] *
+             self.uk_scale[4]*self.dir[..., 0]*self.dir[..., 2]))
 
         grad_ADC_xy = comADCGrad*(
             1/9*x[2, ...]*self.uk_scale[2]**2*bKurtmeanADC -
             (x[1, ...]*self.uk_scale[1]*self.uk_scale[2] *
              self.dir[..., 0]*self.dir[..., 1] +
              x[2, ...]*self.uk_scale[2]**2*self.dirsqr[..., 1] +
-             self.uk_scale[2]*x[4, ...]*self.uk_scale[4] *
-             self.dir[..., 1]*self.dir[..., 2]))
+             self.uk_scale[2]*x[4, ...] *
+             self.uk_scale[4]*self.dir[..., 1]*self.dir[..., 2]))
 
         grad_ADC_y = comADCGrad*(
             1/9*x[3, ...]*self.uk_scale[3]**2*bKurtmeanADC -
@@ -302,7 +297,7 @@ class Model(BaseModel):
 
         del bKurtmeanADC
 
-        comKurtfac = _comKurtFacDia(meanADC, comADCGrad, self.b)
+        comKurtfac = _comKurtfac(meanADC, comADCGrad, self.b)
 
         del comADCGrad
 
