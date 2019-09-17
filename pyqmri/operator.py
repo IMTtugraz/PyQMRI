@@ -1185,6 +1185,13 @@ class OperatorFiniteGradient(Operator):
         grad = clarray.to_device(
             self.queue, np.zeros(x.shape + (4,),
                                  dtype=self.DTYPE))
+        self._ratio = clarray.to_device(
+            self.queue,
+            (1 /
+             self.unknowns *
+             np.ones(
+                 self.unknowns)).astype(
+                     dtype=self.DTYPE_real))
         grad.add_event(
             self.fwd(
                 grad,
@@ -1216,6 +1223,25 @@ class OperatorFiniteGradient(Operator):
         for j in range(x.shape[0])[self.unknowns_TGV:]:
             self._ratio[j] = scale[j] / sum_scale * self._weights[j]
         print("Ratio: ", self._ratio)
+        x = clarray.to_device(self.queue, x)
+        grad = clarray.to_device(
+            self.queue, np.zeros(x.shape + (4,),
+                                 dtype=self.DTYPE))
+        grad.add_event(
+            self.fwd(
+                grad,
+                x,
+                wait_for=grad.events +
+                x.events))
+        x = x.get()
+        grad = grad.get()
+        grad = np.reshape(
+            grad, (self.unknowns,
+                   self.NSlice *
+                   self.dimY *
+                   self.dimX * 4))
+        print("Norm of grad x: ", np.linalg.norm(grad, axis=-1))
+        print("Total Norm of grad x: ", np.linalg.norm(grad.flatten()))
 
 
 class OperatorFiniteSymGradient(Operator):
@@ -1310,6 +1336,9 @@ class OperatorFiniteGradientStreamed(Operator):
         grad = clarray.to_device(
             self.queue, np.zeros(x.shape + (4,),
                                  dtype=self.DTYPE))
+        for i in range(self.num_dev):
+            for j in range(x.shape[0])[:self.unknowns_TGV]:
+                self._ratio[i][j] = 1
         self.fwd([grad], [[x]])
         grad = np.require(np.transpose(grad, [1, 0, 2, 3, 4]),
                           requirements='C')

@@ -92,13 +92,13 @@ class Model(BaseModel):
         for j in range(3):
             self.constraints.append(
                 constraints(
-                    (-2 / self.uk_scale[2*j+1]),
-                    (2 / self.uk_scale[2*j+1]),
+                    (-3 / self.uk_scale[2*j+1]),
+                    (3 / self.uk_scale[2*j+1]),
                     True))
             self.constraints.append(
                 constraints(
-                    (-1e0 / self.uk_scale[2*j+2]),
-                    (1e0 / self.uk_scale[2*j+2]),
+                    (-3e0 / self.uk_scale[2*j+2]),
+                    (3e0 / self.uk_scale[2*j+2]),
                     True))
 
         Kmax = 2.5
@@ -123,6 +123,28 @@ class Model(BaseModel):
             self.constraints.append(constraints(
                 (-Kmax / self.uk_scale[j + 19]),
                 (Kmax / self.uk_scale[j + 19]), True))
+
+    def rescale(self, x):
+        out = np.zeros_like(x)
+        out[0] = x[0, ...] * self.uk_scale[0]
+        out[1] = (np.real(x[1, ...]**2) * self.uk_scale[1]**2)
+        out[2] = (np.real(x[2, ...] * self.uk_scale[2] *
+                          x[1, ...] * self.uk_scale[1]))
+        out[3] = (np.real(x[2, ...]**2 * self.uk_scale[2]**2 +
+                          x[3, ...]**2 * self.uk_scale[3]**2))
+        out[4] = (np.real(x[4, ...] * self.uk_scale[4] *
+                          x[1, ...] * self.uk_scale[1]))
+        out[5] = (np.real(x[4, ...]**2 * self.uk_scale[4]**2 +
+                          x[5, ...]**2 * self.uk_scale[5]**2 +
+                          x[6, ...]**2 * self.uk_scale[6]**2))
+        out[6] = (np.real(x[2, ...] * self.uk_scale[2] *
+                          x[4, ...] * self.uk_scale[4] +
+                          x[6, ...] * self.uk_scale[6] *
+                          x[3, ...] * self.uk_scale[3]))
+
+        for j in np.arange(7, 22):
+            out[j] = x[j]*self.uk_scale[j]
+        return out
 
     def _execute_forward_2D(self, x, islice):
         print("2D Functions not implemented")
@@ -859,9 +881,9 @@ class Model(BaseModel):
                     kurt_xxxx,
                     kurt_xxxx,
                     kurt_xxxx,
-                    kurt_yyyy/2,
-                    kurt_yyyy/2,
-                    kurt_yyyy/2,
+                    kurt_xxxx/2,
+                    kurt_xxxx/2,
+                    kurt_xxxx/2,
                     kurt_xxxx,
                     kurt_xxxx,
                     kurt_xxxx],

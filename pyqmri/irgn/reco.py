@@ -168,8 +168,8 @@ class ModelReco:
             start = time.time()
             self.model_partial_der = np.nan_to_num(
                 self.model.execute_gradient(result))
-            self._balanceModelGradients(result, ign)
 
+            self._balanceModelGradients(result, ign)
             self.pdop.grad_op.updateRatio(result)
 
             self.step_val = np.nan_to_num(self.model.execute_forward(result))
@@ -225,6 +225,9 @@ class ModelReco:
              self.par["NScan"] * self.par["NSlice"] *
              self.par["dimY"] * self.par["dimX"]))
         scale = np.linalg.norm(scale, axis=-1)
+        if np.max(scale) > 1e5:
+            print("Scale too large. Keeping the model scale as is.")
+            return
         print("Initial norm of the model Gradient: \n", scale)
         scale = 1e3 / np.sqrt(self.par["unknowns"]) / scale
         print("Scalefactor of the model Gradient: \n", scale)
@@ -241,7 +244,7 @@ class ModelReco:
             (self.par["unknowns"],
              self.par["NScan"] * self.par["NSlice"] *
              self.par["dimY"] * self.par["dimX"]))
-        scale = np.linalg.norm(scale, axis=-1)
+        scale = np.linalg.norm(scale)
         print("Scale of the model Gradient: \n", scale)
 
 ###############################################################################
