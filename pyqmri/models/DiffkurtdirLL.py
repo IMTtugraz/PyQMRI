@@ -5,7 +5,6 @@ import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 import numexpr as ne
-from dipy.segment.mask import median_otsu
 plt.ion()
 unknowns_TGV = 22
 unknowns_H1 = 0
