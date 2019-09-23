@@ -832,17 +832,17 @@ class Model(BaseModel):
     def _set_init_scales(self, images):
         test_M0 = self.b0
         mask = np.ones(test_M0[0].shape, dtype=bool)
-        meanImg = np.mean(np.abs(test_M0), 0)
+#        meanImg = np.mean(np.abs(test_M0), 0)
 
-        mask[
-            meanImg <
-            filters.threshold_otsu(meanImg)] = 0
-
-        mask = remove_small_objects(mask, 20)
-        mask = binary_closing(np.squeeze(mask), iterations=6)
-        mask = binary_fill_holes((mask))
-        mask = binary_dilation(mask, iterations=4)
-        self.mask = mask
+#        mask[
+#            meanImg <
+#            filters.threshold_otsu(meanImg)] = 0
+#
+#        mask = remove_small_objects(mask, 20)
+#        mask = binary_closing(np.squeeze(mask), iterations=6)
+#        mask = binary_fill_holes((mask))
+#        mask = binary_dilation(mask, iterations=4)
+#        self.mask = mask
 
         ADC_x = 1 * mask * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
