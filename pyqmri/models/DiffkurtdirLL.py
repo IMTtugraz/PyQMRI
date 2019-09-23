@@ -5,6 +5,7 @@ import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 import numexpr as ne
+from dipy.segment.mask import median_otsu
 plt.ion()
 unknowns_TGV = 22
 unknowns_H1 = 0
@@ -92,8 +93,8 @@ class Model(BaseModel):
         for j in range(3):
             self.constraints.append(
                 constraints(
-                    (-3 / self.uk_scale[2*j+1]),
-                    (3 / self.uk_scale[2*j+1]),
+                    (-4 / self.uk_scale[2*j+1]),
+                    (4 / self.uk_scale[2*j+1]),
                     True))
             self.constraints.append(
                 constraints(
@@ -101,7 +102,7 @@ class Model(BaseModel):
                     (3e0 / self.uk_scale[2*j+2]),
                     True))
 
-        Kmax = 2.5
+        Kmax = 4
         for j in range(3):
             self.constraints.append(
                 constraints(
@@ -155,12 +156,12 @@ class Model(BaseModel):
         raise NotImplementedError
 
     def _execute_forward_3D(self, x):
-        ADC = x[1, ...]**2 * self.uk_scale[1]**2 * self.dir[..., 0]**2 + \
+        ADC = x[1, ...]**2 * self.uk_scale[1]**2 * self.dirsqr[..., 0] + \
               (x[2, ...]**2 * self.uk_scale[2]**2 +
-               x[3, ...]**2 * self.uk_scale[3]**2) * self.dir[..., 1]**2 + \
+               x[3, ...]**2 * self.uk_scale[3]**2) * self.dirsqr[..., 1] + \
               (x[4, ...]**2 * self.uk_scale[4]**2 +
                x[5, ...]**2 * self.uk_scale[5]**2 +
-               x[6, ...]**2 * self.uk_scale[6]**2) * self.dir[..., 2]**2 +\
+               x[6, ...]**2 * self.uk_scale[6]**2) * self.dirsqr[..., 2] +\
               2 * (x[2, ...] * self.uk_scale[2] *
                    x[1, ...] * self.uk_scale[1]) * \
               self.dir[..., 0] * self.dir[..., 1] + \
@@ -217,12 +218,12 @@ class Model(BaseModel):
         return S
 
     def _execute_gradient_3D(self, x):
-        ADC = x[1, ...]**2 * self.uk_scale[1]**2 * self.dir[..., 0]**2 + \
+        ADC = x[1, ...]**2 * self.uk_scale[1]**2 * self.dirsqr[..., 0] + \
               (x[2, ...]**2 * self.uk_scale[2]**2 +
-               x[3, ...]**2 * self.uk_scale[3]**2) * self.dir[..., 1]**2 + \
+               x[3, ...]**2 * self.uk_scale[3]**2) * self.dirsqr[..., 1] + \
               (x[4, ...]**2 * self.uk_scale[4]**2 +
                x[5, ...]**2 * self.uk_scale[5]**2 +
-               x[6, ...]**2 * self.uk_scale[6]**2) * self.dir[..., 2]**2 +\
+               x[6, ...]**2 * self.uk_scale[6]**2) * self.dirsqr[..., 2] +\
               2 * (x[2, ...] * self.uk_scale[2] *
                    x[1, ...] * self.uk_scale[1]) * \
               self.dir[..., 0] * self.dir[..., 1] + \
@@ -277,45 +278,17 @@ class Model(BaseModel):
         bKurtmeanADC = _bKurtmeanADC(self.b, meanADC, kurt)
         comADCGrad = _comADCGrad(x[0, ...], grad_M0, self.b)
 
-        grad_ADC_x = comADCGrad*(
-            1/9*x[1, ...]*self.uk_scale[1]**2*bKurtmeanADC -
-            (x[1, ...]*self.uk_scale[1]**2*self.dirsqr[..., 0] +
-             self.uk_scale[1]*x[2, ...] *
-             self.uk_scale[2]*self.dir[..., 0]*self.dir[..., 1] +
-             self.uk_scale[1]*x[4, ...] *
-             self.uk_scale[4]*self.dir[..., 0]*self.dir[..., 2]))
+        grad_ADC_x = x[0, ...]*grad_M0*(2/9*x[1, ...]*self.uk_scale[1]**2*self.b**2*meanADC*kurt - self.b*(2*x[1, ...]*self.uk_scale[1]**2*self.dirsqr[..., 0] + 2*self.uk_scale[1]*x[2, ...]*self.uk_scale[2]*self.dir[..., 0]*self.dir[..., 1] + 2*self.uk_scale[1]*x[4, ...]*self.uk_scale[4]*self.dir[..., 0]*self.dir[..., 2]))
 
-        grad_ADC_xy = comADCGrad*(
-            1/9*x[2, ...]*self.uk_scale[2]**2*bKurtmeanADC -
-            (x[1, ...]*self.uk_scale[1]*self.uk_scale[2] *
-             self.dir[..., 0]*self.dir[..., 1] +
-             x[2, ...]*self.uk_scale[2]**2*self.dirsqr[..., 1] +
-             self.uk_scale[2]*x[4, ...] *
-             self.uk_scale[4]*self.dir[..., 1]*self.dir[..., 2]))
+        grad_ADC_xy = x[0, ...]*grad_M0*(2/9*x[2, ...]*self.uk_scale[2]**2*self.b**2*meanADC*kurt - self.b*(2*x[1, ...]*self.uk_scale[1]*self.uk_scale[2]*self.dir[..., 0]*self.dir[..., 1] + 2*x[2, ...]*self.uk_scale[2]**2*self.dirsqr[..., 1] + 2*self.uk_scale[2]*x[4, ...]*self.uk_scale[4]*self.dir[..., 1]*self.dir[..., 2]))
 
-        grad_ADC_y = comADCGrad*(
-            1/9*x[3, ...]*self.uk_scale[3]**2*bKurtmeanADC -
-            (x[3, ...]*self.uk_scale[3]**2*self.dirsqr[..., 1] +
-             self.uk_scale[3]*x[6, ...]*self.uk_scale[6] *
-             self.dir[..., 1]*self.dir[..., 2]))
+        grad_ADC_y = x[0, ...]*grad_M0*(2/9*x[3, ...]*self.uk_scale[3]**2*self.b**2*meanADC*kurt - self.b*(2*x[3, ...]*self.uk_scale[3]**2*self.dirsqr[..., 1] + 2*self.uk_scale[3]*x[6, ...]*self.uk_scale[6]*self.dir[..., 1]*self.dir[..., 2]))
 
-        grad_ADC_xz = comADCGrad*(
-            1/9*x[4, ...]*self.uk_scale[4]**2*bKurtmeanADC -
-            (x[1, ...]*self.uk_scale[1]*self.uk_scale[4] *
-             self.dir[..., 0]*self.dir[..., 2] +
-             x[2, ...]*self.uk_scale[2]*self.uk_scale[4] *
-             self.dir[..., 1]*self.dir[..., 2] +
-             x[4, ...]*self.uk_scale[4]**2*self.dirsqr[..., 2]))
+        grad_ADC_xz = x[0, ...]*grad_M0*(2/9*x[4, ...]*self.uk_scale[4]**2*self.b**2*meanADC*kurt - self.b*(2*x[1, ...]*self.uk_scale[1]*self.uk_scale[4]*self.dir[..., 0]*self.dir[..., 2] + 2*x[2, ...]*self.uk_scale[2]*self.uk_scale[4]*self.dir[..., 1]*self.dir[..., 2] + 2*x[4, ...]*self.uk_scale[4]**2*self.dirsqr[..., 2]))
 
-        grad_ADC_z = comADCGrad*(
-            1/9*x[5, ...]*self.uk_scale[5]**2*bKurtmeanADC -
-            x[5, ...]*self.uk_scale[5]**2*self.dirsqr[..., 2])
+        grad_ADC_z = x[0, ...]*grad_M0*(2/9*x[5, ...]*self.uk_scale[5]**2*self.b**2*meanADC*kurt - 2*x[5, ...]*self.uk_scale[5]**2*self.b*self.dirsqr[..., 2])
 
-        grad_ADC_yz = comADCGrad*(
-            1/9*x[6, ...]*self.uk_scale[6]**2*bKurtmeanADC -
-            (x[3, ...]*self.uk_scale[3]*self.uk_scale[6] *
-             self.dir[..., 1]*self.dir[..., 2] +
-             x[6, ...]*self.uk_scale[6]**2*self.dirsqr[..., 2]))
+        grad_ADC_yz = x[0, ...]*grad_M0*(2/9*x[6, ...]*self.uk_scale[6]**2*self.b**2*meanADC*kurt - self.b*(2*x[3, ...]*self.uk_scale[3]*self.uk_scale[6]*self.dir[..., 1]*self.dir[..., 2] + 2*x[6, ...]*self.uk_scale[6]**2*self.dirsqr[..., 2]))
 
         del bKurtmeanADC
 
@@ -728,8 +701,6 @@ class Model(BaseModel):
                     cbar.ax.tick_params(labelsize=12, colors='white')
                     for spine in cbar.ax.spines:
                         cbar.ax.spines[spine].set_color('white')
-                    plt.draw()
-                    plt.pause(1e-10)
 
                 plt.draw()
                 plt.pause(1e-10)

@@ -474,6 +474,7 @@ def _start_recon(myargs):
         par["weights"] = np.ones((par["unknowns"]), dtype=np.float32)
     else:
         par["weights"] = np.array(myargs.weights, dtype=np.float32)
+    par["weights"] = par["weights"]/np.linalg.norm(par["weights"])
     if myargs.streamed:
         par["par_slices"] = myargs.par_slices
     if not myargs.trafo:

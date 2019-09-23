@@ -116,7 +116,7 @@ class Model(BaseModel):
                         200 * self.dscale,
                         True))
         self.constraints.append(
-            constraints(0,
+            constraints(1e-5,
                         4/60,
                         True))
 

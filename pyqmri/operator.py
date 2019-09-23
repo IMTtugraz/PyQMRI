@@ -1213,8 +1213,7 @@ class OperatorFiniteGradient(Operator):
         scale = np.linalg.norm(grad, axis=-1)
         scale = 1/scale
         scale[~np.isfinite(scale)] = 1
-        sum_scale = np.linalg.norm(
-            scale[:self.unknowns_TGV]) /\
+        sum_scale = self.unknowns /\
             (1000/np.sqrt(self.NSlice))
         for j in range(x.shape[0])[:self.unknowns_TGV]:
             self._ratio[j] = scale[j] / sum_scale * self._weights[j]

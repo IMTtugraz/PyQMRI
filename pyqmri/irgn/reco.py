@@ -230,6 +230,7 @@ class ModelReco:
             return
         print("Initial norm of the model Gradient: \n", scale)
         scale = 1e3 / np.sqrt(self.par["unknowns"]) / scale
+        scale[~np.isfinite(scale)] = 1e3 / np.sqrt(self.par["unknowns"])
         print("Scalefactor of the model Gradient: \n", scale)
         if not np.mod(ind, 1):
             for uk in range(self.par["unknowns"]):
