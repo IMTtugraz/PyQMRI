@@ -8,7 +8,7 @@ import numexpr as ne
 from skimage import filters
 from skimage.morphology import remove_small_objects
 from scipy.ndimage.morphology import \
-    binary_fill_holes, binary_closing
+    binary_fill_holes, binary_closing, binary_dilation
 plt.ion()
 unknowns_TGV = 22
 unknowns_H1 = 0
@@ -839,8 +839,10 @@ class Model(BaseModel):
             filters.threshold_otsu(meanImg)] = 1
 
         mask = remove_small_objects(mask, 20)
-        mask = binary_closing(np.squeeze(mask), iterations=4)
+        mask = binary_closing(np.squeeze(mask), iterations=6)
         mask = binary_fill_holes((mask))
+        mask = binary_dilation(mask, iterations=4)
+        self.mask = mask
 
         ADC_x = 1 * mask * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
