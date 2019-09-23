@@ -5,6 +5,10 @@ import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 import numexpr as ne
+from skimage import filters
+from skimage.morphology import remove_small_objects
+from scipy.ndimage.morphology import \
+    binary_fill_holes, binary_closing
 plt.ion()
 unknowns_TGV = 22
 unknowns_H1 = 0
@@ -78,9 +82,9 @@ class Model(BaseModel):
                 np.transpose(par["file"]["b0"][()], (0, 2, 1)), 0)
         except KeyError:
             if par["imagespace"] is True:
-                self.b0 = images[0]
+                self.b0 = images
             else:
-                self.b0 = images[0]
+                self.b0 = images
         self.phase = np.exp(1j*(np.angle(images)-np.angle(images[0])))
         self.guess = self._set_init_scales(images)
 
@@ -382,7 +386,6 @@ class Model(BaseModel):
                         dtype=DTYPE)
 
         grad[~np.isfinite(grad)] = 0
-        grad[grad > 1e1] = 1e1
         return grad
 
     def plot_unknowns(self, x, dim_2D=False):
@@ -828,15 +831,27 @@ class Model(BaseModel):
 
     def _set_init_scales(self, images):
         test_M0 = self.b0
-        ADC_x = 1 * np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
-        kurt_yyyy = 1 * np.ones((self.NSlice, self.dimY,
-                                 self.dimX), dtype=DTYPE)
+        mask = np.zeros(test_M0[0].shape, dtype=bool)
+        meanImg = np.mean(np.abs(test_M0), 0)
+
+        mask[
+            meanImg >
+            filters.threshold_otsu(meanImg)] = 1
+
+        mask = remove_small_objects(mask, 20)
+        mask = binary_closing(np.squeeze(mask), iterations=4)
+        mask = binary_fill_holes((mask))
+
+        ADC_x = 1 * mask * np.ones(
+            (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+        kurt_yyyy = 1 * mask * np.ones((self.NSlice, self.dimY,
+                                        self.dimX), dtype=DTYPE)
         kurt_xxxx = 0 * np.ones((self.NSlice, self.dimY,
                                  self.dimX), dtype=DTYPE)
 
         x = np.array(
                 [
-                    test_M0,
+                    test_M0[0],
                     ADC_x,
                     0 * ADC_x,
                     ADC_x,
