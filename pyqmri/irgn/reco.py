@@ -219,14 +219,12 @@ class ModelReco:
             self.irgn_par["omega_min"])
 
     def _balanceModelGradients(self, result, ind):
-        tmp = np.reshape(
+        scale = np.reshape(
             self.model_partial_der,
             (self.par["unknowns"],
              self.par["NScan"] * self.par["NSlice"] *
              self.par["dimY"] * self.par["dimX"]))
-        scale = np.zeros((self.par["unknowns"]))
-        for j in range(scale.shape[0]):
-            scale[j] = np.linalg.norm(tmp[j])
+        scale = np.linalg.norm(scale, axis=-1)
         if np.max(scale) > 1e5:
             print("Scale too large. Keeping the model scale as is.")
             return

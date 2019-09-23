@@ -382,6 +382,7 @@ class Model(BaseModel):
                         dtype=DTYPE)
 
         grad[~np.isfinite(grad)] = 0
+        grad[grad > 1e1] = 1e1
         return grad
 
     def plot_unknowns(self, x, dim_2D=False):
