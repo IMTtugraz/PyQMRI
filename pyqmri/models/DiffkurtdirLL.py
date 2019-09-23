@@ -831,12 +831,12 @@ class Model(BaseModel):
 
     def _set_init_scales(self, images):
         test_M0 = self.b0
-        mask = np.zeros(test_M0[0].shape, dtype=bool)
+        mask = np.ones(test_M0[0].shape, dtype=bool)
         meanImg = np.mean(np.abs(test_M0), 0)
 
         mask[
-            meanImg >
-            filters.threshold_otsu(meanImg)] = 1
+            meanImg <
+            filters.threshold_otsu(meanImg)] = 0
 
         mask = remove_small_objects(mask, 20)
         mask = binary_closing(np.squeeze(mask), iterations=6)
