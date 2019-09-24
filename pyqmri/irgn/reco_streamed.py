@@ -389,7 +389,7 @@ class ModelReco:
             self.grad_x,
             (self.unknowns,
              self.NScan * self.NSlice * self.dimY * self.dimX))
-        scale = np.linalg.norm(scale, axis=-1)
+        scale = np.sqrt(np.sum(np.abs(scale)**2, -1))
         print("Initial norm of the model Gradient: \n", scale)
         scale = 1e3 / np.sqrt(self.unknowns) / scale
         print("Scalefactor of the model Gradient: \n", scale)

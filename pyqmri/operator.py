@@ -1208,17 +1208,17 @@ class OperatorFiniteGradient(Operator):
                    self.NSlice *
                    self.dimY *
                    self.dimX * 4))
-        print("Diff between x: ", np.linalg.norm(scale, axis=-1))
-        print("Diff between grad x: ", np.linalg.norm(grad, axis=-1))
-        scale = np.linalg.norm(grad, axis=-1)
-        scale = 1/scale
+        gradnorm = np.sqrt(np.sum(np.abs(grad)**2, -1))
+        print("Diff between x: ", np.sqrt(np.sum(np.abs(scale)**2, -1)))
+        print("Diff between grad x: ", gradnorm)
+        scale = 1/gradnorm
         scale[~np.isfinite(scale)] = 1
         sum_scale = self.unknowns /\
             (1000/np.sqrt(self.NSlice))
         for j in range(x.shape[0])[:self.unknowns_TGV]:
             self._ratio[j] = scale[j] / sum_scale * self._weights[j]
-        sum_scale = np.linalg.norm(
-            scale[self.unknowns_TGV:])/(1000)
+        sum_scale = np.sqrt(np.sum(np.abs(
+            scale[self.unknowns_TGV:])**2/(1000)))
         for j in range(x.shape[0])[self.unknowns_TGV:]:
             self._ratio[j] = scale[j] / sum_scale * self._weights[j]
         print("Ratio: ", self._ratio)
@@ -1239,8 +1239,8 @@ class OperatorFiniteGradient(Operator):
                    self.NSlice *
                    self.dimY *
                    self.dimX * 4))
-        print("Norm of grad x: ", np.linalg.norm(grad, axis=-1))
-        print("Total Norm of grad x: ", np.linalg.norm(grad.flatten()))
+        print("Norm of grad x: ",  np.sqrt(np.sum(np.abs(grad)**2, -1)))
+        print("Total Norm of grad x: ",  np.sqrt(np.sum(np.abs(grad)**2)))
 
 
 class OperatorFiniteSymGradient(Operator):
@@ -1346,18 +1346,18 @@ class OperatorFiniteGradientStreamed(Operator):
             x, (self.unknowns, self.NSlice * self.dimY * self.dimX))
         grad = np.reshape(
             grad, (self.unknowns, self.NSlice * self.dimY * self.dimX * 4))
-        print("Diff between x: ", np.linalg.norm(scale, axis=-1))
-        print("Diff between grad x: ", np.linalg.norm(grad, axis=-1))
-        scale = np.linalg.norm(grad, axis=-1)
-        scale = 1/scale
+        gradnorm = np.sqrt(np.sum(np.abs(grad)**2, -1))
+        print("Diff between x: ", np.sqrt(np.sum(np.abs(scale)**2, -1)))
+        print("Diff between grad x: ", gradnorm)
+        scale = 1/gradnorm
         scale[~np.isfinite(scale)] = 1
-        sum_scale = np.linalg.norm(
-            scale[:self.unknowns_TGV])/(1000/np.sqrt(self.NSlice))
+        sum_scale = self.unknowns /\
+            (1000/np.sqrt(self.NSlice))
         for i in range(self.num_dev):
             for j in range(x.shape[0])[:self.unknowns_TGV]:
                 self._ratio[i][j] = scale[j] / sum_scale
-        sum_scale = np.linalg.norm(
-            scale[self.unknowns_TGV:])/(1000)
+        sum_scale = np.sqrt(np.sum(np.abs(
+            scale[self.unknowns_TGV:])**2/(1000)))
         for i in range(self.num_dev):
             for j in range(x.shape[0])[self.unknowns_TGV:]:
                 self._ratio[i][j] = scale[j] / sum_scale
