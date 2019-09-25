@@ -48,33 +48,33 @@ class Model(BaseModel):
 
         self.constraints.append(
             constraints(
-                (-1e0 / self.uk_scale[1]),
-                (1e0 / self.uk_scale[1]),
+                (-8e-1 / self.uk_scale[1]),
+                (8e-1 / self.uk_scale[1]),
                 True))
         self.constraints.append(
             constraints(
-                (-1e0 / self.uk_scale[2]),
-                (1e0 / self.uk_scale[2]),
+                (-8e-1 / self.uk_scale[2]),
+                (8e-1 / self.uk_scale[2]),
                 True))
         self.constraints.append(
             constraints(
-                (-1e0 / self.uk_scale[3]),
-                (1e0 / self.uk_scale[3]),
+                (-8e-1 / self.uk_scale[3]),
+                (8e-1 / self.uk_scale[3]),
                 True))
         self.constraints.append(
             constraints(
-                (-1e0 / self.uk_scale[4]),
-                (1e0 / self.uk_scale[4]),
+                (-8e-1 / self.uk_scale[4]),
+                (8e-1 / self.uk_scale[4]),
                 True))
         self.constraints.append(
             constraints(
-                (-1e0 / self.uk_scale[5]),
-                (1e0 / self.uk_scale[5]),
+                (-8e-1 / self.uk_scale[5]),
+                (8e-1 / self.uk_scale[5]),
                 True))
         self.constraints.append(
             constraints(
-                (-1e0 / self.uk_scale[6]),
-                (1e0 / self.uk_scale[6]),
+                (-8e-1 / self.uk_scale[6]),
+                (8e-1 / self.uk_scale[6]),
                 True))
 
         self.constraints.append(
@@ -241,32 +241,37 @@ class Model(BaseModel):
                    x[10, ...] * self.uk_scale[10]) * \
               self.dir[..., 1] * self.dir[..., 2]
 
+        expADCf = np.exp(-self.b * ADCf)
+        expADCs = np.exp(-self.b * ADCs)
+
         grad_M0 = self.uk_scale[0] * (
-            x[7]*self.uk_scale[7] * np.exp(-self.b * ADCf) +
-            (-x[7]*self.uk_scale[7] + 1) * np.exp(-self.b * ADCs))
+            x[7]*self.uk_scale[7] * expADCf +
+            (-x[7]*self.uk_scale[7] + 1) * expADCs)
 
-        grad_ADCs_x = -x[0] * self.uk_scale[0]*self.b*(1 - x[7] * self.uk_scale[7])*(2*x[1]*self.uk_scale[1]**2*self.dir[..., 0]**2 + 2*self.uk_scale[1]*x[2]*self.uk_scale[2]*self.dir[..., 0]*self.dir[..., 1] + 2*self.uk_scale[1]*x[4]*self.uk_scale[4]*self.dir[..., 0]*self.dir[..., 2])*np.exp(-self.b * ADCs)
-        grad_ADCs_xy = -x[0] * self.uk_scale[0]*self.b*(1 - x[7] * self.uk_scale[7])*(2*x[1]*self.uk_scale[1]*self.uk_scale[2]*self.dir[..., 0]*self.dir[..., 1] + 2*x[2]*self.uk_scale[2]**2*self.dir[..., 1]**2 + 2*self.uk_scale[2]*x[4]*self.uk_scale[4]*self.dir[..., 1]*self.dir[..., 2])*np.exp(-self.b * ADCs)
 
-        grad_ADCs_y = -x[0] * self.uk_scale[0]*self.b*(1 - x[7] * self.uk_scale[7])*(2*x[3]*self.uk_scale[3]**2*self.dir[..., 1]**2 + 2*self.uk_scale[3]*x[6]*self.uk_scale[6]*self.dir[..., 1]*self.dir[..., 2])*np.exp(-self.b * ADCs)
 
-        grad_ADCs_xz = -x[0] * self.uk_scale[0]*self.b*(1 - x[7] * self.uk_scale[7])*(2*x[1]*self.uk_scale[1]*self.uk_scale[4]*self.dir[..., 0]*self.dir[..., 2] + 2*x[2]*self.uk_scale[2]*self.uk_scale[4]*self.dir[..., 1]*self.dir[..., 2] + 2*x[4]*self.uk_scale[4]**2*self.dir[..., 2]**2)*np.exp(-self.b * ADCs)
+        grad_ADCs_x = -x[0] * self.uk_scale[0]*self.b*(1 - x[7] * self.uk_scale[7])*(2*x[1]*self.uk_scale[1]**2*self.dir[..., 0]**2 + 2*self.uk_scale[1]*x[2]*self.uk_scale[2]*self.dir[..., 0]*self.dir[..., 1] + 2*self.uk_scale[1]*x[4]*self.uk_scale[4]*self.dir[..., 0]*self.dir[..., 2])*expADCs
+        grad_ADCs_xy = -x[0] * self.uk_scale[0]*self.b*(1 - x[7] * self.uk_scale[7])*(2*x[1]*self.uk_scale[1]*self.uk_scale[2]*self.dir[..., 0]*self.dir[..., 1] + 2*x[2]*self.uk_scale[2]**2*self.dir[..., 1]**2 + 2*self.uk_scale[2]*x[4]*self.uk_scale[4]*self.dir[..., 1]*self.dir[..., 2])*expADCs
 
-        grad_ADCs_z = -2*x[5]*self.uk_scale[5]**2*x[0] * self.uk_scale[0]*self.b*self.dir[..., 2]**2*(1 - x[7] * self.uk_scale[7])*np.exp(-self.b * ADCs)
+        grad_ADCs_y = -x[0] * self.uk_scale[0]*self.b*(1 - x[7] * self.uk_scale[7])*(2*x[3]*self.uk_scale[3]**2*self.dir[..., 1]**2 + 2*self.uk_scale[3]*x[6]*self.uk_scale[6]*self.dir[..., 1]*self.dir[..., 2])*expADCs
 
-        grad_ADCs_yz = -x[0] * self.uk_scale[0]*self.b*(1 - x[7] * self.uk_scale[7])*(2*x[3]*self.uk_scale[3]*self.uk_scale[6]*self.dir[..., 1]*self.dir[..., 2] + 2*x[6]*self.uk_scale[6]**2*self.dir[..., 2]**2)*np.exp(-self.b * ADCs)
+        grad_ADCs_xz = -x[0] * self.uk_scale[0]*self.b*(1 - x[7] * self.uk_scale[7])*(2*x[1]*self.uk_scale[1]*self.uk_scale[4]*self.dir[..., 0]*self.dir[..., 2] + 2*x[2]*self.uk_scale[2]*self.uk_scale[4]*self.dir[..., 1]*self.dir[..., 2] + 2*x[4]*self.uk_scale[4]**2*self.dir[..., 2]**2)*expADCs
+
+        grad_ADCs_z = -2*x[5]*self.uk_scale[5]**2*x[0] * self.uk_scale[0]*self.b*self.dir[..., 2]**2*(1 - x[7] * self.uk_scale[7])*expADCs
+
+        grad_ADCs_yz = -x[0] * self.uk_scale[0]*self.b*(1 - x[7] * self.uk_scale[7])*(2*x[3]*self.uk_scale[3]*self.uk_scale[6]*self.dir[..., 1]*self.dir[..., 2] + 2*x[6]*self.uk_scale[6]**2*self.dir[..., 2]**2)*expADCs
 
         grad_f = x[0]*self.uk_scale[0]*self.uk_scale[7]*(
-            -np.exp(-self.b * ADCs) + np.exp(-self.b * ADCf))
+            -expADCs + expADCf)
 
-        grad_ADCf_x = -x[0] * self.uk_scale[0]*self.b*x[7] * self.uk_scale[7]*(2*x[8]*self.uk_scale[8]**2*self.dir[..., 0]**2 + 2*self.uk_scale[8]*x[9]*self.uk_scale[9]*self.dir[..., 0]*self.dir[..., 1] + 2*self.uk_scale[8]*x[11]*self.uk_scale[11]*self.dir[..., 0]*self.dir[..., 2])*np.exp(-self.b * ADCf)
-        grad_ADCf_xy = -x[0] * self.uk_scale[0]*self.b*x[7] * self.uk_scale[7]*(2*x[8]*self.uk_scale[8]*self.uk_scale[9]*self.dir[..., 0]*self.dir[..., 1] + 2*x[9]*self.uk_scale[9]**2*self.dir[..., 1]**2 + 2*self.uk_scale[9]*x[11]*self.uk_scale[11]*self.dir[..., 1]*self.dir[..., 2])*np.exp(-self.b * ADCf)
+        grad_ADCf_x = -x[0] * self.uk_scale[0]*self.b*x[7] * self.uk_scale[7]*(2*x[8]*self.uk_scale[8]**2*self.dir[..., 0]**2 + 2*self.uk_scale[8]*x[9]*self.uk_scale[9]*self.dir[..., 0]*self.dir[..., 1] + 2*self.uk_scale[8]*x[11]*self.uk_scale[11]*self.dir[..., 0]*self.dir[..., 2])*expADCf
+        grad_ADCf_xy = -x[0] * self.uk_scale[0]*self.b*x[7] * self.uk_scale[7]*(2*x[8]*self.uk_scale[8]*self.uk_scale[9]*self.dir[..., 0]*self.dir[..., 1] + 2*x[9]*self.uk_scale[9]**2*self.dir[..., 1]**2 + 2*self.uk_scale[9]*x[11]*self.uk_scale[11]*self.dir[..., 1]*self.dir[..., 2])*expADCf
 
-        grad_ADCf_y = -x[0] * self.uk_scale[0]*self.b*x[7] * self.uk_scale[7]*(2*x[10]*self.uk_scale[10]**2*self.dir[..., 1]**2 + 2*self.uk_scale[10]*x[13]*self.uk_scale[13]*self.dir[..., 1]*self.dir[..., 2])*np.exp(-self.b * ADCf)
-        grad_ADCf_xz = -x[0] * self.uk_scale[0]*self.b*x[7] * self.uk_scale[7]*(2*x[8]*self.uk_scale[8]*self.uk_scale[11]*self.dir[..., 0]*self.dir[..., 2] + 2*x[9]*self.uk_scale[9]*self.uk_scale[11]*self.dir[..., 1]*self.dir[..., 2] + 2*x[11]*self.uk_scale[11]**2*self.dir[..., 2]**2)*np.exp(-self.b * ADCf)
+        grad_ADCf_y = -x[0] * self.uk_scale[0]*self.b*x[7] * self.uk_scale[7]*(2*x[10]*self.uk_scale[10]**2*self.dir[..., 1]**2 + 2*self.uk_scale[10]*x[13]*self.uk_scale[13]*self.dir[..., 1]*self.dir[..., 2])*expADCf
+        grad_ADCf_xz = -x[0] * self.uk_scale[0]*self.b*x[7] * self.uk_scale[7]*(2*x[8]*self.uk_scale[8]*self.uk_scale[11]*self.dir[..., 0]*self.dir[..., 2] + 2*x[9]*self.uk_scale[9]*self.uk_scale[11]*self.dir[..., 1]*self.dir[..., 2] + 2*x[11]*self.uk_scale[11]**2*self.dir[..., 2]**2)*expADCf
 
-        grad_ADCf_z = -2*x[12]*self.uk_scale[12]**2*x[0] * self.uk_scale[0]*self.b*self.dir[..., 2]**2*x[7] * self.uk_scale[7]*np.exp(-self.b * ADCf)
-        grad_ADCf_yz = -x[0] * self.uk_scale[0]*self.b*x[7] * self.uk_scale[7]*(2*x[10]*self.uk_scale[10]*self.uk_scale[13]*self.dir[..., 1]*self.dir[..., 2] + 2*x[13]*self.uk_scale[13]**2*self.dir[..., 2]**2)*np.exp(-self.b * ADCf)
+        grad_ADCf_z = -2*x[12]*self.uk_scale[12]**2*x[0] * self.uk_scale[0]*self.b*self.dir[..., 2]**2*x[7] * self.uk_scale[7]*expADCf
+        grad_ADCf_yz = -x[0] * self.uk_scale[0]*self.b*x[7] * self.uk_scale[7]*(2*x[10]*self.uk_scale[10]*self.uk_scale[13]*self.dir[..., 1]*self.dir[..., 2] + 2*x[13]*self.uk_scale[13]**2*self.dir[..., 2]**2)*expADCf
 
         grad = np.array(
             [grad_M0,
@@ -795,11 +800,11 @@ class Model(BaseModel):
         x = np.array(
                 [
                     test_M0 / self.uk_scale[0],
-                    ADC/5,
+                    ADC/10,
                     0 * ADC,
-                    ADC/5,
+                    ADC/10,
                     0 * ADC,
-                    ADC/5,
+                    ADC/10,
                     0 * ADC,
                     0.6 * np.ones_like(test_M0),
                     ADC,

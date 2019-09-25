@@ -370,12 +370,14 @@ class ModelReco:
                 requirements='C'),
             ign+1)
 
-    def _update_reg_par(self, result, ign):
+    def _updateIRGNRegPar(self, result, ign):
         self.irgn_par["delta_max"] = (self.delta_max /
-                                      1e3 * np.linalg.norm(result))
+                                      1e3 *
+                                      np.linalg.norm(result))
         self.irgn_par["delta"] = np.minimum(
             self.delta /
-            (1e3)*np.linalg.norm(result)*self.irgn_par["delta_inc"]**ign,
+            (1e3) *
+            np.linalg.norm(result)*self.irgn_par["delta_inc"]**ign,
             self.irgn_par["delta_max"])
         self.irgn_par["gamma"] = np.maximum(
             self.gamma * self.irgn_par["gamma_dec"]**ign,
@@ -384,28 +386,34 @@ class ModelReco:
             self.omega * self.irgn_par["omega_dec"]**ign,
             self.irgn_par["omega_min"])
 
-    def _balance_model_gradients(self, result, ind):
+    def _balanceModelGradients(self, result, ind):
         scale = np.reshape(
-            self.grad_x,
-            (self.unknowns,
-             self.NScan * self.NSlice * self.dimY * self.dimX))
+            self.model_partial_der,
+            (self.par["unknowns"],
+             self.par["NScan"] * self.par["NSlice"] *
+             self.par["dimY"] * self.par["dimX"]))
         scale = np.sqrt(np.sum(np.abs(scale)**2, -1))
+        if np.max(scale) > 1e5:
+            print("Scale too large. Keeping the model scale as is.")
+            return
         print("Initial norm of the model Gradient: \n", scale)
-        scale = 1e3 / np.sqrt(self.unknowns) / scale
+        scale = 1e3 / scale
+#        scale[~np.isfinite(scale)] = 1e3 / np.sqrt(self.par["unknowns"])
         print("Scalefactor of the model Gradient: \n", scale)
         if not np.mod(ind, 1):
-            for uk in range(self.unknowns):
+            for uk in range(self.par["unknowns"]):
                 self.model.constraints[uk].update(scale[uk])
                 result[uk, ...] *= self.model.uk_scale[uk]
-                self.grad_x[uk] /= self.model.uk_scale[uk]
+                self.model_partial_der[uk] /= self.model.uk_scale[uk]
                 self.model.uk_scale[uk] *= scale[uk]
                 result[uk, ...] /= self.model.uk_scale[uk]
-                self.grad_x[uk] *= self.model.uk_scale[uk]
+                self.model_partial_der[uk] *= self.model.uk_scale[uk]
         scale = np.reshape(
-            self.grad_x,
-            (self.unknowns,
-             self.NScan * self.NSlice * self.dimY * self.dimX))
-        scale = np.linalg.norm(scale, axis=-1)
+            self.model_partial_der,
+            (self.par["unknowns"],
+             self.par["NScan"] * self.par["NSlice"] *
+             self.par["dimY"] * self.par["dimX"]))
+        scale = np.linalg.norm(scale)
         print("Scale of the model Gradient: \n", scale)
 
     def _setup_reg_tmp_arrays(self):

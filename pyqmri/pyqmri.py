@@ -198,12 +198,12 @@ def _genImages(myargs, par, data):
 
 def _estScaleNorm(myargs, par, images, data):
     if myargs.imagespace:
-        dscale = DTYPE_real(np.sqrt(2*1e3*par["NSlice"]/par["MB"]) /
+        dscale = DTYPE_real(np.sqrt(2*1e3) /
                             (np.linalg.norm(images.flatten())))
         par["dscale"] = dscale
         images = images*dscale
     else:
-        dscale = (DTYPE_real(np.sqrt(2*1e3*par["NSlice"]/par["MB"])) /
+        dscale = (DTYPE_real(np.sqrt(2*1e3)) /
                   (np.linalg.norm(data.flatten())))
         par["dscale"] = dscale
         images = images*dscale

@@ -206,10 +206,12 @@ class ModelReco:
 
     def _updateIRGNRegPar(self, result, ign):
         self.irgn_par["delta_max"] = (self.delta_max /
-                                      1e3 * np.linalg.norm(result))
+                                      1e3 *
+                                      np.linalg.norm(result))
         self.irgn_par["delta"] = np.minimum(
             self.delta /
-            (1e3)*np.linalg.norm(result)*self.irgn_par["delta_inc"]**ign,
+            (1e3) *
+            np.linalg.norm(result)*self.irgn_par["delta_inc"]**ign,
             self.irgn_par["delta_max"])
         self.irgn_par["gamma"] = np.maximum(
             self.gamma * self.irgn_par["gamma_dec"]**ign,
@@ -229,8 +231,8 @@ class ModelReco:
             print("Scale too large. Keeping the model scale as is.")
             return
         print("Initial norm of the model Gradient: \n", scale)
-        scale = 1e3 / np.sqrt(self.par["unknowns"]) / scale
-        scale[~np.isfinite(scale)] = 1e3 / np.sqrt(self.par["unknowns"])
+        scale = 1e3 / scale
+#        scale[~np.isfinite(scale)] = 1e3 / np.sqrt(self.par["unknowns"])
         print("Scalefactor of the model Gradient: \n", scale)
         if not np.mod(ind, 1):
             for uk in range(self.par["unknowns"]):

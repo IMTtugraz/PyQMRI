@@ -1213,8 +1213,7 @@ class OperatorFiniteGradient(Operator):
         print("Diff between grad x: ", gradnorm)
         scale = 1/gradnorm
         scale[~np.isfinite(scale)] = 1
-        sum_scale = self.unknowns /\
-            (1000/np.sqrt(self.NSlice))
+        sum_scale = 1 / (1e3)
         for j in range(x.shape[0])[:self.unknowns_TGV]:
             self._ratio[j] = scale[j] / sum_scale * self._weights[j]
         sum_scale = np.sqrt(np.sum(np.abs(
@@ -1351,8 +1350,7 @@ class OperatorFiniteGradientStreamed(Operator):
         print("Diff between grad x: ", gradnorm)
         scale = 1/gradnorm
         scale[~np.isfinite(scale)] = 1
-        sum_scale = self.unknowns /\
-            (1000/np.sqrt(self.NSlice))
+        sum_scale = 1 / (1e3)
         for i in range(self.num_dev):
             for j in range(x.shape[0])[:self.unknowns_TGV]:
                 self._ratio[i][j] = scale[j] / sum_scale
