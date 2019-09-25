@@ -1331,9 +1331,7 @@ class OperatorFiniteGradientStreamed(Operator):
 
     def updateRatio(self, inp):
         x = np.require(np.transpose(inp, [1, 0, 2, 3]), requirements='C')
-        grad = clarray.to_device(
-            self.queue, np.zeros(x.shape + (4,),
-                                 dtype=self.DTYPE))
+        grad = np.zeros(x.shape + (4,), dtype=self.DTYPE)
         for i in range(self.num_dev):
             for j in range(x.shape[0])[:self.unknowns_TGV]:
                 self._ratio[i][j] = 1

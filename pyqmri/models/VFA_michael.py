@@ -30,12 +30,12 @@ class Model(BaseModel):
 
         self.FP = (parameters[4][...].astype(DTYPE_real))
         self.Te = (parameters[6][...].astype(DTYPE_real))
-        self.Te[self.Te < 1 / 6] = 1 / 6
+
         self.alpha = (parameters[7][...].astype(DTYPE_real))
 
-        self.mask = np.ones_like(self.FP)
-        self.mask[self.FP == 0] = 0
-        self.mask = self.mask.astype(int)
+        self.Te[self.Te < 1 / 6] = 1 / 6
+#        self.mask = np.ones(self.images.shape[-3:], dtype=int)
+#        self.mask[self.FP == 0] = 0
 
         Coils = par["file"]["GT/sensitivities/real_dat"][()] + 1j * \
             par["file"]["GT/sensitivities/imag_dat"][()]
@@ -129,11 +129,7 @@ class Model(BaseModel):
         grad_T1 = grad_T1 * dC
         grad = np.concatenate((grad_M0[None, ...], grad_T1))
         grad[~np.isfinite(grad)] = 1e-20
-#    print('Grad Scaling FP', np.linalg.norm(np.abs(grad[0]))/np.linalg.norm(np.abs(grad[1])))
-#    print('Grad Scaling Te', np.linalg.norm(np.abs(grad[0]))/np.linalg.norm(np.abs(grad[2])))
-#    print('Grad Scaling alpha', np.linalg.norm(np.abs(grad[0]))/np.linalg.norm(np.abs(grad[3])))
-#    print('Grad Scaling Tc', np.linalg.norm(np.abs(grad[0]))/np.linalg.norm(np.abs(grad[4])))
-#    print('Grad Scaling tau', np.linalg.norm(np.abs(grad[0]))/np.linalg.norm(np.abs(grad[5])))
+
         return grad.astype(DTYPE)
 
     def plot_unknowns(self, x, dim_2D=False):
@@ -167,27 +163,7 @@ class Model(BaseModel):
         tau_max = tau.max()
 
         if dim_2D:
-            if not self.figure:
-                plt.ion()
-#           self.figure, self.ax = plt.subplots(1,2,figsize=(12,5))
-#           self.M0_plot = self.ax[0].imshow((M0))
-#           self.ax[0].set_title('Proton Density in a.u.')
-#           self.ax[0].axis('off')
-#           self.figure.colorbar(self.M0_plot,ax=self.ax[0])
-#           self.T1_plot = self.ax[1].imshow((T1))
-#           self.ax[1].set_title('T1 in  ms')
-#           self.ax[1].axis('off')
-#           self.figure.colorbar(self.T1_plot,ax=self.ax[1])
-#           self.figure.tight_layout()
-                plt.draw()
-                plt.pause(1e-10)
-            else:
-                #           self.M0_plot.set_data((M0))
-                #           self.M0_plot.set_clim([M0_min,M0_max])
-                #           self.T1_plot.set_data((T1))
-                #           self.T1_plot.set_clim([T1_min,T1_max])
-                plt.draw()
-                plt.pause(1e-10)
+            pass
         else:
             [z, y, x] = M0.shape
             if not self.figure:

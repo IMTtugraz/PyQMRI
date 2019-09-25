@@ -270,7 +270,10 @@ class ModelReco:
 ###############################################################################
     def set_scale(self, inp):
         x = np.require(np.transpose(inp, [1, 0, 2, 3]), requirements='C')
-        grad = np.zeros_like(self.z1)
+        grad = np.zeros(x.shape + (4,), dtype=DTYPE)
+        for i in range(self.num_dev):
+            for j in range(x.shape[0])[:self.unknowns_TGV]:
+                self.ratio[i][j] = 1
         self.stream_grad.eval([grad], [[x]])
         grad = np.require(np.transpose(grad, [1, 0, 2, 3, 4]),
                           requirements='C')
@@ -279,18 +282,17 @@ class ModelReco:
             x, (self.unknowns, self.NSlice * self.dimY * self.dimX))
         grad = np.reshape(
             grad, (self.unknowns, self.NSlice * self.dimY * self.dimX * 4))
-        print("Diff between x: ", np.linalg.norm(scale, axis=-1))
-        print("Diff between grad x: ", np.linalg.norm(grad, axis=-1))
-        scale = np.linalg.norm(grad, axis=-1)
-        scale = 1/scale
+        gradnorm = np.sqrt(np.sum(np.abs(grad)**2, -1))
+        print("Diff between x: ", np.sqrt(np.sum(np.abs(scale)**2, -1)))
+        print("Diff between grad x: ", gradnorm)
+        scale = 1/gradnorm
         scale[~np.isfinite(scale)] = 1
-        sum_scale = np.linalg.norm(
-            scale[:self.unknowns_TGV])/(1000/np.sqrt(self.NSlice))
+        sum_scale = 1 / (1e3)
         for i in range(self.num_dev):
             for j in range(x.shape[0])[:self.unknowns_TGV]:
                 self.ratio[i][j] = scale[j] / sum_scale
-        sum_scale = np.linalg.norm(
-            scale[self.unknowns_TGV:])/(1000)
+        sum_scale = np.sqrt(np.sum(np.abs(
+            scale[self.unknowns_TGV:])**2/(1000)))
         for i in range(self.num_dev):
             for j in range(x.shape[0])[self.unknowns_TGV:]:
                 self.ratio[i][j] = scale[j] / sum_scale
@@ -328,7 +330,7 @@ class ModelReco:
 
             self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
 
-            self._balance_model_gradients(result, ign)
+            self._balanceModelGradients(result, ign)
             self.set_scale(result)
 
             self.step_val = np.nan_to_num(self.model.execute_forward(result))
@@ -337,7 +339,7 @@ class ModelReco:
             self.grad_x = np.require(
                 np.transpose(self.grad_x, [2, 0, 1, 3, 4]), requirements='C')
 
-            self._update_reg_par(result, ign)
+            self._updateIRGNRegPar(result, ign)
 
             result = self.irgn_solve_3D(result, iters, ign)
 
@@ -388,7 +390,7 @@ class ModelReco:
 
     def _balanceModelGradients(self, result, ind):
         scale = np.reshape(
-            self.model_partial_der,
+            self.grad_x,
             (self.par["unknowns"],
              self.par["NScan"] * self.par["NSlice"] *
              self.par["dimY"] * self.par["dimX"]))
@@ -404,12 +406,12 @@ class ModelReco:
             for uk in range(self.par["unknowns"]):
                 self.model.constraints[uk].update(scale[uk])
                 result[uk, ...] *= self.model.uk_scale[uk]
-                self.model_partial_der[uk] /= self.model.uk_scale[uk]
+                self.grad_x[uk] /= self.model.uk_scale[uk]
                 self.model.uk_scale[uk] *= scale[uk]
                 result[uk, ...] /= self.model.uk_scale[uk]
-                self.model_partial_der[uk] *= self.model.uk_scale[uk]
+                self.grad_x[uk] *= self.model.uk_scale[uk]
         scale = np.reshape(
-            self.model_partial_der,
+            self.grad_x,
             (self.par["unknowns"],
              self.par["NScan"] * self.par["NSlice"] *
              self.par["dimY"] * self.par["dimX"]))
