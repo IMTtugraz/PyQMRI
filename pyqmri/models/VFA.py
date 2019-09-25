@@ -26,7 +26,7 @@ class Model(BaseModel):
         phi_corr = np.zeros_like(images, dtype=DTYPE)
         for i in range(np.size(par["flip_angle(s)"])):
             phi_corr[i, :, :, :] = par["flip_angle(s)"][i] *\
-                np.pi / 180 * par["fa_corr"]
+                np.pi / 180 * self.fa_corr
 
         self.sin_phi = np.sin(phi_corr)
         self.cos_phi = np.cos(phi_corr)
