@@ -17,7 +17,11 @@ class Model(BaseModel):
         self.constraints = []
         self.TR = par["TR"]
         self.fa = par["flip_angle(s)"]
-        self.fa_corr = par["fa_corr"]
+        try:
+            self.fa_corr = par["fa_corr"]
+        except KeyError:
+            self.fa_corr = 1
+            print("No flipangle correction found!")
 
         phi_corr = np.zeros_like(images, dtype=DTYPE)
         for i in range(np.size(par["flip_angle(s)"])):
