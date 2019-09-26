@@ -378,7 +378,7 @@ class ModelReco:
                   3D can be used with a single slice.")
             raise NotImplementedError
         else:
-            self.irgn_par["lambd"] *= self.par["SNR_est"]
+            self.irgn_par["lambd"] *= 1e2/np.sqrt(self.par["SNR_est"])
             self.delta = self.irgn_par["delta"]
             self.delta_max = self.irgn_par["delta_max"]
             self.gamma = self.irgn_par["gamma"]

@@ -228,8 +228,8 @@ def _estScaleNorm(myargs, par, images, data):
         par["SNR_est"] = SNR_est
         print("Estimated SNR from kspace", SNR_est)
     else:
-        centerX = int(par["dimX"]*0.2)
-        centerY = int(par["dimY"]*0.2)
+        centerX = int(par["dimX"]*0.1)
+        centerY = int(par["dimY"]*0.1)
         ind = np.zeros((par["dimY"], par["dimX"]), dtype=bool)
         ind[int(par["N"]/2-centerY):int(par["N"]/2+centerY),
             int(par["N"]/2-centerX):int(par["N"]/2+centerX)] = 1
