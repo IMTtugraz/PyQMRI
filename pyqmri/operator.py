@@ -1191,7 +1191,7 @@ class OperatorFiniteGradient(Operator):
              self.unknowns *
              np.ones(
                  self.unknowns)).astype(
-                     dtype=self.DTYPE_real))
+                     self.DTYPE_real))
         grad.add_event(
             self.fwd(
                 grad,
@@ -1208,8 +1208,9 @@ class OperatorFiniteGradient(Operator):
                    self.NSlice *
                    self.dimY *
                    self.dimX * 4))
-        gradnorm = np.sqrt(np.sum(np.abs(grad)**2, -1))
-        print("Diff between x: ", np.sqrt(np.sum(np.abs(scale)**2, -1)))
+        gradnorm = np.linalg.norm(grad, axis=-1)
+        gradnorm[gradnorm < 1e-8] = 0
+        print("Diff between x: ", np.linalg.norm(scale, axis=-1))
         print("Diff between grad x: ", gradnorm)
         scale = 1/gradnorm
         scale[~np.isfinite(scale)] = 1
@@ -1238,8 +1239,8 @@ class OperatorFiniteGradient(Operator):
                    self.NSlice *
                    self.dimY *
                    self.dimX * 4))
-        print("Norm of grad x: ",  np.sqrt(np.sum(np.abs(grad)**2, -1)))
-        print("Total Norm of grad x: ",  np.sqrt(np.sum(np.abs(grad)**2)))
+        print("Norm of grad x: ",  np.linalg.norm(grad, axis=-1))
+        print("Total Norm of grad x: ",  np.linalg.norm(grad))
 
 
 class OperatorFiniteSymGradient(Operator):
@@ -1343,8 +1344,9 @@ class OperatorFiniteGradientStreamed(Operator):
             x, (self.unknowns, self.NSlice * self.dimY * self.dimX))
         grad = np.reshape(
             grad, (self.unknowns, self.NSlice * self.dimY * self.dimX * 4))
-        gradnorm = np.sqrt(np.sum(np.abs(grad)**2, -1))
-        print("Diff between x: ", np.sqrt(np.sum(np.abs(scale)**2, -1)))
+        gradnorm = np.linalg.norm(grad, axis=-1)
+        gradnorm[gradnorm < 1e-8] = 0
+        print("Diff between x: ", np.linalg.norm(scale, axis=-1))
         print("Diff between grad x: ", gradnorm)
         scale = 1/gradnorm
         scale[~np.isfinite(scale)] = 1

@@ -226,7 +226,7 @@ class ModelReco:
             (self.par["unknowns"],
              self.par["NScan"] * self.par["NSlice"] *
              self.par["dimY"] * self.par["dimX"]))
-        scale = np.sqrt(np.sum(np.abs(scale)**2, -1))
+        scale = np.linalg.norm(scale, axis=-1)
         if np.max(scale) > 1e5:
             print("Scale too large. Keeping the model scale as is.")
             return

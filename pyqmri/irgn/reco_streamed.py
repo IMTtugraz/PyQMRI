@@ -282,8 +282,8 @@ class ModelReco:
             x, (self.unknowns, self.NSlice * self.dimY * self.dimX))
         grad = np.reshape(
             grad, (self.unknowns, self.NSlice * self.dimY * self.dimX * 4))
-        gradnorm = np.sqrt(np.sum(np.abs(grad)**2, -1))
-        print("Diff between x: ", np.sqrt(np.sum(np.abs(scale)**2, -1)))
+        gradnorm = np.linalg.norm(grad, axis=-1)
+        print("Diff between x: ", np.linalg.norm(scale, axis=-1))
         print("Diff between grad x: ", gradnorm)
         scale = 1/gradnorm
         scale[~np.isfinite(scale)] = 1
@@ -394,7 +394,7 @@ class ModelReco:
             (self.par["unknowns"],
              self.par["NScan"] * self.par["NSlice"] *
              self.par["dimY"] * self.par["dimX"]))
-        scale = np.sqrt(np.sum(np.abs(scale)**2, -1))
+        scale = np.linalg.norm(scale, axis=-1)
         if np.max(scale) > 1e5:
             print("Scale too large. Keeping the model scale as is.")
             return
