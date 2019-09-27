@@ -112,11 +112,11 @@ class Model(BaseModel):
         self.guess = self._set_init_scales(images)
 
         self.constraints.append(
-            constraints(1 * self.dscale,
+            constraints(0 * self.dscale,
                         200 * self.dscale,
                         True))
         self.constraints.append(
-            constraints(0.1/60,
+            constraints(0,
                         4/60,
                         True))
 

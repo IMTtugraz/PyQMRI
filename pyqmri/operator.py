@@ -1212,7 +1212,7 @@ class OperatorFiniteGradient(Operator):
         gradnorm[gradnorm < 1e-8] = 0
         print("Diff between x: ", np.linalg.norm(scale, axis=-1))
         print("Diff between grad x: ", gradnorm)
-        scale = 1/gradnorm
+        scale = np.linalg.norm(gradnorm)/gradnorm
         scale[~np.isfinite(scale)] = 1
         sum_scale = 1 / (1e3)
         for j in range(x.shape[0])[:self.unknowns_TGV]:
