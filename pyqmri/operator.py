@@ -1187,8 +1187,7 @@ class OperatorFiniteGradient(Operator):
                                  dtype=self.DTYPE))
         self._ratio = clarray.to_device(
             self.queue,
-            (1 /
-             self.unknowns *
+            (1 *
              np.ones(
                  self.unknowns)).astype(
                      self.DTYPE_real))
@@ -1210,18 +1209,18 @@ class OperatorFiniteGradient(Operator):
                    self.dimX * 4))
         gradnorm = np.linalg.norm(grad, axis=-1)
         gradnorm[gradnorm < 1e-8] = 0
-        print("Diff between x: ", np.linalg.norm(scale, axis=-1))
+#        print("Diff between x: ", np.linalg.norm(scale, axis=-1))
         print("Diff between grad x: ", gradnorm)
-        scale = np.linalg.norm(gradnorm)/gradnorm
+        scale = 1e3/gradnorm
         scale[~np.isfinite(scale)] = 1
-        sum_scale = 1 / (1e3)
+#        sum_scale = 1 / (1e3)
         for j in range(x.shape[0])[:self.unknowns_TGV]:
-            self._ratio[j] = scale[j] / sum_scale * self._weights[j]
-        sum_scale = np.sqrt(np.sum(np.abs(
-            scale[self.unknowns_TGV:])**2/(1000)))
+            self._ratio[j] = scale[j] * self._weights[j]
+#        sum_scale = np.sqrt(np.sum(np.abs(
+#            scale[self.unknowns_TGV:])**2/(1000)))
         for j in range(x.shape[0])[self.unknowns_TGV:]:
-            self._ratio[j] = scale[j] / sum_scale * self._weights[j]
-        print("Ratio: ", self._ratio)
+            self._ratio[j] = scale[j] * self._weights[j]
+#        print("Ratio: ", self._ratio)
         x = clarray.to_device(self.queue, x)
         grad = clarray.to_device(
             self.queue, np.zeros(x.shape + (4,),
@@ -1348,17 +1347,17 @@ class OperatorFiniteGradientStreamed(Operator):
         gradnorm[gradnorm < 1e-8] = 0
         print("Diff between x: ", np.linalg.norm(scale, axis=-1))
         print("Diff between grad x: ", gradnorm)
-        scale = 1/gradnorm
+        scale = 1e3/gradnorm
         scale[~np.isfinite(scale)] = 1
-        sum_scale = 1 / (1e3)
+#        sum_scale = 1 / (1e3)
         for i in range(self.num_dev):
             for j in range(x.shape[0])[:self.unknowns_TGV]:
-                self._ratio[i][j] = scale[j] / sum_scale
-        sum_scale = np.sqrt(np.sum(np.abs(
-            scale[self.unknowns_TGV:])**2/(1000)))
+                self._ratio[i][j] = scale[j] * self._weights[j]
+#        sum_scale = np.sqrt(np.sum(np.abs(
+#            scale[self.unknowns_TGV:])**2/(1000)))
         for i in range(self.num_dev):
             for j in range(x.shape[0])[self.unknowns_TGV:]:
-                self._ratio[i][j] = scale[j] / sum_scale
+                self._ratio[i][j] = scale[j] * self._weights[j]
         print("Ratio: ", self._ratio[0])
 
     def _grad(self, outp, inp, par=None, idx=0, idxq=0,
