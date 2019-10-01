@@ -274,7 +274,7 @@ class ModelReco:
 #        import ipdb
 #        ipdb.set_trace()
         for i in range(self.num_dev):
-            for j in range(x.shape[0])[:self.unknowns_TGV]:
+            for j in range(x.shape[1]):
                 self.ratio[i][j] = 1
         self.stream_grad.eval([grad], [[x]])
         grad = np.require(np.transpose(grad, [1, 0, 2, 3, 4]),
@@ -292,13 +292,13 @@ class ModelReco:
         scale[~np.isfinite(scale)] = 1
 #        sum_scale = 1 / (1e3)
         for i in range(self.num_dev):
-            for j in range(x.shape[0])[:self.unknowns_TGV]:
+            for j in range(x.shape[1])[:self.unknowns_TGV]:
                 self.ratio[i][j] = scale[j] * \
                     self.par["weights"][j]
 #        sum_scale = np.sqrt(np.sum(np.abs(
 #            scale[self.unknowns_TGV:])**2/(1000)))
         for i in range(self.num_dev):
-            for j in range(x.shape[0])[self.unknowns_TGV:]:
+            for j in range(x.shape[1])[self.unknowns_TGV:]:
                 self.ratio[i][j] = scale[j] * \
                     self.par["weights"][j]
 
