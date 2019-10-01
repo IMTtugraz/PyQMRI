@@ -271,19 +271,22 @@ class ModelReco:
     def set_scale(self, inp):
         x = np.require(np.transpose(inp, [1, 0, 2, 3]), requirements='C')
         grad = np.zeros(x.shape + (4,), dtype=DTYPE)
+#        import ipdb
+#        ipdb.set_trace()
         for i in range(self.num_dev):
             for j in range(x.shape[0])[:self.unknowns_TGV]:
                 self.ratio[i][j] = 1
         self.stream_grad.eval([grad], [[x]])
         grad = np.require(np.transpose(grad, [1, 0, 2, 3, 4]),
                           requirements='C')
-        x = np.require(np.transpose(x, [1, 0, 2, 3]), requirements='C')
-        scale = np.reshape(
-            x, (self.unknowns, self.NSlice * self.dimY * self.dimX))
+#        x = np.require(np.transpose(x, [1, 0, 2, 3]), requirements='C')
+#        print(x.shape)
+#        scale = np.reshape(
+#            x, (self.unknowns, self.NSlice * self.dimY * self.dimX))
         grad = np.reshape(
             grad, (self.unknowns, self.NSlice * self.dimY * self.dimX * 4))
         gradnorm = np.linalg.norm(grad, axis=-1)
-        print("Diff between x: ", np.linalg.norm(scale, axis=-1))
+#        print("Diff between x: ", np.linalg.norm(scale, axis=-1))
         print("Diff between grad x: ", gradnorm)
         scale = 1e3/gradnorm
         scale[~np.isfinite(scale)] = 1
@@ -298,14 +301,13 @@ class ModelReco:
             for j in range(x.shape[0])[self.unknowns_TGV:]:
                 self.ratio[i][j] = scale[j] * \
                     self.par["weights"][j]
-        print("Ratio: ", self.ratio[0])
 
     def execute(self, reco_2D=0):
         if reco_2D:
             NotImplementedError("2D currently not implemented, "
                                 "3D can be used with a single slice.")
         else:
-            self.irgn_par["lambd"] *= self.SNR_est
+            self.irgn_par["lambd"] *= 1e2/np.sqrt(self.par["SNR_est"])
             self.delta = self.irgn_par["delta"]
             self.delta_max = self.irgn_par["delta_max"]
             self.gamma = self.irgn_par["gamma"]
@@ -1349,8 +1351,8 @@ class ModelReco:
         self.update_dual_1.connectouttoin(0, (2, 1))
         self.update_dual_1.connectouttoin(1, (2, 0))
 
-        del self.stream_update_z1, self.stream_update_r, \
-            self.stream_update_v, self.stream_primal
+#        del self.stream_update_z1, self.stream_update_r, \
+#            self.stream_update_v, self.stream_primal
 
         if self.reg_type == 'TGV':
             self.stream_update_z2 = self._defineoperator(
