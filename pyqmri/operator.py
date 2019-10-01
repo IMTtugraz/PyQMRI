@@ -1211,11 +1211,11 @@ class OperatorFiniteGradient(Operator):
         gradnorm[gradnorm < 1e-8] = 0
 #        print("Diff between x: ", np.linalg.norm(scale, axis=-1))
         print("Diff between grad x: ", gradnorm)
-        scale = 1e3/gradnorm
+        scale = np.linalg.norm(gradnorm)/gradnorm
         scale[~np.isfinite(scale)] = 1
-#        sum_scale = 1 / (1e3)
+        sum_scale = np.sqrt(self.unknowns*self.NSlice) / (1e3)
         for j in range(x.shape[0])[:self.unknowns_TGV]:
-            self._ratio[j] = scale[j] * self._weights[j]
+            self._ratio[j] = scale[j] / sum_scale * self._weights[j]
 #        sum_scale = np.sqrt(np.sum(np.abs(
 #            scale[self.unknowns_TGV:])**2/(1000)))
         for j in range(x.shape[0])[self.unknowns_TGV:]:
