@@ -136,10 +136,11 @@ def _genImages(myargs, par, data):
                             requirements='C')
         del FFT, nFTH
 
-#    del par["file"]["images"]
+    del par["file"]["images"]
     else:
         tol = 1e-5
         par_scans = 10
+        lambd = 1e-3
         if "images" not in list(par["file"].keys()):
             images = np.zeros((par["NScan"],
                                par["NSlice"],
@@ -151,11 +152,11 @@ def _genImages(myargs, par, data):
                     if par["NSlice"] == 1:
                         images[par_scans*j:par_scans*(j+1), ...] = cgs.run(
                             data[par_scans*j:par_scans*(j+1), ...],
-                            tol=tol)[:, None, ...]
+                            tol=tol, lambd=lambd)[:, None, ...]
                     else:
                         images[par_scans*j:par_scans*(j+1), ...] = cgs.run(
                             data[par_scans*j:par_scans*(j+1), ...],
-                            tol=tol)
+                            tol=tol, lambd=lambd)
                 del cgs
             if np.mod(par["NScan"], par_scans):
                 cgs = CGSolver(par, np.mod(par["NScan"], par_scans),
@@ -165,17 +166,17 @@ def _genImages(myargs, par, data):
                         images[-np.mod(par["NScan"], par_scans):, ...] = \
                             cgs.run(
                                 data[-np.mod(par["NScan"], par_scans):, ...],
-                                tol=tol)
+                                tol=tol, lambd=lambd)
                     else:
                         images[-np.mod(par["NScan"], par_scans):, ...] = \
                             cgs.run(
                                 data[-np.mod(par["NScan"], par_scans):, ...],
-                                tol=tol)[:, None, ...]
+                                tol=tol, lambd=lambd)[:, None, ...]
                 else:
                     images[-np.mod(par["NScan"], par_scans):, ...] = \
                         cgs.run(
                             data[-np.mod(par["NScan"], par_scans):, ...],
-                            tol=tol)
+                            tol=tol, lambd=lambd)
                 del cgs
             par["file"].create_dataset("images", images.shape,
                                        dtype=DTYPE, data=images)
