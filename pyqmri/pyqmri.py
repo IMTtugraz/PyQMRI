@@ -137,7 +137,7 @@ def _genImages(myargs, par, data):
         del FFT, nFTH
 
     else:
-        del par["file"]["images"]
+#        del par["file"]["images"]
         tol = 1e-5
         par_scans = 10
         lambd = 1e-3
