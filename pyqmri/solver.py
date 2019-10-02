@@ -68,6 +68,7 @@ class CGSolver:
             self._op = operator.OperatorKspace(par, self._prg, trafo=trafo)
         self._FT = self._op.NUFFT.FFT
         self._FTH = self._op.NUFFT.FFTH
+        self._grad = operator.OperatorFiniteGradient(par, self._prg)
         self._tmp_result = clarray.empty(
             self._queue,
             (self._NScan, self._NC,
@@ -91,7 +92,7 @@ class CGSolver:
         del self._FT
         del self._FTH
 
-    def run(self, data, iters=50, lambd=1e-9, tol=1e-8, guess=None):
+    def run(self, data, iters=100, lambd=1e-9, tol=1e-8, guess=None):
         """ Start the CG reconstruction
 
         All attributes after data are considered keyword only.
