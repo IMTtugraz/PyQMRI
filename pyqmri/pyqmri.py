@@ -137,7 +137,7 @@ def _genImages(myargs, par, data):
         del FFT, nFTH
 
     else:
-        del par["file"]["images"]
+#        del par["file"]["images"]
         tol = 1e-30
         par_scans = 10
         lambd = 1e-2
@@ -525,8 +525,6 @@ def _start_recon(myargs):
 ###############################################################################
 # Scale data norm  ############################################################
 ###############################################################################
-    import ipdb
-    ipdb.set_trace()
     data, images = _estScaleNorm(myargs, par, images, data)
 ###############################################################################
 # Init forward model and initial guess ########################################
