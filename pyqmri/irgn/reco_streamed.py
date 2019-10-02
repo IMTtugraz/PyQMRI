@@ -285,15 +285,16 @@ class ModelReco:
 #            x, (self.unknowns, self.NSlice * self.dimY * self.dimX))
         grad = np.reshape(
             grad, (self.unknowns, self.NSlice * self.dimY * self.dimX * 4))
-        gradnorm = np.linalg.norm(grad, axis=-1)
+        gradnorm = np.sum(np.abs(grad), axis=-1)
 #        print("Diff between x: ", np.linalg.norm(scale, axis=-1))
         print("Diff between grad x: ", gradnorm)
-        scale = 1e3/gradnorm
+        scale = 1/gradnorm
         scale[~np.isfinite(scale)] = 1
+        sum_scale = 1 / 1e5
 #        sum_scale = 1 / (1e3)
         for i in range(self.num_dev):
             for j in range(x.shape[1])[:self.unknowns_TGV]:
-                self.ratio[i][j] = scale[j] * \
+                self.ratio[i][j] = scale[j] / sum_scale * \
                     self.par["weights"][j]
 #        sum_scale = np.sqrt(np.sum(np.abs(
 #            scale[self.unknowns_TGV:])**2/(1000)))

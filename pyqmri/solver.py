@@ -336,6 +336,8 @@ class PDSolver:
                                          self.grad_buf,
                                          self.grad_op._ratio]))
         Kyk2.add_event(self.update_Kyk2(Kyk2, z2, z1))
+        import ipdb
+        ipdb.set_trace()
         for i in range(iters):
             x_new.add_event(self.update_primal(x_new, x, Kyk1,
                                                xk, tau, self.delta))
@@ -808,6 +810,7 @@ class PDSolver:
         self.delta = irgn_par["delta"]
         self.omega = irgn_par["omega"]
         self.lambd = irgn_par["lambd"]
+        self.mu = 1/self.delta
 
     def update_primal(self, x_new, x, Kyk, xk, tau, delta, wait_for=[]):
         return self._prg.update_primal(
