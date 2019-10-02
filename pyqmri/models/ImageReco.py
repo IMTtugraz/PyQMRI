@@ -119,4 +119,4 @@ class Model(BaseModel):
                 plt.pause(1e-10)
 
     def _set_init_scales(self, images):
-        return (images)*self.dscale
+        return np.abs(images).astype(DTYPE)
