@@ -137,10 +137,10 @@ def _genImages(myargs, par, data):
         del FFT, nFTH
 
     else:
-        del par["file"]["images"]
+#        del par["file"]["images"]
         tol = 1e-10
         par_scans = 20
-        lambd = 1e-4
+        lambd = 1e-9
         if "images" not in list(par["file"].keys()):
             images = np.zeros((par["NScan"],
                                par["NSlice"],
