@@ -92,7 +92,7 @@ class CGSolver:
         del self._FT
         del self._FTH
 
-    def run(self, data, iters=30, lambd=1e-9, tol=1e-8, guess=None):
+    def run(self, data, iters=50, lambd=1e-9, tol=1e-8, guess=None):
         """ Start the CG reconstruction
 
         All attributes after data are considered keyword only.
