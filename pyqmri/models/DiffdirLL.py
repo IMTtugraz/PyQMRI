@@ -38,7 +38,6 @@ class Model(BaseModel):
         except KeyError:
             self.b0 = images[0]
         self.phase = np.exp(1j*(np.angle(images)-np.angle(images[0])))
-        self.phase[0] = 1
         self.guess = self._set_init_scales(images)
 
         self.constraints.append(
