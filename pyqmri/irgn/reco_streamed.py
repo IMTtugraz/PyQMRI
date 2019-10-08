@@ -1352,8 +1352,8 @@ class ModelReco:
         self.update_dual_1.connectouttoin(0, (2, 1))
         self.update_dual_1.connectouttoin(1, (2, 0))
 
-#        del self.stream_update_z1, self.stream_update_r, \
-#            self.stream_update_v, self.stream_primal
+        del self.stream_update_z1, self.stream_update_r, \
+            self.stream_update_v, self.stream_primal
 
         if self.reg_type == 'TGV':
             self.stream_update_z2 = self._defineoperator(

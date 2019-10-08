@@ -17,8 +17,6 @@ class Model(BaseModel):
         self.images = images
         self.t = par['t'] + par["TR"] / 1000 * par["dimY"] / 60
         parameters = par["file"]["GT/parameters"]
-#    print(list(par["file"].keys()))
-
 #    self.mask = par["file"]["image_mask"][()]
 
         self.A_B = (parameters[0][...].astype(DTYPE_real))
@@ -34,31 +32,28 @@ class Model(BaseModel):
         self.alpha = (parameters[7][...].astype(DTYPE_real))
 
         self.Te[self.Te < 1 / 6] = 1 / 6
-#        self.mask = np.ones(self.images.shape[-3:], dtype=int)
+        self.mask = np.ones(self.images.shape[-3:], dtype=int)
 #        self.mask[self.FP == 0] = 0
 
-        Coils = par["file"]["GT/sensitivities/real_dat"][()] + 1j * \
-            par["file"]["GT/sensitivities/imag_dat"][()]
-#    Coils = par['C']
-        # (np.quantile(np.abs(np.sum(np.conj(par['C'])*Coils,0)),0.65))
-        scale = 1
-#    sumSqrC = np.sqrt(np.sum((Coils * np.conj(Coils)),0)) #4, 9, 128, 128
-#    Coils = Coils / np.tile(sumSqrC, (par["NC"],1,1,1))
+#        Coils = par["file"]["GT/sensitivities/real_dat"][()] + 1j * \
+#            par["file"]["GT/sensitivities/imag_dat"][()]
 
         self.r = 3.2
         self.R10 = 1
         self.TR = par["TR"] / 1000
 
+#        M0_est = par["file"]["PD_est"][()].astype(DTYPE)
+        M0_est = 0.2
+
         self.sin_phi = np.sin(par["flip_angle(s)"] * np.pi / 180)
         self.cos_phi = np.cos(par["flip_angle(s)"] * np.pi / 180)
 
-#    self.uk_scale.append(1/np.median(np.abs(images)))
 
         for j in range(unknowns_TGV + unknowns_H1):
             self.uk_scale.append(1)
-#    self.uk_scale[0] = 1
 
-        self.guess = self._set_init_scales(par["dscale"], Coils, par, scale)
+
+        self.guess = self._set_init_scales(par["dscale"], M0_est)
 
 #    self.constraints.append(constraints(0,1e6/self.uk_scale[0],False)  )
         self.constraints.append(constraints(0, 10 / self.uk_scale[0], False))
@@ -758,13 +753,13 @@ class Model(BaseModel):
         dC_fit[~np.isfinite(dC_fit)] = 0
         return (C_fit * Fp, dC_fit)
 
-    def _set_init_scales(self, dscale, Coils, par, scale):
+    def _set_init_scales(self, dscale, M0_est):
 
         #    mask = np.ones_like(self.tau)
         #    mask[self.tau<1e-4] = 0
 
-        test_M0 = 0.2*1.3085805 * np.ones((self.NSlice, self.dimY,
-                                 self.dimX), dtype=DTYPE) * self.mask
+        test_M0 = M0_est * np.ones((self.NSlice, self.dimY,
+                                    self.dimX), dtype=DTYPE) #dscale
 
 #    gain = np.sqrt(np.sum(np.conj(Coils)*Coils,0))
 #    test_M0 = gain*0.01*128*self.mask

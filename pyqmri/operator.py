@@ -902,7 +902,7 @@ class OperatorKspaceSMSStreamed(Operator):
                             self.NScan, self.dimY, self.dimX)
         data_shape = (self.NSlice, self.NScan, self.NC, self.dimY, self.dimX)
         data_shape_T = (self.NScan, self.NC, self.packs,
-                        self.Nproj, self.N)
+                        self.dimY, self.dimX)
         trans_shape_T = (self.NScan,
                          self.NC, self.NSlice, self.dimY, self.dimX)
         grad_shape = unknown_shape + (4,)

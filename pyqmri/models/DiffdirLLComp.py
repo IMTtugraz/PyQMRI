@@ -48,33 +48,33 @@ class Model(BaseModel):
 
         self.constraints.append(
             constraints(
-                (-8e-1 / self.uk_scale[1]),
-                (8e-1 / self.uk_scale[1]),
+                (-1e0 / self.uk_scale[1]),
+                (1e0 / self.uk_scale[1]),
                 True))
         self.constraints.append(
             constraints(
-                (-8e-1 / self.uk_scale[2]),
-                (8e-1 / self.uk_scale[2]),
+                (-1e0 / self.uk_scale[2]),
+                (1e0 / self.uk_scale[2]),
                 True))
         self.constraints.append(
             constraints(
-                (-8e-1 / self.uk_scale[3]),
-                (8e-1 / self.uk_scale[3]),
+                (-1e0 / self.uk_scale[3]),
+                (1e0 / self.uk_scale[3]),
                 True))
         self.constraints.append(
             constraints(
-                (-8e-1 / self.uk_scale[4]),
-                (8e-1 / self.uk_scale[4]),
+                (-1e0 / self.uk_scale[4]),
+                (1e0 / self.uk_scale[4]),
                 True))
         self.constraints.append(
             constraints(
-                (-8e-1 / self.uk_scale[5]),
-                (8e-1 / self.uk_scale[5]),
+                (-1e0 / self.uk_scale[5]),
+                (1e0 / self.uk_scale[5]),
                 True))
         self.constraints.append(
             constraints(
-                (-8e-1 / self.uk_scale[6]),
-                (8e-1 / self.uk_scale[6]),
+                (-1e0 / self.uk_scale[6]),
+                (1e0 / self.uk_scale[6]),
                 True))
 
         self.constraints.append(

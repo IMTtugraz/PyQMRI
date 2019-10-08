@@ -256,11 +256,8 @@ class Stream:
         if odd:
             self._streamtohost(outp, 0)
             self._streamtohost(outp, 1)
-        elif (self.nslice/(self.slices*self.num_dev) <
-              2*(self.slices*self.num_dev)):
-            self._streamtohost(outp, 1)
-            self._streamtohost(outp, 0)
         else:
+            self._streamtohost(outp, 1)
             self._streamtohost(outp, 0)
         # Wait for all Queues to finish
         for i in range(self.num_dev):
@@ -319,11 +316,8 @@ class Stream:
         if odd:
             (rhs, lhs) = self._streamtohostnorm(outp, rhs, lhs, 0)
             (rhs, lhs) = self._streamtohostnorm(outp, rhs, lhs, 1)
-        elif (self.nslice/(self.slices*self.num_dev) <
-              2*(self.slices*self.num_dev)):
-            (rhs, lhs) = self._streamtohostnorm(outp, rhs, lhs, 1)
-            (rhs, lhs) = self._streamtohostnorm(outp, rhs, lhs, 0)
         else:
+            (rhs, lhs) = self._streamtohostnorm(outp, rhs, lhs, 1)
             (rhs, lhs) = self._streamtohostnorm(outp, rhs, lhs, 0)
         # Wait for all Queues to finish
         for i in range(self.num_dev):
