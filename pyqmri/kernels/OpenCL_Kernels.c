@@ -866,3 +866,74 @@ __kernel void operator_ad_cg(__global float2 *out, __global float2 *in,
 
 
 }
+
+
+__kernel void addfield(__global float2 *out, __global float2 *in, __global float2 *fieldmap,
+                       const int NCo,const int NScan)
+{
+  size_t X = get_global_size(2);
+  size_t Y = get_global_size(1);
+  size_t NSl = get_global_size(0);
+  size_t x = get_global_id(2);
+  size_t y = get_global_id(1);
+  size_t k = get_global_id(0);
+
+  int fmind = x*NSl*X*Y+k*X*Y;
+  int outind, inind;
+
+  float2 fmcoeff = 0.0f;
+
+  for (int scan=0; scan<NScan; scan++)
+  {
+  for (int coil=0; coil < NCo; coil++)
+  {
+  outind = scan*NCo*NSl*X*Y+coil*NSl*X*Y+k*X*Y+y*X+x;
+  out[outind] = 0;
+  for (int ypos=0; ypos < Y; ypos++)
+  {
+    inind = scan*NCo*NSl*X*Y+coil*NSl*X*Y+k*X*Y+ypos*X+x;
+    fmcoeff = fieldmap[fmind+y*Y+ypos];
+    out[outind] += (float2) (in[inind].x*fmcoeff.x-in[inind].y*fmcoeff.y,
+                             in[inind].x*fmcoeff.y+in[inind].y*fmcoeff.x);
+
+
+  }
+  }
+  }
+
+}
+
+__kernel void addfieldadj(__global float2 *out, __global float2 *in, __global float2 *fieldmap,
+                       const int NCo,const int NScan)
+{
+  size_t X = get_global_size(2);
+  size_t Y = get_global_size(1);
+  size_t NSl = get_global_size(0);
+  size_t x = get_global_id(2);
+  size_t y = get_global_id(1);
+  size_t k = get_global_id(0);
+
+  int fmind = x*NSl*X*Y+k*X*Y;
+  int outind, inind;
+
+  float2 fmcoeff = 0.0f;
+
+  for (int scan=0; scan<NScan; scan++)
+  {
+  for (int coil=0; coil < NCo; coil++)
+  {
+  outind = scan*NCo*NSl*X*Y+coil*NSl*X*Y+k*X*Y+y*X+x;
+  out[outind] = 0;
+  for (int ypos=0; ypos < Y; ypos++)
+  {
+    inind = scan*NCo*NSl*X*Y+coil*NSl*X*Y+ypos*X+x;
+    fmcoeff = (float2) (fieldmap[fmind+ypos*Y+y].x, -fieldmap[fmind+ypos*Y+y].y);
+    out[outind] += (float2) (in[inind].x*fmcoeff.x-in[inind].y*fmcoeff.y,
+                             in[inind].x*fmcoeff.y+in[inind].y*fmcoeff.x);
+
+
+  }
+  }
+  }
+
+}

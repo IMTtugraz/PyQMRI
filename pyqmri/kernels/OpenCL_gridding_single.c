@@ -269,3 +269,142 @@ __kernel void fftshift(__global float2* ksp, __global float *check)
     ksp[x+dimX*y+dimX*dimY*n] = ksp[x+dimX*y+dimX*dimY*n]*check[x]*check[y];
   }
 
+__kernel void addfield(__global float2 *out, __global float2 *in, __global float2 *fieldmap,
+                       const int NCo,const int NScan)
+{
+  size_t X = get_global_size(2);
+  size_t Y = get_global_size(1);
+  size_t NSl = get_global_size(0);
+  size_t x = get_global_id(2);
+  size_t y = get_global_id(1);
+  size_t k = get_global_id(0);
+
+  int fmind = x*NSl*X*Y+k*X*Y;
+  int outind, inind;
+  float2 tmp = 0.0f;
+  float2 fmcoeff = 0.0f;
+
+  for (int scan=0; scan<NScan; scan++)
+  {
+  for (int coil=0; coil < NCo; coil++)
+  {
+  outind = scan*NCo*NSl*X*Y+coil*NSl*X*Y+k*X*Y+y*X+x;
+  tmp = 0.0f;
+  for (int ypos=0; ypos < Y; ypos++)
+  {
+    inind = scan*NCo*NSl*X*Y+coil*NSl*X*Y+k*X*Y+ypos*X+x;
+    fmcoeff = fieldmap[fmind+y*Y+ypos];
+    tmp += (float2) (in[inind].x*fmcoeff.x-in[inind].y*fmcoeff.y,
+                             in[inind].x*fmcoeff.y+in[inind].y*fmcoeff.x);
+  }
+  out[outind] = tmp;
+  }
+  }
+
+}
+
+__kernel void addfieldadj(__global float2 *out, __global float2 *in, __global float2 *fieldmap,
+                       const int NCo,const int NScan)
+{
+  size_t X = get_global_size(2);
+  size_t Y = get_global_size(1);
+  size_t NSl = get_global_size(0);
+  size_t x = get_global_id(2);
+  size_t y = get_global_id(1);
+  size_t k = get_global_id(0);
+
+  int fmind = x*NSl*X*Y+k*X*Y;
+  int outind, inind;
+  float2 tmp = 0.0f;
+
+  float2 fmcoeff = 0.0f;
+
+  for (int scan=0; scan<NScan; scan++)
+  {
+  for (int coil=0; coil < NCo; coil++)
+  {
+  outind = scan*NCo*NSl*X*Y+coil*NSl*X*Y+k*X*Y+y*X+x;
+  tmp = 0.0f;
+  for (int ypos=0; ypos < Y; ypos++)
+  {
+    inind = scan*NCo*NSl*X*Y+coil*NSl*X*Y+ypos*X+x;
+    fmcoeff = (float2) (fieldmap[fmind+ypos*Y+y].x, -fieldmap[fmind+ypos*Y+y].y);
+    tmp += (float2) (in[inind].x*fmcoeff.x-in[inind].y*fmcoeff.y,
+                             in[inind].x*fmcoeff.y+in[inind].y*fmcoeff.x);
+  }
+  out[outind] = tmp;
+  }
+  }
+
+}
+
+__kernel void copy_SMS_fwdkspace(__global float2 *out, __global float2 *in, __global int* shift, const int packs, const int MB, const float scale, const int NGroups)
+  {
+    size_t x = get_global_id(2);
+    size_t dimX = get_global_size(2);
+    size_t y = get_global_id(1);
+    size_t dimY = get_global_size(1);
+    size_t n = get_global_id(0);
+
+    size_t NSlice = NGroups*packs*MB*dimX*dimY;
+    size_t idSlice = dimX*dimY;
+    float expshift = 0.0f;
+    float sinshift = 0.0f;
+    float cosshift = 0.0f;
+    int inind = 0;
+    float exppos = ((float)y-(float)dimY/2)/(float)dimY;
+
+    for (int gid=0; gid<NGroups; gid++)
+    {
+    for (int k=0; k<packs; k++)
+    {
+    out[x+y*dimX+idSlice*k+idSlice*packs*gid+idSlice*packs*NGroups*n] = (float2)(0);
+    for(int z=0; z< MB; z++)
+    {
+    expshift = 2.0*M_PI*shift[z]*exppos;
+    sinshift = sin(expshift);
+    cosshift = cos(expshift);
+
+    inind = x+y*dimX+idSlice*(k+z*packs+gid*packs*MB)+NSlice*n;
+
+    out[x+y*dimX+idSlice*k+idSlice*packs*gid+idSlice*packs*NGroups*n] += (float2) (in[inind].x*cosshift-in[inind].y*sinshift,
+                             in[inind].x*sinshift+in[inind].y*cosshift);
+    }
+    }
+    }
+  }
+
+__kernel void copy_SMS_adjkspace(__global float2 *out, __global float2 *in, __global int* shift, const int packs, const int MB, const float scale, const int NGroups)
+  {
+    size_t x = get_global_id(2);
+    size_t dimX = get_global_size(2);
+    size_t y = get_global_id(1);
+    size_t dimY = get_global_size(1);
+    size_t n = get_global_id(0);
+
+    size_t NSlice = NGroups*packs*MB*dimX*dimY;
+    size_t idSlice = dimX*dimY;
+
+    float expshift = 0.0f;
+    float sinshift = 0.0f;
+    float cosshift = 0.0f;
+    int inind = 0;
+    float exppos = ((float)y-(float)dimY/2)/(float)dimY;
+
+    for (int gid=0; gid<NGroups; gid++)
+    {
+    for (int k=0; k<packs; k++)
+    {
+    for(int z=0; z<MB; z++)
+    {
+        expshift = -2.0*M_PI*shift[z]*exppos;
+        sinshift = sin(expshift);
+        cosshift = cos(expshift);
+        inind = x+y*dimX+idSlice*k+idSlice*packs*gid+idSlice*packs*NGroups*n;
+
+        out[x+y*dimX+idSlice*(k+z*packs+gid*packs*MB)+NSlice*n] = (float2) (in[inind].x*cosshift-in[inind].y*sinshift,
+                             in[inind].x*sinshift+in[inind].y*cosshift);
+    }
+    }
+    }
+  }

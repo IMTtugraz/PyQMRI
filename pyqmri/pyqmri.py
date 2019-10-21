@@ -117,6 +117,7 @@ def _genImages(myargs, par, data):
                  par["dimY"], par["dimX"]), dtype=DTYPE)
             tmp_result = clarray.empty(fft.queue, (par["NScan"], 1, MB,
                                        par["dimY"], par["dimX"]), dtype=DTYPE)
+
             for j in range(siz[1]):
                 for k in range(siz[2]):
                     inp = clarray.to_device(fft.queue,
@@ -138,7 +139,7 @@ def _genImages(myargs, par, data):
 
     else:
 #        del par["file"]["images"]
-        tol = 1e-8
+        tol = 1e-5
         par_scans = 20
         lambd = 1e-2
         if "images" not in list(par["file"].keys()):
@@ -234,7 +235,11 @@ def _estScaleNorm(myargs, par, images, data):
         ind = np.zeros((par["dimY"], par["dimX"]), dtype=bool)
         ind[int(par["N"]/2-centerY):int(par["N"]/2+centerY),
             int(par["N"]/2-centerX):int(par["N"]/2+centerX)] = 1
-        ind = np.fft.fftshift(ind)
+        if "phase_map" in par.keys():
+            ind = np.fft.fftshift(ind, axes=0)
+        else:
+            ind = np.fft.fftshift(ind)
+
         sig = np.sum(
             data[..., int(par["NSlice"]/2/par["MB"]), ind] *
             np.conj(
@@ -246,6 +251,7 @@ def _estScaleNorm(myargs, par, images, data):
         SNR_est = np.abs(sig/noise)
         par["SNR_est"] = SNR_est
         print("Estimated SNR from kspace", SNR_est)
+
     return data, images
 
 
@@ -452,11 +458,15 @@ def _start_recon(myargs):
     else:
         print("Wrong data dimension / model inkompatible. Returning")
         return
+
 ###############################################################################
 # Set sequence related parameters #############################################
 ###############################################################################
     for att in par["file"].attrs:
         par[att] = par["file"].attrs[att]
+
+#    import ipdb
+#    ipdb.set_trace()
 
     par["NC"] = NC
     par["dimY"] = dimY
@@ -504,6 +514,22 @@ def _start_recon(myargs):
 # Coil Sensitivity Estimation #################################################
 ###############################################################################
     est_coils(data, par, par["file"], myargs)
+
+###############################################################################
+# phase correction ############################################################
+###############################################################################
+    if "phase_map" in par["file"].keys():
+        full_slices = par["file"]["phase_map"].shape[1]
+        if myargs.sms:
+            reco_Slices = full_slices
+        sliceind = slice(int(full_slices / 2) -
+                         int(np.floor((reco_Slices) / 2)),
+                         int(full_slices / 2) +
+                         int(np.ceil(reco_Slices / 2)))
+        par["phase_map"] = par["file"]["phase_map"][
+            :,
+            sliceind].astype(DTYPE)
+        data = np.fft.ifft(data, axis=-1, norm='ortho')
 ###############################################################################
 # Standardize data ############################################################
 ###############################################################################
@@ -522,6 +548,8 @@ def _start_recon(myargs):
 # Reconstruct images using CG-SENSE  ##########################################
 ###############################################################################
     images = _genImages(myargs, par, data)
+    import ipdb
+    ipdb.set_trace()
 ###############################################################################
 # Scale data norm  ############################################################
 ###############################################################################
@@ -548,6 +576,7 @@ def _start_recon(myargs):
     f.attrs['data_norm'] = par["dscale"]
     f.close()
     par["file"].close()
+
 ###############################################################################
 # Start Reco ##################################################################
 ###############################################################################

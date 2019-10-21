@@ -406,6 +406,212 @@ class OperatorKspace(Operator):
                       out.events + inp[1].events + wait_for))
 
 
+class OperatorKspaceFieldMap(Operator):
+    """ k-Space based Operator
+
+    This class serves as linear operator between parameter and k-space.
+
+    Use this operator if you want to perform complex parameter fitting from
+    complex k-space data. The type of fft is defined through the NUFFT object.
+    The NUFFT object can also be used for simple Cartesian FFTs.
+    """
+    def __init__(self, par, prg, DTYPE=np.complex64,
+                 DTYPE_real=np.float32, trafo=True):
+        super().__init__(par, prg, DTYPE, DTYPE_real)
+        self.queue = self.queue[0]
+        self.ctx = self.ctx[0]
+        self.tmp_result = clarray.empty(
+            self.queue, (self.NScan, self.NC,
+                         self.NSlice, self.dimY, self.dimX),
+            self.DTYPE, "C")
+        self.tmp_result2 = clarray.empty(
+            self.queue, (self.NScan, self.NC,
+                         self.NSlice, self.dimY, self.dimX),
+            self.DTYPE, "C")
+        if not trafo:
+            self.Nproj = self.dimY
+            self.N = self.dimX
+        self.NUFFT = CLFFT.create(self.ctx,
+                                  self.queue,
+                                  par,
+                                  radial=trafo,
+                                  fft_dim=[2],
+                                  DTYPE=DTYPE,
+                                  DTYPE_real=DTYPE_real)
+
+        self.phase_map = clarray.to_device(self.queue,
+                                           par["phase_map"])
+        self.phase_mapadj = clarray.to_device(
+            self.queue,
+            np.require(np.transpose(
+                np.conj(par["phase_map"]), (0, 1, 3, 2)),
+              requirements='C'))
+
+    def fwd(self, out, inp, wait_for=[]):
+        self.tmp_result.add_event(
+            self.prg.operator_fwd(
+                self.queue,
+                (self.NSlice, self.dimY, self.dimX),
+                None,
+                self.tmp_result.data, inp[0].data,
+                inp[1],
+                inp[2], np.int32(self.NC),
+                np.int32(self.NScan),
+                np.int32(self.unknowns),
+                wait_for=self.tmp_result.events + inp[0].events + wait_for))
+
+        self.tmp_result2.add_event(self.prg.addfield(
+                            self.queue,
+                            (self.NSlice, self.dimY, self.dimX),
+                            None,
+                            self.tmp_result2.data,
+                            self.tmp_result.data,
+                            self.phase_map.data,
+                            np.int32(self.NC),
+                            np.int32(self.NScan),
+                            wait_for=self.tmp_result.events+out.events))
+        import ipdb
+        ipdb.set_trace()
+
+        return self.NUFFT.FFT(
+            out,
+            self.tmp_result2,
+            wait_for=wait_for +
+            self.tmp_result2.events)
+
+    def fwdoop(self, inp, wait_for=[]):
+        self.tmp_result.add_event(
+            self.prg.operator_fwd(
+                self.queue,
+                (self.NSlice, self.dimY, self.dimX),
+                None,
+                self.tmp_result.data, inp[0].data,
+                inp[1],
+                inp[2], np.int32(self.NC),
+                np.int32(self.NScan),
+                np.int32(self.unknowns),
+                wait_for=self.tmp_result.events + inp[0].events + wait_for))
+        tmp_sino = clarray.empty(
+            self.queue,
+            (self.NScan, self.NC, self.NSlice, self.Nproj, self.N),
+            self.DTYPE, "C")
+
+        self.prg.addfield(
+                self.queue,
+                (self.NSlice, self.dimY, self.dimX),
+                None,
+                self.tmp_result2.data,
+                self.tmp_result.data,
+                self.phase_map.data,
+                np.int32(self.NC),
+                np.int32(self.NScan)).wait()
+        self.NUFFT.FFT(
+            tmp_sino,
+            self.tmp_result2,
+            wait_for=wait_for +
+            self.tmp_result2.events).wait()
+        return tmp_sino
+
+    def adj(self, out, inp, wait_for=[]):
+        self.tmp_result.add_event(
+            self.NUFFT.FFTH(
+                self.tmp_result,
+                inp[0],
+                wait_for=wait_for + inp[0].events + self.tmp_result.events))
+        self.tmp_result2.add_event(
+            self.prg.addfield(
+                self.queue,
+                (self.NSlice, self.dimY, self.dimX),
+                None,
+                self.tmp_result2.data,
+                self.tmp_result.data,
+                self.phase_mapadj.data,
+                np.int32(self.NC),
+                np.int32(self.NScan),
+                wait_for=self.tmp_result.events+inp[0].events))
+        return self.prg.operator_ad(
+            self.queue, (self.NSlice, self.dimY, self.dimX), None,
+            out.data, self.tmp_result2.data, inp[1],
+            inp[2], np.int32(self.NC),
+            np.int32(self.NScan),
+            np.int32(self.unknowns),
+            wait_for=wait_for + self.tmp_result2.events + out.events)
+
+    def adjoop(self, inp, wait_for=[]):
+        self.tmp_result.add_event(
+            self.NUFFT.FFTH(
+                self.tmp_result,
+                inp[0],
+                wait_for=wait_for + inp[0].events + self.tmp_result.events))
+        self.tmp_result2.add_event(
+            self.prg.addfield(
+                self.queue,
+                (self.NSlice, self.dimY, self.dimX),
+                None,
+                self.tmp_resut2.data,
+                self.tmp_result.data,
+                self.phase_mapadj.data,
+                np.int32(self.NC),
+                np.int32(self.NScan),
+                wait_for=self.tmp_result.events+inp[0].events))
+        out = clarray.empty(
+            self.queue, (self.unknowns, self.NSlice, self.dimY, self.dimX),
+            dtype=self.DTYPE)
+        self.prg.operator_ad(
+            out.queue, (self.NSlice, self.dimY, self.dimX), None,
+            out.data, self.tmp_result2.data, inp[1],
+            inp[2], np.int32(self.NC),
+            np.int32(self.NScan),
+            np.int32(self.unknowns),
+            wait_for=wait_for + self.tmp_result2.events + out.events).wait()
+        return out
+
+    def adjKyk1(self, out, inp, wait_for=[]):
+        """ Apply the linear operator from parameter space to k-space
+
+        This method fully implements the combined linear operator
+        fully implements the combined linear operator
+        consisting of the data part as well as the TGV regularization part.
+
+        Args:
+          out (PyOpenCL.Array):
+            The complex parameter space data which is used as input.
+          inp (PyOpenCL.Array):
+            The complex parameter space data which is used as input.
+          wait_for (list of PyopenCL.Event):
+            A List of PyOpenCL events to wait for.
+        Returns:
+          PyOpenCL.Event: A PyOpenCL event to wait for.
+        """
+        self.tmp_result.add_event(
+            self.NUFFT.FFTH(
+                self.tmp_result,
+                inp[0],
+                wait_for=wait_for + inp[0].events + self.tmp_result.events))
+        import ipdb
+        ipdb.set_trace()
+        self.tmp_result2.add_event(
+            self.prg.addfield(
+                self.queue,
+                (self.NSlice, self.dimY, self.dimX),
+                None,
+                self.tmp_result2.data,
+                self.tmp_result.data,
+                self.phase_mapadj.data,
+                np.int32(self.NC),
+                np.int32(self.NScan),
+                wait_for=self.tmp_result2.events+self.tmp_result.events))
+        return self.prg.update_Kyk1(
+            self.queue, (self.NSlice, self.dimY, self.dimX), None,
+            out.data, self.tmp_result2.data, inp[2],
+            inp[3], inp[1].data, np.int32(self.NC),
+            np.int32(self.NScan),
+            inp[4].data,
+            np.int32(self.unknowns), self.DTYPE_real(self._dz),
+            wait_for=(self.tmp_result2.events +
+                      out.events + inp[1].events + wait_for))
+
+
 class OperatorKspaceSMS(Operator):
     """ k-Space based Operator for SMS reconstruction
 
@@ -526,6 +732,180 @@ class OperatorKspaceSMS(Operator):
         self.tmp_result.add_event(
             self.NUFFT.FFTH(
                 self.tmp_result, inp[0], wait_for=wait_for + inp[0].events))
+        return self.prg.update_Kyk1(
+            self.queue, (self.NSlice, self.dimY, self.dimX), None,
+            out.data, self.tmp_result.data, inp[2],
+            inp[3], inp[1].data, np.int32(self.NC),
+            np.int32(self.NScan),
+            inp[4].data,
+            np.int32(self.unknowns), self.DTYPE_real(self._dz),
+            wait_for=(self.tmp_result.events +
+                      out.events + inp[1].events + wait_for))
+
+
+class OperatorKspaceSMSFieldMap(Operator):
+    """ k-Space based Operator for SMS reconstruction
+
+    This class serves as linear operator between parameter and k-space.
+    It implements simultaneous-multi-slice (SMS) reconstruction.
+
+    Use this operator if you want to perform complex parameter fitting from
+    complex k-space data measured with SMS. Currently only Cartesian FFTs are
+    supported.
+
+    Attributes:
+      packs (int):
+        Number of SMS packs.
+    """
+    def __init__(self, par, prg, DTYPE=np.complex64,
+                 DTYPE_real=np.float32, trafo=False):
+        super().__init__(par, prg, DTYPE, DTYPE_real)
+        self.queue = self.queue[0]
+        self.ctx = self.ctx[0]
+        self.packs = par["packs"]*par["numofpacks"]
+        self.tmp_result = clarray.empty(
+            self.queue, (self.NScan, self.NC,
+                         self.NSlice, self.dimY, self.dimX),
+            self.DTYPE, "C")
+        if not trafo:
+            self.Nproj = self.dimY
+            self.N = self.dimX
+        self.NUFFTx = CLFFT.create(self.ctx,
+                                   self.queue,
+                                   par,
+                                   radial=trafo,
+                                   SMS=True,
+                                   fft_dim=1,
+                                   DTYPE=DTYPE,
+                                   DTYPE_real=DTYPE_real)
+        self.NUFFTy = CLFFT.create(self.ctx,
+                                   self.queue,
+                                   par,
+                                   radial=trafo,
+                                   fft_dim=2,
+                                   DTYPE=DTYPE,
+                                   DTYPE_real=DTYPE_real)
+        self.NUFFTy.mask = clarray.to_device(self.queue,
+                                             np.ones_like(par["mask"]))
+        self.phase_map = clarray.to_device(self.queue, par["phase_map"])
+
+    def fwd(self, out, inp, wait_for=[]):
+        self.tmp_result.add_event(
+            self.prg.operator_fwd(
+                self.queue,
+                (self.NSlice, self.dimY, self.dimX),
+                None,
+                self.tmp_result.data, inp[0].data,
+                inp[1],
+                inp[2], np.int32(self.NC),
+                np.int32(self.NScan),
+                np.int32(self.unknowns),
+                wait_for=self.tmp_result.events + inp[0].events + wait_for))
+        self.NUFFTy.FFT(
+            self.tmp_result,
+            self.tmp_result,
+            wait_for=self.tmp_result.events).wait()
+        self.tmp_result = self.tmp_result*self.phase_map
+        return self.NUFFT.FFTx(
+            out,
+            self.tmp_result,
+            wait_for=wait_for +
+            self.tmp_result.events)
+
+    def fwdoop(self, inp, wait_for=[]):
+        self.tmp_result.add_event(
+            self.prg.operator_fwd(
+                self.queue,
+                (self.NSlice, self.dimY, self.dimX),
+                None,
+                self.tmp_result.data, inp[0].data,
+                inp[1],
+                inp[2], np.int32(self.NC),
+                np.int32(self.NScan),
+                np.int32(self.unknowns),
+                wait_for=self.tmp_result.events + inp[0].events + wait_for))
+        tmp_sino = clarray.empty(
+            self.queue,
+            (self.NScan, self.NC, self.packs, self.Nproj, self.N),
+            self.DTYPE, "C")
+
+        self.NUFFTy.FFT(
+            self.tmp_result,
+            self.tmp_result,
+            wait_for=self.tmp_result.events).wait()
+        self.tmp_result = self.tmp_result*self.phase_map
+        self.NUFFT.FFTx(
+            tmp_sino,
+            self.tmp_result,
+            wait_for=wait_for +
+            self.tmp_result.events).wait()
+        return tmp_sino
+
+    def adj(self, out, inp, wait_for=[]):
+        self.tmp_result.add_event(
+            self.NUFFTx.FFTH(
+                self.tmp_result,
+                inp[0], wait_for=wait_for + inp[0].events)).wait()
+        self.tmp_result = self.tmp_result*self.phase_map.conj()
+        self.NUFFTy.FFT(
+            self.tmp_result,
+            self.tmp_result,
+            wait_for=self.tmp_result.events).wait()
+        return self.prg.operator_ad(
+            self.queue, (self.NSlice, self.dimY, self.dimX), None,
+            out.data, self.tmp_result.data, inp[1],
+            inp[2], np.int32(self.NC),
+            np.int32(self.NScan),
+            np.int32(self.unknowns),
+            wait_for=wait_for + self.tmp_result.events + out.events)
+
+    def adjoop(self, inp, wait_for=[]):
+        self.tmp_result.add_event(
+            self.NUFFTx.FFTH(
+                self.tmp_result, inp[0], wait_for=wait_for + inp[0].events))
+        self.tmp_result = self.tmp_result*self.phase_map.conj()
+        self.NUFFTy.FFT(
+            self.tmp_result,
+            self.tmp_result,
+            wait_for=self.tmp_result.events).wait()
+        out = clarray.empty(
+            self.queue, (self.unknowns, self.NSlice, self.dimY, self.dimX),
+            dtype=self.DTYPE)
+        self.prg.operator_ad(
+            out.queue, (self.NSlice, self.dimY, self.dimX), None,
+            out.data, self.tmp_result.data, inp[1],
+            inp[2], np.int32(self.NC),
+            np.int32(self.NScan),
+            np.int32(self.unknowns),
+            wait_for=wait_for + self.tmp_result.events + out.events).wait()
+        return out
+
+    def adjKyk1(self, out, inp, wait_for=[]):
+        """ Apply the linear operator from parameter space to k-space
+
+        This method fully implements the combined linear operator
+        fully implements the combined linear operator
+        consisting of the data part as well as the TGV regularization part.
+
+        Args:
+          out (PyOpenCL.Array):
+            The complex parameter space data which is used as input.
+          inp (PyOpenCL.Array):
+            The complex parameter space data which is used as input.
+          wait_for (list of PyopenCL.Event):
+            A List of PyOpenCL events to wait for.
+        Returns:
+          PyOpenCL.Event: A PyOpenCL event to wait for.
+        """
+        self.tmp_result.add_event(
+            self.NUFFTx.FFTH(
+                self.tmp_result,
+                inp[0], wait_for=wait_for + inp[0].events)).wait()
+        self.tmp_result = self.tmp_result*self.phase_map.conj()
+        self.NUFFTy.FFT(
+            self.tmp_result,
+            self.tmp_result,
+            wait_for=self.tmp_result.events).wait()
         return self.prg.update_Kyk1(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data, self.tmp_result.data, inp[2],

@@ -271,8 +271,6 @@ class ModelReco:
     def set_scale(self, inp):
         x = np.require(np.transpose(inp, [1, 0, 2, 3]), requirements='C')
         grad = np.zeros(x.shape + (4,), dtype=DTYPE)
-#        import ipdb
-#        ipdb.set_trace()
         for i in range(self.num_dev):
             for j in range(x.shape[1]):
                 self.ratio[i][j] = 1

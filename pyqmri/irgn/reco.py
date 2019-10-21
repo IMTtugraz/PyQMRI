@@ -82,9 +82,12 @@ class ModelReco:
                                                       trafo=trafo, DTYPE=DTYPE,
                                                       DTYPE_real=DTYPE_real)
             else:
-                self._op = operator.OperatorKspace(par, self._prg, trafo=trafo,
-                                                   DTYPE=DTYPE,
-                                                   DTYPE_real=DTYPE_real)
+                self._op = operator.OperatorKspace(
+                    par,
+                    self._prg,
+                    trafo=trafo,
+                    DTYPE=DTYPE,
+                    DTYPE_real=DTYPE_real)
             self._FT = self._op.NUFFT.FFT
 
         self.grad_op, self.symgrad_op, self.v = self._setupLinearOps()
@@ -232,7 +235,7 @@ class ModelReco:
             return
         print("Initial norm of the model Gradient: \n", scale)
         scale = 1e3 / scale
-#        scale[~np.isfinite(scale)] = 1e3 / np.sqrt(self.par["unknowns"])
+        scale[~np.isfinite(scale)] = 1e3 / np.sqrt(self.par["unknowns"])
         print("Scalefactor of the model Gradient: \n", scale)
         if not np.mod(ind, 1):
             for uk in range(self.par["unknowns"]):
