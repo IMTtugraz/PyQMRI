@@ -377,11 +377,11 @@ class ModelReco:
 
     def _updateIRGNRegPar(self, result, ign):
         self.irgn_par["delta_max"] = (self.delta_max /
-                                      1e3 *
+                                      1e3 / np.sqrt(self.par["unknowns"]) *
                                       np.linalg.norm(result))
         self.irgn_par["delta"] = np.minimum(
             self.delta /
-            (1e3) *
+            (1e3 / np.sqrt(self.par["unknowns"])) *
             np.linalg.norm(result)*self.irgn_par["delta_inc"]**ign,
             self.irgn_par["delta_max"])
         self.irgn_par["gamma"] = np.maximum(
@@ -398,23 +398,20 @@ class ModelReco:
              self.par["NScan"] * self.par["NSlice"] *
              self.par["dimY"] * self.par["dimX"]))
         scale = np.linalg.norm(scale, axis=-1)
-        if np.max(scale) > 1e5:
-            print("Scale too large. Keeping the model scale as is.")
-            return
         print("Initial norm of the model Gradient: \n", scale)
-        scale = 1e3 / scale
+        scale = 1e3 / scale / np.sqrt(self.par["unknowns"])
 #        scale[~np.isfinite(scale)] = 1e3 / np.sqrt(self.par["unknowns"])
         print("Scalefactor of the model Gradient: \n", scale)
         if not np.mod(ind, 1):
             for uk in range(self.par["unknowns"]):
                 self.model.constraints[uk].update(scale[uk])
                 result[uk, ...] *= self.model.uk_scale[uk]
-                self.grad_x[uk] /= self.model.uk_scale[uk]
+                self.model_partial_der[uk] /= self.model.uk_scale[uk]
                 self.model.uk_scale[uk] *= scale[uk]
                 result[uk, ...] /= self.model.uk_scale[uk]
-                self.grad_x[uk] *= self.model.uk_scale[uk]
+                self.model_partial_der[uk] *= self.model.uk_scale[uk]
         scale = np.reshape(
-            self.grad_x,
+            self.model_partial_der,
             (self.par["unknowns"],
              self.par["NScan"] * self.par["NSlice"] *
              self.par["dimY"] * self.par["dimX"]))
