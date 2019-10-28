@@ -777,7 +777,6 @@ class PyOpenCLFieldMapNUFFT(PyOpenCLFFT):
         Returns:
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
-
         self._tmp_fft_array.add_event(
             self.prg.maskingcpy(
                 self.queue,
@@ -1097,7 +1096,10 @@ class PyOpenCLSMSNUFFTFieldMap(PyOpenCLFFT):
         self.packs = int(par["packs"])
         self.MB = int(par["MB"])
         self.shift = clarray.to_device(
-            self.queue, par["shift"].astype(np.int32))
+            self.queue, par["shift"].astype(np.float32))
+        self.shiftb = clarray.to_device(
+            self.queue,
+            np.mod(par["dimY"]-par["shift"], par["dimY"]).astype(np.float32))
 
         self._tmp_fft_array = (
             clarray.empty(
@@ -1146,7 +1148,6 @@ class PyOpenCLSMSNUFFTFieldMap(PyOpenCLFFT):
                 s.data,
                 self.mask.data,
                 wait_for=s.events))
-
         self._tmp_fft_array.add_event(self.prg.copy_SMS_adjkspace(
             self.queue,
             (sg.shape[0] * sg.shape[1],
@@ -1155,7 +1156,7 @@ class PyOpenCLSMSNUFFTFieldMap(PyOpenCLFFT):
             None,
             self._tmp_fft_array.data,
             self._tmp_fft_array2.data,
-            self.shift.data,
+            self.shiftb.data,
             np.int32(self.packs),
             np.int32(self.MB),
             self.DTYPE_real(1),
@@ -1203,7 +1204,7 @@ class PyOpenCLSMSNUFFTFieldMap(PyOpenCLFFT):
               None,
               self._tmp_fft_array2.data,
               self._tmp_fft_array.data,
-              self.shift.data,
+              self.shiftb.data,
               np.int32(self.packs),
               np.int32(self.MB),
               self.DTYPE_real(1),

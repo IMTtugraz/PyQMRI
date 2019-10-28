@@ -28,19 +28,19 @@ def prime_factors(n):
 
 def NUFFT(par, trafo=True, SMS=False):
     NC = par["NC"]
-    NSlice = par["NSlice"]
+    NScan = par["NScan"]
     par["NC"] = 1
-    par["NSlice"] = 1
-    if SMS:
-        packs = par["packs"]
-        par["packs"] = 1
-        par["NSlice"] = 2
+    par["NScan"] = 1
+#    if SMS:
+#        packs = par["packs"]
+#        par["packs"] = 1
+#        par["NSlice"] = 2
     FFT = PyOpenCLFFT.create(par["ctx"][0], par["queue"][0], par,
                              radial=trafo, SMS=SMS)
     par["NC"] = NC
-    par["NSlice"] = NSlice
-    if SMS:
-        par["packs"] = packs
+    par["NScan"] = NScan
+#    if SMS:
+#        par["packs"] = packs
     return FFT
 
 

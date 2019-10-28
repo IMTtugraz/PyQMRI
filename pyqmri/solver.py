@@ -141,6 +141,7 @@ class CGSolver:
             res_new = res - alpha*Ax
             delta = np.linalg.norm(res_new.get())**2 /\
                 np.linalg.norm(b.get())**2
+#            print("Residum: %f" % (delta))
             if delta < tol:
                 print(
                     "Converged after %i iterations to %1.3e." % (i, delta))

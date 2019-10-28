@@ -111,27 +111,31 @@ def _genImages(myargs, par, data):
 
         def nFTH(x, fft, par):
             siz = np.shape(x)
-            MB = int(par["MB"])
+#            MB = int(par["MB"])
             result = np.zeros(
-                (par["NC"], par["NSlice"], par["NScan"],
+                (par["NScan"], par["NC"], par["NSlice"],
                  par["dimY"], par["dimX"]), dtype=DTYPE)
-            tmp_result = clarray.empty(fft.queue, (par["NScan"], 1, MB,
+            tmp_result = clarray.empty(fft.queue, (1, 1, par["NSlice"],
                                        par["dimY"], par["dimX"]), dtype=DTYPE)
-
-            for j in range(siz[1]):
-                for k in range(siz[2]):
+            import time
+            start = time.time()
+            for j in range(siz[0]):
+                for k in range(siz[1]):
                     inp = clarray.to_device(fft.queue,
-                                            np.require(x[:, j, k, ...]
-                                                        [:, None, None, ...],
+                                            np.require(x[j, k, ...]
+                                                        [None, None, ...],
                                                        requirements='C'))
                     fft.FFTH(tmp_result, inp)
-                    if myargs.sms:
-                        ind = slice(k, siz[2]+k+1, siz[2])
-                        result[j, ind, ...] = np.transpose(
-                            (tmp_result.get()), (1, 2, 0, 3, 4))
-                    else:
-                        result[j, k, ...] = np.squeeze(tmp_result.get())
-            return np.transpose(result, (2, 0, 1, 3, 4))
+#                    if myargs.sms:
+#                        ind = slice(k, siz[2]+k+1, siz[2])
+#                        result[j, ind, ...] = np.transpose(
+#                            (tmp_result.get()), (1, 2, 0, 3, 4))
+#                    else:
+                    result[j, k, ...] = np.squeeze(tmp_result.get())
+#            return np.transpose(result, (2, 0, 1, 3, 4))
+            end = time.time()-start
+            print("FT took %f s" % end)
+            return result
         images = np.require(np.sum(nFTH(data, FFT, par) *
                                    (np.conj(par["C"])), axis=1),
                             requirements='C')
@@ -139,9 +143,9 @@ def _genImages(myargs, par, data):
 
     else:
 #        del par["file"]["images"]
-        tol = 1e-5
-        par_scans = 20
-        lambd = 1e-2
+        tol = 1e-8
+        par_scans = 10
+        lambd = 1e-3
         if "images" not in list(par["file"].keys()):
             images = np.zeros((par["NScan"],
                                par["NSlice"],
@@ -465,9 +469,6 @@ def _start_recon(myargs):
     for att in par["file"].attrs:
         par[att] = par["file"].attrs[att]
 
-#    import ipdb
-#    ipdb.set_trace()
-
     par["NC"] = NC
     par["dimY"] = dimY
     par["dimX"] = dimX
@@ -490,7 +491,7 @@ def _start_recon(myargs):
         par["weights"] = np.ones((par["unknowns"]), dtype=np.float32)
     else:
         par["weights"] = np.array(myargs.weights, dtype=np.float32)
-    par["weights"] = par["weights"]/np.linalg.norm(par["weights"])
+    par["weights"] = par["weights"]/np.sum(np.abs(par["weights"]), 0)
     if myargs.streamed:
         par["par_slices"] = myargs.par_slices
     if not myargs.trafo:
@@ -548,8 +549,6 @@ def _start_recon(myargs):
 # Reconstruct images using CG-SENSE  ##########################################
 ###############################################################################
     images = _genImages(myargs, par, data)
-    import ipdb
-    ipdb.set_trace()
 ###############################################################################
 # Scale data norm  ############################################################
 ###############################################################################
