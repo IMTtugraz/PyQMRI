@@ -406,10 +406,10 @@ class ModelReco:
             for uk in range(self.par["unknowns"]):
                 self.model.constraints[uk].update(scale[uk])
                 result[uk, ...] *= self.model.uk_scale[uk]
-                self.grad_x[uk] /= self.model.grad_x[uk]
+                self.grad_x[uk] /= self.model.uk_scale[uk]
                 self.model.uk_scale[uk] *= scale[uk]
                 result[uk, ...] /= self.model.uk_scale[uk]
-                self.grad_x[uk] *= self.model.grad_x[uk]
+                self.grad_x[uk] *= self.model.uk_scale[uk]
         scale = np.reshape(
             self.grad_x,
             (self.par["unknowns"],
