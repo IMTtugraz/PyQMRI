@@ -372,6 +372,10 @@ class Stream:
 
     def _streamtohost(self, outp, odd):
         for idev in range(self.num_dev):
+            self.queue[4*idev].finish()
+            self.queue[4*idev+1].finish()
+            self.queue[4*idev+2].finish()
+            self.queue[4*idev+3].finish()
             self.queue[4*(self.num_dev-1)+3-odd].finish()
             if idev > 1:
                 self.queue[4*(idev-1)+2+odd].finish()
@@ -388,6 +392,10 @@ class Stream:
 
     def _streamtohostnorm(self, outp, rhs, lhs, odd):
         for idev in range(self.num_dev):
+            self.queue[4*idev].finish()
+            self.queue[4*idev+1].finish()
+            self.queue[4*idev+2].finish()
+            self.queue[4*idev+3].finish()
             self.queue[4*(self.num_dev-1)+3-odd].finish()
             if idev > 1:
                 self.queue[4*(idev-1)+2+odd].finish()

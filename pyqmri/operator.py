@@ -1590,7 +1590,7 @@ class OperatorFiniteGradient(Operator):
         gradnorm = np.sum(np.abs(grad), axis=-1)
 #        gradnorm[gradnorm < 1e-8] = 0
 #        print("Diff between x: ", np.linalg.norm(scale, axis=-1))
-        print("Diff between grad x: ", gradnorm)
+#        print("Diff between grad x: ", gradnorm)
         scale = 1/gradnorm
         scale[~np.isfinite(scale)] = 1
         sum_scale = 1 / 1e5
@@ -1605,21 +1605,21 @@ class OperatorFiniteGradient(Operator):
         grad = clarray.to_device(
             self.queue, np.zeros(x.shape + (4,),
                                  dtype=self.DTYPE))
-        grad.add_event(
-            self.fwd(
-                grad,
-                x,
-                wait_for=grad.events +
-                x.events))
-        x = x.get()
-        grad = grad.get()
-        grad = np.reshape(
-            grad, (self.unknowns,
-                   self.NSlice *
-                   self.dimY *
-                   self.dimX * 4))
-        print("Norm of grad x: ",  np.sum(np.abs(grad), axis=-1))
-        print("Total Norm of grad x: ",  np.sum(np.abs(grad)))
+#        grad.add_event(
+#            self.fwd(
+#                grad,
+#                x,
+#                wait_for=grad.events +
+#                x.events))
+#        x = x.get()
+#        grad = grad.get()
+#        grad = np.reshape(
+#            grad, (self.unknowns,
+#                   self.NSlice *
+#                   self.dimY *
+#                   self.dimX * 4))
+#        print("Norm of grad x: ",  np.sum(np.abs(grad), axis=-1))
+#        print("Total Norm of grad x: ",  np.sum(np.abs(grad)))
 
 
 class OperatorFiniteSymGradient(Operator):

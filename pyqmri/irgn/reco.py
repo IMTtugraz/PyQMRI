@@ -209,11 +209,11 @@ class ModelReco:
 
     def _updateIRGNRegPar(self, result, ign):
         self.irgn_par["delta_max"] = (self.delta_max /
-                                      1e3 / np.sqrt(self.par["unknowns"]) *
+                                      1e3 *
                                       np.linalg.norm(result))
         self.irgn_par["delta"] = np.minimum(
             self.delta /
-            (1e3 / np.sqrt(self.par["unknowns"])) *
+            (1e3) *
             np.linalg.norm(result)*self.irgn_par["delta_inc"]**ign,
             self.irgn_par["delta_max"])
         self.irgn_par["gamma"] = np.maximum(
@@ -230,10 +230,10 @@ class ModelReco:
              self.par["NScan"] * self.par["NSlice"] *
              self.par["dimY"] * self.par["dimX"]))
         scale = np.linalg.norm(scale, axis=-1)
-        print("Initial norm of the model Gradient: \n", scale)
-        scale = 1e3 / scale / np.sqrt(self.par["unknowns"])
+#        print("Initial norm of the model Gradient: \n", scale)
+        scale = 1e3 / scale #/ np.sqrt(self.par["unknowns"])
 #        scale[~np.isfinite(scale)] = 1e3 / np.sqrt(self.par["unknowns"])
-        print("Scalefactor of the model Gradient: \n", scale)
+#        print("Scalefactor of the model Gradient: \n", scale)
         if not np.mod(ind, 1):
             for uk in range(self.par["unknowns"]):
                 self.model.constraints[uk].update(scale[uk])
@@ -242,13 +242,13 @@ class ModelReco:
                 self.model.uk_scale[uk] *= scale[uk]
                 result[uk, ...] /= self.model.uk_scale[uk]
                 self.model_partial_der[uk] *= self.model.uk_scale[uk]
-        scale = np.reshape(
-            self.model_partial_der,
-            (self.par["unknowns"],
-             self.par["NScan"] * self.par["NSlice"] *
-             self.par["dimY"] * self.par["dimX"]))
-        scale = np.linalg.norm(scale)
-        print("Scale of the model Gradient: \n", scale)
+#        scale = np.reshape(
+#            self.model_partial_der,
+#            (self.par["unknowns"],
+#             self.par["NScan"] * self.par["NSlice"] *
+#             self.par["dimY"] * self.par["dimX"]))
+#        scale = np.linalg.norm(scale)
+#        print("Scale of the model Gradient: \n", scale)
 
 ###############################################################################
 # New .hdf5 save files ########################################################
@@ -315,7 +315,7 @@ class ModelReco:
                 x.events))
         x = x.get()
         grad = grad.get()
-        if self.reg_type == 'TGV':
+        if self.reg_type == 'TV':
             self._fval = (self.irgn_par["lambd"] / 2 *
                           np.linalg.norm(data - b)**2 +
                           self.irgn_par["gamma"] *
@@ -323,7 +323,7 @@ class ModelReco:
                           self.irgn_par["omega"] / 2 *
                           np.linalg.norm(grad[self.par["unknowns_TGV"]:])**2)
 
-        elif self.reg_type == 'TV':
+        elif self.reg_type == 'TGV':
             v = clarray.to_device(self._queue, self.v)
             sym_grad = clarray.to_device(self._queue,
                                          np.zeros(x.shape+(8,), dtype=DTYPE))
@@ -333,13 +333,16 @@ class ModelReco:
                     v,
                     wait_for=sym_grad.events +
                     v.events))
-            self._fval = (self.irgn_par["lambd"] / 2 *
-                          np.linalg.norm(data - b)**2 +
-                          self.irgn_par["gamma"] *
-                          np.sum(np.abs(grad[:self.par["unknowns_TGV"]] -
-                                        self.v)) +
-                          self.irgn_par["gamma"] * (2) *
-                          np.sum(np.abs(sym_grad.get())) +
+
+            datacost = self.irgn_par["lambd"] / 2 * np.linalg.norm(data - b)**2
+            TGVcost = self.irgn_par["gamma"] * np.sum(
+                  np.abs(grad[:self.par["unknowns_TGV"]] -
+                         self.v)) + self.irgn_par["gamma"] * 2 * np.sum(
+                             np.abs(sym_grad.get()))
+            L2Cost = np.linalg.norm(x)/(2.0*self.irgn_par["delta"])
+
+            self._fval = (datacost +
+                          TGVcost +
                           self.irgn_par["omega"] / 2 *
                           np.linalg.norm(grad[self.par["unknowns_TGV"]:])**2)
             del sym_grad, v
@@ -353,20 +356,30 @@ class ModelReco:
                     v,
                     wait_for=sym_grad.events +
                     v.events))
-            self._fval = (self.irgn_par["lambd"] / 2 *
-                          np.linalg.norm(data - b)**2 +
-                          self.irgn_par["gamma"] *
-                          np.sum(np.abs(grad[:self.par["unknowns_TGV"]] -
-                                        self.v)) +
-                          self.irgn_par["gamma"] *
-                          2 * np.sum(np.abs(sym_grad.get())) +
+            datacost = self.irgn_par["lambd"] / 2 * np.linalg.norm(data - b)**2
+            TGVcost = self.irgn_par["gamma"] * np.sum(
+                  np.abs(grad[:self.par["unknowns_TGV"]] -
+                         self.v)) + self.irgn_par["gamma"] * 2 * np.sum(
+                             np.abs(sym_grad.get()))
+            L2Cost = np.linalg.norm(x)/(2.0*self.irgn_par["delta"])
+
+            self._fval = (datacost +
+                          TGVcost +
                           self.irgn_par["omega"] / 2 *
                           np.linalg.norm(grad[self.par["unknowns_TGV"]:])**2)
             del sym_grad, v
 
         del grad, b
+
         if GN_it == 0:
             self._fval_init = self._fval
+        print("-" * 75)
+#        print("Costs of Data: %f" % (1e3*datacost / self._fval_init))
+#        print("Costs of TGVcost: %f" % (1e3*TGVcost / self._fval_init))
+#        print("Costs of L2 Term: %f" % (1e3*L2Cost / self._fval_init))
+        print("Costs of Data: %f" % (datacost))
+        print("Costs of TGVcost: %f" % (TGVcost))
+        print("Costs of L2 Term: %f" % (L2Cost))
         print("-" * 75)
         print("Function value at GN-Step %i: %f" %
               (GN_it, 1e3*self._fval / self._fval_init))

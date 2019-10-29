@@ -285,7 +285,7 @@ class ModelReco:
             grad, (self.unknowns, self.NSlice * self.dimY * self.dimX * 4))
         gradnorm = np.sum(np.abs(grad), axis=-1)
 #        print("Diff between x: ", np.linalg.norm(scale, axis=-1))
-        print("Diff between grad x: ", gradnorm)
+#        print("Diff between grad x: ", gradnorm)
         scale = 1/gradnorm
         scale[~np.isfinite(scale)] = 1
         sum_scale = 1 / 1e5
@@ -327,6 +327,12 @@ class ModelReco:
         result = np.copy(self.model.guess)
         self.data = np.require(
             np.transpose(self.data, self.dat_trans_axes), requirements='C')
+
+        self.step_val = np.nan_to_num(self.model.execute_forward(result))
+        self.step_val = np.require(
+            np.transpose(self.step_val, [1, 0, 2, 3]), requirements='C')
+
+        self.calc_residual(np.require(np.transpose(result, [1, 0, 2, 3]), requirements='C'), 0)
 
         for ign in range(self.irgn_par["max_gn_it"]):
             start = time.time()
@@ -377,11 +383,11 @@ class ModelReco:
 
     def _updateIRGNRegPar(self, result, ign):
         self.irgn_par["delta_max"] = (self.delta_max /
-                                      1e3 / np.sqrt(self.par["unknowns"]) *
+                                      1e3 /
                                       np.linalg.norm(result))
         self.irgn_par["delta"] = np.minimum(
             self.delta /
-            (1e3 / np.sqrt(self.par["unknowns"])) *
+            (1e3) *
             np.linalg.norm(result)*self.irgn_par["delta_inc"]**ign,
             self.irgn_par["delta_max"])
         self.irgn_par["gamma"] = np.maximum(
@@ -398,10 +404,10 @@ class ModelReco:
              self.par["NScan"] * self.par["NSlice"] *
              self.par["dimY"] * self.par["dimX"]))
         scale = np.linalg.norm(scale, axis=-1)
-        print("Initial norm of the model Gradient: \n", scale)
-        scale = 1e3 / scale / np.sqrt(self.par["unknowns"])
+#        print("Initial norm of the model Gradient: \n", scale)
+        scale = 1e3 / scale #/ np.sqrt(self.par["unknowns"])
 #        scale[~np.isfinite(scale)] = 1e3 / np.sqrt(self.par["unknowns"])
-        print("Scalefactor of the model Gradient: \n", scale)
+#        print("Scalefactor of the model Gradient: \n", scale)
         if not np.mod(ind, 1):
             for uk in range(self.par["unknowns"]):
                 self.model.constraints[uk].update(scale[uk])
@@ -410,13 +416,13 @@ class ModelReco:
                 self.model.uk_scale[uk] *= scale[uk]
                 result[uk, ...] /= self.model.uk_scale[uk]
                 self.grad_x[uk] *= self.model.uk_scale[uk]
-        scale = np.reshape(
-            self.grad_x,
-            (self.par["unknowns"],
-             self.par["NScan"] * self.par["NSlice"] *
-             self.par["dimY"] * self.par["dimX"]))
-        scale = np.linalg.norm(scale)
-        print("Scale of the model Gradient: \n", scale)
+#        scale = np.reshape(
+#            self.grad_x,
+#            (self.par["unknowns"],
+#             self.par["NScan"] * self.par["NSlice"] *
+#             self.par["dimY"] * self.par["dimX"]))
+#        scale = np.linalg.norm(scale)
+#        print("Scale of the model Gradient: \n", scale)
 
     def _setup_reg_tmp_arrays(self):
         if self.reg_type == 'TV':
@@ -482,8 +488,8 @@ class ModelReco:
             [DGk],
             [[x, self.C, self.grad_x]])
         res = self.data - b + DGk
-
-        self.calc_residual_kspace(x, GN_it)
+        if GN_it > 0:
+            self.calc_residual_kspace(x, GN_it)
 
         if self.reg_type == 'TV':
             x = self.tv_solve_3D(x, res, iters)
@@ -522,7 +528,8 @@ class ModelReco:
             requirements='C')
 
         x = np.require(np.transpose(x, [1, 0, 2, 3]), requirements='C')
-        self.calc_residual(x, GN_it)
+        if GN_it > 0:
+            self.calc_residual(x, GN_it)
 
         DGk = self.op.fwdoop([[x, self.C, self.grad_x]])
         b = np.require(
@@ -549,13 +556,14 @@ class ModelReco:
             [[x, self.C, self.grad_x]])
 
         res = self.data - self.step_val + DGk
-
-        self.calc_residual_imagespace(x, GN_it)
+        if GN_it > 0:
+            self.calc_residual_imagespace(x, GN_it)
 
         if self.reg_type == 'TV':
             x = self.tv_solve_3D(x, res, iters)
         elif self.reg_type == 'TGV':
             x = self.tgv_solve_3D(x, res, iters)
+
         x = np.require(np.transpose(x, [1, 0, 2, 3]), requirements='C')
         return x
 
@@ -566,6 +574,8 @@ class ModelReco:
         self.op.FTstr.eval(
             [b],
             [[self.step_val[:, :, None, ...]*self.C[:, None, ...]]])
+        import ipdb
+        ipdb.set_trace()
         if self.reg_type == 'TV':
             self.fval = (
                 self.irgn_par["lambd"]/2*np.linalg.norm(self.data - b)**2 +
@@ -576,21 +586,32 @@ class ModelReco:
         elif self.reg_type == 'TGV':
             sym_grad = np.zeros_like(self.z2)
             self.sym_grad_streamed.eval([sym_grad], [[self.v]])
-            self.fval = (
-                self.irgn_par["lambd"]/2*np.linalg.norm(self.data - b)**2 +
-                self.irgn_par["gamma"]*np.sum(np.abs(
-                    grad[:, :self.unknowns_TGV]-self.v)) +
-                self.irgn_par["gamma"]*(2)*np.sum(np.abs(sym_grad)) +
-                self.irgn_par["omega"] / 2 *
-                np.linalg.norm(grad[:, self.unknowns_TGV:])**2)
+            datacost = self.irgn_par["lambd"] / 2 * np.linalg.norm(self.data - b)**2
+            TGVcost = self.irgn_par["gamma"] * np.sum(
+                  np.abs(grad[:, :self.par["unknowns_TGV"]] -
+                         self.v)) + self.irgn_par["gamma"] * 2 * np.sum(
+                             np.abs(sym_grad))
+            L2Cost = np.linalg.norm(x)/(2.0*self.irgn_par["delta"])
+
+            self._fval = (datacost +
+                          TGVcost +
+                          self.irgn_par["omega"] / 2 *
+                          np.linalg.norm(grad[:, self.par["unknowns_TGV"]:])**2)
             del sym_grad
         del grad, b
 
         if GN_it == 0:
-            self.fval_init = self.fval
+            self._fval_init = self._fval
+        print("-" * 75)
+#        print("Costs of Data: %f" % (1e3*datacost / self._fval_init))
+#        print("Costs of TGVcost: %f" % (1e3*TGVcost / self._fval_init))
+#        print("Costs of L2 Term: %f" % (1e3*L2Cost / self._fval_init))
+        print("Costs of Data: %f" % (datacost))
+        print("Costs of TGVcost: %f" % (TGVcost))
+        print("Costs of L2 Term: %f" % (L2Cost))
         print("-" * 75)
         print("Function value at GN-Step %i: %f" %
-              (GN_it, 1e3*self.fval / self.fval_init))
+              (GN_it, 1e3*self._fval / self._fval_init))
         print("-" * 75)
 
     def calc_residual_imagespace(self, x, GN_it):
@@ -607,21 +628,31 @@ class ModelReco:
         elif self.reg_type == 'TGV':
             sym_grad = np.zeros_like(self.z2)
             self.sym_grad_streamed.eval([sym_grad], [[self.v]])
-            self.fval = (
-                self.irgn_par["lambd"]/2 *
-                np.linalg.norm(self.data - self.step_val)**2 +
-                self.irgn_par["gamma"]*np.sum(
-                    np.abs(grad[:, :self.unknowns_TGV]-self.v)) +
-                self.irgn_par["gamma"]*(2)*np.sum(np.abs(sym_grad)) +
-                self.irgn_par["omega"] / 2 *
-                np.linalg.norm(grad[:, self.unknowns_TGV:])**2)
+            datacost = self.irgn_par["lambd"] / 2 * np.linalg.norm(self.data - self.step_val)**2
+            TGVcost = self.irgn_par["gamma"] * np.sum(
+                  np.abs(grad[:, :self.par["unknowns_TGV"]] -
+                         self.v)) + self.irgn_par["gamma"] * 2 * np.sum(
+                             np.abs(sym_grad))
+            L2Cost = np.linalg.norm(x)/(2.0*self.irgn_par["delta"])
+
+            self._fval = (datacost +
+                          TGVcost +
+                          self.irgn_par["omega"] / 2 *
+                          np.linalg.norm(grad[:, self.par["unknowns_TGV"]:])**2)
             del sym_grad
         del grad
         if GN_it == 0:
-            self.fval_init = self.fval
+            self._fval_init = self._fval
+        print("-" * 75)
+#        print("Costs of Data: %f" % (1e3*datacost / self._fval_init))
+#        print("Costs of TGVcost: %f" % (1e3*TGVcost / self._fval_init))
+#        print("Costs of L2 Term: %f" % (1e3*L2Cost / self._fval_init))
+        print("Costs of Data: %f" % (datacost))
+        print("Costs of TGVcost: %f" % (TGVcost))
+        print("Costs of L2 Term: %f" % (L2Cost))
         print("-" * 75)
         print("Function value at GN-Step %i: %f" %
-              (GN_it, 1e3*self.fval / self.fval_init))
+              (GN_it, 1e3*self._fval / self._fval_init))
         print("-" * 75)
 
     def calc_residual_kspaceSMS(self, x, GN_it):
@@ -656,20 +687,32 @@ class ModelReco:
         elif self.reg_type == 'TGV':
             sym_grad = np.zeros_like(self.z2)
             self.sym_grad_streamed.eval([sym_grad], [[self.v]])
-            self.fval = (
-                self.irgn_par["lambd"]/2*np.linalg.norm(self.data - b)**2 +
-                self.irgn_par["gamma"]*np.sum(np.abs(
-                    grad[:, :self.unknowns_TGV]-self.v)) +
-                self.irgn_par["gamma"]*(2)*np.sum(np.abs(sym_grad)) +
-                self.irgn_par["omega"] / 2 *
-                np.linalg.norm(grad[:, self.unknowns_TGV:])**2)
+            datacost = self.irgn_par["lambd"] / 2 * np.linalg.norm(self.data - b)**2
+            TGVcost = self.irgn_par["gamma"] * np.sum(
+                  np.abs(grad[:, :self.par["unknowns_TGV"]] -
+                         self.v)) + self.irgn_par["gamma"] * 2 * np.sum(
+                             np.abs(sym_grad))
+            L2Cost = np.linalg.norm(x)/(2.0*self.irgn_par["delta"])
+
+            self._fval = (datacost +
+                          TGVcost +
+                          self.irgn_par["omega"] / 2 *
+                          np.linalg.norm(grad[self.par[:, "unknowns_TGV"]:])**2)
 
         if GN_it == 0:
-            self.fval_init = self.fval
+            self._fval_init = self._fval
+        print("-" * 75)
+#        print("Costs of Data: %f" % (1e3*datacost / self._fval_init))
+#        print("Costs of TGVcost: %f" % (1e3*TGVcost / self._fval_init))
+#        print("Costs of L2 Term: %f" % (1e3*L2Cost / self._fval_init))
+        print("Costs of Data: %f" % (datacost))
+        print("Costs of TGVcost: %f" % (TGVcost))
+        print("Costs of L2 Term: %f" % (L2Cost))
         print("-" * 75)
         print("Function value at GN-Step %i: %f" %
-              (GN_it, 1e3*self.fval / self.fval_init))
+              (GN_it, 1e3*self._fval / self._fval_init))
         print("-" * 75)
+
         self.C = np.require(
             np.transpose(
                 self.C,
