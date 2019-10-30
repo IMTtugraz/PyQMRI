@@ -144,7 +144,7 @@ def _genImages(myargs, par, data):
     else:
 #        del par["file"]["images"]
         tol = 1e-8
-        par_scans = 10
+        par_scans = 2
         lambd = 1e-3
         if "images" not in list(par["file"].keys()):
             images = np.zeros((par["NScan"],

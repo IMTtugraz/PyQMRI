@@ -383,7 +383,7 @@ class ModelReco:
 
     def _updateIRGNRegPar(self, result, ign):
         self.irgn_par["delta_max"] = (self.delta_max /
-                                      1e3 /
+                                      1e3 *
                                       np.linalg.norm(result))
         self.irgn_par["delta"] = np.minimum(
             self.delta /
@@ -574,8 +574,6 @@ class ModelReco:
         self.op.FTstr.eval(
             [b],
             [[self.step_val[:, :, None, ...]*self.C[:, None, ...]]])
-        import ipdb
-        ipdb.set_trace()
         if self.reg_type == 'TV':
             self.fval = (
                 self.irgn_par["lambd"]/2*np.linalg.norm(self.data - b)**2 +
@@ -593,7 +591,7 @@ class ModelReco:
                              np.abs(sym_grad))
             L2Cost = np.linalg.norm(x)/(2.0*self.irgn_par["delta"])
 
-            self._fval = (datacost +
+            self.fval = (datacost +
                           TGVcost +
                           self.irgn_par["omega"] / 2 *
                           np.linalg.norm(grad[:, self.par["unknowns_TGV"]:])**2)
@@ -601,17 +599,17 @@ class ModelReco:
         del grad, b
 
         if GN_it == 0:
-            self._fval_init = self._fval
+            self.fval_init = self.fval
         print("-" * 75)
-#        print("Costs of Data: %f" % (1e3*datacost / self._fval_init))
-#        print("Costs of TGVcost: %f" % (1e3*TGVcost / self._fval_init))
-#        print("Costs of L2 Term: %f" % (1e3*L2Cost / self._fval_init))
+#        print("Costs of Data: %f" % (1e3*datacost / self.fval_init))
+#        print("Costs of TGVcost: %f" % (1e3*TGVcost / self.fval_init))
+#        print("Costs of L2 Term: %f" % (1e3*L2Cost / self.fval_init))
         print("Costs of Data: %f" % (datacost))
         print("Costs of TGVcost: %f" % (TGVcost))
         print("Costs of L2 Term: %f" % (L2Cost))
         print("-" * 75)
         print("Function value at GN-Step %i: %f" %
-              (GN_it, 1e3*self._fval / self._fval_init))
+              (GN_it, 1e3*self.fval / self.fval_init))
         print("-" * 75)
 
     def calc_residual_imagespace(self, x, GN_it):
@@ -635,24 +633,24 @@ class ModelReco:
                              np.abs(sym_grad))
             L2Cost = np.linalg.norm(x)/(2.0*self.irgn_par["delta"])
 
-            self._fval = (datacost +
+            self.fval = (datacost +
                           TGVcost +
                           self.irgn_par["omega"] / 2 *
                           np.linalg.norm(grad[:, self.par["unknowns_TGV"]:])**2)
             del sym_grad
         del grad
         if GN_it == 0:
-            self._fval_init = self._fval
+            self.fval_init = self.fval
         print("-" * 75)
-#        print("Costs of Data: %f" % (1e3*datacost / self._fval_init))
-#        print("Costs of TGVcost: %f" % (1e3*TGVcost / self._fval_init))
-#        print("Costs of L2 Term: %f" % (1e3*L2Cost / self._fval_init))
+#        print("Costs of Data: %f" % (1e3*datacost / self.fval_init))
+#        print("Costs of TGVcost: %f" % (1e3*TGVcost / self.fval_init))
+#        print("Costs of L2 Term: %f" % (1e3*L2Cost / self.fval_init))
         print("Costs of Data: %f" % (datacost))
         print("Costs of TGVcost: %f" % (TGVcost))
         print("Costs of L2 Term: %f" % (L2Cost))
         print("-" * 75)
         print("Function value at GN-Step %i: %f" %
-              (GN_it, 1e3*self._fval / self._fval_init))
+              (GN_it, 1e3*self.fval / self.fval_init))
         print("-" * 75)
 
     def calc_residual_kspaceSMS(self, x, GN_it):
@@ -694,23 +692,23 @@ class ModelReco:
                              np.abs(sym_grad))
             L2Cost = np.linalg.norm(x)/(2.0*self.irgn_par["delta"])
 
-            self._fval = (datacost +
+            self.fval = (datacost +
                           TGVcost +
                           self.irgn_par["omega"] / 2 *
                           np.linalg.norm(grad[self.par[:, "unknowns_TGV"]:])**2)
 
         if GN_it == 0:
-            self._fval_init = self._fval
+            self.fval_init = self.fval
         print("-" * 75)
-#        print("Costs of Data: %f" % (1e3*datacost / self._fval_init))
-#        print("Costs of TGVcost: %f" % (1e3*TGVcost / self._fval_init))
-#        print("Costs of L2 Term: %f" % (1e3*L2Cost / self._fval_init))
+#        print("Costs of Data: %f" % (1e3*datacost / self.fval_init))
+#        print("Costs of TGVcost: %f" % (1e3*TGVcost / self.fval_init))
+#        print("Costs of L2 Term: %f" % (1e3*L2Cost / self.fval_init))
         print("Costs of Data: %f" % (datacost))
         print("Costs of TGVcost: %f" % (TGVcost))
         print("Costs of L2 Term: %f" % (L2Cost))
         print("-" * 75)
         print("Function value at GN-Step %i: %f" %
-              (GN_it, 1e3*self._fval / self._fval_init))
+              (GN_it, 1e3*self.fval / self.fval_init))
         print("-" * 75)
 
         self.C = np.require(
@@ -786,7 +784,6 @@ class ModelReco:
             [[x], [z2, z1, []]])
         # Start Iterations
         for myit in range(iters):
-
             self.update_primal_1.eval(
                 [x_new, gradx, Ax],
                 [[x, Kyk1, xk], [], [[], self.C, self.grad_x]],
