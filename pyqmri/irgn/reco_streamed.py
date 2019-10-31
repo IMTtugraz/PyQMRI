@@ -327,24 +327,33 @@ class ModelReco:
         result = np.copy(self.model.guess)
         self.data = np.require(
             np.transpose(self.data, self.dat_trans_axes), requirements='C')
-
+        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
         self.step_val = np.nan_to_num(self.model.execute_forward(result))
         self.step_val = np.require(
             np.transpose(self.step_val, [1, 0, 2, 3]), requirements='C')
 
-        self.calc_residual(np.require(np.transpose(result, [1, 0, 2, 3]), requirements='C'), 0)
+        self._balanceModelGradients(result, 0)
+        self.set_scale(result)
+        self._updateIRGNRegPar(result, 0)
+
+        self.calc_residual(
+            np.require(
+                np.transpose(result, [1, 0, 2, 3]), requirements='C'), 0)
 
         for ign in range(self.irgn_par["max_gn_it"]):
             start = time.time()
 
-            self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
+            if ign > 0:
+                self.grad_x = np.nan_to_num(
+                    self.model.execute_gradient(result))
+                self._balanceModelGradients(result, ign)
+                self.set_scale(result)
+                self.step_val = np.nan_to_num(
+                    self.model.execute_forward(result))
+                self.step_val = np.require(
+                    np.transpose(
+                        self.step_val, [1, 0, 2, 3]), requirements='C')
 
-            self._balanceModelGradients(result, ign)
-            self.set_scale(result)
-
-            self.step_val = np.nan_to_num(self.model.execute_forward(result))
-            self.step_val = np.require(
-                np.transpose(self.step_val, [1, 0, 2, 3]), requirements='C')
             self.grad_x = np.require(
                 np.transpose(self.grad_x, [2, 0, 1, 3, 4]), requirements='C')
 

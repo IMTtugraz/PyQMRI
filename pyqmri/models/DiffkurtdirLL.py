@@ -101,7 +101,7 @@ class Model(BaseModel):
                     (3e0 / self.uk_scale[2*j+2]),
                     True))
 
-        Kmax = 4
+        Kmax = 2
         for j in range(3):
             self.constraints.append(
                 constraints(
@@ -855,9 +855,9 @@ class Model(BaseModel):
                     kurt_xxxx,
                     kurt_xxxx,
                     kurt_xxxx,
-                    kurt_xxxx/2,
-                    kurt_xxxx/2,
-                    kurt_xxxx/2,
+                    kurt_yyyy/2,
+                    kurt_yyyy/2,
+                    kurt_yyyy/2,
                     kurt_xxxx,
                     kurt_xxxx,
                     kurt_xxxx],
