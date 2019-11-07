@@ -64,7 +64,7 @@ class Model(BaseModel):
             True))
         self.constraints.append(
             constraints(
-                0 / self.uk_scale[3],
+                1 / self.uk_scale[3],
                 1 / self.uk_scale[3],
                 True))
 
@@ -87,7 +87,7 @@ class Model(BaseModel):
         M02_sc = self.uk_scale[3]
         S1 = M0 * M0_sc * (-E1 * T1_sc + 1) * self.sin_phi_fl / \
             (-E1 * T1_sc * self.cos_phi_fl + 1)
-        S2 = M0 * M0_sc / (M02 * M02_sc) * (-E1 * T1_sc + 1) * self.sin_phi_bl / (-E1 * E2 * \
+        S2 = M0 * M0_sc * (M02 * M02_sc) * (-E1 * T1_sc + 1) * self.sin_phi_bl / (-E1 * E2 * \
                              T1_sc * T2_sc - (E1 * T1_sc - E2 * T2_sc) * self.cos_phi_bl + 1)
         S = (np.concatenate((S1, S2)))
         S[~np.isfinite(S)] = 1e-20
@@ -112,14 +112,14 @@ class Model(BaseModel):
         grad_M02_fl = np.zeros_like(
             M0 * M0_sc * (-E1 * T1_sc + 1) * self.sin_phi_fl / (-E1 * T1_sc * self.cos_phi_fl + 1))
 
-        grad_M0_bl = (M0_sc / (M02 * M02_sc) * (-E1 * T1_sc + 1) * self.sin_phi_bl / \
+        grad_M0_bl = (M0_sc * (M02 * M02_sc) * (-E1 * T1_sc + 1) * self.sin_phi_bl / \
                                    (-E1 * E2 * T1_sc * T2_sc - (E1 * T1_sc - E2 * T2_sc) * self.cos_phi_bl + 1))
-        grad_T1_bl = (-M0 * M0_sc / (M02 * M02_sc)  * T1_sc * self.sin_phi_bl / (-E1 * E2 * T1_sc * T2_sc - (E1 * T1_sc - E2 * T2_sc) * self.cos_phi_bl + 1) + M0 * M0_sc / (M02 * M02_sc)  * (-E1 * T1_sc + 1)
+        grad_T1_bl = -M0 * M0_sc * (M02 * M02_sc)  * (T1_sc * self.sin_phi_bl / (-E1 * E2 * T1_sc * T2_sc - (E1 * T1_sc - E2 * T2_sc) * self.cos_phi_bl + 1) + (-E1 * T1_sc + 1)
                       * (E2 * T1_sc * T2_sc + T1_sc * self.cos_phi_bl) * self.sin_phi_bl / (-E1 * E2 * T1_sc * T2_sc - (E1 * T1_sc - E2 * T2_sc) * self.cos_phi_bl + 1)**2)
-        grad_T2_bl = (M0 * M0_sc / (M02 * M02_sc)  * (-E1 * T1_sc + 1) * (E1 * T1_sc * T2_sc - T2_sc * self.cos_phi_bl) *
+        grad_T2_bl = (M0 * M0_sc * (M02 * M02_sc)  * (-E1 * T1_sc + 1) * (E1 * T1_sc * T2_sc - T2_sc * self.cos_phi_bl) *
                       self.sin_phi_bl / (-E1 * E2 * T1_sc * T2_sc - (E1 * T1_sc - E2 * T2_sc) * self.cos_phi_bl + 1)**2)
 
-        grad_M02_bl = - M02_sc * (M0 * M0_sc / (M02 * M02_sc)**2 * (-E1 * T1_sc + 1) * self.sin_phi_bl / (-E1 * E2 * \
+        grad_M02_bl = M02_sc * (M0 * M0_sc) * ((-E1 * T1_sc + 1) * self.sin_phi_bl / (-E1 * E2 * \
                              T1_sc * T2_sc - (E1 * T1_sc - E2 * T2_sc) * self.cos_phi_bl + 1))
 
         grad_M0 = np.concatenate((grad_M0_fl, grad_M0_bl))

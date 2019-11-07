@@ -331,7 +331,6 @@ class PDSolver:
             Axold, [x, self._coil_buf, self.grad_buf]))
         gradx_xold.add_event(self.grad_op.fwd(gradx_xold, x))
 
-
         symgrad_v_vold.add_event(self.symgrad_op.fwd(symgrad_v_vold, v))
 
         Kyk1.add_event(self._op.adjKyk1(Kyk1,

@@ -98,7 +98,7 @@ class Model(BaseModel):
                     (10 / self.uk_scale[j+1]),
                     True))
 
-        Kmax = 10
+        Kmax = 2.5
         for j in range(3):
             self.constraints.append(
                 constraints(

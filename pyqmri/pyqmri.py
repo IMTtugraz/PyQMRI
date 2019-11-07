@@ -104,14 +104,13 @@ def _setupOCL(myargs, par):
           | cl.command_queue_properties.PROFILING_ENABLE))
 
 
-def _genImages(myargs, par, data):
+def _genImages(myargs, par, data, off):
     if not myargs.usecg:
         FFT = utils.NUFFT(par, trafo=myargs.trafo, SMS=myargs.sms)
         import pyopencl.array as clarray
 
         def nFTH(x, fft, par):
             siz = np.shape(x)
-#            MB = int(par["MB"])
             result = np.zeros(
                 (par["NScan"], par["NC"], par["NSlice"],
                  par["dimY"], par["dimX"]), dtype=DTYPE)
@@ -126,13 +125,7 @@ def _genImages(myargs, par, data):
                                                         [None, None, ...],
                                                        requirements='C'))
                     fft.FFTH(tmp_result, inp)
-#                    if myargs.sms:
-#                        ind = slice(k, siz[2]+k+1, siz[2])
-#                        result[j, ind, ...] = np.transpose(
-#                            (tmp_result.get()), (1, 2, 0, 3, 4))
-#                    else:
                     result[j, k, ...] = np.squeeze(tmp_result.get())
-#            return np.transpose(result, (2, 0, 1, 3, 4))
             end = time.time()-start
             print("FT took %f s" % end)
             return result
@@ -196,9 +189,9 @@ def _genImages(myargs, par, data):
                 images = \
                     par["file"]['images'][
                       :, int(slices_images / 2) - int(
-                        np.floor((par["NSlice"]) / 2)):int(
+                        np.floor((par["NSlice"]) / 2)) + off:int(
                           slices_images / 2) + int(
-                            np.ceil(par["NSlice"] / 2)), ...].astype(DTYPE)
+                            np.ceil(par["NSlice"] / 2)) + off, ...].astype(DTYPE)
     return images
 
 
@@ -330,7 +323,7 @@ def _start_recon(myargs):
 # Create par struct to store everyting
     par = {}
 ###############################################################################
-# Select input file ###########################################################
+# Select input file ############################################0##############
 ###############################################################################
     _readInput(myargs, par)
 ###############################################################################
@@ -340,7 +333,8 @@ def _start_recon(myargs):
     dimX, dimY, NSlice = ((par["file"].attrs['image_dimensions']).astype(int))
     if reco_Slices == -1:
         reco_Slices = NSlice
-    off = 0
+    off = -5
+
     if myargs.sms:
         data = par["file"]['real_dat'][()].astype(DTYPE)\
                + 1j*par["file"]['imag_dat'][()].astype(DTYPE)
@@ -514,8 +508,7 @@ def _start_recon(myargs):
 ###############################################################################
 # Coil Sensitivity Estimation #################################################
 ###############################################################################
-    est_coils(data, par, par["file"], myargs)
-
+    est_coils(data, par, par["file"], myargs, off)
 ###############################################################################
 # phase correction ############################################################
 ###############################################################################
@@ -548,7 +541,8 @@ def _start_recon(myargs):
 ###############################################################################
 # Reconstruct images using CG-SENSE  ##########################################
 ###############################################################################
-    images = _genImages(myargs, par, data)
+    del par["file"]["images"]
+    images = _genImages(myargs, par, data, off)
 ###############################################################################
 # Scale data norm  ############################################################
 ###############################################################################

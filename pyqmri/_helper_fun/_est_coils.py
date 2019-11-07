@@ -35,7 +35,7 @@ DTYPE = np.complex64
 DTYPE_real = np.float32
 
 
-def est_coils(data, par, file, args):
+def est_coils(data, par, file, args, off):
     ###########################################################################
     # Initiate parallel interface #############################################
     ###########################################################################
@@ -47,12 +47,12 @@ def est_coils(data, par, file, args):
         slices_coils = file['Coils_real'][()].shape[1]
         par["C"] = file['Coils_real'][
             :,
-            int(slices_coils / 2) - int(np.floor((par["NSlice"]) / 2)):
-            int(slices_coils / 2) + int(np.ceil(par["NSlice"] / 2)),
+            int(slices_coils / 2) - int(np.floor((par["NSlice"]) / 2)) + off:
+            int(slices_coils / 2) + int(np.ceil(par["NSlice"] / 2)) + off,
             ...] + 1j * file['Coils_imag'][
             :,
-            int(slices_coils / 2) - int(np.floor((par["NSlice"]) / 2)):
-            int(slices_coils / 2) + int(np.ceil(par["NSlice"] / 2)),
+            int(slices_coils / 2) - int(np.floor((par["NSlice"]) / 2)) + off:
+            int(slices_coils / 2) + int(np.ceil(par["NSlice"] / 2)) + off,
             ...]
     elif not args.sms and "Coils" in list(file.keys()):
         if args.trafo and not file['Coils'].shape[1] >= par["NSlice"]:
@@ -245,9 +245,9 @@ def est_coils(data, par, file, args):
                 file['Coils'][
                     :,
                     int(slices_coils / 2) -
-                    int(np.floor((par["NSlice"]) / 2)):
+                    int(np.floor((par["NSlice"]) / 2)) + off:
                     int(slices_coils / 2) +
-                    int(np.ceil(par["NSlice"] / 2)), ...]
+                    int(np.ceil(par["NSlice"] / 2)) + off, ...]
 
     else:
         if args.trafo:

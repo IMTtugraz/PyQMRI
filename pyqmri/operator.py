@@ -1723,22 +1723,17 @@ class OperatorFiniteGradientStreamed(Operator):
             x, (self.unknowns, self.NSlice * self.dimY * self.dimX))
         grad = np.reshape(
             grad, (self.unknowns, self.NSlice * self.dimY * self.dimX * 4))
-        gradnorm = np.linalg.norm(grad, axis=-1)
-        gradnorm[gradnorm < 1e-8] = 0
-        print("Diff between x: ", np.linalg.norm(scale, axis=-1))
-        print("Diff between grad x: ", gradnorm)
-        scale = 1e3/gradnorm
+        gradnorm = np.sum(np.abs(grad), axis=-1)
+        scale = 1 / gradnorm
         scale[~np.isfinite(scale)] = 1
-#        sum_scale = 1 / (1e3)
+        sum_scale = 1 / 1e5
+
         for i in range(self.num_dev):
             for j in range(x.shape[0])[:self.unknowns_TGV]:
-                self._ratio[i][j] = scale[j] * self._weights[j]
-#        sum_scale = np.sqrt(np.sum(np.abs(
-#            scale[self.unknowns_TGV:])**2/(1000)))
+                self._ratio[i][j] = scale[j] / sum_scale * self._weights[j]
         for i in range(self.num_dev):
             for j in range(x.shape[0])[self.unknowns_TGV:]:
-                self._ratio[i][j] = scale[j] * self._weights[j]
-        print("Ratio: ", self._ratio[0])
+                self._ratio[i][j] = scale[j] / sum_scale * self._weights[j]
 
     def _grad(self, outp, inp, par=None, idx=0, idxq=0,
               bound_cond=0, wait_for=[]):
