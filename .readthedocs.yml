@@ -22,8 +22,7 @@ python:
   version: 3.7
   install:
     - requirements: requirements.txt
-  setup_py_install: true
-#    - requirements: doc/requirements.txt
-
-#submodules:
-#  include: all
+    - method: pip
+      path: .
+      extra_requirements:
+          - doc
