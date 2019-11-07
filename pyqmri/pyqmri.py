@@ -333,7 +333,7 @@ def _start_recon(myargs):
     dimX, dimY, NSlice = ((par["file"].attrs['image_dimensions']).astype(int))
     if reco_Slices == -1:
         reco_Slices = NSlice
-    off = -5
+    off = -8
 
     if myargs.sms:
         data = par["file"]['real_dat'][()].astype(DTYPE)\
