@@ -23,3 +23,5 @@ python:
     - requirements: requirements.txt
 #    - requirements: doc/requirements.txt
 
+submodules:
+  include: all
