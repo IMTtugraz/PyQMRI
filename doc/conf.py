@@ -72,6 +72,9 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'mbpq.egg-info']
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
 
+# Pretend gpyfft is present
+autodoc_mock_imports = ["gpyfft"]
+
 
 # -- Options for HTML output -------------------------------------------------
 
