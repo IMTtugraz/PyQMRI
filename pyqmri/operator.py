@@ -406,6 +406,212 @@ class OperatorKspace(Operator):
                       out.events + inp[1].events + wait_for))
 
 
+class OperatorKspaceFieldMap(Operator):
+    """ k-Space based Operator
+
+    This class serves as linear operator between parameter and k-space.
+
+    Use this operator if you want to perform complex parameter fitting from
+    complex k-space data. The type of fft is defined through the NUFFT object.
+    The NUFFT object can also be used for simple Cartesian FFTs.
+    """
+    def __init__(self, par, prg, DTYPE=np.complex64,
+                 DTYPE_real=np.float32, trafo=True):
+        super().__init__(par, prg, DTYPE, DTYPE_real)
+        self.queue = self.queue[0]
+        self.ctx = self.ctx[0]
+        self.tmp_result = clarray.empty(
+            self.queue, (self.NScan, self.NC,
+                         self.NSlice, self.dimY, self.dimX),
+            self.DTYPE, "C")
+        self.tmp_result2 = clarray.empty(
+            self.queue, (self.NScan, self.NC,
+                         self.NSlice, self.dimY, self.dimX),
+            self.DTYPE, "C")
+        if not trafo:
+            self.Nproj = self.dimY
+            self.N = self.dimX
+        self.NUFFT = CLFFT.create(self.ctx,
+                                  self.queue,
+                                  par,
+                                  radial=trafo,
+                                  fft_dim=[2],
+                                  DTYPE=DTYPE,
+                                  DTYPE_real=DTYPE_real)
+
+        self.phase_map = clarray.to_device(self.queue,
+                                           par["phase_map"])
+        self.phase_mapadj = clarray.to_device(
+            self.queue,
+            np.require(np.transpose(
+                np.conj(par["phase_map"]), (0, 1, 3, 2)),
+              requirements='C'))
+
+    def fwd(self, out, inp, wait_for=[]):
+        self.tmp_result.add_event(
+            self.prg.operator_fwd(
+                self.queue,
+                (self.NSlice, self.dimY, self.dimX),
+                None,
+                self.tmp_result.data, inp[0].data,
+                inp[1],
+                inp[2], np.int32(self.NC),
+                np.int32(self.NScan),
+                np.int32(self.unknowns),
+                wait_for=self.tmp_result.events + inp[0].events + wait_for))
+
+        self.tmp_result2.add_event(self.prg.addfield(
+                            self.queue,
+                            (self.NSlice, self.dimY, self.dimX),
+                            None,
+                            self.tmp_result2.data,
+                            self.tmp_result.data,
+                            self.phase_map.data,
+                            np.int32(self.NC),
+                            np.int32(self.NScan),
+                            wait_for=self.tmp_result.events+out.events))
+        import ipdb
+        ipdb.set_trace()
+
+        return self.NUFFT.FFT(
+            out,
+            self.tmp_result2,
+            wait_for=wait_for +
+            self.tmp_result2.events)
+
+    def fwdoop(self, inp, wait_for=[]):
+        self.tmp_result.add_event(
+            self.prg.operator_fwd(
+                self.queue,
+                (self.NSlice, self.dimY, self.dimX),
+                None,
+                self.tmp_result.data, inp[0].data,
+                inp[1],
+                inp[2], np.int32(self.NC),
+                np.int32(self.NScan),
+                np.int32(self.unknowns),
+                wait_for=self.tmp_result.events + inp[0].events + wait_for))
+        tmp_sino = clarray.empty(
+            self.queue,
+            (self.NScan, self.NC, self.NSlice, self.Nproj, self.N),
+            self.DTYPE, "C")
+
+        self.prg.addfield(
+                self.queue,
+                (self.NSlice, self.dimY, self.dimX),
+                None,
+                self.tmp_result2.data,
+                self.tmp_result.data,
+                self.phase_map.data,
+                np.int32(self.NC),
+                np.int32(self.NScan)).wait()
+        self.NUFFT.FFT(
+            tmp_sino,
+            self.tmp_result2,
+            wait_for=wait_for +
+            self.tmp_result2.events).wait()
+        return tmp_sino
+
+    def adj(self, out, inp, wait_for=[]):
+        self.tmp_result.add_event(
+            self.NUFFT.FFTH(
+                self.tmp_result,
+                inp[0],
+                wait_for=wait_for + inp[0].events + self.tmp_result.events))
+        self.tmp_result2.add_event(
+            self.prg.addfield(
+                self.queue,
+                (self.NSlice, self.dimY, self.dimX),
+                None,
+                self.tmp_result2.data,
+                self.tmp_result.data,
+                self.phase_mapadj.data,
+                np.int32(self.NC),
+                np.int32(self.NScan),
+                wait_for=self.tmp_result.events+inp[0].events))
+        return self.prg.operator_ad(
+            self.queue, (self.NSlice, self.dimY, self.dimX), None,
+            out.data, self.tmp_result2.data, inp[1],
+            inp[2], np.int32(self.NC),
+            np.int32(self.NScan),
+            np.int32(self.unknowns),
+            wait_for=wait_for + self.tmp_result2.events + out.events)
+
+    def adjoop(self, inp, wait_for=[]):
+        self.tmp_result.add_event(
+            self.NUFFT.FFTH(
+                self.tmp_result,
+                inp[0],
+                wait_for=wait_for + inp[0].events + self.tmp_result.events))
+        self.tmp_result2.add_event(
+            self.prg.addfield(
+                self.queue,
+                (self.NSlice, self.dimY, self.dimX),
+                None,
+                self.tmp_resut2.data,
+                self.tmp_result.data,
+                self.phase_mapadj.data,
+                np.int32(self.NC),
+                np.int32(self.NScan),
+                wait_for=self.tmp_result.events+inp[0].events))
+        out = clarray.empty(
+            self.queue, (self.unknowns, self.NSlice, self.dimY, self.dimX),
+            dtype=self.DTYPE)
+        self.prg.operator_ad(
+            out.queue, (self.NSlice, self.dimY, self.dimX), None,
+            out.data, self.tmp_result2.data, inp[1],
+            inp[2], np.int32(self.NC),
+            np.int32(self.NScan),
+            np.int32(self.unknowns),
+            wait_for=wait_for + self.tmp_result2.events + out.events).wait()
+        return out
+
+    def adjKyk1(self, out, inp, wait_for=[]):
+        """ Apply the linear operator from parameter space to k-space
+
+        This method fully implements the combined linear operator
+        fully implements the combined linear operator
+        consisting of the data part as well as the TGV regularization part.
+
+        Args:
+          out (PyOpenCL.Array):
+            The complex parameter space data which is used as input.
+          inp (PyOpenCL.Array):
+            The complex parameter space data which is used as input.
+          wait_for (list of PyopenCL.Event):
+            A List of PyOpenCL events to wait for.
+        Returns:
+          PyOpenCL.Event: A PyOpenCL event to wait for.
+        """
+        self.tmp_result.add_event(
+            self.NUFFT.FFTH(
+                self.tmp_result,
+                inp[0],
+                wait_for=wait_for + inp[0].events + self.tmp_result.events))
+        import ipdb
+        ipdb.set_trace()
+        self.tmp_result2.add_event(
+            self.prg.addfield(
+                self.queue,
+                (self.NSlice, self.dimY, self.dimX),
+                None,
+                self.tmp_result2.data,
+                self.tmp_result.data,
+                self.phase_mapadj.data,
+                np.int32(self.NC),
+                np.int32(self.NScan),
+                wait_for=self.tmp_result2.events+self.tmp_result.events))
+        return self.prg.update_Kyk1(
+            self.queue, (self.NSlice, self.dimY, self.dimX), None,
+            out.data, self.tmp_result2.data, inp[2],
+            inp[3], inp[1].data, np.int32(self.NC),
+            np.int32(self.NScan),
+            inp[4].data,
+            np.int32(self.unknowns), self.DTYPE_real(self._dz),
+            wait_for=(self.tmp_result2.events +
+                      out.events + inp[1].events + wait_for))
+
+
 class OperatorImagespaceStreamed(Operator):
     """ The streamed version of the Imagespace based Operator
 
@@ -763,6 +969,12 @@ class OperatorFiniteGradient(Operator):
         grad = clarray.to_device(
             self.queue, np.zeros(x.shape + (4,),
                                  dtype=self.DTYPE))
+        self._ratio = clarray.to_device(
+            self.queue,
+            (1 *
+             np.ones(
+                 self.unknowns)).astype(
+                     self.DTYPE_real))
         grad.add_event(
             self.fwd(
                 grad,
@@ -779,21 +991,39 @@ class OperatorFiniteGradient(Operator):
                    self.NSlice *
                    self.dimY *
                    self.dimX * 4))
-        print("Diff between x: ", np.linalg.norm(scale, axis=-1))
-        print("Diff between grad x: ", np.linalg.norm(grad, axis=-1))
-        scale = np.linalg.norm(grad, axis=-1)
-        scale = 1/scale
+        gradnorm = np.sum(np.abs(grad), axis=-1)
+#        gradnorm[gradnorm < 1e-8] = 0
+#        print("Diff between x: ", np.linalg.norm(scale, axis=-1))
+#        print("Diff between grad x: ", gradnorm)
+        scale = 1/gradnorm
         scale[~np.isfinite(scale)] = 1
-        sum_scale = np.linalg.norm(
-            scale[:self.unknowns_TGV]) /\
-            (1000/np.sqrt(self.NSlice))
+        sum_scale = 1 / 1e5
         for j in range(x.shape[0])[:self.unknowns_TGV]:
             self._ratio[j] = scale[j] / sum_scale * self._weights[j]
-        sum_scale = np.linalg.norm(
-            scale[self.unknowns_TGV:])/(1000)
+#        sum_scale = np.sqrt(np.sum(np.abs(
+#            scale[self.unknowns_TGV:])**2/(1000)))
         for j in range(x.shape[0])[self.unknowns_TGV:]:
             self._ratio[j] = scale[j] / sum_scale * self._weights[j]
-        print("Ratio: ", self._ratio)
+#        print("Ratio: ", self._ratio)
+        x = clarray.to_device(self.queue, x)
+        grad = clarray.to_device(
+            self.queue, np.zeros(x.shape + (4,),
+                                 dtype=self.DTYPE))
+#        grad.add_event(
+#            self.fwd(
+#                grad,
+#                x,
+#                wait_for=grad.events +
+#                x.events))
+#        x = x.get()
+#        grad = grad.get()
+#        grad = np.reshape(
+#            grad, (self.unknowns,
+#                   self.NSlice *
+#                   self.dimY *
+#                   self.dimX * 4))
+#        print("Norm of grad x: ",  np.sum(np.abs(grad), axis=-1))
+#        print("Total Norm of grad x: ",  np.sum(np.abs(grad)))
 
 
 class OperatorFiniteSymGradient(Operator):
@@ -885,9 +1115,10 @@ class OperatorFiniteGradientStreamed(Operator):
 
     def updateRatio(self, inp):
         x = np.require(np.transpose(inp, [1, 0, 2, 3]), requirements='C')
-        grad = clarray.to_device(
-            self.queue, np.zeros(x.shape + (4,),
-                                 dtype=self.DTYPE))
+        grad = np.zeros(x.shape + (4,), dtype=self.DTYPE)
+        for i in range(self.num_dev):
+            for j in range(x.shape[0])[:self.unknowns_TGV]:
+                self._ratio[i][j] = 1
         self.fwd([grad], [[x]])
         grad = np.require(np.transpose(grad, [1, 0, 2, 3, 4]),
                           requirements='C')
@@ -896,22 +1127,17 @@ class OperatorFiniteGradientStreamed(Operator):
             x, (self.unknowns, self.NSlice * self.dimY * self.dimX))
         grad = np.reshape(
             grad, (self.unknowns, self.NSlice * self.dimY * self.dimX * 4))
-        print("Diff between x: ", np.linalg.norm(scale, axis=-1))
-        print("Diff between grad x: ", np.linalg.norm(grad, axis=-1))
-        scale = np.linalg.norm(grad, axis=-1)
-        scale = 1/scale
+        gradnorm = np.sum(np.abs(grad), axis=-1)
+        scale = 1 / gradnorm
         scale[~np.isfinite(scale)] = 1
-        sum_scale = np.linalg.norm(
-            scale[:self.unknowns_TGV])/(1000/np.sqrt(self.NSlice))
+        sum_scale = 1 / 1e5
+
         for i in range(self.num_dev):
             for j in range(x.shape[0])[:self.unknowns_TGV]:
-                self._ratio[i][j] = scale[j] / sum_scale
-        sum_scale = np.linalg.norm(
-            scale[self.unknowns_TGV:])/(1000)
+                self._ratio[i][j] = scale[j] / sum_scale * self._weights[j]
         for i in range(self.num_dev):
             for j in range(x.shape[0])[self.unknowns_TGV:]:
-                self._ratio[i][j] = scale[j] / sum_scale
-        print("Ratio: ", self._ratio[0])
+                self._ratio[i][j] = scale[j] / sum_scale * self._weights[j]
 
     def _grad(self, outp, inp, par=None, idx=0, idxq=0,
               bound_cond=0, wait_for=[]):

@@ -205,6 +205,7 @@ __kernel void fftshift(__global double2* ksp, __global double *check)
     ksp[x+dimX*y+dimX*dimY*n] = ksp[x+dimX*y+dimX*dimY*n]*check[x]*check[y];
   }
 
+
 __kernel void maskingcpy(__global double2* out, __global double2 *ksp, __global double *mask)
   {
     size_t x = get_global_id(2);

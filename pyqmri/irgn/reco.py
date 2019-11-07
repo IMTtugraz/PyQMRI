@@ -77,9 +77,12 @@ class ModelReco:
                                        cl.mem_flags.READ_ONLY |
                                        cl.mem_flags.COPY_HOST_PTR,
                                        hostbuf=self.par["C"].data)
-            self._op = operator.OperatorKspace(par, self._prg, trafo=trafo,
-                                               DTYPE=DTYPE,
-                                               DTYPE_real=DTYPE_real)
+            self._op = operator.OperatorKspace(
+                par,
+                self._prg,
+                trafo=trafo,
+                DTYPE=DTYPE,
+                DTYPE_real=DTYPE_real)
             self._FT = self._op.NUFFT.FFT
 
         self.grad_op, self.symgrad_op, self.v = self._setupLinearOps()
@@ -163,8 +166,8 @@ class ModelReco:
             start = time.time()
             self.model_partial_der = np.nan_to_num(
                 self.model.execute_gradient(result))
-            self._balanceModelGradients(result, ign)
 
+            self._balanceModelGradients(result, ign)
             self.pdop.grad_op.updateRatio(result)
 
             self.step_val = np.nan_to_num(self.model.execute_forward(result))
@@ -186,25 +189,27 @@ class ModelReco:
             print("-" * 75)
             print("GN-Iter: %d  Elapsed time: %f seconds" % (ign, end))
             print("-" * 75)
-            if np.abs(self._fval_old - self._fval) / self._fval_init < \
-               self.irgn_par["tol"]:
-                print("Terminated at GN-iteration %d because "
-                      "the energy decrease was less than %.3e" %
-                      (ign, np.abs(self._fval_old - self._fval) /
-                       self._fval_init))
-                self._calcResidual(result, self.data, ign+1)
-                self._saveToFile(ign, self.model.rescale(result))
-                break
+#            if np.abs(self._fval_old - self._fval) / self._fval_init < \
+#               self.irgn_par["tol"]:
+#                print("Terminated at GN-iteration %d because "
+#                      "the energy decrease was less than %.3e" %
+#                      (ign, np.abs(self._fval_old - self._fval) /
+#                       self._fval_init))
+#                self._calcResidual(result, self.data, ign+1)
+#                self._saveToFile(ign, self.model.rescale(result))
+#                break
             self._fval_old = self._fval
             self._saveToFile(ign, self.model.rescale(result))
         self._calcResidual(result, self.data, ign+1)
 
     def _updateIRGNRegPar(self, result, ign):
         self.irgn_par["delta_max"] = (self.delta_max /
-                                      1e3 * np.linalg.norm(result))
+                                      1e3 *
+                                      np.linalg.norm(result))
         self.irgn_par["delta"] = np.minimum(
             self.delta /
-            (1e3)*np.linalg.norm(result)*self.irgn_par["delta_inc"]**ign,
+            (1e3) *
+            np.linalg.norm(result)*self.irgn_par["delta_inc"]**ign,
             self.irgn_par["delta_max"])
         self.irgn_par["gamma"] = np.maximum(
             self.gamma * self.irgn_par["gamma_dec"]**ign,
@@ -220,9 +225,10 @@ class ModelReco:
              self.par["NScan"] * self.par["NSlice"] *
              self.par["dimY"] * self.par["dimX"]))
         scale = np.linalg.norm(scale, axis=-1)
-        print("Initial norm of the model Gradient: \n", scale)
-        scale = 1e3 / np.sqrt(self.par["unknowns"]) / scale
-        print("Scalefactor of the model Gradient: \n", scale)
+#        print("Initial norm of the model Gradient: \n", scale)
+        scale = 1e3 / scale  # / np.sqrt(self.par["unknowns"])
+#        scale[~np.isfinite(scale)] = 1e3 / np.sqrt(self.par["unknowns"])
+#        print("Scalefactor of the model Gradient: \n", scale)
         if not np.mod(ind, 1):
             for uk in range(self.par["unknowns"]):
                 self.model.constraints[uk].update(scale[uk])
@@ -231,13 +237,13 @@ class ModelReco:
                 self.model.uk_scale[uk] *= scale[uk]
                 result[uk, ...] /= self.model.uk_scale[uk]
                 self.model_partial_der[uk] *= self.model.uk_scale[uk]
-        scale = np.reshape(
-            self.model_partial_der,
-            (self.par["unknowns"],
-             self.par["NScan"] * self.par["NSlice"] *
-             self.par["dimY"] * self.par["dimX"]))
-        scale = np.linalg.norm(scale, axis=-1)
-        print("Scale of the model Gradient: \n", scale)
+#        scale = np.reshape(
+#            self.model_partial_der,
+#            (self.par["unknowns"],
+#             self.par["NScan"] * self.par["NSlice"] *
+#             self.par["dimY"] * self.par["dimX"]))
+#        scale = np.linalg.norm(scale)
+#        print("Scale of the model Gradient: \n", scale)
 
 ###############################################################################
 # New .hdf5 save files ########################################################
@@ -279,7 +285,7 @@ class ModelReco:
         if GN_it > 0:
             self._calcResidual(x, data, GN_it)
 
-        (x, _) = self.pdop.run(x, res, iters)
+        x = self.pdop.run(x, res, iters)
 
         return x
 
@@ -304,15 +310,12 @@ class ModelReco:
                 x.events))
         x = x.get()
         grad = grad.get()
-        if self.reg_type == 'TGV':
-            self._fval = (self.irgn_par["lambd"] / 2 *
-                          np.linalg.norm(data - b)**2 +
-                          self.irgn_par["gamma"] *
-                          np.sum(np.abs(grad[:self.par["unknowns_TGV"]])) +
-                          self.irgn_par["omega"] / 2 *
-                          np.linalg.norm(grad[self.par["unknowns_TGV"]:])**2)
-
-        elif self.reg_type == 'TV':
+        datacost = self.irgn_par["lambd"] / 2 * np.linalg.norm(data - b)**2
+        L2Cost = np.linalg.norm(x)/(2.0*self.irgn_par["delta"])
+        if self.reg_type == 'TV':
+            regcost = self.irgn_par["gamma"] * \
+                np.sum(np.abs(grad[:self.par["unknowns_TGV"]]))
+        elif self.reg_type == 'TGV':
             v = clarray.to_device(self._queue, self.v)
             sym_grad = clarray.to_device(self._queue,
                                          np.zeros(x.shape+(8,), dtype=DTYPE))
@@ -322,15 +325,10 @@ class ModelReco:
                     v,
                     wait_for=sym_grad.events +
                     v.events))
-            self._fval = (self.irgn_par["lambd"] / 2 *
-                          np.linalg.norm(data - b)**2 +
-                          self.irgn_par["gamma"] *
-                          np.sum(np.abs(grad[:self.par["unknowns_TGV"]] -
-                                        self.v)) +
-                          self.irgn_par["gamma"] * (2) *
-                          np.sum(np.abs(sym_grad.get())) +
-                          self.irgn_par["omega"] / 2 *
-                          np.linalg.norm(grad[self.par["unknowns_TGV"]:])**2)
+            regcost = self.irgn_par["gamma"] * np.sum(
+                  np.abs(grad[:self.par["unknowns_TGV"]] -
+                         self.v)) + self.irgn_par["gamma"] * 2 * np.sum(
+                             np.abs(sym_grad.get()))
             del sym_grad, v
         else:
             v = clarray.to_device(self._queue, self.v)
@@ -342,20 +340,24 @@ class ModelReco:
                     v,
                     wait_for=sym_grad.events +
                     v.events))
-            self._fval = (self.irgn_par["lambd"] / 2 *
-                          np.linalg.norm(data - b)**2 +
-                          self.irgn_par["gamma"] *
-                          np.sum(np.abs(grad[:self.par["unknowns_TGV"]] -
-                                        self.v)) +
-                          self.irgn_par["gamma"] *
-                          2 * np.sum(np.abs(sym_grad.get())) +
-                          self.irgn_par["omega"] / 2 *
-                          np.linalg.norm(grad[self.par["unknowns_TGV"]:])**2)
+            regcost = self.irgn_par["gamma"] * np.sum(
+                  np.abs(grad[:self.par["unknowns_TGV"]] -
+                         self.v)) + self.irgn_par["gamma"] * 2 * np.sum(
+                             np.abs(sym_grad.get()))
             del sym_grad, v
 
+        self._fval = (datacost +
+                      regcost +
+                      self.irgn_par["omega"] / 2 *
+                      np.linalg.norm(grad[self.par["unknowns_TGV"]:])**2)
         del grad, b
+
         if GN_it == 0:
             self._fval_init = self._fval
+        print("-" * 75)
+        print("Costs of Data: %f" % (datacost))
+        print("Costs of T(G)V: %f" % (regcost))
+        print("Costs of L2 Term: %f" % (L2Cost))
         print("-" * 75)
         print("Function value at GN-Step %i: %f" %
               (GN_it, 1e3*self._fval / self._fval_init))
@@ -367,7 +369,7 @@ class ModelReco:
                   3D can be used with a single slice.")
             raise NotImplementedError
         else:
-            self.irgn_par["lambd"] *= self.par["SNR_est"]
+            self.irgn_par["lambd"] *= 1e2/np.sqrt(self.par["SNR_est"])
             self.delta = self.irgn_par["delta"]
             self.delta_max = self.irgn_par["delta_max"]
             self.gamma = self.irgn_par["gamma"]

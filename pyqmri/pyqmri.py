@@ -20,6 +20,7 @@ from pyqmri._helper_fun import _utils as utils
 # from pyqmri.solver import CGSolver
 
 
+
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
@@ -104,42 +105,105 @@ def _setupOCL(myargs, par):
           | cl.command_queue_properties.PROFILING_ENABLE))
 
 
-def _genImages(myargs, par, data):
-    FFT = utils.NUFFT(par, trafo=myargs.trafo)
-    import pyopencl.array as clarray
+def _genImages(myargs, par, data, off):
+    if not myargs.usecg:
+        FFT = utils.NUFFT(par, trafo=myargs.trafo)
+        import pyopencl.array as clarray
 
-    def nFTH(x, fft, par):
-        siz = np.shape(x)
-        result = np.zeros(
-            (par["NC"], par["NSlice"], par["NScan"],
-             par["dimY"], par["dimX"]), dtype=DTYPE)
-        tmp_result = clarray.empty(fft.queue, (par["NScan"], 1, 1,
-                                   par["dimY"], par["dimX"]), dtype=DTYPE)
-        for j in range(siz[1]):
-            for k in range(siz[2]):
-                inp = clarray.to_device(fft.queue,
-                                        np.require(x[:, j, k, ...]
-                                                    [:, None, None, ...],
-                                                   requirements='C'))
-                fft.FFTH(tmp_result, inp)
-                result[j, k, ...] = np.squeeze(tmp_result.get())
-        return np.transpose(result, (2, 0, 1, 3, 4))
-    images = np.require(np.sum(nFTH(data, FFT, par) *
-                               (np.conj(par["C"])), axis=1),
-                        requirements='C')
-    del FFT, nFTH
+        def nFTH(x, fft, par):
+            siz = np.shape(x)
+            result = np.zeros(
+                (par["NScan"], par["NC"], par["NSlice"],
+                 par["dimY"], par["dimX"]), dtype=DTYPE)
+            tmp_result = clarray.empty(fft.queue, (1, 1, par["NSlice"],
+                                       par["dimY"], par["dimX"]), dtype=DTYPE)
+            import time
+            start = time.time()
+            for j in range(siz[0]):
+                for k in range(siz[1]):
+                    inp = clarray.to_device(fft.queue,
+                                            np.require(x[j, k, ...]
+                                                        [None, None, ...],
+                                                       requirements='C'))
+                    fft.FFTH(tmp_result, inp)
+                    result[j, k, ...] = np.squeeze(tmp_result.get())
+            end = time.time()-start
+            print("FT took %f s" % end)
+            return result
+        images = np.require(np.sum(nFTH(data, FFT, par) *
+                                   (np.conj(par["C"])), axis=1),
+                            requirements='C')
+        del FFT, nFTH
 
+    else:
+        tol = 1e-8
+        par_scans = 2
+        lambd = 1e-3
+        if "images" not in list(par["file"].keys()):
+            images = np.zeros((par["NScan"],
+                               par["NSlice"],
+                               par["dimY"],
+                               par["dimX"]), dtype=DTYPE)
+            if par["NScan"]/par_scans >= 1:
+                cgs = CGSolver(par, par_scans, myargs.trafo)
+                for j in range(int(par["NScan"]/par_scans)):
+                    if par["NSlice"] == 1:
+                        images[par_scans*j:par_scans*(j+1), ...] = cgs.run(
+                            data[par_scans*j:par_scans*(j+1), ...],
+                            tol=tol, lambd=lambd)[:, None, ...]
+                    else:
+                        images[par_scans*j:par_scans*(j+1), ...] = cgs.run(
+                            data[par_scans*j:par_scans*(j+1), ...],
+                            tol=tol, lambd=lambd)
+                del cgs
+            if np.mod(par["NScan"], par_scans):
+                cgs = CGSolver(par, np.mod(par["NScan"], par_scans),
+                               myargs.trafo)
+                if par["NSlice"] == 1:
+                    if np.mod(par["NScan"], par_scans) == 1:
+                        images[-np.mod(par["NScan"], par_scans):, ...] = \
+                            cgs.run(
+                                data[-np.mod(par["NScan"], par_scans):, ...],
+                                tol=tol, lambd=lambd)
+                    else:
+                        images[-np.mod(par["NScan"], par_scans):, ...] = \
+                            cgs.run(
+                                data[-np.mod(par["NScan"], par_scans):, ...],
+                                tol=tol, lambd=lambd)[:, None, ...]
+                else:
+                    images[-np.mod(par["NScan"], par_scans):, ...] = \
+                        cgs.run(
+                            data[-np.mod(par["NScan"], par_scans):, ...],
+                            tol=tol, lambd=lambd)
+                del cgs
+            par["file"].create_dataset("images", images.shape,
+                                       dtype=DTYPE, data=images)
+        else:
+            images = par["file"]['images']
+            if images.shape[1] < par["NSlice"]:
+                del par["file"]["images"]
+                images = _genImages(myargs, par, data)
+            else:
+                print("Using precomputed images")
+                slices_images = par["file"]['images'][()].shape[1]
+                images = \
+                    par["file"]['images'][
+                      :, int(slices_images / 2) - int(
+                        np.floor((par["NSlice"]) / 2)) + off:int(
+                          slices_images / 2) + int(
+                            np.ceil(par["NSlice"] / 2)) + off,
+                      ...].astype(DTYPE)
     return images
 
 
 def _estScaleNorm(myargs, par, images, data):
     if myargs.imagespace:
-        dscale = DTYPE_real(np.sqrt(2*1e3*par["NSlice"]) /
+        dscale = DTYPE_real(np.sqrt(2*1e3) /
                             (np.linalg.norm(images.flatten())))
         par["dscale"] = dscale
         images = images*dscale
     else:
-        dscale = (DTYPE_real(np.sqrt(2*1e3*par["NSlice"])) /
+        dscale = (DTYPE_real(np.sqrt(2*1e3)) /
                   (np.linalg.norm(data.flatten())))
         par["dscale"] = dscale
         images = images*dscale
@@ -164,12 +228,16 @@ def _estScaleNorm(myargs, par, images, data):
         par["SNR_est"] = SNR_est
         print("Estimated SNR from kspace", SNR_est)
     else:
-        centerX = int(par["dimX"]*0.2)
-        centerY = int(par["dimY"]*0.2)
+        centerX = int(par["dimX"]*0.1)
+        centerY = int(par["dimY"]*0.1)
         ind = np.zeros((par["dimY"], par["dimX"]), dtype=bool)
         ind[int(par["N"]/2-centerY):int(par["N"]/2+centerY),
             int(par["N"]/2-centerX):int(par["N"]/2+centerX)] = 1
-        ind = np.fft.fftshift(ind)
+        if "phase_map" in par.keys():
+            ind = np.fft.fftshift(ind, axes=0)
+        else:
+            ind = np.fft.fftshift(ind)
+
         sig = np.sum(
             data[..., int(par["NSlice"]/2), ind] *
             np.conj(
@@ -181,6 +249,7 @@ def _estScaleNorm(myargs, par, images, data):
         SNR_est = np.abs(sig/noise)
         par["SNR_est"] = SNR_est
         print("Estimated SNR from kspace", SNR_est)
+
     return data, images
 
 
@@ -255,7 +324,7 @@ def _start_recon(myargs):
 # Create par struct to store everyting
     par = {}
 ###############################################################################
-# Select input file ###########################################################
+# Select input file ############################################0##############
 ###############################################################################
     _readInput(myargs, par)
 ###############################################################################
@@ -266,6 +335,7 @@ def _start_recon(myargs):
     if reco_Slices == -1:
         reco_Slices = NSlice
     off = 0
+
     data = par["file"]['real_dat'][
       ..., int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:
       int(NSlice/2)+int(np.ceil(reco_Slices/2))+off, :, :].astype(DTYPE)\
@@ -374,6 +444,7 @@ def _start_recon(myargs):
     else:
         print("Wrong data dimension / model inkompatible. Returning")
         return
+
 ###############################################################################
 # Set sequence related parameters #############################################
 ###############################################################################
@@ -395,6 +466,7 @@ def _start_recon(myargs):
         par["weights"] = np.ones((par["unknowns"]), dtype=np.float32)
     else:
         par["weights"] = np.array(myargs.weights, dtype=np.float32)
+    par["weights"] = par["weights"]/np.sum(np.abs(par["weights"]), 0)
     if myargs.streamed:
         par["par_slices"] = myargs.par_slices
     if not myargs.trafo:
@@ -417,8 +489,7 @@ def _start_recon(myargs):
 ###############################################################################
 # Coil Sensitivity Estimation #################################################
 ###############################################################################
-
-    est_coils(data, par, par["file"], myargs)
+    est_coils(data, par, par["file"], myargs, off)
 ###############################################################################
 # Standardize data ############################################################
 ###############################################################################
@@ -436,7 +507,8 @@ def _start_recon(myargs):
 ###############################################################################
 # Reconstruct images using CG-SENSE  ##########################################
 ###############################################################################
-    images = _genImages(myargs, par, data)
+    del par["file"]["images"]
+    images = _genImages(myargs, par, data, off)
 ###############################################################################
 # Scale data norm  ############################################################
 ###############################################################################
@@ -458,10 +530,11 @@ def _start_recon(myargs):
         opt.data = data
 
     f = h5py.File(par["outdir"]+"output_" + par["fname"], "a")
-    f.create_dataset("images_ifft_", data=images)
+    f.create_dataset("images_ifft", data=images)
     f.attrs['data_norm'] = par["dscale"]
     f.close()
     par["file"].close()
+
 ###############################################################################
 # Start Reco ##################################################################
 ###############################################################################
@@ -529,6 +602,8 @@ def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
         The device ID of device(s) to use for streaming/reconstruction
       dz (float):
         Ratio of physical Z to X/Y dimension. X/Y is assumed to be isotropic.
+      useCGguess (bool):
+        Switch between CG sense and simple FFT as initial guess for the images.
     """
     argparrun = argparse.ArgumentParser(
         description="T1 quantification from VFA "
@@ -588,6 +663,10 @@ def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
       help="Ratio of unkowns to each other. Defaults to 1. "
            "If passed, needs to be in the same size as the number of unknowns",
            nargs='*')
+    argparrun.add_argument(
+      '--useCGguess', default=True, dest='usecg', type=_str2bool,
+      help="Switch between CG sense and simple FFT as \
+            initial guess for the images.")
     argsrun = argparrun.parse_args()
     _start_recon(argsrun)
 
@@ -651,5 +730,9 @@ if __name__ == '__main__':
       help="Ratio of unkowns to each other. Defaults to 1. "
            "If passed, needs to be in the same size as the number of unknowns",
            nargs='*')
+    argparmain.add_argument(
+      '--useCGguess', default=True, dest='usecg', type=_str2bool,
+      help="Switch between CG sense and simple FFT as \
+            initial guess for the images.")
     argsmain = argparmain.parse_args()
     _start_recon(argsmain)

@@ -58,6 +58,7 @@ class PyOpenCLFFT():
                DTYPE=np.complex64,
                DTYPE_real=np.float32,
                radial=False,
+               SMS=False,
                streamed=False):
         """The FFT factory method.
         Based on the inputs this method decides which FFT object should be
@@ -89,6 +90,9 @@ class PyOpenCLFFT():
             The real precission type. Currently float32 is used.
           radial (bool):
             Switch for Cartesian (False) and non-Cartesian (True) FFT.
+          SMS (bool):
+            Switch between Simultaneous Multi Slice reconstruction (True) and
+            simple slice by slice reconstruction.
           streamed (bool):
             Switch between normal reconstruction in one big block versus
             streamed reconstruction of smaller blocks.
@@ -103,7 +107,7 @@ class PyOpenCLFFT():
             FFT aren't compatible with each other. E.g.: Radial and SMS True.
         """
         if not streamed:
-            if radial is True:
+            if radial is True and SMS is False:
                 obj = PyOpenCLRadialNUFFT(
                     ctx,
                     queue,
@@ -113,16 +117,28 @@ class PyOpenCLFFT():
                     klength=klength,
                     DTYPE=DTYPE,
                     DTYPE_real=DTYPE_real)
-            elif radial is False:
-                obj = PyOpenCLCartNUFFT(
-                    ctx,
-                    queue,
-                    par,
-                    fft_dim=fft_dim,
-                    DTYPE=DTYPE,
-                    DTYPE_real=DTYPE_real)
+            elif SMS is True and radial is False:
+                raise AssertionError("SMS not implemented")
+            elif SMS is False and radial is False:
+                if "phase_map" in par.keys():
+                    obj = PyOpenCLFieldMapNUFFT(
+                        ctx,
+                        queue,
+                        par,
+                        fft_dim=fft_dim,
+                        DTYPE=DTYPE,
+                        DTYPE_real=DTYPE_real)
+                else:
+                    obj = PyOpenCLCartNUFFT(
+                        ctx,
+                        queue,
+                        par,
+                        fft_dim=fft_dim,
+                        DTYPE=DTYPE,
+                        DTYPE_real=DTYPE_real)
             else:
-                raise AssertionError("Combination of parameters not allowed")
+                raise AssertionError("Combination of Radial "
+                                     "and SMS not allowed")
             if DTYPE == np.complex128:
                 print('Using double precission')
                 file = open(
@@ -140,7 +156,7 @@ class PyOpenCLFFT():
                     obj.ctx,
                     file.read())
         else:
-            if radial is True:
+            if radial is True and SMS is False:
                 obj = PyOpenCLRadialNUFFTStreamed(
                     ctx,
                     queue,
@@ -150,7 +166,9 @@ class PyOpenCLFFT():
                     klength=klength,
                     DTYPE=DTYPE,
                     DTYPE_real=DTYPE_real)
-            elif radial is False:
+            elif SMS is True and radial is False:
+                raise AssertionError("SMS not implemented")
+            elif SMS is False and radial is False:
                 obj = PyOpenCLCartNUFFTStreamed(
                     ctx,
                     queue,
@@ -159,7 +177,8 @@ class PyOpenCLFFT():
                     DTYPE=DTYPE,
                     DTYPE_real=DTYPE_real)
             else:
-                raise AssertionError("Combination of parameters not allowed")
+                raise AssertionError("Combination of Radial "
+                                     "and SMS not allowed")
             if DTYPE == np.complex128:
                 print('Using double precission')
                 file = open(
@@ -635,6 +654,153 @@ class PyOpenCLCartNUFFT(PyOpenCLFFT):
                     result=self._tmp_fft_array[
                         j * self.par_fft:(j + 1) * self.par_fft, ...],
                     forward=True)[0])
+        return (
+            self.prg.maskingcpy(
+                self.queue,
+                (self._tmp_fft_array.shape),
+                None,
+                s.data,
+                self._tmp_fft_array.data,
+                self.mask.data,
+                wait_for=s.events+self._tmp_fft_array.events))
+
+
+class PyOpenCLFieldMapNUFFT(PyOpenCLFFT):
+    """ Cartesian FFT object
+
+    This class performs the FFT operation.
+
+    Attributes:
+      fft_shape (tuple of ints):
+        3 dimensional tuple. Dim 0 containts all Scans, Coils and Slices.
+        Dim 1 and 2 the overgridded image dimensions.
+      fft_scale (float32):
+        The scaling factor to achieve a good adjointness of the forward and
+        backward FFT.
+      par_fft (int):
+        The number of parallel fft calls. Typically it iterates over the
+        Scans.
+      fft (gpyfft.fft.FFT):
+        The fft object created from gpyfft (A wrapper for clFFT). The object
+        is created only once an reused in each iterations, iterationg over
+        all scans to keep the memory footprint low.
+      mask (PyOpenCL.Array):
+        The undersampling mask for the Cartesian grid.
+      prg (PyOpenCL.Program):
+        The PyOpenCL.Program object containing the necessary kernels to
+        execute the linear Operator. This will be determined by the
+        factory and set after the object is created.
+    """
+    def __init__(
+            self,
+            ctx,
+            queue,
+            par,
+            fft_dim=(
+                1,
+                2),
+            DTYPE=np.complex64,
+            DTYPE_real=np.float32):
+        """ Setup the FFT object
+        Args:
+          ctx (PyOpenCL.Context):
+            The context for the PyOpenCL computations.
+          queue (PyOpenCL.Queue):
+            The computation Queue for the PyOpenCL kernels.
+          par (dict): A python dict containing the necessary information to
+            setup the object. Needs to contain the number of slices (NSlice),
+            number of scans (NScan), image dimensions (dimX, dimY), number of
+            coils (NC), sampling points (N) and read outs (NProj)
+            a PyOpenCL queue (queue) and the complex coil
+            sensitivities (C).
+          fft_dim (tuple of ints):
+            The dimensions which should be transformed. Defaults
+            to 1 and 2 corresponding the the last two of fft_dim.
+          DTYPE (Numpy.Type):
+            The comlex precission type. Currently complex64 is used.
+          DTYPE_real (Numpy.Type):
+            The real precission type. Currently float32 is used.
+        """
+        super().__init__(ctx, queue, DTYPE, DTYPE_real)
+        self.fft_shape = (
+            par["NScan"] *
+            par["NC"] *
+            par["NSlice"],
+            par["dimY"],
+            par["dimX"])
+        self._tmp_fft_array = (
+            clarray.empty(
+                self.queue,
+                self.fft_shape,
+                dtype=DTYPE))
+        self.mask = clarray.to_device(self.queue, par["mask"])
+        self.phase_map = clarray.to_device(self.queue,
+                                           par["phase_map"])
+
+    def __del__(self):
+        del self._tmp_fft_array
+        del self.queue
+        del self.ctx
+        del self.prg
+        del self.mask
+
+    def FFTH(self, sg, s, wait_for=[]):
+        """ Perform the inverse (adjoint) FFT operation
+        Args:
+          sg (PyOpenCL.Array):
+            The complex image data.
+          s (PyOpenCL.Array):
+            The uniformly gridded k-space
+          wait_for (list of PyopenCL.Event):
+            A List of PyOpenCL events to wait for.
+        Returns:
+          PyOpenCL.Event: A PyOpenCL event to wait for.
+        """
+        self._tmp_fft_array.add_event(
+            self.prg.maskingcpy(
+                self.queue,
+                (self._tmp_fft_array.shape),
+                None,
+                self._tmp_fft_array.data,
+                s.data,
+                self.mask.data,
+                wait_for=s.events))
+
+        return self.prg.addfieldadj(
+                            self.queue,
+                            sg.shape[-3:],
+                            None,
+                            sg.data,
+                            self._tmp_fft_array.data,
+                            self.phase_map.data,
+                            np.int32(sg.shape[1]),
+                            np.int32(sg.shape[0]),
+                            wait_for=self._tmp_fft_array.events+sg.events)
+
+    def FFT(self, s, sg, wait_for=[]):
+        """ Perform the forward FFT operation
+        Args:
+          s (PyOpenCL.Array):
+            The uniformly gridded k-space.
+          sg (PyOpenCL.Array):
+            The complex image data.
+          wait_for (list of PyopenCL.Event):
+            A List of PyOpenCL events to wait for.
+        Returns:
+          PyOpenCL.Event: A PyOpenCL event to wait for.
+        """
+
+        self._tmp_fft_array.add_event(self.prg.addfield(
+                            self.queue,
+                            sg.shape[-3:],
+                            None,
+                            self._tmp_fft_array.data,
+                            sg.data,
+                            self.phase_map.data,
+                            np.int32(sg.shape[1]),
+                            np.int32(sg.shape[0]),
+                            wait_for=self._tmp_fft_array.events+sg.events))
+
         return (
             self.prg.maskingcpy(
                 self.queue,

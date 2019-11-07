@@ -61,10 +61,10 @@ class CGSolver:
                                    cl.mem_flags.READ_ONLY |
                                    cl.mem_flags.COPY_HOST_PTR,
                                    hostbuf=par["C"].data)
-
-        self._op = operator.OperatorKspace(par, self._prg, trafo)
+        self._op = operator.OperatorKspace(par, self._prg, trafo=trafo)
         self._FT = self._op.NUFFT.FFT
         self._FTH = self._op.NUFFT.FFTH
+        self._grad = operator.OperatorFiniteGradient(par, self._prg)
         self._tmp_result = clarray.empty(
             self._queue,
             (self._NScan, self._NC,
@@ -88,7 +88,7 @@ class CGSolver:
         del self._FT
         del self._FTH
 
-    def run(self, data, iters=30, lambd=1e-5, tol=1e-8, guess=None):
+    def run(self, data, iters=50, lambd=1e-9, tol=1e-8, guess=None):
         """ Start the CG reconstruction
 
         All attributes after data are considered keyword only.
@@ -128,8 +128,6 @@ class CGSolver:
         p = res
         delta = np.linalg.norm(res.get())**2/np.linalg.norm(b.get())**2
 
-#        print("Initial Residuum: ", delta)
-
         for i in range(iters):
             self.operator_lhs(Ax, p)
             Ax = Ax + lambd*p
@@ -139,13 +137,13 @@ class CGSolver:
             res_new = res - alpha*Ax
             delta = np.linalg.norm(res_new.get())**2 /\
                 np.linalg.norm(b.get())**2
+#            print("Residum: %f" % (delta))
             if delta < tol:
                 print(
                     "Converged after %i iterations to %1.3e." % (i, delta))
                 del Ax, \
                     b, res, p, data, res_new
                 return np.squeeze(x.get())
-#            print("Res after iteration %i: %1.3e." % (i, delta))
             beta = (clarray.vdot(res_new, res_new) /
                     clarray.vdot(res, res)).real.get()
             p = res_new+beta*p
@@ -220,7 +218,7 @@ class PDSolver:
     This Class performs a CG reconstruction on single precission complex input
     data.
     """
-    def __init__(self, par, irgn_par, queue, tau, fval, prg, TV,
+    def __init__(self, par, irgn_par, queue, tau, fval, prg, reg_type,
                  data_operator, coil_buffer):
         """ Setup a CG reconstruction Object
 
@@ -265,10 +263,12 @@ class PDSolver:
         self.max_const = None
         self.real_const = None
         self.irgn_par = {}
-        if TV:
+        if reg_type == 'TV':
             self.run = self.runTV3D
-        else:
+        elif reg_type == 'TGV':
             self.run = self.runTGV3D
+        else:
+            raise ValueError("Unknown Regularization Type")
 
     def __del__(self):
         """ Destructor
@@ -325,6 +325,7 @@ class PDSolver:
         Axold.add_event(self._op.fwd(
             Axold, [x, self._coil_buf, self.grad_buf]))
         gradx_xold.add_event(self.grad_op.fwd(gradx_xold, x))
+
         symgrad_v_vold.add_event(self.symgrad_op.fwd(symgrad_v_vold, v))
 
         Kyk1.add_event(self._op.adjKyk1(Kyk1,
@@ -333,7 +334,6 @@ class PDSolver:
                                          self.grad_buf,
                                          self.grad_op._ratio]))
         Kyk2.add_event(self.update_Kyk2(Kyk2, z2, z1))
-
         for i in range(iters):
             x_new.add_event(self.update_primal(x_new, x, Kyk1,
                                                xk, tau, self.delta))
@@ -439,17 +439,17 @@ class PDSolver:
                           "decrease in the primal problem was less than %.3e" %
                           (i,
                            np.abs(primal - primal_new).get()/self._fval_init))
-                    return (x_new.get(), v_new.get())
+                    return x_new.get()
                 if gap > gap_old * self.stag and i > 1:
                     print("Terminated at iteration %d "
                           "because the method stagnated" % (i))
-                    return (x_new.get(), v_new.get())
+                    return x_new.get()
                 if np.abs((gap - gap_old) / gap_init) < self.tol:
                     print("Terminated at iteration %d because the "
                           "relative energy decrease of the PD gap was "
                           "less than %.3e"
                           % (i, np.abs((gap - gap_old).get() / gap_init)))
-                    return (x_new.get(), v_new.get())
+                    return x_new.get()
                 primal = primal_new
                 gap_old = gap
                 sys.stdout.write(
@@ -462,7 +462,7 @@ class PDSolver:
 
             (x, x_new) = (x_new, x)
             (v, v_new) = (v_new, v)
-        return (x.get(), v.get())
+        return x.get()
 
     def runTGV3DExplicit(self, x, res, iters):
         self._updateConstraints()
@@ -595,17 +595,17 @@ class PDSolver:
                           "decrease in the primal problem was less than %.3e" %
                           (i,
                            np.abs(primal - primal_new).get()/self._fval_init))
-                    return (x_new.get(), v_new.get())
+                    return x_new.get()
                 if gap > gap_old * self.stag and i > 1:
                     print("Terminated at iteration %d "
                           "because the method stagnated" % (i))
-                    return (x_new.get(), v_new.get())
+                    return x_new.get()
                 if np.abs((gap - gap_old) / gap_init) < self.tol:
                     print("Terminated at iteration %d because the "
                           "relative energy decrease of the PD gap was "
                           "less than %.3e"
                           % (i, np.abs((gap - gap_old).get() / gap_init)))
-                    return (x_new.get(), v_new.get())
+                    return x_new.get()
                 primal = primal_new
                 gap_old = gap
                 sys.stdout.write(
@@ -785,7 +785,7 @@ class PDSolver:
 
             (x, x_new) = (x_new, x)
 
-        return (x.get(), 0)
+        return x.get()
 
     def _updateConstraints(self):
         num_const = (len(self.model.constraints))
@@ -806,6 +806,7 @@ class PDSolver:
         self.delta = irgn_par["delta"]
         self.omega = irgn_par["omega"]
         self.lambd = irgn_par["lambd"]
+        self.mu = 1/self.delta
 
     def update_primal(self, x_new, x, Kyk, xk, tau, delta, wait_for=[]):
         return self._prg.update_primal(
