@@ -1,7 +1,7 @@
 .. image:: https://travis-ci.com/IMTtugraz/PyQMRI.svg?branch=master
     :target: https://travis-ci.com/IMTtugraz/PyQMRI
 .. image:: https://badge.fury.io/py/pyqmri.svg
-    :target: https://pypi.org/project/pyqmri/
+    :target: https://pypi.org/project/pyqmri
     
 PyQMRI - Model-Based Parameter Quantification
 =============================================
