@@ -18,17 +18,20 @@ def imshow(volume, vmin=None, vmax=None):
     Volumetric image viewer for python. Shows up to 4D volumes.
     volume is assumed to be real valued.
     """
-    if volume.ndim == 2:
+    plot_rgb = 0
+    if volume.shape[-1] == 3:
+        plot_rgb = 1
+    if volume.ndim - plot_rgb == 2:
         fig, ax = plt.subplots()
         ax.volume = volume
         ax.index = None
         ax.imshow(volume, vmin=vmin, vmax=vmax)
-    elif volume.ndim == 3:
+    elif volume.ndim - plot_rgb == 3:
         fig, ax = plt.subplots()
         ax.volume = volume
         ax.index = volume.shape[0] // 2
         ax.imshow(volume[ax.index], vmin=vmin, vmax=vmax)
-    elif volume.ndim == 4:
+    elif volume.ndim - plot_rgb == 4:
         fig, ax = plt.subplots(int(np.ceil(np.sqrt(volume.shape[0]))), int(
             np.ceil(np.sqrt(volume.shape[0]))))
         fig.tight_layout()

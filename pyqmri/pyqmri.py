@@ -182,7 +182,7 @@ def _genImages(myargs, par, data, off):
             images = par["file"]['images']
             if images.shape[1] < par["NSlice"]:
                 del par["file"]["images"]
-                images = _genImages(myargs, par, data)
+                images = _genImages(myargs, par, data, off)
             else:
                 print("Using precomputed images")
                 slices_images = par["file"]['images'][()].shape[1]
@@ -333,7 +333,7 @@ def _start_recon(myargs):
     dimX, dimY, NSlice = ((par["file"].attrs['image_dimensions']).astype(int))
     if reco_Slices == -1:
         reco_Slices = NSlice
-    off = -8
+    off = 0
 
     if myargs.sms:
         data = par["file"]['real_dat'][()].astype(DTYPE)\
@@ -541,7 +541,7 @@ def _start_recon(myargs):
 ###############################################################################
 # Reconstruct images using CG-SENSE  ##########################################
 ###############################################################################
-    del par["file"]["images"]
+#    del par["file"]["images"]
     images = _genImages(myargs, par, data, off)
 ###############################################################################
 # Scale data norm  ############################################################
