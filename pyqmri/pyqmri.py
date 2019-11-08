@@ -17,8 +17,7 @@ import matplotlib.pyplot as plt
 from pyqmri._helper_fun import _goldcomp as goldcomp
 from pyqmri._helper_fun._est_coils import est_coils
 from pyqmri._helper_fun import _utils as utils
-# from pyqmri.solver import CGSolver
-
+from pyqmri.solver import CGSolver
 
 
 DTYPE = np.complex64
