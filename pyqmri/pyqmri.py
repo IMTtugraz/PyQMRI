@@ -124,7 +124,7 @@ def _genImages(myargs, par, data, off):
                                             np.require(x[j, k, ...]
                                                         [None, None, ...],
                                                        requirements='C'))
-                    fft.FFTH(tmp_result, inp)
+                    fft.FFTH(tmp_result, inp).wait()
                     result[j, k, ...] = np.squeeze(tmp_result.get())
             end = time.time()-start
             print("FT took %f s" % end)
@@ -135,7 +135,6 @@ def _genImages(myargs, par, data, off):
         del FFT, nFTH
 
     else:
-#        del par["file"]["images"]
         tol = 1e-8
         par_scans = 2
         lambd = 1e-3
@@ -541,7 +540,6 @@ def _start_recon(myargs):
 ###############################################################################
 # Reconstruct images using CG-SENSE  ##########################################
 ###############################################################################
-#    del par["file"]["images"]
     images = _genImages(myargs, par, data, off)
 ###############################################################################
 # Scale data norm  ############################################################

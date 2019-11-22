@@ -67,7 +67,7 @@ def est_coils(data, par, file, args, off):
             par["C"] = np.zeros(
                 (par["NC"], par["NSlice"], par["dimY"], par["dimX"]),
                 dtype=DTYPE)
-            par["phase_map"] = np.zeros(
+            par["phase"] = np.zeros(
                 (par["NSlice"], par["dimY"], par["dimX"]), dtype=DTYPE)
 
             par_coils = {}
@@ -144,7 +144,7 @@ def est_coils(data, par, file, args, off):
                                  % (i))
                 sys.stdout.flush()
                 if not nlinvRealConstr:
-                    par["phase_map"][i, :, :] = np.exp(
+                    par["phase"][i, :, :] = np.exp(
                         1j * np.angle(result[i].get()[0, -1, :, :]))
             # standardize coil sensitivity profiles
             sumSqrC = np.sqrt(
@@ -173,7 +173,7 @@ def est_coils(data, par, file, args, off):
             par["C"] = np.zeros(
                 (par["NC"], par["NSlice"], par["dimY"], par["dimX"]),
                 dtype=DTYPE)
-            par["phase_map"] = np.zeros(
+            par["phase"] = np.zeros(
                 (par["NSlice"], par["dimY"], par["dimX"]), dtype=DTYPE)
 
             result = []
@@ -196,7 +196,7 @@ def est_coils(data, par, file, args, off):
 #                                     % (i))
 #                    sys.stdout.flush()
 #                    if not nlinvRealConstr:
-#                        par["phase_map"][i, :, :] = np.exp(
+#                        par["phase"][i, :, :] = np.exp(
 #                            1j * np.angle(result[0, -1, :, :]))
                 tmp = combinedData[:, i, ...]
                 dview = c[int(np.floor(i * len(c) / par["NSlice"]))]
@@ -214,7 +214,7 @@ def est_coils(data, par, file, args, off):
                                  % (i))
                 sys.stdout.flush()
                 if not nlinvRealConstr:
-                    par["phase_map"][i, :, :] = np.exp(
+                    par["phase"][i, :, :] = np.exp(
                         1j * np.angle(result[i].get()[0, -1, :, :]))
 
                     # standardize coil sensitivity profiles
@@ -262,7 +262,7 @@ def est_coils(data, par, file, args, off):
                     par["dimY"],
                     par["dimX"]),
                 dtype=DTYPE)
-            par["phase_map"] = np.zeros(
+            par["phase"] = np.zeros(
                 (par["NSlice"], par["dimY"], par["dimX"]), dtype=DTYPE)
 
             par_coils = {}
@@ -328,7 +328,7 @@ def est_coils(data, par, file, args, off):
 #                                 % (i))
 #                sys.stdout.flush()
 #                if not nlinvRealConstr:
-#                    par["phase_map"][i, :, :] = np.exp(
+#                    par["phase"][i, :, :] = np.exp(
 #                        1j * np.angle(result[0, -1, :, :]))
 
                 dview = c[int(np.floor(i * len(c) / par["NSlice"]))]
@@ -346,7 +346,7 @@ def est_coils(data, par, file, args, off):
                                  % (i))
                 sys.stdout.flush()
                 if not nlinvRealConstr:
-                    par["phase_map"][i, :, :] = np.exp(
+                    par["phase"][i, :, :] = np.exp(
                         1j * np.angle(result[i].get()[0, -1, :, :]))
 
                     # standardize coil sensitivity profiles
@@ -370,7 +370,7 @@ def est_coils(data, par, file, args, off):
                     par["dimY"],
                     par["dimX"]),
                 dtype=DTYPE)
-            par["phase_map"] = np.zeros(
+            par["phase"] = np.zeros(
                 (par["NSlice"], par["dimY"], par["dimX"]), dtype=DTYPE)
 
             result = []
@@ -392,7 +392,7 @@ def est_coils(data, par, file, args, off):
 #                                 % (i))
 #                sys.stdout.flush()
 #                if not nlinvRealConstr:
-#                    par["phase_map"][i, :, :] = np.exp(
+#                    par["phase"][i, :, :] = np.exp(
 #                        1j * np.angle(result[0, -1, :, :]))
 
                 # RADIAL PART
@@ -412,7 +412,7 @@ def est_coils(data, par, file, args, off):
                                  % (i))
                 sys.stdout.flush()
                 if not nlinvRealConstr:
-                    par["phase_map"][i, :, :] = np.exp(
+                    par["phase"][i, :, :] = np.exp(
                         1j * np.angle(result[i].get()[0, -1, :, :]))
 
                     # standardize coil sensitivity profiles

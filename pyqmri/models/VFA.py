@@ -40,8 +40,8 @@ class Model(BaseModel):
                         10 / self.uk_scale[0],
                         False))
         self.constraints.append(
-            constraints(np.exp(-self.TR[0] / (50)),
-                        np.exp(-self.TR[0] / (5500)),
+            constraints(np.exp(-self.TR / (50)),
+                        np.exp(-self.TR / (5500)),
                         True))
 
     def rescale(self, x):

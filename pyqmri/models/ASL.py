@@ -104,7 +104,7 @@ class Model(BaseModel):
         self.dimY = par["dimY"]
         self.dimX = par["dimX"]
         self.unknowns = unknowns_TGV+unknowns_H1
-        self.images = images
+        self.images = images/par["dscale"]
         self.dscale = par["dscale"]
 
         for j in range(unknowns_TGV + unknowns_H1):
@@ -210,7 +210,7 @@ class Model(BaseModel):
         return grad
 
     def plot_unknowns(self, x, dim_2D=False):
-        images = self._execute_forward_3D(x)
+        images = self._execute_forward_3D(x) / self.dscale
         f = np.abs(x[0, ...] * self.uk_scale[0] / self.dscale)
         del_t = np.abs(x[1, ...] * self.uk_scale[1])*60
 #        del_t[f <= 15] = 0
