@@ -1341,7 +1341,7 @@ class OperatorKspaceSMSStreamed(Operator):
         self.FTstr.eval(
             [self._tmp_transformed],
             [[self._tmp_fft2]])
-        out[...] = np.copy(np.require(
+        out[0][...] = np.copy(np.require(
             np.transpose(
                 self._tmp_transformed,
                 self.dat_trans_axes),
@@ -1389,7 +1389,7 @@ class OperatorKspaceSMSStreamed(Operator):
                 self._tmp_fft2, self.dat_trans_axes),
             requirements='C')
         self.adjstr.eval([self._tmp_Kyk1], [[self._tmp_fft1]+inp[0][1:]])
-        out[...] = np.copy(self._tmp_Kyk1)
+        out[0][...] = np.copy(self._tmp_Kyk1)
 
     def adjoop(self, inp, wait_for=[]):
         self._tmp_transformed = np.require(
