@@ -587,7 +587,7 @@ class PyOpenCLCartNUFFT(PyOpenCLFFT):
                 self.queue,
                 self.fft_shape,
                 dtype=DTYPE))
-        self.par_fft = int(self.fft_shape[0] / par["NScan"])
+        self.par_fft = int(self.fft_shape[0] / par["NScan"] / par["NC"])
         self.mask = clarray.to_device(self.queue, par["mask"])
         self.fft = FFT(ctx, queue, self._tmp_fft_array[
             0:self.par_fft, ...],
@@ -624,7 +624,7 @@ class PyOpenCLCartNUFFT(PyOpenCLFFT):
                 s.data,
                 self.mask.data,
                 wait_for=s.events))
-        for j in range(s.shape[0]):
+        for j in range(np.prod(s.shape[0:2])):
             self._tmp_fft_array.add_event(
                 self.fft.enqueue_arrays(
                     data=self._tmp_fft_array[
@@ -667,7 +667,7 @@ class PyOpenCLCartNUFFT(PyOpenCLFFT):
                     1 /
                     self.fft_scale)))
 
-        for j in range(s.shape[0]):
+        for j in range(np.prod(s.shape[0:2])):
             self._tmp_fft_array.add_event(
                 self.fft.enqueue_arrays(
                     data=self._tmp_fft_array[
