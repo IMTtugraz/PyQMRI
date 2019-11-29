@@ -1341,8 +1341,6 @@ class OperatorKspaceSMSStreamed(Operator):
         self.FTstr.eval(
             [self._tmp_transformed],
             [[self._tmp_fft2]])
-        import ipdb
-        ipdb.set_trace()
         out[...] = np.copy(np.require(
             np.transpose(
                 self._tmp_transformed,
