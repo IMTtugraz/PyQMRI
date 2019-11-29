@@ -736,7 +736,7 @@ class ModelReco:
         self.op.adjKyk1(
             [Kyk1],
             [[r, z1, self.C, self.grad_x, []]], [self.grad_op._ratio])
-        self.sym_grad_streamed.eval(
+        self.symgrad_op.fwd(
             [symgrad_v_vold],
             [[v]])
 
@@ -1168,7 +1168,6 @@ class ModelReco:
         if self.reg_type == 'TGV':
             symgrad_shape = self.unknown_shape + (8,)
 
-        if self.reg_type == 'TGV':
             self.stream_Kyk2 = self._defineoperator(
                 [self.update_Kyk2],
                 [self.grad_shape],
