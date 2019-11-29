@@ -274,11 +274,17 @@ def _readInput(myargs, par):
             sys.exit()
         file = myargs.file
 
-    name = os.path.normpath(file)
-    par["fname"] = name.split(os.sep)[-1]
-    outdir = os.sep.join(name.split(os.sep)[:-1]) + os.sep + "PyQMRI_out" + \
-        os.sep + myargs.sig_model + os.sep + \
-        time.strftime("%Y-%m-%d  %H-%M-%S") + os.sep
+    if myargs.outdir == '':
+        name = os.path.normpath(file)
+        par["fname"] = name.split(os.sep)[-1]
+        outdir = os.sep.join(name.split(os.sep)[:-1]) + os.sep + \
+            "PyQMRI_out" + \
+            os.sep + myargs.sig_model + os.sep + \
+            time.strftime("%Y-%m-%d  %H-%M-%S") + os.sep
+    else:
+        outdir = myargs.outdir + os.sep + "PyQMRI_out" + \
+            os.sep + myargs.sig_model + os.sep + par["fname"] + os.sep + \
+            time.strftime("%Y-%m-%d  %H-%M-%S") + os.sep
     if not os.path.exists(outdir):
         os.makedirs(outdir)
     par["outdir"] = outdir
@@ -590,7 +596,8 @@ def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
         streamed=False,
         par_slices=1, data='', model='VFA', config='default',
         imagespace=False,
-        OCL_GPU=True, sms=False, devices=0, dz=1, weights=None):
+        OCL_GPU=True, sms=False, devices=0, dz=1, weights=None,
+        out=''):
     """
     Start a 3D model based reconstruction. Data can also be selected at
     start up.
@@ -640,6 +647,8 @@ def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
         Ratio of physical Z to X/Y dimension. X/Y is assumed to be isotropic.
       useCGguess (bool):
         Switch between CG sense and simple FFT as initial guess for the images.
+      out (str):
+        Output directory. Defaults to the location of the input file.
     """
     argparrun = argparse.ArgumentParser(
         description="T1 quantification from VFA "
@@ -706,6 +715,9 @@ def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
       '--useCGguess', default=True, dest='usecg', type=_str2bool,
       help="Switch between CG sense and simple FFT as \
             initial guess for the images.")
+    argparrun.add_argument('--out', default=out, dest='outdir', type=str,
+                           help="Set output directory. Defaults to the input "
+                                "file directory")
     argsrun = argparrun.parse_args()
     _start_recon(argsrun)
 
@@ -774,7 +786,10 @@ if __name__ == '__main__':
            nargs='*')
     argparmain.add_argument(
       '--useCGguess', default=True, dest='usecg', type=_str2bool,
-      help="Switch between CG sense and simple FFT as \
-            initial guess for the images.")
+      help="Switch between CG sense and simple FFT as "
+           "initial guess for the images.")
+    argparmain.add_argument('--out', default='', dest='outdir', type=str,
+                          help="Set output directory. Defaults to the input "
+                               "file directory")
     argsmain = argparmain.parse_args()
     _start_recon(argsmain)
