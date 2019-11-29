@@ -100,8 +100,8 @@ class ModelReco:
                                                              trafo=trafo)
                 self.tgv_solve_3D = self.tgv_solve_3DSMS
                 self._setupstreamingops = self._setupstreamingopsSMS
-                self.expdim_dat = 1
-                self.expdim_C = 0
+                self._expdim_dat = 1
+                self._expdim_C = 0
             else:
                 self.data_shape = (self.NSlice, self.NScan,
                                    self.NC, self.Nproj, self.N)
