@@ -121,12 +121,6 @@ class Model(BaseModel):
                 self.modelparams, x, self.uk_scale)
         return tmp_x
 
-    def _execute_forward_2D(self, x, islice):
-        pass
-
-    def _execute_gradient_2D(self, x, islice):
-        pass
-
     def _execute_forward_3D(self, x):
         S = self.signaleq(self.modelparams, x, self.uk_scale)
         while len(S.shape) >= 5:
