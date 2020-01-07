@@ -24,7 +24,7 @@ copyright = '2019, Oliver Maier'
 author = 'Oliver Maier'
 
 # The short X.Y version
-version = '0.2'
+version = '0.26'
 # The full version, including alpha/beta/rc tags
 release = '2018'
 
@@ -108,7 +108,7 @@ html_static_path = ['_static']
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'MBPQdoc'
+htmlhelp_basename = 'PyQMRIdoc'
 
 
 # -- Options for LaTeX output ------------------------------------------------
