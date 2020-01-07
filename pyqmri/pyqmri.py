@@ -506,6 +506,9 @@ def _start_recon(myargs):
 ###############################################################################
 # Init forward model and initial guess ########################################
 ###############################################################################
+    if myargs.sig_model == "GeneralModel":
+        par["modelfile"] = myargs.modelfile
+        par["modelname"] = myargs.modelname
     model = sig_model.Model(par, images)
     if myargs.weights is None:
         par["weights"] = np.ones((par["unknowns"]), dtype=np.float32)
@@ -550,9 +553,10 @@ def _str2bool(v):
 
 def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
         streamed=False,
-        par_slices=1, data='', model='VFA', config='default',
+        par_slices=1, data='', model='GeneralModel', config='default',
         imagespace=False,
-        OCL_GPU=True, devices=0, dz=1, weights=None):
+        OCL_GPU=True, devices=0, dz=1, weights=None,
+        modelfile="models.ini", modelname="VFA-E1"):
     """
     Start a 3D model based reconstruction. Data can also be selected at
     start up.
@@ -599,6 +603,10 @@ def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
         Ratio of physical Z to X/Y dimension. X/Y is assumed to be isotropic.
       useCGguess (bool):
         Switch between CG sense and simple FFT as initial guess for the images.
+      modelpath (str):
+        Path to the .mod file for the generative model.
+      modelname (str):
+        Name of the model in the .mod file to use.
     """
     argparrun = argparse.ArgumentParser(
         description="T1 quantification from VFA "
@@ -630,10 +638,6 @@ def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
       help="Full path to input data. "
            "If not provided, a file dialog will open.")
     argparrun.add_argument(
-      '--model', default=model, dest='sig_model',
-      help="Name of the signal model to use. Defaults to VFA. "
-           "Please put your signal model file in the Model subfolder.")
-    argparrun.add_argument(
       '--config', default=config, dest='config',
       help="Name of config file to use (assumed to be in the same folder). "
            "If not specified, use default parameters.")
@@ -662,6 +666,18 @@ def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
       '--useCGguess', default=True, dest='usecg', type=_str2bool,
       help="Switch between CG sense and simple FFT as \
             initial guess for the images.")
+
+    group = argparrun.add_mutually_exclusive_group()
+    group.add_argument(
+      '--model', default='GeneralModel', dest='sig_model',
+      help='Name of the signal model to use. Defaults to VFA. \
+ Please put your signal model file in the Model subfolder.')
+    group.add_argument(
+      '--modelfile', default=modelfile, dest='modelfile', type=str,
+      help="Path to the model file.")
+    argparrun.add_argument(
+      '--modelname', default=modelname, dest='modelname', type=str,
+      help="Name of the model to use.")
     argsrun = argparrun.parse_args()
     _start_recon(argsrun)
 
@@ -697,10 +713,6 @@ if __name__ == '__main__':
       help="Full path to input data. "
            "If not provided, a file dialog will open.")
     argparmain.add_argument(
-      '--model', default='ImageReco', dest='sig_model',
-      help='Name of the signal model to use. Defaults to VFA. \
- Please put your signal model file in the Model subfolder.')
-    argparmain.add_argument(
       '--config', default='default', dest='config',
       help='Name of config file to use (assumed to be in the same folder). \
  If not specified, use default parameters.')
@@ -729,5 +741,16 @@ if __name__ == '__main__':
       '--useCGguess', default=True, dest='usecg', type=_str2bool,
       help="Switch between CG sense and simple FFT as \
             initial guess for the images.")
+    group = argparmain.add_mutually_exclusive_group()
+    group.add_argument(
+      '--model', default='GeneralModel', dest='sig_model',
+      help='Name of the signal model to use. Defaults to VFA. \
+ Please put your signal model file in the Model subfolder.')
+    group.add_argument(
+      '--modelfile', default="models.ini", dest='modelfile', type=str,
+      help="Path to the model file.")
+    argparmain.add_argument(
+      '--modelname', default="VFA-E1", dest='modelname', type=str,
+      help="Name of the model to use.")
     argsmain = argparmain.parse_args()
     _start_recon(argsmain)
