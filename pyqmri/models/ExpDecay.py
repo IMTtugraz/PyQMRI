@@ -7,11 +7,13 @@ import numpy as np
 plt.ion()
 
 
-unknowns_TGV = 2
-unknowns_H1 = 0
-
-
 class Model(BaseModel):
+    """ Realization of a simple mono-exponential decay model
+
+    Attributes:
+      TE (float): Echo time or parameter in exponential exp(-TR/x)
+      guess (numpy.Array): Initial guess
+    """
     def __init__(self, par, images):
         super().__init__(par)
         self.TE = np.ones((self.NScan, 1, 1, 1))
@@ -21,8 +23,11 @@ class Model(BaseModel):
         except KeyError:
             raise KeyError("No TE found!")
 
-        self.uk_scale = []
-        for j in range(unknowns_TGV + unknowns_H1):
+        par["unknowns_TGV"] = 2
+        par["unknowns_H1"] = 0
+        par["unknowns"] = par["unknowns_TGV"] + par["unknowns_H1"]
+
+        for j in range(par["unknowns"]):
             self.uk_scale.append(1)
 
         self.guess = self._set_init_scales()

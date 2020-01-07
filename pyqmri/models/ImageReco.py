@@ -4,48 +4,35 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from pyqmri.models.template import BaseModel, constraints, DTYPE
-
 plt.ion()
-unknowns_TGV = 1
-unknowns_H1 = 0
+
 
 
 class Model(BaseModel):
+    """ Realization of a simple image reconstruction model.
+
+    Attributes:
+      dscale (float): Data scaling factor
+      guess (numpy.Array): Initial guess
+    """
     def __init__(self, par, images):
         super().__init__(par)
-        self.constraints = []
         self.figure_img = []
         self.dscale = par["dscale"]
 
-        for j in range(unknowns_TGV + unknowns_H1):
+        par["unknowns_TGV"] = 1
+        par["unknowns_H1"] = 0
+        par["unknowns"] = par["unknowns_TGV"] + par["unknowns_H1"]
+
+        for j in range(par["unknowns"]):
             self.uk_scale.append(1)
         self.guess = self._set_init_scales(images)
-
-        for j in range(unknowns_TGV + unknowns_H1):
+        self.unknowns = par["unknowns"]
+        for j in range(par["unknowns"]):
             self.constraints.append(
                 constraints(-100 / self.uk_scale[j],
                             100 / self.uk_scale[j],
                             False))
-
-    def rescale(self, x):
-        tmp_x = np.copy(x)
-        for j in range(x.shape[0]):
-            tmp_x[j] *= self.uk_scale[j]
-        return tmp_x
-
-    def _execute_forward_2D(self, x, islice):
-        S = np.zeros_like(x)
-        for j in range(S.shape[0]):
-            S = x[j, ...] * self.uk_scale[j]
-        S[~np.isfinite(S)] = 1e-20
-        S = np.array(S, dtype=DTYPE)
-        return S
-
-    def _execute_gradient_2D(self, x, islice):
-        grad_M0 = self.uk_scale[0] * np.ones_like(x)
-        grad = np.array([grad_M0], dtype=DTYPE)
-        grad[~np.isfinite(grad)] = 1e-20
-        return grad
 
     def _execute_forward_3D(self, x):
         S = np.zeros_like(x)
@@ -55,7 +42,7 @@ class Model(BaseModel):
         return S
 
     def _execute_gradient_3D(self, x):
-        grad_M0 = np.zeros(((unknowns_TGV+unknowns_H1, )+x.shape), dtype=DTYPE)
+        grad_M0 = np.zeros(((self.unknowns, )+x.shape), dtype=DTYPE)
         for j in range(x.shape[0]):
             grad_M0[j, ...] = self.uk_scale[j]*np.ones_like(x)
         grad_M0[~np.isfinite(grad_M0)] = 1e-20

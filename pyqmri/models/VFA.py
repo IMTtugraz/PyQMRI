@@ -4,17 +4,21 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from pyqmri.models.template import BaseModel, constraints, DTYPE
-
 plt.ion()
-
-unknowns_TGV = 2
-unknowns_H1 = 0
 
 
 class Model(BaseModel):
+    """ Realization of the Variable flip angle model.
+
+    Attributes:
+      TR (float): Repetition time in ms
+      fa (float): Flip angle in radiants
+      sin_phi (numpy.Array): Precompute sine of the B1 corrected flip angle
+      cos_phi (numpy.Array): Precomputed co-sine of the B1 corrected flip angle
+      guess (numpy.Array): Initial guess
+    """
     def __init__(self, par, images):
         super().__init__(par)
-        self.constraints = []
         self.TR = par["TR"]
         self.fa = par["flip_angle(s)"]
         try:
@@ -31,7 +35,11 @@ class Model(BaseModel):
         self.sin_phi = np.sin(phi_corr)
         self.cos_phi = np.cos(phi_corr)
 
-        for j in range(unknowns_TGV + unknowns_H1):
+        par["unknowns_TGV"] = 2
+        par["unknowns_H1"] = 0
+        par["unknowns"] = par["unknowns_TGV"] + par["unknowns_H1"]
+
+        for j in range(par["unknowns"]):
             self.uk_scale.append(1)
         self.guess = self._set_init_scales(images)
 
@@ -45,35 +53,21 @@ class Model(BaseModel):
                         True))
 
     def rescale(self, x):
+        """ Rescales each unknown by its scaling factor.
+
+          This realization takes into account that E1 instead of T1 is fitted.
+          Thus, rescaling of T1 is performed by -TR/log(E1).
+
+        Args:
+          x (numpy.Array): The array of unknowns to be rescaled
+        Returns:
+          numpy.Array: The rescaled array of unknowns
+        """
         tmp_x = np.copy(x)
         tmp_x[0] *= self.uk_scale[0]
         tmp_x[1] = -self.TR / np.log(tmp_x[1] * self.uk_scale[1])
         return tmp_x
 
-    def _execute_forward_2D(self, x, islice):
-        E1 = x[1, ...] * self.uk_scale[1]
-        S = x[0, ...] * self.uk_scale[0] * (-E1 + 1) * \
-            self.sin_phi[:, islice, ...]\
-            / (-E1 * self.cos_phi[:, islice, ...] + 1)
-        S[~np.isfinite(S)] = 1e-20
-        S = np.array(S, dtype=DTYPE)
-        return S
-
-    def _execute_gradient_2D(self, x, islice):
-        E1 = x[1, ...] * self.uk_scale[1]
-        M0 = x[0, ...]
-        E1[~np.isfinite(E1)] = 0
-        grad_M0 = self.uk_scale[0] * (-E1 + 1) * self.sin_phi[:, islice, ...]\
-            / (-E1 * self.cos_phi[:, islice, ...] + 1)
-        grad_T1 = M0 * self.uk_scale[0] * self.uk_scale[1] * (-E1 + 1) *\
-            self.sin_phi[:, islice, ...] * self.cos_phi[:, islice, ...] /\
-            (-E1 * self.cos_phi[:, islice, ...] + 1)**2 -\
-            M0 * self.uk_scale[0] * self.uk_scale[1] *\
-            self.sin_phi[:, islice, ...] /\
-            (-E1 * self.cos_phi[:, islice, ...] + 1)
-        grad = np.array([grad_M0, grad_T1], dtype=DTYPE)
-        grad[~np.isfinite(grad)] = 1e-20
-        return grad
 
     def _execute_forward_3D(self, x):
         E1 = x[1, ...] * self.uk_scale[1]

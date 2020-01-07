@@ -20,13 +20,13 @@ sys.path.insert(0, os.path.abspath('..'))
 # -- Project information -----------------------------------------------------
 
 project = 'PyQMRI'
-copyright = '2019, Oliver Maier'
+copyright = '2020, Oliver Maier'
 author = 'Oliver Maier'
 
 # The short X.Y version
-version = '0.26'
+version = '0.26b1'
 # The full version, including alpha/beta/rc tags
-release = '2018'
+release = '2020.0.26beta1'
 
 autosummary_generate = True
 # -- General configuration ---------------------------------------------------

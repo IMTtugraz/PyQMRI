@@ -457,15 +457,7 @@ def _start_recon(myargs):
     par["NScan"] = NScan
     par["N"] = N
     par["Nproj"] = Nproj
-    par["unknowns_TGV"] = sig_model.unknowns_TGV
-    par["unknowns_H1"] = sig_model.unknowns_H1
-    par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
     par["imagespace"] = myargs.imagespace
-    if myargs.weights is None:
-        par["weights"] = np.ones((par["unknowns"]), dtype=np.float32)
-    else:
-        par["weights"] = np.array(myargs.weights, dtype=np.float32)
-    par["weights"] = par["weights"]/np.sum(np.abs(par["weights"]), 0)
     if myargs.streamed:
         par["par_slices"] = myargs.par_slices
     if not myargs.trafo:
@@ -515,6 +507,11 @@ def _start_recon(myargs):
 # Init forward model and initial guess ########################################
 ###############################################################################
     model = sig_model.Model(par, images)
+    if myargs.weights is None:
+        par["weights"] = np.ones((par["unknowns"]), dtype=np.float32)
+    else:
+        par["weights"] = np.array(myargs.weights, dtype=np.float32)
+    par["weights"] = par["weights"]/par["unknowns"]
 ###############################################################################
 # initialize operator  ########################################################
 ###############################################################################

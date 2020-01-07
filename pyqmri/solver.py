@@ -493,6 +493,7 @@ class PDSolver:
 
           Opposed to the previous method the data fidelity term is not
           dualized. This should allow for faster convergence.
+
         Args:
           x (numpy.array):
             Initial guess for the unknown parameters
@@ -851,6 +852,7 @@ class PDSolver:
 
           Performs an update of the regularization parameters as these usually
           vary from one to another Gauss-Newton step.
+
         Args:
           irgn_par (dic): A dictionary containing the new parameters.
         """

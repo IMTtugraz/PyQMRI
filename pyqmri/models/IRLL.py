@@ -7,11 +7,22 @@ import matplotlib.pyplot as plt
 import numpy as np
 plt.ion()
 
-unknowns_TGV = 2
-unknowns_H1 = 0
-
 
 class Model(BaseModel):
+    """ Realization of the Inversion Recovery Look-Locker model.
+
+    Attributes:
+      TR (float): Pause in ms after last read out
+      fa (float): Flip angle in radiants
+      sin_phi (numpy.Array): Precompute sine of the B1 corrected flip angle
+      cos_phi (numpy.Array): Precomputed co-sine of the B1 corrected flip angle
+      guess (numpy.Array): Initial guess
+      tau (float): Time petween each acquired spoke in ms
+      td (float): Gradient delay in ms
+      NLL (int): Number of Look-Locker excitations
+      Nproj (int): Number of projections used for reconstruction
+      Nproj_measured (int): Total number of acquired projections
+    """
     def __init__(self, par, images):
         super().__init__(par)
 
@@ -33,7 +44,11 @@ class Model(BaseModel):
         self.sin_phi = np.sin(phi_corr)
         self.cos_phi = np.cos(phi_corr)
 
-        for j in range(unknowns_TGV + unknowns_H1):
+        par["unknowns_TGV"] = 2
+        par["unknowns_H1"] = 0
+        par["unknowns"] = par["unknowns_TGV"] + par["unknowns_H1"]
+
+        for j in range(par["unknowns"]):
             self.uk_scale.append(1)
 
         self.guess = self._set_init_scales()
@@ -44,6 +59,17 @@ class Model(BaseModel):
             np.exp(-self.scale / 5500) / self.uk_scale[1], True))
 
     def rescale(self, x):
+        """ Rescales each unknown by its scaling factor.
+
+          This realization takes into account that E1 instead of T1 is fitted.
+          Each exponential containing T1 is substituted by E1 = exp(-scale/T1).
+          Thus, rescaling of T1 is performed by -scale/log(E1).
+
+        Args:
+          x (numpy.Array): The array of unknowns to be rescaled
+        Returns:
+          numpy.Array: The rescaled array of unknowns
+        """
         tmp_x = np.copy(x)
         tmp_x[0] *= self.uk_scale[0]
         tmp_x[1] = -self.scale / np.log(tmp_x[1] * self.uk_scale[1])
@@ -149,123 +175,7 @@ class Model(BaseModel):
                 plt.draw()
                 plt.pause(1e-10)
 
-    def _execute_forward_2D(self, x, islice):
-        S = np.zeros((self.NLL, self.Nproj, self.dimY, self.dimX), dtype=DTYPE)
-        M0_sc = self.uk_scale[0]
-        TR = self.TR
-        tau = self.tau
-        td = self.td
-        sin_phi = self.sin_phi[islice, ...]
-        cos_phi = self.cos_phi[islice, ...]
-        N = self.Nproj_measured
-        scale = self.scale
-        Efit = x[1, ...] * self.uk_scale[1]
-        Etau = Efit**(tau / scale)
-        Etr = Efit**(TR / scale)
-        Etd = Efit**(td / scale)
-        M0 = x[0, ...]
-        M0_sc = self.uk_scale[0]
-        F = (1 - Etau) / (1 - Etau * cos_phi)
-        Q = (-Etr * Etd * F * (-(Etau * cos_phi)**(N - 1) + 1) *
-             cos_phi + Etr *
-             Etd - 2 * Etd + 1) / (Etr * Etd * (Etau * cos_phi)**(N - 1) *
-                                   cos_phi + 1)
-        Q_F = Q - F
 
-        for i in range(self.NLL):
-            for j in range(self.Nproj):
-                n = i * self.Nproj + j + 1
-                S[i, j, ...] = M0 * M0_sc * \
-                    ((Etau * cos_phi)**(n - 1) * Q_F + F) * sin_phi
-
-        return np.array(np.mean(S, axis=1, dtype=DTYPE), dtype=DTYPE)
-
-    def _execute_gradient_2D(self, x, islice):
-        grad = np.zeros(
-            (2,
-             self.NLL,
-             self.Nproj,
-             self.dimY,
-             self.dimX),
-            dtype=DTYPE)
-        M0_sc = self.uk_scale[0]
-        TR = self.TR
-        tau = self.tau
-        td = self.td
-        sin_phi = self.sin_phi[islice, ...]
-        cos_phi = self.cos_phi[islice, ...]
-        N = self.Nproj_measured
-        scale = self.scale
-        Efit = x[1, ...] * self.uk_scale[1]
-        Etau = Efit**(tau / scale)
-        Etr = Efit**(TR / scale)
-        Etd = Efit**(td / scale)
-
-        M0 = x[0, ...]
-        M0_sc = self.uk_scale[0]
-
-        F = (1 - Etau) / (1 - Etau * cos_phi)
-        Q = (-Etr * Etd * (-Etau + 1) * (-(Etau * cos_phi)**(N - 1) + 1) *
-             cos_phi / (-Etau * cos_phi + 1) + Etr * Etd - 2 * Etd + 1) / \
-            (Etr * Etd * (Etau * cos_phi)**(N - 1) * cos_phi + 1)
-        Q_F = Q - F
-        tmp1 = ((-TR * Etr * Etd * (-Etau + 1) *
-                 (-(Etau * cos_phi)**(N - 1) + 1)
-                 * cos_phi / (x[1, ...] * scale * (-Etau * cos_phi + 1)) +
-                 TR * Etr * Etd / (x[1, ...] * scale) - tau * Etr * Etau *
-                 Etd * (-Etau + 1) *
-                 (-(Etau * cos_phi)**(N - 1) + 1) * cos_phi**2 / (x[1, ...] *
-                 scale * (-Etau * cos_phi + 1)**2) +
-                 tau * Etr * Etau * Etd * (-(Etau * cos_phi)**(N - 1) + 1) *
-                 cos_phi / (x[1, ...] * scale * (-Etau * cos_phi + 1)) +
-                 tau * Etr * Etd * (Etau * cos_phi)**(N - 1) *
-                 (N - 1) * (-Etau + 1) * cos_phi / (x[1, ...] * scale *
-                 (-Etau * cos_phi + 1)) -
-                 td * Etr * Etd * (-Etau + 1) *
-                 (-(Etau * cos_phi)**(N - 1) + 1) * cos_phi / (x[1, ...] *
-                 scale * (-Etau * cos_phi + 1)) +
-                 td * Etr * Etd / (x[1, ...] * scale) - 2 *
-                 td * Etd / (x[1, ...] * scale)) /
-                (Etr * Etd * (Etau * cos_phi)**(N - 1) * cos_phi + 1) +
-                (-TR * Etr * Etd * (Etau * cos_phi)**(N - 1) * cos_phi /
-                 (x[1, ...] * scale) - tau * Etr * Etd *
-                 (Etau * cos_phi)**(N - 1) * (N - 1) *
-                 cos_phi / (x[1, ...] * scale) - td * Etr * Etd *
-                 (Etau * cos_phi)**(N - 1) * cos_phi / (x[1, ...] *
-                 scale)) * (-Etr * Etd * (-Etau + 1) *
-                (-(Etau * cos_phi)**(N - 1) + 1) * cos_phi /
-                 (-Etau * cos_phi + 1) + Etr * Etd - 2 * Etd + 1) /
-                (Etr * Etd * (Etau * cos_phi)**(N - 1) * cos_phi + 1)**2 -
-                tau * Etau * (-Etau + 1) * cos_phi / (x[1, ...] * scale *
-                (-Etau * cos_phi + 1)**2)
-                + tau * Etau / (x[1, ...] * scale * (-Etau * cos_phi + 1)))
-
-        tmp2 = tau * Etau * (-Etau + 1) * cos_phi / (x[1, ...] * scale * (
-            -Etau * cos_phi + 1)**2) - tau * Etau / (x[1, ...] * scale * (
-                -Etau * cos_phi + 1))
-
-        tmp3 = (-(-Etau + 1) / (-Etau * cos_phi + 1) + (-Etr * Etd *
-                (-Etau + 1) * (-(Etau * cos_phi)**(N - 1) + 1) * cos_phi /
-                (-Etau * cos_phi + 1) + Etr * Etd - 2 * Etd + 1) / (
-                    Etr * Etd * (Etau * cos_phi)**(N - 1) * cos_phi +
-                    1)) / (x[1, ...] * scale)
-        for i in range(self.NLL):
-            for j in range(self.Nproj):
-                n = i * self.Nproj + j + 1
-
-                grad[0, i, j, ...] = M0_sc * \
-                    ((Etau * cos_phi)**(n - 1) * Q_F + F) * sin_phi
-
-                grad[1, i, j, ...] = M0 * M0_sc * ((Etau * cos_phi)**(
-                    n - 1) * tmp1 + tmp2 + tau * (Etau * cos_phi)**(n - 1) *
-                                     (n - 1) * tmp3) * sin_phi
-
-        return np.array(
-            np.mean(
-                grad,
-                axis=2,
-                dtype=DTYPE),
-            dtype=DTYPE)
 
     def _execute_forward_3D(self, x):
         S = np.zeros(

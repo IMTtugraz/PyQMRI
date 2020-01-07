@@ -6,15 +6,18 @@ import matplotlib.gridspec as gridspec
 from pyqmri.models.template import BaseModel, constraints, DTYPE
 plt.ion()
 
-unknowns_TGV = 4
-unknowns_H1 = 0
-
 
 class Model(BaseModel):
+    """ Realization of a bi-exponential decay model
+
+      The model assumes M0*(f*exp(-TE*A1)+(1-f)exp(-TE*A2))
+
+    Attributes:
+      TE (float): Echo time or parameter in exponential exp(-TR/x)
+      guess (numpy.Array): Initial guess
+    """
     def __init__(self, par, images):
         super().__init__(par)
-        self.constraints = []
-        self.images = images
 
         self.TE = np.ones((self.NScan, 1, 1, 1))
         try:
@@ -23,7 +26,11 @@ class Model(BaseModel):
         except KeyError:
             raise KeyError("No TE found!")
 
-        for j in range(unknowns_TGV + unknowns_H1):
+        par["unknowns_TGV"] = 4
+        par["unknowns_H1"] = 0
+        par["unknowns"] = par["unknowns_TGV"] + par["unknowns_H1"]
+
+        for j in range(par["unknowns"]):
             self.uk_scale.append(1)
 
         self.guess = self._set_init_scales(images)
@@ -46,6 +53,16 @@ class Model(BaseModel):
                             True))
 
     def rescale(self, x):
+        """ Rescales each unknown by its scaling factor.
+
+          This realization takes into account that A1 and A2 are fitted and
+          will return 1/A1 respectively 1/A2 as result.
+
+        Args:
+          x (numpy.Array): The array of unknowns to be rescaled
+        Returns:
+          numpy.Array: The rescaled array of unknowns
+        """
         M0 = x[0, ...] * self.uk_scale[0]
         f = x[1, ...] * self.uk_scale[1]
         T21 = 1 / (x[2, ...] * self.uk_scale[2])
