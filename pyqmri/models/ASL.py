@@ -6,8 +6,6 @@ import matplotlib.gridspec as gridspec
 from pyqmri.models.template import BaseModel, constraints, DTYPE
 import numexpr as ne
 plt.ion()
-unknowns_TGV = 2
-unknowns_H1 = 0
 
 
 def _expAttT1b(del_t, del_t_sc, T1b):
@@ -103,11 +101,15 @@ class Model(BaseModel):
         self.NSlice = par["NSlice"]
         self.dimY = par["dimY"]
         self.dimX = par["dimX"]
-        self.unknowns = unknowns_TGV+unknowns_H1
         self.images = images/par["dscale"]
         self.dscale = par["dscale"]
 
-        for j in range(unknowns_TGV + unknowns_H1):
+        par["unknowns_TGV"] = 2
+        par["unknowns_H1"] = 0
+        par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
+        self.unknowns = par["unknowns"]
+
+        for j in range(self.unknowns):
             self.uk_scale.append(1)
         self.guess = self._set_init_scales(images)
 
@@ -116,7 +118,7 @@ class Model(BaseModel):
                         200 * self.dscale,
                         True))
         self.constraints.append(
-            constraints(0,
+            constraints(0.01/60,
                         4/60,
                         True))
 

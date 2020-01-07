@@ -5,8 +5,8 @@ import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 plt.ion()
-unknowns_TGV = 7
-unknowns_H1 = 0
+#unknowns_TGV = 7
+#unknowns_H1 = 0
 
 
 class Model(BaseModel):
@@ -26,12 +26,14 @@ class Model(BaseModel):
             self.b /= 1000
 
         self.dir = self.dir[:, None, None, None, :]
-
+        par["unknowns_TGV"] = 7
+        par["unknowns_H1"] = 0
+        par["unknowns"] = par["unknowns_TGV"] + par["unknowns_H1"]
+        self.unknowns = par["unknowns_TGV"] + par["unknowns_H1"]
         self.uk_scale = []
-        for j in range(unknowns_TGV + unknowns_H1):
+        for j in range(self.unknowns):
             self.uk_scale.append(1)
 
-        self.unknowns = par["unknowns_TGV"] + par["unknowns_H1"]
         try:
             self.b0 = np.flip(
                 np.transpose(par["file"]["b0"][()], (0, 2, 1)), 0)
