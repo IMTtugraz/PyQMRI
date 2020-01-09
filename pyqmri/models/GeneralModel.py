@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Thu Jan  2 11:38:28 2020
-
-@author: omaier
-"""
-
 import numpy as np
 from pyqmri.models.template import BaseModel, constraints, DTYPE
 import configparser
@@ -26,23 +20,40 @@ def _str2bool(v):
 
 
 class Model(BaseModel):
-    def __init__(self, par, images,
-                 modelfile='models',
-                 modelname='BiExpLL'):
+    """ Realization of a generative model based on sympy
+
+      This model can handel all kinds of sympy input in form of a config file.
+      Partial derivatives of the model are automatically generated and a
+      numpy compatible function is build from sumpy equations.
+
+    Attributes:
+      signaleq (sympy derived function):
+        The signal equation derived from sympy
+      grad (list of functions):
+        Partial derivatives with respect to the unknowns
+      rescalefun (list of functions): Functions to rescale each parameter
+      modelparams (list): List of model parameters
+      indphase (bool): Flag to estimate the phase from a given image series.
+        The phase is normed on the first image.
+        If True, each image will be multiplied by the estimated phase in the
+        forward and gradient evaluation.
+      guess (numpy.Array): Initial guess
+    """
+    def __init__(self, par, images):
 
         super().__init__(par)
 
         config = configparser.ConfigParser()
         try:
-            with open(modelfile + '.ini', 'r') as f:
+            with open(par["modelfile"], 'r') as f:
                 config.read_file(f)
         except BaseException:
-            print("Model file not readable or not found.")
+            print("Model file not readable or not found")
             raise(BaseException)
         finally:
             params = {}
-            for key in config[modelname]:
-                params[key] = config[modelname][key]
+            for key in config[par["modelname"]]:
+                params[key] = config[par["modelname"]][key]
 
         modelpar = sympy.symbols(params["parameter"])
         unknowns = sympy.symbols(params["unknowns"])
@@ -60,7 +71,6 @@ class Model(BaseModel):
             params["rescale"] = params["rescale"].replace(
                 str(unknowns[j]),
                 "("+str(unknowns[j])+"*"+str(unknowns[j])+"_sc)")
-
         signaleq = sympy.sympify(params["signal"])
         params["rescale"] = params["rescale"].split(",")
 
@@ -97,7 +107,6 @@ class Model(BaseModel):
         for j in range(par["unknowns"]):
             self.uk_scale.append(1)
 
-        self.constraints = []
         box_constraints_low = params["box_constraints_lower"].split(",")
         box_constraints_up = params["box_constraints_upper"].split(",")
         real_const = params["real_value_constraints"].split(",")
@@ -204,3 +213,37 @@ class Model(BaseModel):
             else:
                 x[j] *= float(guess[j])
         return x
+
+def genDefaultModelfile():
+    """ Generate a default model config file.
+
+      This method generates a default model file in the current project folder.
+      This file can be modified or further models can be added.
+    """
+    config = configparser.ConfigParser()
+
+    config["MonoExp"] = {}
+    config["MonoExp"]["parameter"] = "TE"
+    config["MonoExp"]["unknowns"] = "M0 A1"
+    config["MonoExp"]["signal"] = "M0*exp(-TE*A1)"
+    config["MonoExp"]["box_constraints_lower"] = "0,0"
+    config["MonoExp"]["box_constraints_upper"] = "100,1"
+    config["MonoExp"]["real_value_constraints"] = "False,True"
+    config["MonoExp"]["guess"] = "1,0.01"
+    config["MonoExp"]["rescale"] = "M0,1/A1"
+    config["MonoExp"]["estimate_individual_phase"] = "False"
+
+    config["VFA-E1"] = {}
+    config["VFA-E1"]["parameter"] = "TR fa fa_corr"
+    config["VFA-E1"]["unknowns"] = "M0 E_1"
+    config["VFA-E1"]["signal"] = "M0*sin(fa*fa_corr)*"\
+                                 "(1-E_1)/(1-E_1*cos(fa*fa_corr))"
+    config["VFA-E1"]["box_constraints_lower"] = "0,0.9048"
+    config["VFA-E1"]["box_constraints_upper"] = "10,0.99909"
+    config["VFA-E1"]["real_value_constraints"] = "False,True"
+    config["VFA-E1"]["guess"] = "1,0.99667"
+    config["VFA-E1"]["rescale"] = "M0,-TR/log(E_1)"
+    config["VFA-E1"]["estimate_individual_phase"] = "False"
+
+    with open('models.ini', 'w') as configfile:
+        config.write(configfile)
