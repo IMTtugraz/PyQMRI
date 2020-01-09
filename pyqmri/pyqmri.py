@@ -482,15 +482,7 @@ def _start_recon(myargs):
     par["NScan"] = NScan
     par["N"] = N
     par["Nproj"] = Nproj
-    par["unknowns_TGV"] = sig_model.unknowns_TGV
-    par["unknowns_H1"] = sig_model.unknowns_H1
-    par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
     par["imagespace"] = myargs.imagespace
-    if myargs.weights is None:
-        par["weights"] = np.ones((par["unknowns"]), dtype=np.float32)
-    else:
-        par["weights"] = np.array(myargs.weights, dtype=np.float32)
-    par["weights"] = par["weights"]/np.sum(np.abs(par["weights"]), 0)
     if myargs.streamed:
         par["par_slices"] = myargs.par_slices
     if not myargs.trafo:
@@ -554,7 +546,15 @@ def _start_recon(myargs):
 ###############################################################################
 # Init forward model and initial guess ########################################
 ###############################################################################
+    if myargs.sig_model == "GeneralModel":
+        par["modelfile"] = myargs.modelfile
+        par["modelname"] = myargs.modelname
     model = sig_model.Model(par, images)
+    if myargs.weights is None:
+        par["weights"] = np.ones((par["unknowns"]), dtype=np.float32)
+    else:
+        par["weights"] = np.array(myargs.weights, dtype=np.float32)
+    par["weights"] = par["weights"]/par["unknowns"]
 ###############################################################################
 # initialize operator  ########################################################
 ###############################################################################
@@ -597,7 +597,8 @@ def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
         par_slices=1, data='', model='VFA', config='default',
         imagespace=False,
         OCL_GPU=True, sms=False, devices=0, dz=1, weights=None,
-        out=''):
+        out='',
+        modelfile="models.ini", modelname="VFA-E1"):
     """
     Start a 3D model based reconstruction. Data can also be selected at
     start up.
@@ -649,6 +650,10 @@ def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
         Switch between CG sense and simple FFT as initial guess for the images.
       out (str):
         Output directory. Defaults to the location of the input file.
+      modelpath (str):
+        Path to the .mod file for the generative model.
+      modelname (str):
+        Name of the model in the .mod file to use.
     """
     argparrun = argparse.ArgumentParser(
         description="T1 quantification from VFA "
@@ -718,6 +723,17 @@ def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
     argparrun.add_argument('--out', default=out, dest='outdir', type=str,
                            help="Set output directory. Defaults to the input "
                                 "file directory")
+    group = argparrun.add_mutually_exclusive_group()
+    group.add_argument(
+      '--model', default='GeneralModel', dest='sig_model',
+      help='Name of the signal model to use. Defaults to VFA. \
+ Please put your signal model file in the Model subfolder.')
+    group.add_argument(
+      '--modelfile', default=modelfile, dest='modelfile', type=str,
+      help="Path to the model file.")
+    argparrun.add_argument(
+      '--modelname', default=modelname, dest='modelname', type=str,
+      help="Name of the model to use.")
     argsrun = argparrun.parse_args()
     _start_recon(argsrun)
 
@@ -791,5 +807,16 @@ if __name__ == '__main__':
     argparmain.add_argument('--out', default='', dest='outdir', type=str,
                           help="Set output directory. Defaults to the input "
                                "file directory")
+    group = argparmain.add_mutually_exclusive_group()
+    group.add_argument(
+      '--model', default='GeneralModel', dest='sig_model',
+      help='Name of the signal model to use. Defaults to VFA. \
+ Please put your signal model file in the Model subfolder.')
+    group.add_argument(
+      '--modelfile', default="models.ini", dest='modelfile', type=str,
+      help="Path to the model file.")
+    argparmain.add_argument(
+      '--modelname', default="VFA-E1", dest='modelname', type=str,
+      help="Name of the model to use.")
     argsmain = argparmain.parse_args()
     _start_recon(argsmain)
