@@ -81,7 +81,7 @@ def _delATT2(M0, alpha, lambd, f, f_sc, T1, del_t,
 
 
 class Model(BaseModel):
-    def __init__(self, par, images):
+    def __init__(self, par):
         super().__init__(par)
         self.constraints = []
         full_slices = par["file"]["T1b"].shape[0]
@@ -101,7 +101,6 @@ class Model(BaseModel):
         self.NSlice = par["NSlice"]
         self.dimY = par["dimY"]
         self.dimX = par["dimX"]
-        self.images = images/par["dscale"]
         self.dscale = par["dscale"]
 
         par["unknowns_TGV"] = 2
@@ -111,7 +110,6 @@ class Model(BaseModel):
 
         for j in range(self.unknowns):
             self.uk_scale.append(1)
-        self.guess = self._set_init_scales(images)
 
         self.constraints.append(
             constraints(0 * self.dscale,
@@ -367,7 +365,8 @@ class Model(BaseModel):
                 plt.draw()
                 plt.pause(1e-10)
 
-    def _set_init_scales(self, images):
+    def computeInitialGuess(self, images):
+        self.images = images
         test_f = 10 * self.dscale * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         test_del_t = 1/60 * np.ones(

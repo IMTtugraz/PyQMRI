@@ -43,6 +43,7 @@ class ModelReco:
         The residual values for of each Gauss-Newton step. Each iteration
         appends its value to the list.
     """
+
     def __init__(self, par, trafo=1, imagespace=False, SMS=0, reg_type='TGV',
                  config='', model=None):
         self.par = par

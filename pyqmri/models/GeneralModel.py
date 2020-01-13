@@ -39,7 +39,7 @@ class Model(BaseModel):
         forward and gradient evaluation.
       guess (numpy.Array): Initial guess
     """
-    def __init__(self, par, images):
+    def __init__(self, par):
 
         super().__init__(par)
 
@@ -117,11 +117,9 @@ class Model(BaseModel):
                     float(box_constraints_up[uk]),
                     _str2bool(real_const[uk])))
 
-        self.indphase = False
-        if _str2bool(params["estimate_individual_phase"]) is True:
-            self.indphase = True
-            self.phase = np.exp(1j*(np.angle(images)-np.angle(images[0])))
-        self.guess = self._set_init_scales(images, params["guess"].split(","))
+        self.indphase = _str2bool(params["estimate_individual_phase"])
+
+        self.init_values = params["guess"].split(",")
 
     def rescale(self, x):
         tmp_x = np.copy(x)
@@ -205,14 +203,16 @@ class Model(BaseModel):
                 plt.draw()
                 plt.pause(1e-10)
 
-    def _set_init_scales(self, images, guess):
+    def computeInitialGuess(self, images):
+        if self.indphase is True:
+            self.phase = np.exp(1j*(np.angle(images)-np.angle(images[0])))
         x = np.ones((len(guess), self.NSlice, self.dimY, self.dimX), DTYPE)
-        for j in range(len(guess)):
+        for j in range(len(self.init_values)):
             if "image" in guess[j]:
-                x[j] = images[int(guess[j].split("_")[-1])]
+                x[j] = images[int(self.init_values[j].split("_")[-1])]
             else:
-                x[j] *= float(guess[j])
-        return x
+                x[j] *= float(self.init_values[j])
+        self.guess = x
 
 def genDefaultModelfile():
     """ Generate a default model config file.

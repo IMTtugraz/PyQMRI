@@ -40,22 +40,10 @@ class BaseModel(ABC):
     def execute_forward(self, x, islice=None):
         if islice is None:
             return self._execute_forward_3D(x)
-        else:
-            return self._execute_forward_2D(x, islice)
 
     def execute_gradient(self, x, islice=None):
         if islice is None:
             return self._execute_gradient_3D(x)
-        else:
-            return self._execute_gradient_2D(x, islice)
-
-    @abstractmethod
-    def _execute_forward_2D(self, x, islice):
-        ...
-
-    @abstractmethod
-    def _execute_gradient_2D(self, x, islice):
-        ...
 
     @abstractmethod
     def _execute_forward_3D(self, x):
@@ -70,5 +58,5 @@ class BaseModel(ABC):
         ...
 
     @abstractmethod
-    def _set_init_scales(self):
+    def computeInitialGuess(self):
         ...

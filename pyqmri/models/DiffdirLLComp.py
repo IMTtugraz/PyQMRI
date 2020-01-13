@@ -36,9 +36,8 @@ class Model(BaseModel):
             self.b0 = np.flip(
                 np.transpose(par["file"]["b0"][()], (0, 2, 1)), 0)
         except KeyError:
-            self.b0 = images[0]
-        self.phase = np.exp(1j*(np.angle(images)-np.angle(images[0])))
-        self.guess = self._set_init_scales(images)
+            print("No b0 image provided")
+            self.b0 =  None
 
         self.constraints.append(
             constraints(
@@ -793,8 +792,13 @@ class Model(BaseModel):
                 plt.draw()
                 plt.pause(1e-10)
 
-    def _set_init_scales(self, images):
-        test_M0 = self.b0
+    def computeInitialGuess(self, images):
+        self.phase = np.exp(1j*(np.angle(images)-np.angle(images[0])))
+        self.guess = self._set_init_scales(images)
+        if self.b0 is not None:
+            test_M0 = self.b0
+        else:
+            test_M0 = images[0]
         ADC = 1 * np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
 
         x = np.array(

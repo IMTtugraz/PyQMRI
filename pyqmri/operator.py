@@ -70,6 +70,7 @@ class Operator(ABC):
       prg (PyOpenCL.Program):
         The PyOpenCL program containing all compiled kernels.
     """
+
     def __init__(self, par, prg, DTYPE=np.complex64, DTYPE_real=np.float32):
         """ Setup a Operator object
         Args:
@@ -209,6 +210,7 @@ class OperatorImagespace(Operator):
     Use this operator if you want to perform complex parameter fitting from
     complex image space data without the need of performing FFTs.
     """
+
     def __init__(self, par, prg, DTYPE=np.complex64, DTYPE_real=np.float32):
         super().__init__(par, prg, DTYPE, DTYPE_real)
         self.queue = self.queue[0]
@@ -290,6 +292,7 @@ class OperatorKspace(Operator):
     complex k-space data. The type of fft is defined through the NUFFT object.
     The NUFFT object can also be used for simple Cartesian FFTs.
     """
+
     def __init__(self, par, prg, DTYPE=np.complex64,
                  DTYPE_real=np.float32, trafo=True):
         super().__init__(par, prg, DTYPE, DTYPE_real)
@@ -415,6 +418,7 @@ class OperatorKspaceFieldMap(Operator):
     complex k-space data. The type of fft is defined through the NUFFT object.
     The NUFFT object can also be used for simple Cartesian FFTs.
     """
+
     def __init__(self, par, prg, DTYPE=np.complex64,
                  DTYPE_real=np.float32, trafo=True):
         super().__init__(par, prg, DTYPE, DTYPE_real)
@@ -626,6 +630,7 @@ class OperatorKspaceSMS(Operator):
       packs (int):
         Number of SMS packs.
     """
+
     def __init__(self, par, prg, DTYPE=np.complex64,
                  DTYPE_real=np.float32, trafo=False):
         super().__init__(par, prg, DTYPE, DTYPE_real)
@@ -757,6 +762,7 @@ class OperatorKspaceSMSFieldMap(Operator):
       packs (int):
         Number of SMS packs.
     """
+
     def __init__(self, par, prg, DTYPE=np.complex64,
                  DTYPE_real=np.float32, trafo=False):
         super().__init__(par, prg, DTYPE, DTYPE_real)
@@ -938,6 +944,7 @@ class OperatorImagespaceStreamed(Operator):
       adjstr (PyQMRI.Stream):
         The streaming object to perform the adjoint evaluation
     """
+
     def __init__(self, par, prg, DTYPE=np.complex64, DTYPE_real=np.float32):
         super().__init__(par, prg, DTYPE, DTYPE_real)
         par["overlap"] = 1
@@ -1063,8 +1070,8 @@ class OperatorKspaceStreamed(Operator):
         A list of NUFFT objects. One for each context.
       FTstr (PyQMRI.Stream):
         A streamed version of the used (non-uniform) FFT, applied forward.
-
     """
+
     def __init__(self, par, prg,
                  DTYPE=np.complex64, DTYPE_real=np.float32, trafo=True):
         super().__init__(par, prg, DTYPE, DTYPE_real)
@@ -1248,6 +1255,7 @@ class OperatorKspaceSMSStreamed(Operator):
         A streamed version of the used (non-uniform) FFT, applied adjoint.
       updateKyk1SMSstreamed
     """
+
     def __init__(self, par, prg, DTYPE=np.complex64,
                  DTYPE_real=np.float32, trafo=True):
         super().__init__(par, prg, DTYPE, DTYPE_real)

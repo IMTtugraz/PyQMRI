@@ -906,10 +906,10 @@ class PyOpenCLSMSNUFFT(PyOpenCLFFT):
         self.packs = int(par["packs"])
         self.MB = int(par["MB"])
         self.shift = clarray.to_device(
-            self.queue, par["shift"].astype(np.int32))
+            self.queue, par["shift"].astype(DTYPE_real))
 
         self.fft_shape = (
-            int(self.fft_shape[0] / self.MB),
+            int(self.fft_shape[0]),
             self.fft_shape[1], self.fft_shape[2])
 
         self.fft_scale = DTYPE_real(
@@ -947,13 +947,20 @@ class PyOpenCLSMSNUFFT(PyOpenCLFFT):
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
         self._tmp_fft_array.add_event(
-            self.prg.maskingcpy(
+            self.prg.copy_SMS_adjkspace(
                 self.queue,
-                (self._tmp_fft_array.shape),
+                (sg.shape[0] * sg.shape[1],
+                 sg.shape[-2],
+                 sg.shape[-1]),
                 None,
                 self._tmp_fft_array.data,
                 s.data,
+                self.shift.data,
                 self.mask.data,
+                np.int32(self.packs),
+                np.int32(self.MB),
+                self.DTYPE_real(self.fft_scale),
+                np.int32(sg.shape[2]/self.packs/self.MB),
                 wait_for=s.events))
         for j in range(s.shape[0]):
             self._tmp_fft_array.add_event(
@@ -963,19 +970,14 @@ class PyOpenCLSMSNUFFT(PyOpenCLFFT):
                     result=self._tmp_fft_array[
                         j * self.par_fft:(j + 1) * self.par_fft, ...],
                     forward=False)[0])
-        return (self.prg.copy_SMS_adj(self.queue,
-                                      (sg.shape[0] * sg.shape[1],
-                                       sg.shape[-2],
-                                       sg.shape[-1]),
-                                      None,
-                                      sg.data,
-                                      self._tmp_fft_array.data,
-                                      self.shift.data,
-                                      np.int32(self.packs),
-                                      np.int32(self.MB),
-                                      self.DTYPE_real(self.fft_scale),
-                                      np.int32(sg.shape[2]/self.packs/self.MB),
-                                      wait_for=self._tmp_fft_array.events))
+
+        return (self.prg.copy(self.queue,
+                              (sg.size,),
+                              None,
+                              sg.data,
+                              self._tmp_fft_array.data,
+                              self.DTYPE_real(self.fft_scale),
+                              wait_for=self._tmp_fft_array.events))
 
     def FFT(self, s, sg, wait_for=[]):
         """ Perform the forward FFT operation
@@ -990,17 +992,13 @@ class PyOpenCLSMSNUFFT(PyOpenCLFFT):
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
         self._tmp_fft_array.add_event(
-            self.prg.copy_SMS_fwd(
+            self.prg.copy(
                 self.queue,
-                (sg.shape[0] * sg.shape[1], sg.shape[-2], sg.shape[-1]),
+                (sg.size,),
                 None,
                 self._tmp_fft_array.data,
                 sg.data,
-                self.shift.data,
-                np.int32(self.packs),
-                np.int32(self.MB),
                 self.DTYPE_real(1 / self.fft_scale),
-                np.int32(sg.shape[2]/self.packs/self.MB),
                 wait_for=self._tmp_fft_array.events+sg.events))
 
         for j in range(s.shape[0]):
@@ -1013,13 +1011,18 @@ class PyOpenCLSMSNUFFT(PyOpenCLFFT):
                     forward=True)[0])
 
         return (
-            self.prg.maskingcpy(
+            self.prg.copy_SMS_fwdkspace(
                 self.queue,
-                (self._tmp_fft_array.shape),
+                (s.shape[0] * s.shape[1], s.shape[-2], s.shape[-1]),
                 None,
                 s.data,
                 self._tmp_fft_array.data,
+                self.shift.data,
                 self.mask.data,
+                np.int32(self.packs),
+                np.int32(self.MB),
+                self.DTYPE_real(self.fft_scale),
+                np.int32(sg.shape[2]/self.packs/self.MB),
                 wait_for=s.events+self._tmp_fft_array.events))
 
 

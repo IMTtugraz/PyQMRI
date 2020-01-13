@@ -27,6 +27,7 @@ class CGSolver:
     This Class performs a CG reconstruction on single precission complex input
     data.
     """
+
     def __init__(self, par, NScan=1, trafo=1, SMS=0):
         """ Setup a CG reconstruction Object
 
@@ -40,7 +41,6 @@ class CGSolver:
           NScan (int): Number of Scan which should be used internally. Do not
             need to be the same number as in par["NScan"]
           trafo (bool): Switch between radial (1) and Cartesian (0) fft.
-          SMS (bool): Simultaneouos Multi Slice. Switch between noraml (0)
           and slice accelerated (1) reconstruction.
         """
         self._NSlice = par["NSlice"]
@@ -68,7 +68,6 @@ class CGSolver:
             self._op = operator.OperatorKspace(par, self._prg, trafo=trafo)
         self._FT = self._op.NUFFT.FFT
         self._FTH = self._op.NUFFT.FFTH
-        self._grad = operator.OperatorFiniteGradient(par, self._prg)
         self._tmp_result = clarray.empty(
             self._queue,
             (self._NScan, self._NC,
@@ -125,8 +124,8 @@ class CGSolver:
                            (self._NScan, 1,
                             self._NSlice, self._dimY, self._dimX),
                            DTYPE, "C")
-
-        data = clarray.to_device(self._queue, data)
+        scale = np.linalg.norm(data)
+        data = clarray.to_device(self._queue, data/scale)
         self.operator_rhs(b, data)
         res = b
         p = res
@@ -141,19 +140,19 @@ class CGSolver:
             res_new = res - alpha*Ax
             delta = np.linalg.norm(res_new.get())**2 /\
                 np.linalg.norm(b.get())**2
-#            print("Residum: %f" % (delta))
+            # print("Residum: %f" % (delta))
             if delta < tol:
                 print(
                     "Converged after %i iterations to %1.3e." % (i, delta))
                 del Ax, \
                     b, res, p, data, res_new
-                return np.squeeze(x.get())
+                return np.squeeze(x.get())*scale
             beta = (clarray.vdot(res_new, res_new) /
                     clarray.vdot(res, res)).real.get()
             p = res_new+beta*p
             (res, res_new) = (res_new, res)
         del Ax, b, res, p, data, res_new
-        return np.squeeze(x.get())
+        return np.squeeze(x.get()*scale)
 
     def eval_fwd_kspace_cg(self, y, x, wait_for=[]):
         """ Apply forward operator for image reconstruction.
@@ -217,14 +216,15 @@ class CGSolver:
 
 
 class PDSolver:
-    """ Conjugate Gradient Optimization Algorithm
+    """ Primal Dual splitting optimization
 
-    This Class performs a CG reconstruction on single precission complex input
-    data.
+    This Class performs a primal-dual variable splitting based reconstruction
+    on single precission complex input data.
     """
+
     def __init__(self, par, irgn_par, queue, tau, fval, prg, reg_type,
                  data_operator, coil_buffer):
-        """ Setup a CG reconstruction Object
+        """ Setup a PD reconstruction Object
 
         Args:
           par (dict): A python dict containing the necessary information to
@@ -233,10 +233,23 @@ class PDSolver:
             coils (NC), sampling points (N) and read outs (NProj)
             a PyOpenCL queue (queue) and the complex coil
             sensitivities (C).
+          irgn_par (dict): A python dict containing the regularization
+            parameters for a given gauss newton step.
+          queue (list): A list of PyOpenCL queues to perform the optimization.
+          tau (float): Estimate of the initial step size based on the
+            operator norm of the linear operator.
+          fval (float): Estimate of the initial cost function value to
+            scale the displayed values.
+          prg (PyOpenCL Program): A PyOpenCL Program containing the
+            kernels for optimization.
+          reg_type (string): String to choose between "TV" and "TGV"
+            optimization.
+          data_operator (PyQMRI Operator): The operator to traverse from
+            parameter to data space.
+          coil_buffer (PyOpenCL Buffer or empty List): optional coil buffer.
           NScan (int): Number of Scan which should be used internally. Do not
             need to be the same number as in par["NScan"]
           trafo (bool): Switch between radial (1) and Cartesian (0) fft.
-          SMS (bool): Simultaneouos Multi Slice. Switch between noraml (0)
           and slice accelerated (1) reconstruction.
         """
         self.alpha = irgn_par["gamma"]
@@ -281,6 +294,16 @@ class PDSolver:
         """
 
     def runTGV3D(self, x, data, iters):
+        """ Performs optimization with 3D TGV regularization
+
+        Args:
+          x (numpy.array):
+            Initial guess for the unknown parameters
+          x (numpy.array):
+            The complex valued data to fit.
+          iters (int):
+            Number of primal-dual iterations to run
+        """
         self._updateConstraints()
         tau = self.tau
         tau_new = np.float32(0)
@@ -470,6 +493,19 @@ class PDSolver:
         return x.get()
 
     def runTGV3DExplicit(self, x, res, iters):
+        """ Performs optimization with 3D TGV regularization
+
+          Opposed to the previous method the data fidelity term is not
+          dualized. This should allow for faster convergence.
+
+        Args:
+          x (numpy.array):
+            Initial guess for the unknown parameters
+          x (numpy.array):
+            The complex valued data to fit.
+          iters (int):
+            Number of primal-dual iterations to run
+        """
         self._updateConstraints()
         alpha = self.irgn_par["gamma"]
         beta = self.irgn_par["gamma"] * 2
@@ -630,6 +666,16 @@ class PDSolver:
         return x.get()
 
     def runTV3D(self, x, data, iters):
+        """ Performs optimization with 3D TV regularization
+
+        Args:
+          x (numpy.array):
+            Initial guess for the unknown parameters
+          x (numpy.array):
+            The complex valued data to fit.
+          iters (int):
+            Number of primal-dual iterations to run
+        """
         self._updateConstraints()
 
         tau = self.tau
@@ -806,6 +852,14 @@ class PDSolver:
         self.real_const = clarray.to_device(self._queue, self.real_const)
 
     def updateRegPar(self, irgn_par):
+        """ Performs an update of the regularization parameters
+
+          Performs an update of the regularization parameters as these usually
+          vary from one to another Gauss-Newton step.
+
+        Args:
+          irgn_par (dic): A dictionary containing the new parameters.
+        """
         self.alpha = irgn_par["gamma"]
         self.beta = irgn_par["gamma"] * 2
         self.delta = irgn_par["delta"]
@@ -814,6 +868,18 @@ class PDSolver:
         self.mu = 1/self.delta
 
     def update_primal(self, x_new, x, Kyk, xk, tau, delta, wait_for=[]):
+        """ Primal update of the x variable in the Primal-Dual Algorithm
+
+        Args:
+          x_new (PyOpenCL.Array): The result of the update step
+          x (PyOpenCL.Array): The previous values of x
+          Kyk (PyOpenCL.Array): x-Part of the precomputed result of
+            the adjoint linear operator applied to y
+          xk (PyOpenCL.Array): The linearization point of the Gauss-Newton step
+          tau (float): Primal step size
+          delta (float): Regularization parameter for the step-size constrained
+          wait_for (list): A optional list for PyOpenCL.events to wait for
+        """
         return self._prg.update_primal(
             self._queue, x.shape[1:], None, x_new.data, x.data, Kyk.data,
             xk.data, np.float32(tau),
@@ -824,6 +890,16 @@ class PDSolver:
                       Kyk.events + xk.events + wait_for))
 
     def update_v(self, v_new, v, Kyk2, tau, wait_for=[]):
+        """ Primal update of the v variable in Primal-Dual Algorithm
+
+        Args:
+          v_new (PyOpenCL.Array): The result of the update step
+          v (PyOpenCL.Array): The previous values of v
+          Kyk2 (PyOpenCL.Array): v-Part of the precomputed result of
+            the adjoint linear operator applied to y
+          tau (float): Primal step size
+          wait_for (list): A optional list for PyOpenCL.events to wait for
+        """
         return self._prg.update_v(
             self._queue, (v[..., 0].size,), None, v_new.data, v.data,
             Kyk2.data, np.float32(tau),
@@ -831,6 +907,22 @@ class PDSolver:
 
     def update_z1(self, z_new, z, gx, gx_, vx, vx_,
                   sigma, theta, alpha, omega, wait_for=[]):
+        """ Dual update of the z1 variable in Primal-Dual Algorithm for TGV
+
+        Args:
+          z_new (PyOpenCL.Array): The result of the update step
+          z (PyOpenCL.Array): The previous values of z
+          gx (PyOpenCL.Array): Linear Operator applied to the new x
+          gx_ (PyOpenCL.Array): Linear Operator applied to the previous x
+          vx (PyOpenCL.Array): Linear Operator applied to the new v
+          vx_ (PyOpenCL.Array): Linear Operator applied to the previous v
+          sigma (float): Dual step size
+          theta (float): Variable controling the extrapolation step of the
+            PD-algorithm
+          alpha (float): Regularization parameter of the first TGV functional
+          omega (float): Optimal regularization parameter for H1 regularization
+          wait_for (list): A optional list for PyOpenCL.events to wait for
+        """
         return self._prg.update_z1(
             self._queue, z.shape[1:-1], None, z_new.data, z.data, gx.data,
             gx_.data, vx.data, vx_.data, np.float32(sigma), np.float32(theta),
@@ -843,6 +935,20 @@ class PDSolver:
 
     def update_z1_tv(self, z_new, z, gx, gx_,
                      sigma, theta, alpha, omega, wait_for=[]):
+        """ Dual update of the z1 variable in Primal-Dual Algorithm for TV
+
+        Args:
+          z_new (PyOpenCL.Array): The result of the update step
+          z (PyOpenCL.Array): The previous values of z
+          gx (PyOpenCL.Array): Linear Operator applied to the new x
+          gx_ (PyOpenCL.Array): Linear Operator applied to the previous x
+          sigma (float): Dual step size
+          theta (float): Variable controling the extrapolation step of the
+            PD-algorithm
+          alpha (float): Regularization parameter of the first TGV functional
+          omega (float): Optimal regularization parameter for H1 regularization
+          wait_for (list): A optional list for PyOpenCL.events to wait for
+        """
         return self._prg.update_z1_tv(
             self._queue, z.shape[1:-1], None, z_new.data, z.data, gx.data,
             gx_.data, np.float32(sigma), np.float32(theta),
@@ -853,6 +959,19 @@ class PDSolver:
                 z_new.events + z.events + gx.events + gx_.events + wait_for))
 
     def update_z2(self, z_new, z, gx, gx_, sigma, theta, beta, wait_for=[]):
+        """ Dual update of the z2 variable in Primal-Dual Algorithm for TGV
+
+        Args:
+          z_new (PyOpenCL.Array): The result of the update step
+          z (PyOpenCL.Array): The previous values of z
+          gx (PyOpenCL.Array): Linear Operator applied to the new x
+          gx_ (PyOpenCL.Array): Linear Operator applied to the previous x
+          sigma (float): Dual step size
+          theta (float): Variable controling the extrapolation step of the
+            PD-algorithm
+          beta (float): Regularization parameter of the second TGV functional
+          wait_for (list): A optional list for PyOpenCL.events to wait for
+        """
         return self._prg.update_z2(
             self._queue, z.shape[1:-1], None, z_new.data, z.data,
             gx.data, gx_.data, np.float32(sigma), np.float32(theta),
@@ -861,12 +980,35 @@ class PDSolver:
                 z_new.events + z.events + gx.events + gx_.events + wait_for))
 
     def update_Kyk2(self, div, u, z, wait_for=[]):
+        """ Precompute the v-part of the Adjoint Linear operator
+
+        Args:
+          div (PyOpenCL.Array): The result of the computation
+          u (PyOpenCL.Array): Dual Variable of the symmetrized gradient of TGV
+          z (PyOpenCL.Array): Dual Variable of the gradient of TGV
+          wait_for (list): A optional list for PyOpenCL.events to wait for
+        """
         return self._prg.update_Kyk2(
             self._queue, u.shape[1:-1], None, div.data, u.data, z.data,
             np.int32(self.unknowns_TGV), np.float32(self.dz),
             wait_for=div.events + u.events + z.events + wait_for)
 
     def update_r(self, r_new, r, A, A_, res, sigma, theta, lambd, wait_for=[]):
+        """ Update the data dual variable r
+
+        Args:
+          r_new (PyOpenCL.Array): New value of the data dual variable
+          r (PyOpenCL.Array): Old value of the data dual variable
+          A (PyOpenCL.Array): Precomputed Linear Operator applied to the new x
+          A_ (PyOpenCL.Array):Precomputed Linear Operator applied to the old x
+          res (PyOpenCL.Array): Precomputed data to compare to
+          sigma (float): Dual step size
+          theta (float): Variable controling the extrapolation step of the
+            PD-algorithm
+          lambd (float): Regularization parameter in fron tof the data fidelity
+            term
+          wait_for (list): A optional list for PyOpenCL.events to wait for
+        """
         return self._prg.update_r(
             self._queue, (r.size,), None, r_new.data, r.data, A.data, A_.data,
             res.data, np.float32(sigma), np.float32(theta),
@@ -875,6 +1017,20 @@ class PDSolver:
 
     def update_primal_explicit(self, x_new, x, Kyk, xk, ATd,
                                tau, delta, lambd, wait_for=[]):
+        """ Explicit update of the primal variable
+
+        Args:
+          x_new (PyOpenCL.Array): The result of the update step
+          x (PyOpenCL.Array): The previous values of x
+          Kyk (PyOpenCL.Array): x-Part of the precomputed result of
+            the adjoint linear operator applied to y
+          xk (PyOpenCL.Array): The linearization point of the Gauss-Newton step
+          ATd (PyOpenCL.Array): Precomputed result of the adjoint linear
+            operator applied to the data
+          tau (float): Primal step size
+          delta (float): Regularization parameter for the step-size constrained
+          wait_for (list): A optional list for PyOpenCL.events to wait for
+        """
         return self._prg.update_primal_explicit(
             self._queue, x.shape[1:], None, x_new.data, x.data, Kyk.data,
             xk.data, ATd.data, np.float32(tau),

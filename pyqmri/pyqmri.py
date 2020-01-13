@@ -114,8 +114,9 @@ def _genImages(myargs, par, data, off):
             result = np.zeros(
                 (par["NScan"], par["NC"], par["NSlice"],
                  par["dimY"], par["dimX"]), dtype=DTYPE)
-            tmp_result = clarray.empty(fft.queue, (1, 1, par["NSlice"],
-                                       par["dimY"], par["dimX"]), dtype=DTYPE)
+            tmp_result = clarray.empty(fft.queue,
+                                       (1, 1, par["NSlice"],
+                                        par["dimY"], par["dimX"]), dtype=DTYPE)
             import time
             start = time.time()
             for j in range(siz[0]):
@@ -135,9 +136,9 @@ def _genImages(myargs, par, data, off):
         del FFT, nFTH
 
     else:
-        tol = 1e-8
-        par_scans = 2
-        lambd = 1e-3
+        tol = 1e-4
+        par_scans = 10
+        lambd = 1e-1
         if "images" not in list(par["file"].keys()):
             images = np.zeros((par["NScan"],
                                par["NSlice"],
@@ -187,10 +188,12 @@ def _genImages(myargs, par, data, off):
                 slices_images = par["file"]['images'][()].shape[1]
                 images = \
                     par["file"]['images'][
-                      :, int(slices_images / 2) - int(
+                      :,
+                      int(slices_images / 2) - int(
                         np.floor((par["NSlice"]) / 2)) + off:int(
                           slices_images / 2) + int(
-                            np.ceil(par["NSlice"] / 2)) + off, ...].astype(DTYPE)
+                            np.ceil(par["NSlice"] / 2)) + off,
+                      ...].astype(DTYPE)
     return images
 
 
@@ -536,20 +539,28 @@ def _start_recon(myargs):
     else:
         par['C'] = par['C'].astype(DTYPE)
 ###############################################################################
-# Reconstruct images using CG-SENSE  ##########################################
-###############################################################################
-    images = _genImages(myargs, par, data, off)
-###############################################################################
-# Scale data norm  ############################################################
-###############################################################################
-    data, images = _estScaleNorm(myargs, par, images, data)
-###############################################################################
 # Init forward model and initial guess ########################################
 ###############################################################################
     if myargs.sig_model == "GeneralModel":
         par["modelfile"] = myargs.modelfile
         par["modelname"] = myargs.modelname
-    model = sig_model.Model(par, images)
+    model = sig_model.Model(par)
+###############################################################################
+# Reconstruct images using CG-SENSE  ##########################################
+###############################################################################
+    images = _genImages(myargs, par, data, off)
+    import ipdb
+    import pyqmri
+    pyqmri.msv(np.abs(images[0]))
+    ipdb.set_trace()
+###############################################################################
+# Scale data norm  ############################################################
+###############################################################################
+    data, images = _estScaleNorm(myargs, par, images, data)
+###############################################################################
+# Compute initial guess #######################################################
+###############################################################################
+    model.computeInitialGuess(images/par["dscale"])
     if myargs.weights is None:
         par["weights"] = np.ones((par["unknowns"]), dtype=np.float32)
     else:
@@ -685,10 +696,6 @@ def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
       help="Full path to input data. "
            "If not provided, a file dialog will open.")
     argparrun.add_argument(
-      '--model', default=model, dest='sig_model',
-      help="Name of the signal model to use. Defaults to VFA. "
-           "Please put your signal model file in the Model subfolder.")
-    argparrun.add_argument(
       '--config', default=config, dest='config',
       help="Name of config file to use (assumed to be in the same folder). "
            "If not specified, use default parameters.")
@@ -768,10 +775,6 @@ if __name__ == '__main__':
       '--data', default='', dest='file',
       help="Full path to input data. "
            "If not provided, a file dialog will open.")
-    argparmain.add_argument(
-      '--model', default='ImageReco', dest='sig_model',
-      help='Name of the signal model to use. Defaults to VFA. \
- Please put your signal model file in the Model subfolder.')
     argparmain.add_argument(
       '--config', default='default', dest='config',
       help='Name of config file to use (assumed to be in the same folder). \
