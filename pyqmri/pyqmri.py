@@ -114,8 +114,9 @@ def _genImages(myargs, par, data, off):
             result = np.zeros(
                 (par["NScan"], par["NC"], par["NSlice"],
                  par["dimY"], par["dimX"]), dtype=DTYPE)
-            tmp_result = clarray.empty(fft.queue, (1, 1, par["NSlice"],
-                                       par["dimY"], par["dimX"]), dtype=DTYPE)
+            tmp_result = clarray.empty(fft.queue,
+                                       (1, 1, par["NSlice"],
+                                        par["dimY"], par["dimX"]), dtype=DTYPE)
             import time
             start = time.time()
             for j in range(siz[0]):

@@ -283,18 +283,6 @@ class ModelReco:
             print("-" * 75)
             print("GN-Iter: %d  Elapsed time: %f seconds" % (ign, end))
             print("-" * 75)
-#            if np.abs(self.fval_old - self.fval) / self.fval_init < \
-#               self.irgn_par["tol"]:
-#                print("Terminated at GN-iteration %d because "
-#                      "the energy decrease was less than %.3e" %
-#                      (ign, np.abs(self.fval_old - self.fval) /
-#                       self.fval_init))
-#                self.calc_residual(
-#                    np.require(np.transpose(result, [1, 0, 2, 3]),
-#                               requirements='C'),
-#                    ign+1)
-#                self.savetofile(ign, self.model.rescale(result))
-#                break
             self.fval_old = self.fval
             self.savetofile(ign, self.model.rescale(result))
 
@@ -874,10 +862,10 @@ class ModelReco:
                 [self.update_z1],
                 [self.grad_shape],
                 [[self.grad_shape,
-                 self. grad_shape,
-                 self. grad_shape,
-                 self. grad_shape,
-                 self. grad_shape]])
+                  self. grad_shape,
+                  self. grad_shape,
+                  self. grad_shape,
+                  self. grad_shape]])
 
         self.stream_update_r = self._defineoperator(
             [self.update_r],

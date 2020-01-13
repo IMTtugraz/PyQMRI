@@ -74,7 +74,8 @@ can be done by:
 
 Sample Data
 -----------
-In-vivo datasets used in the original publication (doi: `[10.1002/mrm.27502]`_) can be found at zenodo_.
+In-vivo datasets used in the original publication (doi: `[10.1002/mrm.27502]`_) can be found at zenodo_. If you use the sample data with the recent release of PyQMRI please delete the "Coils"
+entry in the .h5 to force a recomputation of the receive coil sensitivities as the orientation does not match the data.
 
 Prerequests on the .h5 file:
 -----------------------------

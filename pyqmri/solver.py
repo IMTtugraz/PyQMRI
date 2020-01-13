@@ -27,6 +27,7 @@ class CGSolver:
     This Class performs a CG reconstruction on single precission complex input
     data.
     """
+
     def __init__(self, par, NScan=1, trafo=1):
         """ Setup a CG reconstruction Object
 

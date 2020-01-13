@@ -43,6 +43,7 @@ class ModelReco:
         The residual values for of each Gauss-Newton step. Each iteration
         appends its value to the list.
     """
+
     def __init__(self, par, trafo=1, imagespace=False, reg_type='TGV',
                  config='', model=None):
         self.par = par
@@ -189,15 +190,6 @@ class ModelReco:
             print("-" * 75)
             print("GN-Iter: %d  Elapsed time: %f seconds" % (ign, end))
             print("-" * 75)
-#            if np.abs(self._fval_old - self._fval) / self._fval_init < \
-#               self.irgn_par["tol"]:
-#                print("Terminated at GN-iteration %d because "
-#                      "the energy decrease was less than %.3e" %
-#                      (ign, np.abs(self._fval_old - self._fval) /
-#                       self._fval_init))
-#                self._calcResidual(result, self.data, ign+1)
-#                self._saveToFile(ign, self.model.rescale(result))
-#                break
             self._fval_old = self._fval
             self._saveToFile(ign, self.model.rescale(result))
         self._calcResidual(result, self.data, ign+1)
@@ -225,10 +217,7 @@ class ModelReco:
              self.par["NScan"] * self.par["NSlice"] *
              self.par["dimY"] * self.par["dimX"]))
         scale = np.linalg.norm(scale, axis=-1)
-#        print("Initial norm of the model Gradient: \n", scale)
-        scale = 1e3 / scale  # / np.sqrt(self.par["unknowns"])
-#        scale[~np.isfinite(scale)] = 1e3 / np.sqrt(self.par["unknowns"])
-#        print("Scalefactor of the model Gradient: \n", scale)
+        scale = 1e3 / scale
         if not np.mod(ind, 1):
             for uk in range(self.par["unknowns"]):
                 self.model.constraints[uk].update(scale[uk])
@@ -237,13 +226,6 @@ class ModelReco:
                 self.model.uk_scale[uk] *= scale[uk]
                 result[uk, ...] /= self.model.uk_scale[uk]
                 self.model_partial_der[uk] *= self.model.uk_scale[uk]
-#        scale = np.reshape(
-#            self.model_partial_der,
-#            (self.par["unknowns"],
-#             self.par["NScan"] * self.par["NSlice"] *
-#             self.par["dimY"] * self.par["dimX"]))
-#        scale = np.linalg.norm(scale)
-#        print("Scale of the model Gradient: \n", scale)
 
 ###############################################################################
 # New .hdf5 save files ########################################################
