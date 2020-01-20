@@ -30,7 +30,7 @@ setup(name='pyqmri',
         'matplotlib',
         'ipyparallel',
         'pyfftw',
-        'pyqt5<5.13',
+        'pyqt5',
         'numexpr',
         'sympy'],
       entry_points={

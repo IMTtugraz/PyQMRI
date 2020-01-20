@@ -28,7 +28,7 @@ class CGSolver:
     data.
     """
 
-    def __init__(self, par, NScan=1, trafo=1, SMS=0):
+    def __init__(self, par, NScan=1, trafo=1):
         """ Setup a CG reconstruction Object
 
         Args:
@@ -62,12 +62,10 @@ class CGSolver:
                                    cl.mem_flags.READ_ONLY |
                                    cl.mem_flags.COPY_HOST_PTR,
                                    hostbuf=par["C"].data)
-        if SMS:
-            self._op = operator.OperatorKspaceSMS(par, self._prg, trafo=trafo)
-        else:
-            self._op = operator.OperatorKspace(par, self._prg, trafo=trafo)
+        self._op = operator.OperatorKspace(par, self._prg, trafo=trafo)
         self._FT = self._op.NUFFT.FFT
         self._FTH = self._op.NUFFT.FFTH
+        self._grad = operator.OperatorFiniteGradient(par, self._prg)
         self._tmp_result = clarray.empty(
             self._queue,
             (self._NScan, self._NC,
@@ -124,8 +122,8 @@ class CGSolver:
                            (self._NScan, 1,
                             self._NSlice, self._dimY, self._dimX),
                            DTYPE, "C")
-        scale = np.linalg.norm(data)
-        data = clarray.to_device(self._queue, data/scale)
+
+        data = clarray.to_device(self._queue, data)
         self.operator_rhs(b, data)
         res = b
         p = res
@@ -140,19 +138,19 @@ class CGSolver:
             res_new = res - alpha*Ax
             delta = np.linalg.norm(res_new.get())**2 /\
                 np.linalg.norm(b.get())**2
-            # print("Residum: %f" % (delta))
+#            print("Residum: %f" % (delta))
             if delta < tol:
                 print(
                     "Converged after %i iterations to %1.3e." % (i, delta))
                 del Ax, \
                     b, res, p, data, res_new
-                return np.squeeze(x.get())*scale
+                return np.squeeze(x.get())
             beta = (clarray.vdot(res_new, res_new) /
                     clarray.vdot(res, res)).real.get()
             p = res_new+beta*p
             (res, res_new) = (res_new, res)
         del Ax, b, res, p, data, res_new
-        return np.squeeze(x.get()*scale)
+        return np.squeeze(x.get())
 
     def eval_fwd_kspace_cg(self, y, x, wait_for=[]):
         """ Apply forward operator for image reconstruction.
@@ -221,7 +219,7 @@ class PDSolver:
     This Class performs a primal-dual variable splitting based reconstruction
     on single precission complex input data.
     """
-
+    
     def __init__(self, par, irgn_par, queue, tau, fval, prg, reg_type,
                  data_operator, coil_buffer):
         """ Setup a PD reconstruction Object

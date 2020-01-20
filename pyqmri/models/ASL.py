@@ -373,4 +373,4 @@ class Model(BaseModel):
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         x = np.array([test_f,
                       test_del_t], dtype=DTYPE)
-        return x
+        self.guess = x
