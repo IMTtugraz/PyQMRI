@@ -219,7 +219,7 @@ class PDSolver:
     This Class performs a primal-dual variable splitting based reconstruction
     on single precission complex input data.
     """
-    
+
     def __init__(self, par, irgn_par, queue, tau, fval, prg, reg_type,
                  data_operator, coil_buffer):
         """ Setup a PD reconstruction Object
@@ -878,10 +878,11 @@ class PDSolver:
           delta (float): Regularization parameter for the step-size constrained
           wait_for (list): A optional list for PyOpenCL.events to wait for
         """
-        return self._prg.update_primal(
+        return self._prg.update_primal_LM(
             self._queue, x.shape[1:], None, x_new.data, x.data, Kyk.data,
+            self._grad_buff,
             xk.data, np.float32(tau),
-            np.float32(tau / delta), np.float32(1 / (1 + tau / delta)),
+            np.float32(tau / delta),
             self.min_const.data, self.max_const.data,
             self.real_const.data, np.int32(self.unknowns),
             wait_for=(x_new.events + x.events +
