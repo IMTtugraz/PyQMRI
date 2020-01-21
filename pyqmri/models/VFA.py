@@ -23,7 +23,8 @@ class Model(BaseModel):
             self.fa_corr = 1
             print("No flipangle correction found!")
 
-        phi_corr = np.zeros_like(images, dtype=DTYPE)
+        phi_corr = np.zeros(
+          (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         for i in range(np.size(par["flip_angle(s)"])):
             phi_corr[i, :, :, :] = par["flip_angle(s)"][i] *\
                 np.pi / 180 * self.fa_corr
