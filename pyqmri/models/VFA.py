@@ -4,11 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from pyqmri.models.template import BaseModel, constraints, DTYPE
-
 plt.ion()
 
-unknowns_TGV = 2
-unknowns_H1 = 0
 
 
 class Model(BaseModel):
@@ -29,10 +26,14 @@ class Model(BaseModel):
             phi_corr[i, :, :, :] = par["flip_angle(s)"][i] *\
                 np.pi / 180 * self.fa_corr
 
+        par["unknowns_TGV"] = 2
+        par["unknowns_H1"] = 0
+        par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
+
         self.sin_phi = np.sin(phi_corr)
         self.cos_phi = np.cos(phi_corr)
 
-        for j in range(unknowns_TGV + unknowns_H1):
+        for j in range(par["unknowns"]):
             self.uk_scale.append(1)
 
         self.constraints.append(
