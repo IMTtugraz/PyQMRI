@@ -154,8 +154,8 @@ __kernel void update_primal(__global float2 *u_new, __global float2 *u, __global
   }
 }
 
-__kernel void update_primal_LM(__global float2 *u_new, __global float2 *u, __global float2 *Kyk,__global float2 *u_k,
-                               __global float2* A,
+__kernel void update_primal_LM(__global float2 *u_new, __global float2 *u, __global float2 *Kyk,
+                               __global float2* A, __global float2 *u_k,
                             const float tau, const float tauinv, __global float* min, __global float* max,
                             __global int* real, const int NUk) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
