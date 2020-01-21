@@ -173,7 +173,7 @@ class ModelReco:
             self.model_partial_der = np.nan_to_num(
                 self.model.execute_gradient(result))
 
-            # self._balanceModelGradients(result, ign)
+            self._balanceModelGradients(result, ign)
             self.pdop.grad_op.updateRatio(result)
 
             self.step_val = np.nan_to_num(self.model.execute_forward(result))
