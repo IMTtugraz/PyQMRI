@@ -172,7 +172,7 @@ __kernel void update_primal_LM(__global float2 *u_new, __global float2 *u, __glo
 
   for (int uk=0; uk<NUk; uk++)
   {
-     Asqr = A[i].x*A[i].x + A[i].y*A[i].y;
+     Asqr = A[i].x*A[i].x - A[i].y*A[i].y;
      u_new[i] = (u[i]-tau*Kyk[i]+tauinv*Asqr*u_k[i])/(1+tauinv*Asqr);
 
      if(real[uk]>=1)
