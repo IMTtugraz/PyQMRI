@@ -209,14 +209,14 @@ class ModelReco:
         self._calcResidual(result, self.data, ign+1)
 
     def _updateIRGNRegPar(self, result, ign):
-        # self.irgn_par["delta_max"] = (self.delta_max /
-        #                               1e3 *
-        #                               np.linalg.norm(result))
-        # self.irgn_par["delta"] = np.minimum(
-        #     self.delta /
-        #     (1e3) *
-        #     np.linalg.norm(result)*self.irgn_par["delta_inc"]**ign,
-        #     self.irgn_par["delta_max"])
+        self.irgn_par["delta_max"] = (self.delta_max /
+                                      1e3 *
+                                      np.linalg.norm(result))
+        self.irgn_par["delta"] = np.minimum(
+            self.delta /
+            (1e3) *
+            np.linalg.norm(result)*self.irgn_par["delta_inc"]**ign,
+            self.irgn_par["delta_max"])
         self.irgn_par["gamma"] = np.maximum(
             self.gamma * self.irgn_par["gamma_dec"]**ign,
             self.irgn_par["gamma_min"])
