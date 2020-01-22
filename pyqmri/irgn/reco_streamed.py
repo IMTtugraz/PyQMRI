@@ -135,10 +135,10 @@ class ModelReco:
 
     def update_primal(self, outp, inp, par=None, idx=0, idxq=0,
                       bound_cond=0, wait_for=[]):
-        return self.prg[idx].update_primal(
+        return self.prg[idx].update_primal_LM(
             self.queue[4*idx+idxq],
             (self.overlap+self.par_slices, self.dimY, self.dimX), None,
-            outp.data, inp[0].data, inp[1].data, inp[2].data,
+            outp.data, inp[0].data, inp[1].data, inp[2].data, inp[3].data,
             np.float32(par[0]),
             np.float32(par[0]/par[1]), np.float32(1/(1+par[0]/par[1])),
             self.min_const[idx].data, self.max_const[idx].data,
@@ -538,7 +538,8 @@ class ModelReco:
         # Warmup
         self.stream_initial_1.eval(
             [Axold, Kyk1, symgrad_v_vold],
-            [[x, self.C, self.grad_x], [r, z1, self.C, self.grad_x, []], [v]],
+            [[x, self.C, self.grad_x], 
+             [r, z1, self.C, self.grad_x, []], [v]],
             [self.grad_op._ratio])
         self.stream_initial_2.eval(
             [gradx_xold, Kyk2],
@@ -547,7 +548,7 @@ class ModelReco:
         for myit in range(iters):
             self.update_primal_1.eval(
                 [x_new, gradx, Ax],
-                [[x, Kyk1, xk], [], [[], self.C, self.grad_x]],
+                [[x, Kyk1, xk, self.grad_x], [], [[], self.C, self.grad_x]],
                 [tau, delta])
             self.update_primal_2.eval(
                 [v_new, symgrad_v],
@@ -747,7 +748,7 @@ class ModelReco:
         for myit in range(iters):
             self.update_primal_1.eval(
                 [x_new, gradx],
-                [[x, Kyk1, xk], []],
+                [[x, Kyk1, xk, self.grad_x], []],
                 [tau, delta])
             Ax = self.op.fwdoop(
                 [[x_new, self.C, self.grad_x]])
@@ -938,7 +939,7 @@ class ModelReco:
         for myit in range(iters):
             self.update_primal_1.eval(
                 [x_new, gradx, Ax],
-                [[x, Kyk1, xk], [], [[], self.C, self.grad_x]],
+                [[x, Kyk1, xk, self.grad_x], [], [[], self.C, self.grad_x]],
                 [tau, delta])
 
             beta_new = beta_line*(1+mu*tau)
@@ -1072,7 +1073,8 @@ class ModelReco:
             [self.unknown_shape],
             [[self.unknown_shape,
               self.unknown_shape,
-              self.unknown_shape]])
+              self.unknown_shape,
+              self.grad_shape]])
 
         self.update_primal_1 = self._defineoperator(
             [],
@@ -1188,7 +1190,8 @@ class ModelReco:
             [self.unknown_shape],
             [[self.unknown_shape,
               self.unknown_shape,
-              self.unknown_shape]])
+              self.unknown_shape,
+              self.grad_shape]])
 
         self.update_primal_1 = self._defineoperator(
             [],

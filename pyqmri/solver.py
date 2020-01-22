@@ -23,14 +23,11 @@ DTYPE_real = np.float32
 
 class CGSolver:
     """ Conjugate Gradient Optimization Algorithm
-
     This Class performs a CG reconstruction on single precission complex input
     data.
     """
-
-    def __init__(self, par, NScan=1, trafo=1):
+    def __init__(self, par, NScan=1, trafo=1, SMS=0):
         """ Setup a CG reconstruction Object
-
         Args:
           par (dict): A python dict containing the necessary information to
             setup the object. Needs to contain the number of slices (NSlice),
@@ -41,6 +38,7 @@ class CGSolver:
           NScan (int): Number of Scan which should be used internally. Do not
             need to be the same number as in par["NScan"]
           trafo (bool): Switch between radial (1) and Cartesian (0) fft.
+          SMS (bool): Simultaneouos Multi Slice. Switch between noraml (0)
           and slice accelerated (1) reconstruction.
         """
         self._NSlice = par["NSlice"]
@@ -62,10 +60,12 @@ class CGSolver:
                                    cl.mem_flags.READ_ONLY |
                                    cl.mem_flags.COPY_HOST_PTR,
                                    hostbuf=par["C"].data)
-        self._op = operator.OperatorKspace(par, self._prg, trafo=trafo)
+        if SMS:
+            self._op = operator.OperatorKspaceSMS(par, self._prg, trafo=trafo)
+        else:
+            self._op = operator.OperatorKspace(par, self._prg, trafo=trafo)
         self._FT = self._op.NUFFT.FFT
         self._FTH = self._op.NUFFT.FFTH
-        self._grad = operator.OperatorFiniteGradient(par, self._prg)
         self._tmp_result = clarray.empty(
             self._queue,
             (self._NScan, self._NC,
@@ -89,11 +89,9 @@ class CGSolver:
         del self._FT
         del self._FTH
 
-    def run(self, data, iters=50, lambd=1e-9, tol=1e-8, guess=None):
+    def run(self, data, iters=30, lambd=1e-5, tol=1e-8, guess=None):
         """ Start the CG reconstruction
-
         All attributes after data are considered keyword only.
-
         Args:
           data (complex64):
             The complex k-space data which serves as the basis for the images.
@@ -129,6 +127,8 @@ class CGSolver:
         p = res
         delta = np.linalg.norm(res.get())**2/np.linalg.norm(b.get())**2
 
+#        print("Initial Residuum: ", delta)
+
         for i in range(iters):
             self.operator_lhs(Ax, p)
             Ax = Ax + lambd*p
@@ -138,13 +138,13 @@ class CGSolver:
             res_new = res - alpha*Ax
             delta = np.linalg.norm(res_new.get())**2 /\
                 np.linalg.norm(b.get())**2
-#            print("Residum: %f" % (delta))
             if delta < tol:
                 print(
                     "Converged after %i iterations to %1.3e." % (i, delta))
                 del Ax, \
                     b, res, p, data, res_new
                 return np.squeeze(x.get())
+#            print("Res after iteration %i: %1.3e." % (i, delta))
             beta = (clarray.vdot(res_new, res_new) /
                     clarray.vdot(res, res)).real.get()
             p = res_new+beta*p
@@ -154,7 +154,6 @@ class CGSolver:
 
     def eval_fwd_kspace_cg(self, y, x, wait_for=[]):
         """ Apply forward operator for image reconstruction.
-
         Args:
           y (PyOpenCL.Array):
             The result of the computation
@@ -174,7 +173,6 @@ class CGSolver:
 
     def operator_lhs(self, out, x, wait_for=[]):
         """ Compute the left hand side of the CG equation
-
         Args:
           out (PyOpenCL.Array):
             The result of the computation
@@ -191,7 +189,6 @@ class CGSolver:
 
     def operator_rhs(self, out, x, wait_for=[]):
         """ Compute the right hand side of the CG equation
-
         Args:
           out (PyOpenCL.Array):
             The result of the computation

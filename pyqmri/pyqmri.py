@@ -137,7 +137,7 @@ def _genImages(myargs, par, data, off):
 
     else:
         tol = 1e-4
-        par_scans = 10
+        par_scans = 2
         lambd = 1e-1
         if "images" not in list(par["file"].keys()):
             images = np.zeros((par["NScan"],
@@ -539,6 +539,13 @@ def _start_recon(myargs):
     else:
         par['C'] = par['C'].astype(DTYPE)
 ###############################################################################
+# Init forward model and initial guess ########################################
+###############################################################################
+    model = sig_model.Model(par)
+    if myargs.sig_model == "GeneralModel":
+        par["modelfile"] = myargs.modelfile
+        par["modelname"] = myargs.modelname
+###############################################################################
 # Reconstruct images using CG-SENSE  ##########################################
 ###############################################################################
     images = _genImages(myargs, par, data, off)
@@ -546,22 +553,16 @@ def _start_recon(myargs):
 # Scale data norm  ############################################################
 ###############################################################################
     data, images = _estScaleNorm(myargs, par, images, data)
-###############################################################################
-# Init forward model and initial guess ########################################
-###############################################################################
-    if myargs.sig_model == "GeneralModel":
-        par["modelfile"] = myargs.modelfile
-        par["modelname"] = myargs.modelname
-    model = sig_model.Model(par)
-###############################################################################
-# Compute initial guess #######################################################
-###############################################################################
-    model.computeInitialGuess(images)
+
     if myargs.weights is None:
         par["weights"] = np.ones((par["unknowns"]), dtype=np.float32)
     else:
         par["weights"] = np.array(myargs.weights, dtype=np.float32)
     par["weights"] = par["weights"]/par["unknowns"]
+###############################################################################
+# Compute initial guess #######################################################
+###############################################################################
+    model.computeInitialGuess(images)
 ###############################################################################
 # initialize operator  ########################################################
 ###############################################################################
