@@ -336,20 +336,20 @@ class Stream:
                         if not len(inp[ifun][iinp]) == 0:
                             self.inp[
                                 ifun][
-                                    idev*self.num_dev+odd][
+                                    2*idev+odd][
                                         iinp].add_event(
                                             cl.enqueue_copy(
                                                 self.queue[4*idev+odd],
                                                 self.inp[
                                                     ifun][
-                                                        idev*self.num_dev+odd][
+                                                        2*idev+odd][
                                                             iinp].data,
                                                 inp[
                                                     ifun][
                                                         iinp][idx, ...],
                                                 wait_for=self.inp[
                                                     ifun][
-                                                        idev*self.num_dev+odd][
+                                                        2*idev+odd][
                                                             iinp].events,
                                                 is_blocking=False))
                             self.queue[4*idev+odd].flush()
@@ -357,16 +357,16 @@ class Stream:
     def _startcomputation(self, par=None, bound_cond=0, odd=0):
         for idev in range(self.num_dev):
             for ifun in range(self.num_fun):
-                for inps in self.inp[ifun][idev*self.num_dev+odd]:
+                for inps in self.inp[ifun][2*idev+odd]:
                     for inp in inps:
                         for event in inp.events:
                             event.wait()
                 self.outp[
                     ifun][
-                        idev*self.num_dev+odd].add_event(
+                        2*idev+odd].add_event(
                             self.fun[ifun](
-                                self.outp[ifun][idev*self.num_dev+odd],
-                                self.inp[ifun][idev*self.num_dev+odd][:],
+                                self.outp[ifun][2*idev+odd],
+                                self.inp[ifun][2*idev+odd][:],
                                 par,
                                 idev,
                                 odd,
@@ -381,12 +381,12 @@ class Stream:
                 self.queue[4*(idev-1)+2+odd].finish()
             idx = self._getindtohost()
             for ifun in range(self.num_fun):
-                self.outp[ifun][idev*self.num_dev+odd].add_event(
+                self.outp[ifun][2*idev+odd].add_event(
                     cl.enqueue_copy(
                         self.queue[4*idev+2+odd],
                         outp[ifun][idx, ...],
-                        self.outp[ifun][idev*self.num_dev+odd].data,
-                        wait_for=self.outp[ifun][idev*self.num_dev+odd].events,
+                        self.outp[ifun][2*idev+odd].data,
+                        wait_for=self.outp[ifun][2*idev+odd].events,
                         is_blocking=False))
                 self.queue[4*idev+2+odd].flush()
 
@@ -397,12 +397,12 @@ class Stream:
                 self.queue[4*(idev-1)+2+odd].finish()
             idx = self._getindtohost()
             for ifun in range(self.num_fun):
-                self.outp[ifun][idev*self.num_dev+odd].add_event(
+                self.outp[ifun][2*idev+odd].add_event(
                     cl.enqueue_copy(
                         self.queue[4*idev+2+odd],
                         outp[ifun][idx, ...],
-                        self.outp[ifun][idev*self.num_dev+odd].data,
-                        wait_for=self.outp[ifun][idev*self.num_dev+odd].events,
+                        self.outp[ifun][2*idev+odd].data,
+                        wait_for=self.outp[ifun][2*idev+odd].events,
                         is_blocking=False))
                 if self.reverse:
                     if not self.at_end:
@@ -475,31 +475,31 @@ class Stream:
             rhs += clarray.vdot(
                 self.outp[
                     ifun][
-                        idev*self.num_dev+odd][self.overlap:, ...] -
+                        2*idev+odd][self.overlap:, ...] -
                 self.inp[
                     ifun][
-                        idev*self.num_dev+odd][0][self.overlap:, ...],
+                        2*idev+odd][0][self.overlap:, ...],
                 self.outp[
                     ifun][
-                        idev*self.num_dev+odd][self.overlap:, ...] -
+                        2*idev+odd][self.overlap:, ...] -
                 self.inp[
                     ifun][
-                        idev*self.num_dev+odd][0][self.overlap:, ...]
+                        2*idev+odd][0][self.overlap:, ...]
                 ).get()
         else:
             lhs += clarray.vdot(
                 self.outp[
                     ifun][
-                        idev*self.num_dev+odd][self.overlap:, ...] -
+                        2*idev+odd][self.overlap:, ...] -
                 self.inp[
                     ifun][
-                        idev*self.num_dev+odd][-1][self.overlap:, ...],
+                        2*idev+odd][-1][self.overlap:, ...],
                 self.outp[
                     ifun][
-                        idev*self.num_dev+odd][self.overlap:, ...] -
+                        2*idev+odd][self.overlap:, ...] -
                 self.inp[
                     ifun][
-                        idev*self.num_dev+odd][-1][self.overlap:, ...]
+                        2*idev+odd][-1][self.overlap:, ...]
                 ).get()
         return (rhs, lhs)
 
@@ -508,30 +508,30 @@ class Stream:
             rhs += clarray.vdot(
                 self.outp[
                     ifun][
-                        idev*self.num_dev+odd][:self.slices, ...] -
+                        2*idev+odd][:self.slices, ...] -
                 self.inp[
                     ifun][
-                        idev*self.num_dev+odd][0][:self.slices, ...],
+                        2*idev+odd][0][:self.slices, ...],
                 self.outp[
                     ifun][
-                        idev*self.num_dev+odd][:self.slices, ...] -
+                        2*idev+odd][:self.slices, ...] -
                 self.inp[
                     ifun][
-                        idev*self.num_dev+odd][0][:self.slices, ...]
+                        2*idev+odd][0][:self.slices, ...]
                 ).get()
         else:
             lhs += clarray.vdot(
                 self.outp[
                     ifun][
-                        idev*self.num_dev+odd][:self.slices, ...] -
+                        2*idev+odd][:self.slices, ...] -
                 self.inp[
                     ifun][
-                        idev*self.num_dev+odd][-1][:self.slices, ...],
+                        2*idev+odd][-1][:self.slices, ...],
                 self.outp[
                     ifun][
-                        idev*self.num_dev+odd][:self.slices, ...] -
+                        2*idev+odd][:self.slices, ...] -
                 self.inp[
                     ifun][
-                        idev*self.num_dev+odd][-1][:self.slices, ...]
+                        2*idev+odd][-1][:self.slices, ...]
                 ).get()
         return (rhs, lhs)
