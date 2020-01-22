@@ -727,8 +727,8 @@ class OperatorKspaceSMSCartesianStreamed(unittest.TestCase):
         outfwd = np.zeros_like(self.opinadj)
         outadj = np.zeros_like(self.opinfwd)
 
-        self.op.fwd(outfwd, [[self.opinfwd, self.C, self.model_gradient]])
-        self.op.adj(outadj, [[self.opinadj, self.C, self.model_gradient]])
+        self.op.fwd([outfwd], [[self.opinfwd, self.C, self.model_gradient]])
+        self.op.adj([outadj], [[self.opinadj, self.C, self.model_gradient]])
 
         a = np.vdot(outfwd.flatten(),
                     self.opinadj.flatten())/self.opinadj.size
