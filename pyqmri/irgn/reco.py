@@ -174,7 +174,8 @@ class ModelReco:
                 self.model.execute_gradient(result))
 
             self._balanceModelGradients(result, ign)
-            self.pdop.grad_op.updateRatio(result)
+            if ign > 0:
+              self.pdop.grad_op.updateRatio(result)
 
             self.step_val = np.nan_to_num(self.model.execute_forward(result))
             self.grad_buf = cl.Buffer(self._ctx,

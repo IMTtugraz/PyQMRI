@@ -556,7 +556,7 @@ def _start_recon(myargs):
 ###############################################################################
 # Compute initial guess #######################################################
 ###############################################################################
-    model.computeInitialGuess(images/par["dscale"])
+    model.computeInitialGuess(images)
     if myargs.weights is None:
         par["weights"] = np.ones((par["unknowns"]), dtype=np.float32)
     else:

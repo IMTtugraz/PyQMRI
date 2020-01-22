@@ -477,7 +477,6 @@ class Model(BaseModel):
 
     def computeInitialGuess(self, images):
         self.phase = np.exp(1j*(np.angle(images)-np.angle(images[0])))
-        self.guess = self._set_init_scales(images)
         if self.b0 is not None:
             test_M0 = self.b0
         else:
@@ -494,4 +493,4 @@ class Model(BaseModel):
                     ADC,
                     0 * ADC],
                 dtype=DTYPE)
-        return x
+        self.guess = x

@@ -164,7 +164,7 @@ __kernel void update_primal_LM(__global float2 *u_new, __global float2 *u, __glo
   size_t k = get_global_id(0);
   size_t i = k*Nx*Ny+Nx*y + x;
   float norm = 0;
-  float Asqr = 0.0f;
+  float2 Asqr = 0.0f;
   int idx, idx2, idx3, idx4, idx5;
   float2 tmp;
 
@@ -172,7 +172,7 @@ __kernel void update_primal_LM(__global float2 *u_new, __global float2 *u, __glo
 
   for (int uk=0; uk<NUk; uk++)
   {
-     Asqr = A[i].x*A[i].x + A[i].y*A[i].y;
+     Asqr = (float2)(A[i].x*A[i].x + A[i].y*A[i].y);
      u_new[i] = (u[i]-tau*Kyk[i]+tauinv*Asqr*u_k[i])/(1+tauinv*Asqr);
 
      if(real[uk]>=1)

@@ -366,7 +366,7 @@ class Model(BaseModel):
                 plt.pause(1e-10)
 
     def computeInitialGuess(self, images):
-        self.images = images
+        self.images = images/self.dscale
         test_f = 10 * self.dscale * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         test_del_t = 1/60 * np.ones(
