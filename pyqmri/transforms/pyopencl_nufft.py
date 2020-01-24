@@ -120,7 +120,7 @@ class PyOpenCLFFT():
             elif SMS is True and radial is False:
                 raise AssertionError("SMS not implemented")
             elif SMS is False and radial is False:
-                if "phase_map" in par.keys():
+                if "field_map" in par.keys():
                     obj = PyOpenCLFieldMapNUFFT(
                         ctx,
                         queue,
