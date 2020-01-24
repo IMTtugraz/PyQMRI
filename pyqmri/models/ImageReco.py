@@ -15,7 +15,7 @@ class Model(BaseModel):
       dscale (float): Data scaling factor
       guess (numpy.Array): Initial guess
     """
-    def __init__(self, par, images):
+    def __init__(self, par):
         super().__init__(par)
         self.figure_img = []
         self.dscale = par["dscale"]
@@ -26,7 +26,7 @@ class Model(BaseModel):
 
         for j in range(par["unknowns"]):
             self.uk_scale.append(1)
-        self.guess = self._set_init_scales(images)
+
         self.unknowns = par["unknowns"]
         for j in range(par["unknowns"]):
             self.constraints.append(
@@ -105,5 +105,5 @@ class Model(BaseModel):
                 plt.draw()
                 plt.pause(1e-10)
 
-    def _set_init_scales(self, images):
-        return np.abs(images).astype(DTYPE)
+    def computeInitialGuess(self, *args):
+        self.guess = np.abs(args[0]).astype(DTYPE)

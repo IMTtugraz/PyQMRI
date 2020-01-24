@@ -14,7 +14,7 @@ class Model(BaseModel):
       TE (float): Echo time or parameter in exponential exp(-TR/x)
       guess (numpy.Array): Initial guess
     """
-    def __init__(self, par, images):
+    def __init__(self, par):
         super().__init__(par)
         self.TE = np.ones((self.NScan, 1, 1, 1))
         try:
@@ -29,8 +29,6 @@ class Model(BaseModel):
 
         for j in range(par["unknowns"]):
             self.uk_scale.append(1)
-
-        self.guess = self._set_init_scales()
 
         self.constraints.append(
             constraints(
@@ -189,9 +187,9 @@ class Model(BaseModel):
                 plt.draw()
                 plt.pause(1e-10)
 
-    def _set_init_scales(self):
+    def computeInitialGuess(self, *args):
         test_M0 = 1 * np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         test_T2 = 1 / self.uk_scale[1] * 1/50 * \
             np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         x = np.array([test_M0, test_T2], dtype=DTYPE)
-        return x
+        self.guess = x

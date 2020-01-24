@@ -64,7 +64,7 @@ def nlinvns(Y, n, *arg):  # *returnProfiles,**realConstr):
     XT = np.zeros([c + 1, y, x], dtype=np.complex64)  # 5,128,128
     XN = np.copy(X0)  # 5,128,128
 
-    start = time.clock()
+    start = time.time()
     for i in range(0, n):
 
         # the application of the weights matrix to XN
@@ -127,7 +127,7 @@ def nlinvns(Y, n, *arg):  # *returnProfiles,**realConstr):
         R[1, i, :, :] = np.copy(XN[0, :, :])
 
     R = (R)
-    end = time.clock()  # sec.process time
+    end = time.time()  # sec.process time
     print('done in', round((end - start)), 's')
     return R
 

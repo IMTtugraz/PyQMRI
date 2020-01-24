@@ -123,23 +123,37 @@ def est_coils(data, par, file, args, off):
                     dtype=DTYPE,
                     requirements='C')
 
-                dview = c[int(np.floor(i * len(c) / par["NSlice"]))]
-                result.append(
-                    dview.apply_async(
-                        nlinvns.nlinvns,
-                        combinedData,
-                        nlinvNewtonSteps,
-                        True,
-                        nlinvRealConstr))
+                result = nlinvns.nlinvns(
+                            combinedData,
+                            nlinvNewtonSteps,
+                            True,
+                            nlinvRealConstr)
 
-            for i in range(par["NSlice"]):
-                par["C"][:, i, :, :] = result[i].get()[2:, -1, :, :]
+                par["C"][:, i, :, :] = result[2:, -1, :, :]
                 sys.stdout.write("slice %i done \r"
                                  % (i))
                 sys.stdout.flush()
                 if not nlinvRealConstr:
                     par["phase_map"][i, :, :] = np.exp(
-                        1j * np.angle(result[i].get()[0, -1, :, :]))
+                        1j * np.angle(result[0, -1, :, :]))
+
+            #     dview = c[int(np.floor(i * len(c) / par["NSlice"]))]
+            #     result.append(
+            #         dview.apply_async(
+            #             nlinvns.nlinvns,
+            #             combinedData,
+            #             nlinvNewtonSteps,
+            #             True,
+            #             nlinvRealConstr))
+
+            # for i in range(par["NSlice"]):
+            #     par["C"][:, i, :, :] = result[i].get()[2:, -1, :, :]
+            #     sys.stdout.write("slice %i done \r"
+            #                      % (i))
+            #     sys.stdout.flush()
+            #     if not nlinvRealConstr:
+            #         par["phase_map"][i, :, :] = np.exp(
+            #             1j * np.angle(result[i].get()[0, -1, :, :]))
             # standardize coil sensitivity profiles
             sumSqrC = np.sqrt(
                 np.sum(
@@ -177,24 +191,39 @@ def est_coils(data, par, file, args, off):
                     "Computing coil sensitivity map of slice %i \r" %
                     (i))
                 sys.stdout.flush()
-                tmp = combinedData[:, i, ...]
-                dview = c[int(np.floor(i * len(c) / par["NSlice"]))]
-                result.append(
-                    dview.apply_async(
-                        nlinvns.nlinvns,
-                        tmp,
-                        nlinvNewtonSteps,
-                        True,
-                        nlinvRealConstr))
 
-            for i in range(par["NSlice"]):
-                par["C"][:, i, :, :] = result[i].get()[2:, -1, :, :]
+                result = nlinvns.nlinvns(
+                            combinedData[:, i, ...],
+                            nlinvNewtonSteps,
+                            True,
+                            nlinvRealConstr)
+
+                par["C"][:, i, :, :] = result[2:, -1, :, :]
                 sys.stdout.write("slice %i done \r"
-                                 % (i))
+                                % (i))
                 sys.stdout.flush()
                 if not nlinvRealConstr:
                     par["phase_map"][i, :, :] = np.exp(
-                        1j * np.angle(result[i].get()[0, -1, :, :]))
+                        1j * np.angle(result[0, -1, :, :]))
+
+            #     tmp = combinedData[:, i, ...]
+            #     dview = c[int(np.floor(i * len(c) / par["NSlice"]))]
+            #     result.append(
+            #         dview.apply_async(
+            #             nlinvns.nlinvns,
+            #             tmp,
+            #             nlinvNewtonSteps,
+            #             True,
+            #             nlinvRealConstr))
+
+            # for i in range(par["NSlice"]):
+            #     par["C"][:, i, :, :] = result[i].get()[2:, -1, :, :]
+            #     sys.stdout.write("slice %i done \r"
+            #                      % (i))
+            #     sys.stdout.flush()
+            #     if not nlinvRealConstr:
+            #         par["phase_map"][i, :, :] = np.exp(
+            #             1j * np.angle(result[i].get()[0, -1, :, :]))
 
                     # standardize coil sensitivity profiles
             sumSqrC = np.sqrt(
@@ -296,37 +325,36 @@ def est_coils(data, par, file, args, off):
                     dtype=DTYPE,
                     requirements='C')
 
-#                result = nlinvns.nlinvns(
-#                            combinedData,
-#                            nlinvNewtonSteps,
-#                            True,
-#                            nlinvRealConstr)
-#
-#                par["C"][:, i, :, :] = result[2:, -1, :, :]
-#                sys.stdout.write("slice %i done \r"
-#                                 % (i))
-#                sys.stdout.flush()
-#                if not nlinvRealConstr:
-#                    par["phase_map"][i, :, :] = np.exp(
-#                        1j * np.angle(result[0, -1, :, :]))
+                result = nlinvns.nlinvns(
+                            combinedData,
+                            nlinvNewtonSteps,
+                            True,
+                            nlinvRealConstr)
 
-                dview = c[int(np.floor(i * len(c) / par["NSlice"]))]
-                result.append(
-                    dview.apply_async(
-                        nlinvns.nlinvns,
-                        combinedData,
-                        nlinvNewtonSteps,
-                        True,
-                        nlinvRealConstr))
-
-            for i in range(par["NSlice"]):
-                par["C"][:, i, :, :] = result[i].get()[2:, -1, :, :]
+                par["C"][:, i, :, :] = result[2:, -1, :, :]
                 sys.stdout.write("slice %i done \r"
                                  % (i))
                 sys.stdout.flush()
                 if not nlinvRealConstr:
                     par["phase_map"][i, :, :] = np.exp(
-                        1j * np.angle(result[i].get()[0, -1, :, :]))
+                        1j * np.angle(result[0, -1, :, :]))
+            #     dview = c[int(np.floor(i * len(c) / par["NSlice"]))]
+            #     result.append(
+            #         dview.apply_async(
+            #             nlinvns.nlinvns,
+            #             combinedData,
+            #             nlinvNewtonSteps,
+            #             True,
+            #             nlinvRealConstr))
+
+            # for i in range(par["NSlice"]):
+            #     par["C"][:, i, :, :] = result[i].get()[2:, -1, :, :]
+            #     sys.stdout.write("slice %i done \r"
+            #                       % (i))
+            #     sys.stdout.flush()
+            #     if not nlinvRealConstr:
+            #         par["phase_map"][i, :, :] = np.exp(
+            #             1j * np.angle(result[i].get()[0, -1, :, :]))
 
                     # standardize coil sensitivity profiles
             sumSqrC = np.sqrt(
@@ -360,39 +388,39 @@ def est_coils(data, par, file, args, off):
                     (i))
                 sys.stdout.flush()
 
-#                result = nlinvns.nlinvns(
-#                            combinedData[:, i, ...],
-#                            nlinvNewtonSteps,
-#                            True,
-#                            nlinvRealConstr)
-#
-#                par["C"][:, i, :, :] = result[2:, -1, :, :]
-#                sys.stdout.write("slice %i done \r"
-#                                 % (i))
-#                sys.stdout.flush()
-#                if not nlinvRealConstr:
-#                    par["phase_map"][i, :, :] = np.exp(
-#                        1j * np.angle(result[0, -1, :, :]))
+                result = nlinvns.nlinvns(
+                            combinedData[:, i, ...],
+                            nlinvNewtonSteps,
+                            True,
+                            nlinvRealConstr)
 
-                # RADIAL PART
-                tmp = combinedData[:, i, ...]
-                dview = c[int(np.floor(i * len(c) / par["NSlice"]))]
-                result.append(
-                    dview.apply_async(
-                        nlinvns.nlinvns,
-                        tmp,
-                        nlinvNewtonSteps,
-                        True,
-                        nlinvRealConstr))
-
-            for i in range(par["NSlice"]):
-                par["C"][:, i, :, :] = result[i].get()[2:, -1, :, :]
+                par["C"][:, i, :, :] = result[2:, -1, :, :]
                 sys.stdout.write("slice %i done \r"
-                                 % (i))
+                                % (i))
                 sys.stdout.flush()
                 if not nlinvRealConstr:
                     par["phase_map"][i, :, :] = np.exp(
-                        1j * np.angle(result[i].get()[0, -1, :, :]))
+                        1j * np.angle(result[0, -1, :, :]))
+
+            #     # RADIAL PART
+            #     tmp = combinedData[:, i, ...]
+            #     dview = c[int(np.floor(i * len(c) / par["NSlice"]))]
+            #     result.append(
+            #         dview.apply_async(
+            #             nlinvns.nlinvns,
+            #             tmp,
+            #             nlinvNewtonSteps,
+            #             True,
+            #             nlinvRealConstr))
+
+            # for i in range(par["NSlice"]):
+            #     par["C"][:, i, :, :] = result[i].get()[2:, -1, :, :]
+            #     sys.stdout.write("slice %i done \r"
+            #                      % (i))
+            #     sys.stdout.flush()
+            #     if not nlinvRealConstr:
+            #         par["phase_map"][i, :, :] = np.exp(
+            #             1j * np.angle(result[i].get()[0, -1, :, :]))
 
                     # standardize coil sensitivity profiles
             sumSqrC = np.sqrt(

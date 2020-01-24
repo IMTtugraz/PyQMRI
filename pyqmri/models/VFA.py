@@ -7,18 +7,11 @@ from pyqmri.models.template import BaseModel, constraints, DTYPE
 plt.ion()
 
 
-class Model(BaseModel):
-    """ Realization of the Variable flip angle model.
 
-    Attributes:
-      TR (float): Repetition time in ms
-      fa (float): Flip angle in radiants
-      sin_phi (numpy.Array): Precompute sine of the B1 corrected flip angle
-      cos_phi (numpy.Array): Precomputed co-sine of the B1 corrected flip angle
-      guess (numpy.Array): Initial guess
-    """
-    def __init__(self, par, images):
+class Model(BaseModel):
+    def __init__(self, par):
         super().__init__(par)
+        self.constraints = []
         self.TR = par["TR"]
         self.fa = par["flip_angle(s)"]
         try:
@@ -27,47 +20,62 @@ class Model(BaseModel):
             self.fa_corr = 1
             print("No flipangle correction found!")
 
-        phi_corr = np.zeros_like(images, dtype=DTYPE)
+        phi_corr = np.zeros(
+          (self.NScan, self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         for i in range(np.size(par["flip_angle(s)"])):
             phi_corr[i, :, :, :] = par["flip_angle(s)"][i] *\
                 np.pi / 180 * self.fa_corr
 
+        par["unknowns_TGV"] = 2
+        par["unknowns_H1"] = 0
+        par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
+
         self.sin_phi = np.sin(phi_corr)
         self.cos_phi = np.cos(phi_corr)
 
-        par["unknowns_TGV"] = 2
-        par["unknowns_H1"] = 0
-        par["unknowns"] = par["unknowns_TGV"] + par["unknowns_H1"]
-
         for j in range(par["unknowns"]):
             self.uk_scale.append(1)
-        self.guess = self._set_init_scales(images)
 
         self.constraints.append(
             constraints(0 / self.uk_scale[0],
                         10 / self.uk_scale[0],
                         False))
         self.constraints.append(
-            constraints(np.exp(-self.TR[0] / (50)),
-                        np.exp(-self.TR[0] / (5500)),
+            constraints(np.exp(-self.TR / (50)),
+                        np.exp(-self.TR / (5500)),
                         True))
 
     def rescale(self, x):
-        """ Rescales each unknown by its scaling factor.
-
-          This realization takes into account that E1 instead of T1 is fitted.
-          Thus, rescaling of T1 is performed by -TR/log(E1).
-
-        Args:
-          x (numpy.Array): The array of unknowns to be rescaled
-        Returns:
-          numpy.Array: The rescaled array of unknowns
-        """
         tmp_x = np.copy(x)
         tmp_x[0] *= self.uk_scale[0]
         tmp_x[1] = -self.TR / np.log(tmp_x[1] * self.uk_scale[1])
         return tmp_x
 
+    def _execute_forward_2D(self, x, islice):
+        print('uk_scale[1]: ', self.uk_scale[1])
+        E1 = x[1, ...] * self.uk_scale[1]
+        S = x[0, ...] * self.uk_scale[0] * (-E1 + 1) * \
+            self.sin_phi[:, islice, ...]\
+            / (-E1 * self.cos_phi[:, islice, ...] + 1)
+        S[~np.isfinite(S)] = 1e-20
+        S = np.array(S, dtype=DTYPE)
+        return S
+
+    def _execute_gradient_2D(self, x, islice):
+        E1 = x[1, ...] * self.uk_scale[1]
+        M0 = x[0, ...]
+        E1[~np.isfinite(E1)] = 0
+        grad_M0 = self.uk_scale[0] * (-E1 + 1) * self.sin_phi[:, islice, ...]\
+            / (-E1 * self.cos_phi[:, islice, ...] + 1)
+        grad_T1 = M0 * self.uk_scale[0] * self.uk_scale[1] * (-E1 + 1) *\
+            self.sin_phi[:, islice, ...] * self.cos_phi[:, islice, ...] /\
+            (-E1 * self.cos_phi[:, islice, ...] + 1)**2 -\
+            M0 * self.uk_scale[0] * self.uk_scale[1] *\
+            self.sin_phi[:, islice, ...] /\
+            (-E1 * self.cos_phi[:, islice, ...] + 1)
+        grad = np.array([grad_M0, grad_T1], dtype=DTYPE)
+        grad[~np.isfinite(grad)] = 1e-20
+        return grad
 
     def _execute_forward_3D(self, x):
         E1 = x[1, ...] * self.uk_scale[1]
@@ -193,11 +201,11 @@ class Model(BaseModel):
                 plt.draw()
                 plt.pause(1e-10)
 
-    def _set_init_scales(self, images):
+    def computeInitialGuess(self, *args):
         test_T1 = 1500 * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         test_M0 = np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         test_T1 = np.exp(-self.TR / (test_T1))
         x = np.array([test_M0 / self.uk_scale[0],
                       test_T1 / self.uk_scale[1]], dtype=DTYPE)
-        return x
+        self.guess = x

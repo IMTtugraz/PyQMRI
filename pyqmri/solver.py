@@ -65,7 +65,6 @@ class CGSolver:
         self._op = operator.OperatorKspace(par, self._prg, trafo=trafo)
         self._FT = self._op.NUFFT.FFT
         self._FTH = self._op.NUFFT.FFTH
-        self._grad = operator.OperatorFiniteGradient(par, self._prg)
         self._tmp_result = clarray.empty(
             self._queue,
             (self._NScan, self._NC,

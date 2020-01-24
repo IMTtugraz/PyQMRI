@@ -23,7 +23,7 @@ class Model(BaseModel):
       Nproj (int): Number of projections used for reconstruction
       Nproj_measured (int): Total number of acquired projections
     """
-    def __init__(self, par, images):
+    def __init__(self, par):
         super().__init__(par)
 
         self.TR = par['time_per_slice'] - \
@@ -51,7 +51,7 @@ class Model(BaseModel):
         for j in range(par["unknowns"]):
             self.uk_scale.append(1)
 
-        self.guess = self._set_init_scales()
+        self.scale = 100
 
         self.constraints.append(constraints(0, 300, False))
         self.constraints.append(constraints(
@@ -319,8 +319,7 @@ class Model(BaseModel):
 
         return np.array(np.mean(grad, axis=2, dtype=DTYPE), dtype=DTYPE)
 
-    def _set_init_scales(self):
-        self.scale = 100  # 100
+    def computeInitialGuess(self, *args):
 
         test_T1 = 800 * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
@@ -329,4 +328,4 @@ class Model(BaseModel):
 
         x = np.array([test_M0 / self.uk_scale[0],
                       test_T1 / self.uk_scale[1]], dtype=DTYPE)
-        return x
+        self.guess = x

@@ -182,7 +182,7 @@ def _genImages(myargs, par, data, off):
             images = par["file"]['images']
             if images.shape[1] < par["NSlice"]:
                 del par["file"]["images"]
-                images = _genImages(myargs, par, data)
+                images = _genImages(myargs, par, data, off)
             else:
                 print("Using precomputed images")
                 slices_images = par["file"]['images'][()].shape[1]
@@ -425,10 +425,10 @@ def _start_recon(myargs):
     if data.ndim == 5:
         [NScan, NC, reco_Slices, Nproj, N] = data.shape
     elif data.ndim == 4 and "IRLL" in myargs.sig_model:
+        Nproj_new = 55
         print("4D Data passed and IRLL model used. Reordering Projections "
-              "into 8 Spokes/Frame")
+              "into %i Spokes/Frame" % Nproj_new)
         [NC, reco_Slices, Nproj, N] = data.shape
-        Nproj_new = 5
         NScan = np.floor_divide(Nproj, Nproj_new)
         par["Nproj_measured"] = Nproj
         Nproj = Nproj_new
@@ -497,6 +497,13 @@ def _start_recon(myargs):
     else:
         par['C'] = par['C'].astype(DTYPE)
 ###############################################################################
+# Init data model ############################################################
+###############################################################################
+    if myargs.sig_model == "GeneralModel":
+        par["modelfile"] = myargs.modelfile
+        par["modelname"] = myargs.modelname
+    model = sig_model.Model(par)
+###############################################################################
 # Reconstruct images using CG-SENSE  ##########################################
 ###############################################################################
     images = _genImages(myargs, par, data, off)
@@ -505,12 +512,9 @@ def _start_recon(myargs):
 ###############################################################################
     data, images = _estScaleNorm(myargs, par, images, data)
 ###############################################################################
-# Init forward model and initial guess ########################################
+# Compute initial guess #######################################################
 ###############################################################################
-    if myargs.sig_model == "GeneralModel":
-        par["modelfile"] = myargs.modelfile
-        par["modelname"] = myargs.modelname
-    model = sig_model.Model(par, images)
+    model.computeInitialGuess(images, par["dscale"])
     if myargs.weights is None:
         par["weights"] = np.ones((par["unknowns"]), dtype=np.float32)
     else:
