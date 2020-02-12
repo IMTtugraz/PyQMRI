@@ -53,11 +53,16 @@ class ModelReco:
         if self.NSlice/(self.num_dev*self.par_slices) < 2:
             raise ValueError(
                 "Number of Slices devided by parallel "
-                "computed slices and devices needs to be larger two.")
+                "computed slices and devices needs to be larger two.\n"
+                "Current values are %i total Slices, %i parallel slices and "
+                "%i compute devices."
+                % (par["NSlice"], self.par_slices, self.num_dev))
         if self.NSlice % self.par_slices:
             raise ValueError(
                 "Number of Slices devided by parallel "
-                "computed slices needs to be an integer.")
+                "computed slices needs to be an integer.\n"
+                "Current values are %i total Slices with %i parallel slices."
+                % (par["NSlice"], self.par_slices))
         self.prg = []
         for j in range(self.num_dev):
             self.prg.append(
@@ -71,6 +76,8 @@ class ModelReco:
         self.tmp_img = []
 
         self.unknown_shape = (self.NSlice, self.unknowns, self.dimY, self.dimX)
+        self.partial_grad_shape = (self.NSlice, self.unknowns, self.NScan,
+                                   self.dimY, self.dimX)
         self.grad_shape = self.unknown_shape + (4,)
         self._imagespace = imagespace
         self._SMS = SMS
@@ -140,7 +147,7 @@ class ModelReco:
             (self.overlap+self.par_slices, self.dimY, self.dimX), None,
             outp.data, inp[0].data, inp[1].data, inp[2].data, inp[3].data,
             np.float32(par[0]),
-            np.float32(par[0]/par[1]), np.float32(1/(1+par[0]/par[1])),
+            np.float32(par[0]/par[1]),
             self.min_const[idx].data, self.max_const[idx].data,
             self.real_const[idx].data, np.int32(self.unknowns),
             wait_for=(outp.events +
@@ -263,19 +270,15 @@ class ModelReco:
         result = np.copy(self.model.guess)
         self.data = np.require(
             np.transpose(self.data, self.dat_trans_axes), requirements='C')
-        self.grad_x = np.nan_to_num(self.model.execute_gradient(result))
-
-        self._balanceModelGradients(result, 0)
-        self.grad_op.updateRatio(result)
-        self._updateIRGNRegPar(result, 0)
 
         for ign in range(self.irgn_par["max_gn_it"]):
             start = time.time()
 
+            self.grad_x = np.nan_to_num(
+                self.model.execute_gradient(result))
+            self._balanceModelGradients(result, ign)
+            
             if ign > 0:
-                self.grad_x = np.nan_to_num(
-                    self.model.execute_gradient(result))
-                self._balanceModelGradients(result, ign)
                 self.grad_op.updateRatio(result)
 
             self.step_val = np.nan_to_num(
@@ -1074,7 +1077,7 @@ class ModelReco:
             [[self.unknown_shape,
               self.unknown_shape,
               self.unknown_shape,
-              self.grad_shape]])
+              self.partial_grad_shape]])
 
         self.update_primal_1 = self._defineoperator(
             [],
@@ -1191,7 +1194,7 @@ class ModelReco:
             [[self.unknown_shape,
               self.unknown_shape,
               self.unknown_shape,
-              self.grad_shape]])
+              self.partial_grad_shape]])
 
         self.update_primal_1 = self._defineoperator(
             [],

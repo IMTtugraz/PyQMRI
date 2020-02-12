@@ -101,7 +101,6 @@ class Model(BaseModel):
         self.NSlice = par["NSlice"]
         self.dimY = par["dimY"]
         self.dimX = par["dimX"]
-        self.dscale = par["dscale"]
 
         par["unknowns_TGV"] = 2
         par["unknowns_H1"] = 0
@@ -112,8 +111,8 @@ class Model(BaseModel):
             self.uk_scale.append(1)
 
         self.constraints.append(
-            constraints(0 * self.dscale,
-                        200 * self.dscale,
+            constraints(0,
+                        200,
                         True))
         self.constraints.append(
             constraints(0.01/60,
@@ -365,8 +364,10 @@ class Model(BaseModel):
                 plt.draw()
                 plt.pause(1e-10)
 
-    def computeInitialGuess(self, images):
-        self.images = images/self.dscale
+    def computeInitialGuess(self, *args):
+        self.dscale = args[1]
+        self.constraints[0].update(1/self.dscale)
+        self.images = args[0]/args[1]
         test_f = 10 * self.dscale * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         test_del_t = 1/60 * np.ones(

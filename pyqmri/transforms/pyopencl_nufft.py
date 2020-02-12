@@ -20,9 +20,9 @@ class PyOpenCLFFT():
 
     Attributes:
       DTYPE (Numpy.Type):
-        The comlex precission type. Currently complex64 is used.
+        The comlex precision type. Currently complex64 is used.
       DTYPE_real (Numpy.Type):
-        The real precission type. Currently float32 is used.
+        The real precision type. Currently float32 is used.
       ctx (PyOpenCL.Context):
         The context for the PyOpenCL computations.
       queue (PyOpenCL.Queue):
@@ -37,9 +37,9 @@ class PyOpenCLFFT():
           queue (PyOpenCL.Queue):
             The computation Queue for the PyOpenCL kernels.
           DTYPE (Numpy.Type):
-            The comlex precission type. Currently complex64 is used.
+            The comlex precision type. Currently complex64 is used.
           DTYPE_real (Numpy.Type):
-            The real precission type. Currently float32 is used.
+            The real precision type. Currently float32 is used.
         """
         self.DTYPE = DTYPE
         self.DTYPE_real = DTYPE_real
@@ -85,9 +85,9 @@ class PyOpenCLFFT():
             The length of the kernel lookup table which samples the contineous
             gridding kernel.
           DTYPE (Numpy.Type):
-            The comlex precission type. Currently complex64 is used.
+            The comlex precision type. Currently complex64 is used.
           DTYPE_real (Numpy.Type):
-            The real precission type. Currently float32 is used.
+            The real precision type. Currently float32 is used.
           radial (bool):
             Switch for Cartesian (False) and non-Cartesian (True) FFT.
           SMS (bool):
@@ -155,7 +155,7 @@ class PyOpenCLFFT():
                 raise AssertionError("Combination of Radial "
                                      "and SMS not allowed")
             if DTYPE == np.complex128:
-                print('Using double precission')
+                print('Using double precision')
                 file = open(
                     resource_filename(
                         'pyqmri', 'kernels/OpenCL_gridding_double.c'))
@@ -163,7 +163,7 @@ class PyOpenCLFFT():
                     obj.ctx,
                     file.read())
             else:
-                print('Using single precission')
+                print('Using single precision')
                 file = open(
                     resource_filename(
                         'pyqmri', 'kernels/OpenCL_gridding_single.c'))
@@ -201,7 +201,7 @@ class PyOpenCLFFT():
                 raise AssertionError("Combination of Radial "
                                      "and SMS not allowed")
             if DTYPE == np.complex128:
-                print('Using double precission')
+                print('Using double precision')
                 file = open(
                     resource_filename(
                         'pyqmri',
@@ -210,7 +210,7 @@ class PyOpenCLFFT():
                     obj.ctx,
                     file.read())
             else:
-                print('Using single precission')
+                print('Using single precision')
                 file = open(
                     resource_filename(
                         'pyqmri',
@@ -292,9 +292,9 @@ class PyOpenCLRadialNUFFT(PyOpenCLFFT):
             The dimensions which should be transformed. Defaults
             to 1 and 2 corresponding the the last two of fft_dim.
           DTYPE (Numpy.Type):
-            The comlex precission type. Currently complex64 is used.
+            The comlex precision type. Currently complex64 is used.
           DTYPE_real (Numpy.Type):
-            The real precission type. Currently float32 is used.
+            The real precision type. Currently float32 is used.
         """
         super().__init__(ctx, queue, DTYPE, DTYPE_real)
         self.ogf = par["N"]/par["dimX"]
@@ -569,9 +569,9 @@ class PyOpenCLCartNUFFT(PyOpenCLFFT):
             The dimensions which should be transformed. Defaults
             to 1 and 2 corresponding the the last two of fft_dim.
           DTYPE (Numpy.Type):
-            The comlex precission type. Currently complex64 is used.
+            The comlex precision type. Currently complex64 is used.
           DTYPE_real (Numpy.Type):
-            The real precission type. Currently float32 is used.
+            The real precision type. Currently float32 is used.
         """
         super().__init__(ctx, queue, DTYPE, DTYPE_real)
         self.fft_shape = (
@@ -738,9 +738,9 @@ class PyOpenCLFieldMapNUFFT(PyOpenCLFFT):
             The dimensions which should be transformed. Defaults
             to 1 and 2 corresponding the the last two of fft_dim.
           DTYPE (Numpy.Type):
-            The comlex precission type. Currently complex64 is used.
+            The comlex precision type. Currently complex64 is used.
           DTYPE_real (Numpy.Type):
-            The real precission type. Currently float32 is used.
+            The real precision type. Currently float32 is used.
         """
         super().__init__(ctx, queue, DTYPE, DTYPE_real)
         self.fft_shape = (
@@ -891,9 +891,9 @@ class PyOpenCLSMSNUFFT(PyOpenCLFFT):
             The dimensions which should be transformed. Defaults
             to 1 and 2 corresponding the the last two of fft_dim.
           DTYPE (Numpy.Type):
-            The comlex precission type. Currently complex64 is used.
+            The comlex precision type. Currently complex64 is used.
           DTYPE_real (Numpy.Type):
-            The real precission type. Currently float32 is used.
+            The real precision type. Currently float32 is used.
         """
         super().__init__(ctx, queue, DTYPE, DTYPE_real)
         self.fft_shape = (
@@ -1084,9 +1084,9 @@ class PyOpenCLSMSNUFFTFieldMap(PyOpenCLFFT):
             The dimensions which should be transformed. Defaults
             to 1 and 2 corresponding the the last two of fft_dim.
           DTYPE (Numpy.Type):
-            The comlex precission type. Currently complex64 is used.
+            The comlex precision type. Currently complex64 is used.
           DTYPE_real (Numpy.Type):
-            The real precission type. Currently float32 is used.
+            The real precision type. Currently float32 is used.
         """
         super().__init__(ctx, queue, DTYPE, DTYPE_real)
         self.fft_shape = (
@@ -1552,9 +1552,9 @@ class PyOpenCLCartNUFFTStreamed(PyOpenCLFFT):
             The dimensions which should be transformed. Defaults
             to 1 and 2 corresponding the the last two of fft_dim.
           DTYPE (Numpy.Type):
-            The comlex precission type. Currently complex64 is used.
+            The comlex precision type. Currently complex64 is used.
           DTYPE_real (Numpy.Type):
-            The real precission type. Currently float32 is used.
+            The real precision type. Currently float32 is used.
         """
         super().__init__(ctx, queue, DTYPE, DTYPE_real)
         self.fft_shape = (par["NScan"] *
@@ -1730,9 +1730,9 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLFFT):
             The dimensions which should be transformed. Defaults
             to 1 and 2 corresponding the the last two of fft_dim.
           DTYPE (Numpy.Type):
-            The comlex precission type. Currently complex64 is used.
+            The comlex precision type. Currently complex64 is used.
           DTYPE_real (Numpy.Type):
-            The real precission type. Currently float32 is used.
+            The real precision type. Currently float32 is used.
         """
         super().__init__(ctx, queue, DTYPE, DTYPE_real)
         self.MB = int(par["MB"])
@@ -1912,9 +1912,9 @@ class PyOpenCLSMSNUFFTStreamedFieldMap(PyOpenCLFFT):
             The dimensions which should be transformed. Defaults
             to 1 and 2 corresponding the the last two of fft_dim.
           DTYPE (Numpy.Type):
-            The comlex precission type. Currently complex64 is used.
+            The comlex precision type. Currently complex64 is used.
           DTYPE_real (Numpy.Type):
-            The real precission type. Currently float32 is used.
+            The real precision type. Currently float32 is used.
         """
         super().__init__(ctx, queue, DTYPE, DTYPE_real)
         self.MB = int(par["MB"])
