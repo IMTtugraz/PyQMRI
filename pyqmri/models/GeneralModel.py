@@ -99,9 +99,8 @@ class Model(BaseModel):
                 self.modelparams.append(tmp)
             else:
                 while len(tmp.shape) < 4:
-                  tmp = tmp[..., None]
+                    tmp = tmp[..., None]
                 self.modelparams.append(tmp)
-
 
         self.uk_scale = []
         for j in range(par["unknowns"]):
@@ -203,13 +202,14 @@ class Model(BaseModel):
                 plt.draw()
                 plt.pause(1e-10)
 
-    def computeInitialGuess(self, images):
+    def computeInitialGuess(self, *args):
         if self.indphase is True:
-            self.phase = np.exp(1j*(np.angle(images)-np.angle(images[0])))
-        x = np.ones((len(guess), self.NSlice, self.dimY, self.dimX), DTYPE)
+            self.phase = np.exp(1j*(np.angle(args[0])-np.angle(args[0][0])))
+        x = np.ones((len(self.init_values),
+                     self.NSlice, self.dimY, self.dimX), DTYPE)
         for j in range(len(self.init_values)):
-            if "image" in guess[j]:
-                x[j] = images[int(self.init_values[j].split("_")[-1])]
+            if "image" in self.init_values[j]:
+                x[j] = args[0][int(self.init_values[j].split("_")[-1])]
             else:
                 x[j] *= float(self.init_values[j])
         self.guess = x

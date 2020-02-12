@@ -138,7 +138,7 @@ def _genImages(myargs, par, data, off):
     else:
         tol = 1e-4
         par_scans = 2
-        lambd = 1e-1
+        lambd = 1e-2
         if "images" not in list(par["file"].keys()):
             images = np.zeros((par["NScan"],
                                par["NSlice"],
@@ -541,10 +541,10 @@ def _start_recon(myargs):
 ###############################################################################
 # Init forward model and initial guess ########################################
 ###############################################################################
-    model = sig_model.Model(par)
     if myargs.sig_model == "GeneralModel":
         par["modelfile"] = myargs.modelfile
         par["modelname"] = myargs.modelname
+    model = sig_model.Model(par)
 ###############################################################################
 # Reconstruct images using CG-SENSE  ##########################################
 ###############################################################################

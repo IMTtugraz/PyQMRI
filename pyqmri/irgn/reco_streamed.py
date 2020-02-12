@@ -277,7 +277,7 @@ class ModelReco:
             self.grad_x = np.nan_to_num(
                 self.model.execute_gradient(result))
             self._balanceModelGradients(result, ign)
-            
+
             if ign > 0:
                 self.grad_op.updateRatio(result)
 
@@ -541,7 +541,7 @@ class ModelReco:
         # Warmup
         self.stream_initial_1.eval(
             [Axold, Kyk1, symgrad_v_vold],
-            [[x, self.C, self.grad_x], 
+            [[x, self.C, self.grad_x],
              [r, z1, self.C, self.grad_x, []], [v]],
             [self.grad_op._ratio])
         self.stream_initial_2.eval(

@@ -107,5 +107,5 @@ class Model(BaseModel):
                 plt.draw()
                 plt.pause(1e-10)
 
-    def computeInitialGuess(self, images):
-        self.guess = np.abs(images).astype(DTYPE)
+    def computeInitialGuess(self, *args):
+        self.guess = 1e-5*np.ones_like(np.abs(args[0]).astype(DTYPE))
