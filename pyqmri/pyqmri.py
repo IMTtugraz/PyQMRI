@@ -276,10 +276,9 @@ def _readInput(myargs, par):
             print("Please specify a h5 file. ")
             sys.exit()
         file = myargs.file
-
+    name = os.path.normpath(file)
+    par["fname"] = name.split(os.sep)[-1]
     if myargs.outdir == '':
-        name = os.path.normpath(file)
-        par["fname"] = name.split(os.sep)[-1]
         outdir = os.sep.join(name.split(os.sep)[:-1]) + os.sep + \
             "PyQMRI_out" + \
             os.sep + myargs.sig_model + os.sep + \
@@ -805,8 +804,8 @@ if __name__ == '__main__':
       help="Switch between CG sense and simple FFT as "
            "initial guess for the images.")
     argparmain.add_argument('--out', default='', dest='outdir', type=str,
-                          help="Set output directory. Defaults to the input "
-                               "file directory")
+                            help="Set output directory. Defaults to the input "
+                            "file directory")
     group = argparmain.add_mutually_exclusive_group()
     group.add_argument(
       '--model', default='GeneralModel', dest='sig_model',
