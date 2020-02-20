@@ -81,7 +81,7 @@ class Model(BaseModel):
             constraints(
                 0 / self.uk_scale[0],
                 1 / self.uk_scale[0],
-                False))
+                True))
 
         self.constraints.append(
             constraints(
