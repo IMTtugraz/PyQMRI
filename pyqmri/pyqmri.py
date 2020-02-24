@@ -233,10 +233,7 @@ def _estScaleNorm(myargs, par, images, data):
         ind = np.zeros((par["dimY"], par["dimX"]), dtype=bool)
         ind[int(par["N"]/2-centerY):int(par["N"]/2+centerY),
             int(par["N"]/2-centerX):int(par["N"]/2+centerX)] = 1
-        if "phase_map" in par.keys():
-            ind = np.fft.fftshift(ind, axes=0)
-        else:
-            ind = np.fft.fftshift(ind)
+        ind = np.fft.fftshift(ind)
 
         sig = np.sum(
             data[..., int(par["NSlice"]/2), ind] *
@@ -507,6 +504,8 @@ def _start_recon(myargs):
 # Reconstruct images using CG-SENSE  ##########################################
 ###############################################################################
     images = _genImages(myargs, par, data, off)
+    import ipdb
+    ipdb.set_trace()
 ###############################################################################
 # Scale data norm  ############################################################
 ###############################################################################
