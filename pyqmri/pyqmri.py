@@ -501,7 +501,6 @@ def _start_recon(myargs):
         print("Wrong data dimension / model inkompatible. Returning")
         return
 
-    data[...,1::2] = 0
 ###############################################################################
 # Set sequence related parameters #############################################
 ###############################################################################
