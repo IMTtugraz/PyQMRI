@@ -55,6 +55,43 @@ def _choosePlatform(myargs, par):
     return platforms
 
 
+def _precoompFFT(data, par):
+    full_dimY = (np.all(np.abs(data[0, 0, 0, :, 0])) or
+                 np.all(np.abs(data[0, 0, 0, :, 1])))
+    full_dimX = (np.all(np.abs(data[0, 0, 0, 0, :])) or
+                 np.all(np.abs(data[0, 0, 0, 1, :])))
+    if full_dimY and not full_dimX:
+        print("Image Dimensions Y seems fully sampled. "
+              "Precompute FFT along Y")
+        data = np.fft.ifft(data, axis=-2, norm='ortho')
+        par["fft_dim"] = [-1]
+
+    elif full_dimX and not full_dimY:
+        print("Image Dimensions X seems fully sampled. "
+              "Precompute FFT along X")
+        data = np.fft.ifft(data, axis=-1, norm='ortho')
+        data = np.require(
+            np.moveaxis(data, -1, -2),
+            requirements='C')
+        par["C"] = np.require(
+            np.moveaxis(par["C"], -1, -2),
+            requirements='C')
+        par["mask"] = np.require(
+            np.moveaxis(par["mask"], -1, -2),
+            requirements='C')
+        par["fft_dim"] = [-1]
+
+    elif full_dimX and full_dimY:
+        print("Image Dimensions X and Y seem fully sampled. "
+              "Precompute FFT along X and Y")
+        data = np.fft.ifft2(data, norm='ortho')
+        par["fft_dim"] = None
+
+    else:
+        par["fft_dim"] = [-2, -1]
+    return data
+
+
 def _setupOCL(myargs, par):
     platforms = _choosePlatform(myargs, par)
     par["ctx"] = []
@@ -464,6 +501,7 @@ def _start_recon(myargs):
         print("Wrong data dimension / model inkompatible. Returning")
         return
 
+    data[...,1::2] = 0
 ###############################################################################
 # Set sequence related parameters #############################################
 ###############################################################################
@@ -485,6 +523,7 @@ def _start_recon(myargs):
     par["N"] = N
     par["Nproj"] = Nproj
     par["imagespace"] = myargs.imagespace
+    par["fft_dim"] = (-2, -1)
     if myargs.streamed:
         par["par_slices"] = myargs.par_slices
     if not myargs.trafo:
@@ -511,18 +550,18 @@ def _start_recon(myargs):
 ###############################################################################
 # phase correction ############################################################
 ###############################################################################
-    if "phase_map" in par["file"].keys():
-        full_slices = par["file"]["phase_map"].shape[1]
-        if myargs.sms:
-            reco_Slices = full_slices
-        sliceind = slice(int(full_slices / 2) -
-                         int(np.floor((reco_Slices) / 2)),
-                         int(full_slices / 2) +
-                         int(np.ceil(reco_Slices / 2)))
-        par["phase_map"] = par["file"]["phase_map"][
-            :,
-            sliceind].astype(DTYPE)
-        data = np.fft.ifft(data, axis=-1, norm='ortho')
+    # if "phase_map" in par["file"].keys():
+    #     full_slices = par["file"]["phase_map"].shape[1]
+    #     if myargs.sms:
+    #         reco_Slices = full_slices
+    #     sliceind = slice(int(full_slices / 2) -
+    #                      int(np.floor((reco_Slices) / 2)),
+    #                      int(full_slices / 2) +
+    #                      int(np.ceil(reco_Slices / 2)))
+    #     par["phase_map"] = par["file"]["phase_map"][
+    #         :,
+    #         sliceind].astype(DTYPE)
+    #     data = np.fft.ifft(data, axis=-1, norm='ortho')
 ###############################################################################
 # Standardize data ############################################################
 ###############################################################################
@@ -565,12 +604,15 @@ def _start_recon(myargs):
 ###############################################################################
 # initialize operator  ########################################################
 ###############################################################################
+    if myargs.trafo is False:
+        data = _precoompFFT(data, par)
+
     opt = optimizer.ModelReco(par, myargs.trafo,
                               imagespace=myargs.imagespace,
                               SMS=myargs.sms,
                               config=myargs.config,
                               model=model)
-    if myargs.imagespace:
+    if myargs.imagespace is True:
         opt.data = images
     else:
         opt.data = data
@@ -605,7 +647,8 @@ def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
         imagespace=False,
         OCL_GPU=True, sms=False, devices=0, dz=1, weights=None,
         out='',
-        modelfile="models.ini", modelname="VFA-E1"):
+        modelfile="models.ini", modelname="VFA-E1",
+        fft_dim=-1):
     """
     Start a 3D model based reconstruction. Data can also be selected at
     start up.
