@@ -5,12 +5,10 @@ import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 plt.ion()
-unknowns_TGV = 2
-unknowns_H1 = 0
 
 
 class Model(BaseModel):
-    def __init__(self, par, images):
+    def __init__(self, par):
         super().__init__(par)
         self.b = np.ones((self.NScan, 1, 1, 1))
         try:
@@ -24,19 +22,19 @@ class Model(BaseModel):
         if np.max(self.b) > 100:
             self.b /= 1000
         self.uk_scale = []
-        for i in range(unknowns_TGV + unknowns_H1):
+        par["unknowns_TGV"] = 2
+        par["unknowns_H1"] = 0 
+        par["unknowns"] = par["unknowns_TGV"] + par["unknowns_H1"]
+        for i in range(par["unknowns_TGV"] + par["unknowns_H1"]):
             self.uk_scale.append(1)
-
         try:
             self.b0 = np.flip(
                 np.transpose(
                     par["file"]["b0"][()], (0, 2, 1)), 0)
         except KeyError:
-            self.b0 = images[0]
+            print("No b0 image provided")
+            self.b0 =  None
 
-        self.dscale = par["dscale"]
-        self.guess = self._set_init_scales(images)
-        self.phase = np.exp(1j*(np.angle(images)-np.angle(images[0])))
         self.constraints.append(
             constraints(
                 0 / self.uk_scale[0],
@@ -188,10 +186,14 @@ class Model(BaseModel):
                 plt.draw()
                 plt.pause(1e-10)
 
-    def _set_init_scales(self, images):
 
-        test_M0 = self.b0
+    def computeInitialGuess(self, *args):
+        self.phase = np.exp(1j*(np.angle(args[0])-np.angle(args[0][0])))
+        if self.b0 is not None:
+            test_M0 = self.b0
+        else:
+            test_M0 = args[0][0]
         ADC = np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
 
         x = np.array((test_M0, ADC))
-        return x
+        self.guess = x

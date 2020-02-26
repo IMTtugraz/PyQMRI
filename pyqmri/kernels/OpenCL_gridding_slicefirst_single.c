@@ -382,7 +382,7 @@ __kernel void copy_SMS_fwdkspace(__global float2 *out, __global float2 *in, __gl
     float sinshift = 0.0f;
     float cosshift = 0.0f;
     int inind = 0;
-    float exppos = M_PI/180.0f*((float)y-(float)dimY/2)/(float)dimY;
+    float exppos = ((float)x/(float)dimX-0.5f);
 
     for (int gid=0; gid<NGroups; gid++)
     {
@@ -419,7 +419,7 @@ __kernel void copy_SMS_adjkspace(__global float2 *out, __global float2 *in, __gl
     float sinshift = 0.0f;
     float cosshift = 0.0f;
     int inind = 0;
-    float exppos = M_PI/180.0f*((float)y-(float)dimY/2)/(float)dimY;
+    float exppos = ((float)x/(float)dimX-0.5f);
 
     for (int gid=0; gid<NGroups; gid++)
     {

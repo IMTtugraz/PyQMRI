@@ -167,7 +167,6 @@ class ModelReco:
         self.step_val = np.nan_to_num(self.model.execute_forward(result))
         self._calcResidual(result, self.data, 0)
         self._setupPDOptimizer()
-
         for ign in range(self.irgn_par["max_gn_it"]):
             start = time.time()
             self.model_partial_der = np.nan_to_num(

@@ -79,6 +79,7 @@ def _precoompFFT(data, par):
         par["mask"] = np.require(
             np.moveaxis(par["mask"], -1, -2),
             requirements='C')
+        par["transpXY"] = True
         par["fft_dim"] = [-1]
 
     elif full_dimX and full_dimY:
@@ -271,10 +272,8 @@ def _estScaleNorm(myargs, par, images, data):
         ind = np.zeros((par["dimY"], par["dimX"]), dtype=bool)
         ind[int(par["N"]/2-centerY):int(par["N"]/2+centerY),
             int(par["N"]/2-centerX):int(par["N"]/2+centerX)] = 1
-        if "phase_map" in par.keys():
-            ind = np.fft.fftshift(ind, axes=0)
-        else:
-            ind = np.fft.fftshift(ind)
+        for shiftdim in par["fft_dim"]:
+            ind = np.fft.fftshift(ind, axes=shiftdim)
 
         sig = np.sum(
             data[..., int(par["NSlice"]/2/par["MB"]), ind] *
@@ -534,6 +533,7 @@ def _start_recon(myargs):
         del tmpmask
     else:
         par['mask'] = None
+    par["transpXY"] = False
 ###############################################################################
 # ratio of z direction to x,y, important for finite differences ###############
 ###############################################################################
@@ -585,6 +585,8 @@ def _start_recon(myargs):
 ###############################################################################
 # Reconstruct images using CG-SENSE  ##########################################
 ###############################################################################
+    if myargs.trafo is False:
+        data = _precoompFFT(data, par)  
     images = _genImages(myargs, par, data, off)
 ###############################################################################
 # Scale data norm  ############################################################
@@ -603,8 +605,6 @@ def _start_recon(myargs):
 ###############################################################################
 # initialize operator  ########################################################
 ###############################################################################
-    if myargs.trafo is False:
-        data = _precoompFFT(data, par)
 
     opt = optimizer.ModelReco(par, myargs.trafo,
                               imagespace=myargs.imagespace,

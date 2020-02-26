@@ -481,7 +481,7 @@ class Model(BaseModel):
             test_M0 = self.b0
         else:
             test_M0 = args[0][0]
-        ADC = 1 * np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+        ADC = 1 * np.ones(args[0].shape[-3:], dtype=DTYPE)
 
         x = np.array(
                 [
