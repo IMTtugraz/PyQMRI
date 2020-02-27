@@ -1650,7 +1650,6 @@ class PDSolverStreamed(PDSolver):
         gap_init = np.float32(0.0)
         gap_old = np.float32(0.0)
         gap = np.float32(0.0)
-        self.eval_const()
 
         Kyk1 = np.zeros_like(x)
         Kyk1_new = np.zeros_like(x)
@@ -1823,7 +1822,7 @@ class PDSolverStreamed(PDSolver):
         self.z2 = z2
         return x, self.v
 
-    def tv_solve_3D(self, x, res, iters):
+    def runTV3D(self, x, res, iters):
         self._updateConstraints()
         tau = self.tau
         tau_new = np.float32(0)

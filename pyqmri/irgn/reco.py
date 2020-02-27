@@ -506,7 +506,6 @@ class ModelReco:
                       np.expand_dims(self._coils, self._expdim_C)]])
         else:
             b = self.step_val
-
         grad = np.zeros(x.shape+(4,), dtype=DTYPE)
         self.grad_op.fwd([grad], [[x]])
 

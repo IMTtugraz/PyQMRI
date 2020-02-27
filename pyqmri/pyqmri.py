@@ -598,7 +598,13 @@ def _start_recon(myargs):
 ###############################################################################
 # Init forward model and initial guess ########################################
 ###############################################################################
+#    dir = par["file"].attrs["DWI_dir"]
+#    par["file"].attrs["dir_x"] = dir[0]
+#    tmp = par["dir_y"]
+#    par["dir_y"] = par["dir_x"]
+#    par["dir_x"] = tmp
 
+    del par["file"]["images"]
     if myargs.sig_model == "GeneralModel":
         par["modelfile"] = myargs.modelfile
         par["modelname"] = myargs.modelname
@@ -610,6 +616,7 @@ def _start_recon(myargs):
     if myargs.trafo is False:
         data = _precoompFFT(data, par)
     images = _genImages(myargs, par, data, off)
+
 ###############################################################################
 # Scale data norm  ############################################################
 ###############################################################################

@@ -173,7 +173,7 @@ class GradientStreamedTest(unittest.TestCase):
         if DTYPE == np.complex128:
             file = open(
                     resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_streamed_double.c'))
+                        'pyqmri', 'kernels/OpenCL_Kernels_double_streamed.c'))
         else:
             file = open(
                     resource_filename(

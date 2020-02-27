@@ -118,15 +118,15 @@ class PyOpenCLFFT():
                     DTYPE=DTYPE,
                     DTYPE_real=DTYPE_real)
             elif SMS is True and radial is False:
-                if "phase_map" in par.keys():
-                    obj = PyOpenCLSMSNUFFTFieldMap(
-                        ctx,
-                        queue,
-                        par,
-                        fft_dim=fft_dim,
-                        DTYPE=DTYPE,
-                        DTYPE_real=DTYPE_real)
-                else:
+#                if "phase_map" in par.keys():
+#                    obj = PyOpenCLSMSNUFFTFieldMap(
+#                        ctx,
+#                        queue,
+#                        par,
+#                        fft_dim=fft_dim,
+#                        DTYPE=DTYPE,
+#                        DTYPE_real=DTYPE_real)
+#                else:
                     obj = PyOpenCLSMSNUFFT(
                         ctx,
                         queue,
@@ -135,15 +135,15 @@ class PyOpenCLFFT():
                         DTYPE=DTYPE,
                         DTYPE_real=DTYPE_real)
             elif SMS is False and radial is False:
-                if "phase_map" in par.keys():
-                    obj = PyOpenCLFieldMapNUFFT(
-                        ctx,
-                        queue,
-                        par,
-                        fft_dim=fft_dim,
-                        DTYPE=DTYPE,
-                        DTYPE_real=DTYPE_real)
-                else:
+#                if "phase_map" in par.keys():
+#                    obj = PyOpenCLFieldMapNUFFT(
+#                        ctx,
+#                        queue,
+#                        par,
+#                        fft_dim=fft_dim,
+#                        DTYPE=DTYPE,
+#                        DTYPE_real=DTYPE_real)
+#                else:
                     obj = PyOpenCLCartNUFFT(
                         ctx,
                         queue,
@@ -935,20 +935,18 @@ class PyOpenCLSMSNUFFT(PyOpenCLFFT):
         self.shift = clarray.to_device(
             self.queue, par["shift"].astype(DTYPE_real))
 
-        self.fft_shape = (
-            int(self.fft_shape[0]),
-            self.fft_shape[1], self.fft_shape[2])
         self.fft_dim = par["fft_dim"]
-        self._tmp_fft_array = (
-            clarray.empty(
-                self.queue,
-                self.fft_shape,
-                dtype=DTYPE))
         self.par_fft = int(self.fft_shape[0] / par["NScan"])
+
         self.mask = clarray.to_device(self.queue, par["mask"])
         if self.fft_dim is not None:
             self.fft_scale = DTYPE_real(
                 np.sqrt(np.prod(self.fft_shape[self.fft_dim[0]:])))
+            self._tmp_fft_array = (
+                clarray.empty(
+                    self.queue,
+                    self.fft_shape,
+                    dtype=DTYPE))
             self.fft = FFT(ctx, queue, self._tmp_fft_array[
                 0:self.par_fft, ...],
                            out_array=self._tmp_fft_array[
@@ -1824,19 +1822,17 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLFFT):
             The real precision type. Currently float32 is used.
         """
         super().__init__(ctx, queue, DTYPE, DTYPE_real)
-        self.MB = int(par["MB"])
         self.fft_shape = (par["NSlice"] *
                           par["NC"], par["dimY"], par["dimX"])
-        self.fft_dim = par["fft_dim"]
+
         self.packs = int(par["packs"])
         self.MB = int(par["MB"])
         self.shift = clarray.to_device(
             self.queue, par["shift"].astype(np.int32))
-        self.fft_shape = (
-            int(self.fft_shape[0] / self.MB),
-            self.fft_shape[1], self.fft_shape[2])
+        
+        self.fft_dim = par["fft_dim"]
         self.par_fft = int(self.fft_shape[0])
-        self.scanind = 0
+
         self.mask = clarray.to_device(self.queue, par["mask"])
 
         if self.fft_dim is not None:
@@ -1847,7 +1843,6 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLFFT):
                     self.queue,
                     self.fft_shape,
                     dtype=DTYPE))
-            self.fft = []
             self.fft = FFT(ctx, queue, self._tmp_fft_array[
                 0:self.par_fft, ...],
                            out_array=self._tmp_fft_array[
@@ -1877,34 +1872,33 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLFFT):
         """
         if self.fft_dim is not None:
             self._tmp_fft_array.add_event(
-                self.prg.maskingcpy(
+                self.prg.copy_SMS_adjkspace(
                     self.queue,
-                    (self._tmp_fft_array.shape),
+                    (sg.shape[0] * sg.shape[1],
+                     sg.shape[-2],
+                     sg.shape[-1]),
                     None,
                     self._tmp_fft_array.data,
                     s.data,
+                    self.shift.data,
                     self.mask.data,
+                    np.int32(self.packs),
+                    np.int32(self.MB),
+                    self.DTYPE_real(self.fft_scale),
+                    np.int32(sg.shape[2]/self.packs/self.MB),
                     wait_for=s.events))
             self._tmp_fft_array.add_event(
                 self.fft.enqueue_arrays(
                     data=self._tmp_fft_array,
                     result=self._tmp_fft_array,
                     forward=False)[0])
-            return (
-                self.prg.copy_SMS_adj(
-                    self.queue,
-                    (sg.shape[0] * sg.shape[1],
-                     sg.shape[-2],
-                     sg.shape[-1]),
-                    None,
-                    sg.data,
-                    self._tmp_fft_array.data,
-                    self.shift.data,
-                    np.int32(self.packs),
-                    np.int32(self.MB),
-                    self.DTYPE_real(self.fft_scale),
-                    np.int32(sg.shape[2]/self.packs/self.MB),
-                    wait_for=self._tmp_fft_array.events))
+            return (self.prg.copy(self.queue,
+                                  (sg.size,),
+                                  None,
+                                  sg.data,
+                                  self._tmp_fft_array.data,
+                                  self.DTYPE_real(self.fft_scale),
+                                  wait_for=self._tmp_fft_array.events))
         else:
             return self.prg.copy_SMS_adjkspace(
                     self.queue,
@@ -1936,17 +1930,13 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLFFT):
         """
         if self.fft_dim is not None:
             self._tmp_fft_array.add_event(
-                self.prg.copy_SMS_fwd(
+                self.prg.copy(
                     self.queue,
-                    (sg.shape[0] * sg.shape[1], sg.shape[-2], sg.shape[-1]),
+                    (sg.size,),
                     None,
                     self._tmp_fft_array.data,
                     sg.data,
-                    self.shift.data,
-                    np.int32(self.packs),
-                    np.int32(self.MB),
                     self.DTYPE_real(1 / self.fft_scale),
-                    np.int32(sg.shape[2]/self.packs/self.MB),
                     wait_for=self._tmp_fft_array.events+sg.events))
 
             self._tmp_fft_array.add_event(
@@ -1955,13 +1945,18 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLFFT):
                     result=self._tmp_fft_array,
                     forward=True)[0])
             return (
-                self.prg.maskingcpy(
+                self.prg.copy_SMS_fwdkspace(
                     self.queue,
-                    (self._tmp_fft_array.shape),
+                    (s.shape[0] * s.shape[1], s.shape[-2], s.shape[-1]),
                     None,
                     s.data,
                     self._tmp_fft_array.data,
+                    self.shift.data,
                     self.mask.data,
+                    np.int32(self.packs),
+                    np.int32(self.MB),
+                    self.DTYPE_real(self.fft_scale),
+                    np.int32(sg.shape[2]/self.packs/self.MB),
                     wait_for=s.events+self._tmp_fft_array.events))
         else:
             return (

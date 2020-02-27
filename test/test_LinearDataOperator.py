@@ -46,6 +46,7 @@ def setupPar(par):
                      par["traj"]), dtype=DTYPE_real)).astype(DTYPE_real)
     par["dcf"] = np.require(np.abs(par["dcf"]),
                             DTYPE_real, requirements='C')
+    par["fft_dim"] = (-2, -1)
 
 
 class tmpArgs():
@@ -105,14 +106,8 @@ class OperatorKspaceRadial(unittest.TestCase):
         self.opinfwd = self.opinfwd.astype(DTYPE)
         self.opinadj = self.opinadj.astype(DTYPE)
         self.queue = par["queue"][0]
-        self.grad_buf = cl.Buffer(par["ctx"][0],
-                                  cl.mem_flags.READ_ONLY |
-                                  cl.mem_flags.COPY_HOST_PTR,
-                                  hostbuf=self.model_gradient.data)
-        self.coil_buf = cl.Buffer(par["ctx"][0],
-                                  cl.mem_flags.READ_ONLY |
-                                  cl.mem_flags.COPY_HOST_PTR,
-                                  hostbuf=self.C.data)
+        self.grad_buf = clarray.to_device(self.queue, self.model_gradient)
+        self.coil_buf = clarray.to_device(self.queue, self.C)
 
     def test_adj_outofplace(self):
         inpfwd = clarray.to_device(self.queue, self.opinfwd)
@@ -212,14 +207,8 @@ class OperatorKspaceCartesian(unittest.TestCase):
         self.opinfwd = self.opinfwd.astype(DTYPE)
         self.opinadj = self.opinadj.astype(DTYPE)
         self.queue = par["queue"][0]
-        self.grad_buf = cl.Buffer(par["ctx"][0],
-                                  cl.mem_flags.READ_ONLY |
-                                  cl.mem_flags.COPY_HOST_PTR,
-                                  hostbuf=self.model_gradient.data)
-        self.coil_buf = cl.Buffer(par["ctx"][0],
-                                  cl.mem_flags.READ_ONLY |
-                                  cl.mem_flags.COPY_HOST_PTR,
-                                  hostbuf=self.C.data)
+        self.grad_buf = clarray.to_device(self.queue, self.model_gradient)
+        self.coil_buf = clarray.to_device(self.queue, self.C)
 
     def test_adj_outofplace(self):
         inpfwd = clarray.to_device(self.queue, self.opinfwd)
@@ -238,7 +227,7 @@ class OperatorKspaceCartesian(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertAlmostEqual(a, b, places=12)
 
     def test_adj_inplace(self):
         inpfwd = clarray.to_device(self.queue, self.opinfwd)
@@ -260,7 +249,7 @@ class OperatorKspaceCartesian(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertAlmostEqual(a, b, places=12)
 
 
 class OperatorKspaceSMSCartesian(unittest.TestCase):
@@ -308,11 +297,11 @@ class OperatorKspaceSMSCartesian(unittest.TestCase):
             1j * np.random.randn(par["NScan"], par["NC"], par["packs"],
                                  par["dimY"], par["dimX"])
 
-        self.model_gradient = np.random.randn(par["unknowns"], par["NScan"],
-                                              par["NSlice"],
+        self.model_gradient = np.random.randn(par["NSlice"], par["unknowns"], 
+                                              par["NScan"],
                                               par["dimY"], par["dimX"]) + \
-            1j * np.random.randn(par["unknowns"], par["NScan"],
-                                 par["NSlice"],
+            1j * np.random.randn(par["NSlice"], par["unknowns"], 
+                                 par["NScan"],
                                  par["dimY"], par["dimX"])
         self.C = np.random.randn(par["NC"], par["NSlice"],
                                  par["dimY"], par["dimX"]) + \
@@ -324,14 +313,8 @@ class OperatorKspaceSMSCartesian(unittest.TestCase):
         self.opinfwd = self.opinfwd.astype(DTYPE)
         self.opinadj = self.opinadj.astype(DTYPE)
         self.queue = par["queue"][0]
-        self.grad_buf = cl.Buffer(par["ctx"][0],
-                                  cl.mem_flags.READ_ONLY |
-                                  cl.mem_flags.COPY_HOST_PTR,
-                                  hostbuf=self.model_gradient.data)
-        self.coil_buf = cl.Buffer(par["ctx"][0],
-                                  cl.mem_flags.READ_ONLY |
-                                  cl.mem_flags.COPY_HOST_PTR,
-                                  hostbuf=self.C.data)
+        self.grad_buf = clarray.to_device(self.queue, self.model_gradient)
+        self.coil_buf = clarray.to_device(self.queue, self.C)
 
     def test_adj_outofplace(self):
         inpfwd = clarray.to_device(self.queue, self.opinfwd)
@@ -350,7 +333,7 @@ class OperatorKspaceSMSCartesian(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertAlmostEqual(a, b, places=12)
 
     def test_adj_inplace(self):
         inpfwd = clarray.to_device(self.queue, self.opinfwd)
@@ -372,7 +355,7 @@ class OperatorKspaceSMSCartesian(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertAlmostEqual(a, b, places=12)
 
 
 class OperatorImageSpace(unittest.TestCase):
@@ -421,10 +404,8 @@ class OperatorImageSpace(unittest.TestCase):
         self.opinfwd = self.opinfwd.astype(DTYPE)
         self.opinadj = self.opinadj.astype(DTYPE)
         self.queue = par["queue"][0]
-        self.grad_buf = cl.Buffer(par["ctx"][0],
-                                  cl.mem_flags.READ_ONLY |
-                                  cl.mem_flags.COPY_HOST_PTR,
-                                  hostbuf=self.model_gradient.data)
+        self.grad_buf = clarray.to_device(self.queue, self.model_gradient)
+
 
     def test_adj_outofplace(self):
         inpfwd = clarray.to_device(self.queue, self.opinfwd)
@@ -443,7 +424,7 @@ class OperatorImageSpace(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertAlmostEqual(a, b, places=12)
 
     def test_adj_inplace(self):
         inpfwd = clarray.to_device(self.queue, self.opinfwd)
@@ -465,7 +446,7 @@ class OperatorImageSpace(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertAlmostEqual(a, b, places=12)
 
 
 class OperatorImageSpaceStreamed(unittest.TestCase):
@@ -481,7 +462,7 @@ class OperatorImageSpaceStreamed(unittest.TestCase):
         if DTYPE == np.complex128:
             file = open(
                     resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_streamed_double.c'))
+                        'pyqmri', 'kernels/OpenCL_Kernels_double_streamed.c'))
         else:
             file = open(
                     resource_filename(
@@ -531,7 +512,7 @@ class OperatorImageSpaceStreamed(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertAlmostEqual(a, b, places=12)
 
     def test_adj_inplace(self):
 
@@ -548,7 +529,7 @@ class OperatorImageSpaceStreamed(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertAlmostEqual(a, b, places=12)
 
 
 class OperatorCartesianKSpaceStreamed(unittest.TestCase):
@@ -564,7 +545,7 @@ class OperatorCartesianKSpaceStreamed(unittest.TestCase):
         if DTYPE == np.complex128:
             file = open(
                     resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_streamed_double.c'))
+                        'pyqmri', 'kernels/OpenCL_Kernels_double_streamed.c'))
         else:
             file = open(
                     resource_filename(
@@ -623,7 +604,7 @@ class OperatorCartesianKSpaceStreamed(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertAlmostEqual(a, b, places=12)
 
     def test_adj_inplace(self):
 
@@ -640,7 +621,7 @@ class OperatorCartesianKSpaceStreamed(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertAlmostEqual(a, b, places=12)
 
 
 class OperatorKspaceSMSCartesianStreamed(unittest.TestCase):
@@ -661,7 +642,7 @@ class OperatorKspaceSMSCartesianStreamed(unittest.TestCase):
         if DTYPE == np.complex128:
             file = open(
                     resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_streamed_double.c'))
+                        'pyqmri', 'kernels/OpenCL_Kernels_double_streamed.c'))
         else:
             file = open(
                     resource_filename(
@@ -720,15 +701,14 @@ class OperatorKspaceSMSCartesianStreamed(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertAlmostEqual(a, b, places=12)
 
     def test_adj_inplace(self):
-
         outfwd = np.zeros_like(self.opinadj)
         outadj = np.zeros_like(self.opinfwd)
 
-        self.op.fwd(outfwd, [[self.opinfwd, self.C, self.model_gradient]])
-        self.op.adj(outadj, [[self.opinadj, self.C, self.model_gradient]])
+        self.op.fwd([outfwd], [[self.opinfwd, self.C, self.model_gradient]])
+        self.op.adj([outadj], [[self.opinadj, self.C, self.model_gradient]])
 
         a = np.vdot(outfwd.flatten(),
                     self.opinadj.flatten())/self.opinadj.size
@@ -737,7 +717,7 @@ class OperatorKspaceSMSCartesianStreamed(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertAlmostEqual(a, b, places=12)
 
 
 class OperatorRadialKSpaceStreamed(unittest.TestCase):
@@ -753,7 +733,7 @@ class OperatorRadialKSpaceStreamed(unittest.TestCase):
         if DTYPE == np.complex128:
             file = open(
                     resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_streamed_double.c'))
+                        'pyqmri', 'kernels/OpenCL_Kernels_double_streamed.c'))
         else:
             file = open(
                     resource_filename(
@@ -811,7 +791,7 @@ class OperatorRadialKSpaceStreamed(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertAlmostEqual(a, b, places=12)
 
     def test_adj_inplace(self):
 
@@ -828,7 +808,7 @@ class OperatorRadialKSpaceStreamed(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertAlmostEqual(a, b, places=12)
 
 
 if __name__ == '__main__':
