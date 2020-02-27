@@ -1137,7 +1137,7 @@ class PDSolverStreamed(PDSolver):
                 self.data_shape_T = (par["NScan"], par["NC"],
                                      self.packs*self.numofpacks,
                                      par["dimY"], par["dimX"])
-                self.runTGV3D = self.tgv_solve_3DSMS
+                self.run = self.tgv_solve_3DSMS
                 self._setupstreamingops = self._setupstreamingopsSMS
                 self._expdim_dat = 1
                 self._expdim_C = 0
