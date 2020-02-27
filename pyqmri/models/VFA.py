@@ -14,6 +14,7 @@ class Model(BaseModel):
         self.constraints = []
         self.TR = par["TR"]
         self.fa = par["flip_angle(s)"]
+
         try:
             self.fa_corr = par["fa_corr"]
         except KeyError:
@@ -104,8 +105,8 @@ class Model(BaseModel):
         T1 = np.abs(-self.TR / np.log(x[1, ...] * self.uk_scale[1]))
         M0_min = M0.min()
         M0_max = M0.max()
-        T1_min = 900#T1.min()
-        T1_max = 1100#T1.max()
+        T1_min = T1.min()
+        T1_max = T1.max()
 
         if dim_2D:
             if not self.figure:

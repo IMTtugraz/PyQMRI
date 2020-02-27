@@ -368,7 +368,8 @@ __kernel void addfieldadj(__global float2 *out, __global float2 *in, __global fl
 
 }
 
-__kernel void copy_SMS_fwdkspace(__global float2 *out, __global float2 *in, __global int* shift, const int packs, const int MB, const float scale, const int NGroups)
+__kernel void copy_SMS_fwdkspace(__global float2 *out, __global float2 *in, __global float* shift,
+                                __global float *mask, const int packs, const int MB, const float scale, const int NGroups)
   {
     size_t x = get_global_id(2);
     size_t dimX = get_global_size(2);
@@ -382,29 +383,33 @@ __kernel void copy_SMS_fwdkspace(__global float2 *out, __global float2 *in, __gl
     float sinshift = 0.0f;
     float cosshift = 0.0f;
     int inind = 0;
+
     float exppos = ((float)x/(float)dimX-0.5f);
+    float2 tmp = 0.0f;
 
     for (int gid=0; gid<NGroups; gid++)
     {
     for (int k=0; k<packs; k++)
     {
-    out[x+y*dimX+idSlice*k+idSlice*packs*gid+idSlice*packs*NGroups*n] = (float2)(0);
+    tmp = 0.0f;
     for(int z=0; z< MB; z++)
     {
-    expshift = 2.0*M_PI*shift[z]*exppos;
+    expshift = -2.0f*M_PI*shift[z]*exppos;
     sinshift = sin(expshift);
     cosshift = cos(expshift);
 
     inind = x+y*dimX+idSlice*(k+z*packs+gid*packs*MB)+NSlice*n;
 
-    out[x+y*dimX+idSlice*k+idSlice*packs*gid+idSlice*packs*NGroups*n] += (float2) (in[inind].x*cosshift-in[inind].y*sinshift,
+    tmp += (float2) (in[inind].x*cosshift-in[inind].y*sinshift,
                              in[inind].x*sinshift+in[inind].y*cosshift);
     }
+    out[x+y*dimX+idSlice*k+idSlice*packs*gid+idSlice*packs*NGroups*n] = tmp*mask[x+y*dimX];
     }
     }
   }
 
-__kernel void copy_SMS_adjkspace(__global float2 *out, __global float2 *in, __global int* shift, const int packs, const int MB, const float scale, const int NGroups)
+__kernel void copy_SMS_adjkspace(__global float2 *out, __global float2 *in, __global float* shift,
+                                __global float *mask, const int packs, const int MB, const float scale, const int NGroups)
   {
     size_t x = get_global_id(2);
     size_t dimX = get_global_size(2);
@@ -419,21 +424,24 @@ __kernel void copy_SMS_adjkspace(__global float2 *out, __global float2 *in, __gl
     float sinshift = 0.0f;
     float cosshift = 0.0f;
     int inind = 0;
+
     float exppos = ((float)x/(float)dimX-0.5f);
+
+    float2 tmpin = 0.0f;
 
     for (int gid=0; gid<NGroups; gid++)
     {
     for (int k=0; k<packs; k++)
     {
+    inind = x+y*dimX+idSlice*k+idSlice*packs*gid+idSlice*packs*NGroups*n;
+    tmpin = in[inind]*mask[x+y*dimX];
     for(int z=0; z<MB; z++)
     {
-        expshift = 2.0*M_PI*shift[z]*exppos;
+        expshift = 2.0f*M_PI*shift[z]*exppos;
         sinshift = sin(expshift);
         cosshift = cos(expshift);
-        inind = x+y*dimX+idSlice*k+idSlice*packs*gid+idSlice*packs*NGroups*n;
-
-        out[x+y*dimX+idSlice*(k+z*packs+gid*packs*MB)+NSlice*n] = (float2) (in[inind].x*cosshift-in[inind].y*sinshift,
-                             in[inind].x*sinshift+in[inind].y*cosshift);
+        out[x+y*dimX+idSlice*(k+z*packs+gid*packs*MB)+NSlice*n] = (float2) (tmpin.x*cosshift-tmpin.y*sinshift,
+                             tmpin.x*sinshift+tmpin.y*cosshift);
     }
     }
     }

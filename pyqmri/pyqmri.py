@@ -18,7 +18,7 @@ from pyqmri._helper_fun import _goldcomp as goldcomp
 from pyqmri._helper_fun._est_coils import est_coils
 from pyqmri._helper_fun import _utils as utils
 from pyqmri.solver import CGSolver
-
+import pyqmri.irgn.reco as optimizer
 
 DTYPE = np.complex64
 DTYPE_real = np.float32
@@ -60,6 +60,7 @@ def _precoompFFT(data, par):
                  np.all(np.abs(data[0, 0, 0, :, 1])))
     full_dimX = (np.all(np.abs(data[0, 0, 0, 0, :])) or
                  np.all(np.abs(data[0, 0, 0, 1, :])))
+
     if full_dimY and not full_dimX:
         print("Image Dimensions Y seems fully sampled. "
               "Precompute FFT along Y")
@@ -272,17 +273,32 @@ def _estScaleNorm(myargs, par, images, data):
         ind = np.zeros((par["dimY"], par["dimX"]), dtype=bool)
         ind[int(par["N"]/2-centerY):int(par["N"]/2+centerY),
             int(par["N"]/2-centerX):int(par["N"]/2+centerX)] = 1
-        for shiftdim in par["fft_dim"]:
-            ind = np.fft.fftshift(ind, axes=shiftdim)
-
-        sig = np.sum(
-            data[..., int(par["NSlice"]/2/par["MB"]), ind] *
-            np.conj(
-                data[..., int(par["NSlice"]/2/par["MB"]), ind]))/np.sum(ind)
-        noise = np.sum(
-            data[..., int(par["NSlice"]/2/par["MB"]), ~ind] *
-            np.conj(
-                data[..., int(par["NSlice"]/2/par["MB"]), ~ind]))/np.sum(~ind)
+        if par["fft_dim"] is not None:
+            for shiftdim in par["fft_dim"]:
+                ind = np.fft.fftshift(ind, axes=shiftdim)
+            sig = np.sum(
+                data[..., int(par["NSlice"]/2/par["MB"]), ind] *
+                np.conj(
+                    data[...,
+                         int(par["NSlice"]/2/par["MB"]), ind]))/np.sum(ind)
+            noise = np.sum(
+                data[..., int(par["NSlice"]/2/par["MB"]), ~ind] *
+                np.conj(
+                    data[...,
+                         int(par["NSlice"]/2/par["MB"]), ~ind]))/np.sum(~ind)
+        else:
+            tmp = np.fft.fft2(data, norm='ortho')
+            ind = np.fft.fftshift(ind, axes=(0, 1))
+            sig = np.sum(
+                tmp[..., int(par["NSlice"]/2/par["MB"]), ind] *
+                np.conj(
+                    data[...,
+                         int(par["NSlice"]/2/par["MB"]), ind]))/np.sum(ind)
+            noise = np.sum(
+                tmp[..., int(par["NSlice"]/2/par["MB"]), ~ind] *
+                np.conj(
+                    data[...,
+                         int(par["NSlice"]/2/par["MB"]), ~ind]))/np.sum(~ind)
         SNR_est = np.abs(sig/noise)
         par["SNR_est"] = SNR_est
         print("Estimated SNR from kspace", SNR_est)
@@ -357,10 +373,10 @@ def _start_recon(myargs):
     else:
         sig_model = importlib.import_module(
             "pyqmri.models."+str(sig_model_path))
-    if int(myargs.streamed) == 1:
-        import pyqmri.irgn.reco_streamed as optimizer
-    else:
-        import pyqmri.irgn.reco as optimizer
+    # if int(myargs.streamed) == 1:
+    #     import pyqmri.irgn.reco_streamed as optimizer
+    # else:
+    #     import pyqmri.irgn.reco as optimizer
     np.seterr(divide='ignore', invalid='ignore')
 
 # Create par struct to store everyting
@@ -524,6 +540,10 @@ def _start_recon(myargs):
     par["fft_dim"] = (-2, -1)
     if myargs.streamed:
         par["par_slices"] = myargs.par_slices
+        par["overlap"] = 1
+    else:
+        par["par_slices"] = reco_Slices
+        par["overlap"] = 0
     if not myargs.trafo:
         tmpmask = np.ones((data[0, 0,  ...]).shape)
         tmpmask[np.abs(data[0, 0,  ...]) == 0] = 0
@@ -578,15 +598,17 @@ def _start_recon(myargs):
 ###############################################################################
 # Init forward model and initial guess ########################################
 ###############################################################################
+
     if myargs.sig_model == "GeneralModel":
         par["modelfile"] = myargs.modelfile
         par["modelname"] = myargs.modelname
     model = sig_model.Model(par)
+
 ###############################################################################
 # Reconstruct images using CG-SENSE  ##########################################
 ###############################################################################
     if myargs.trafo is False:
-        data = _precoompFFT(data, par)  
+        data = _precoompFFT(data, par)
     images = _genImages(myargs, par, data, off)
 ###############################################################################
 # Scale data norm  ############################################################
@@ -610,7 +632,8 @@ def _start_recon(myargs):
                               imagespace=myargs.imagespace,
                               SMS=myargs.sms,
                               config=myargs.config,
-                              model=model)
+                              model=model,
+                              streamed=myargs.streamed)
     if myargs.imagespace is True:
         opt.data = images
     else:
