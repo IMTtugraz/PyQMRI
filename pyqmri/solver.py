@@ -63,19 +63,24 @@ class CGSolver:
                                    hostbuf=par["C"].data)
         if SMS:
             self._op = operator.OperatorKspaceSMS(par, self._prg, trafo=trafo)
+            self._tmp_sino = clarray.empty(
+                self._queue,
+                (self._NScan, self._NC,
+                 int(self._NSlice/par["MB"]), par["Nproj"], par["N"]),
+                DTYPE, "C")
         else:
             self._op = operator.OperatorKspace(par, self._prg, trafo=trafo)
+            self._tmp_sino = clarray.empty(
+                self._queue,
+                (self._NScan, self._NC,
+                 self._NSlice, par["Nproj"], par["N"]),
+                DTYPE, "C")
         self._FT = self._op.NUFFT.FFT
         self._FTH = self._op.NUFFT.FFTH
         self._tmp_result = clarray.empty(
             self._queue,
             (self._NScan, self._NC,
              self._NSlice, self._dimY, self._dimX),
-            DTYPE, "C")
-        self._tmp_sino = clarray.empty(
-            self._queue,
-            (self._NScan, self._NC,
-             self._NSlice, par["Nproj"], par["N"]),
             DTYPE, "C")
         par["NScan"] = NScan_save
 
@@ -278,7 +283,7 @@ class PDSolver:
         self.max_const = None
         self.real_const = None
         self.irgn_par = {}
-        self._kernelsize = (par["par_slices"] + par["overlap"], par["dimY"],
+        self._kernelsize = (par["NSlice"], par["dimY"],
                             par["dimX"])
         if reg_type == 'TV':
             self.run = self.runTV3D
@@ -348,7 +353,7 @@ class PDSolver:
         symgrad_v_vold = clarray.empty_like(z2)
         Axold = clarray.empty_like(data)
         Ax = clarray.empty_like(data)
-
+        
         Axold.add_event(self._op.fwd(
             Axold, [x, self._coil_buf, self.modelgrad]))
         gradx_xold.add_event(self.grad_op.fwd(gradx_xold, x))
@@ -475,17 +480,17 @@ class PDSolver:
                           "decrease in the primal problem was less than %.3e" %
                           (i,
                            np.abs(primal - primal_new).get()/self._fval_init))
-                    return x_new.get()
+                    return x_new.get(), v_new.get()
                 if gap > gap_old * self.stag and i > 1:
                     print("Terminated at iteration %d "
                           "because the method stagnated" % (i))
-                    return x_new.get()
+                    return x_new.get(), v_new.get()
                 if np.abs((gap - gap_old) / gap_init) < self.tol:
                     print("Terminated at iteration %d because the "
                           "relative energy decrease of the PD gap was "
                           "less than %.3e"
                           % (i, np.abs((gap - gap_old).get() / gap_init)))
-                    return x_new.get()
+                    return x_new.get(), v_new.get()
                 primal = primal_new
                 gap_old = gap
                 sys.stdout.write(
@@ -659,17 +664,17 @@ class PDSolver:
                           "decrease in the primal problem was less than %.3e" %
                           (i,
                            np.abs(primal - primal_new).get()/self._fval_init))
-                    return x_new.get()
+                    return x_new.get(), v_new.get()
                 if gap > gap_old * self.stag and i > 1:
                     print("Terminated at iteration %d "
                           "because the method stagnated" % (i))
-                    return x_new.get()
+                    return x_new.get(), v_new.get()
                 if np.abs((gap - gap_old) / gap_init) < self.tol:
                     print("Terminated at iteration %d because the "
                           "relative energy decrease of the PD gap was "
                           "less than %.3e"
                           % (i, np.abs((gap - gap_old).get() / gap_init)))
-                    return x_new.get()
+                    return x_new.get(), v_new.get()
                 primal = primal_new
                 gap_old = gap
                 sys.stdout.write(
@@ -846,16 +851,16 @@ class PDSolver:
                           "decrease in the primal problem was less than %.3e" %
                           (i, np.abs(primal - primal_new).get() /
                            self._fval_init))
-                    return x_new.get()
+                    return x_new.get(), 0
                 if (gap > gap_old * self.stag) and i > 1:
                     print("Terminated at iteration %d "
                           "because the method stagnated" % (i))
-                    return x_new.get()
+                    return x_new.get(), 0
                 if np.abs((gap - gap_old) / gap_init) < self.tol:
                     print("Terminated at iteration %d because the relative "
                           "energy decrease of the PD gap was less than %.3e" %
                           (i, np.abs((gap - gap_old).get() / gap_init)))
-                    return x_new.get()
+                    return x_new.get(), 0
                 primal = primal_new
                 gap_old = gap
                 sys.stdout.write(
@@ -1119,7 +1124,8 @@ class PDSolverStreamed(PDSolver):
         self.NSlice = par["NSlice"]
         self.par_slices = par["par_slices"]
         self.overlap = par["overlap"]
-
+        self._kernelsize = (par["par_slices"]+par["overlap"], par["dimY"],
+                            par["dimX"])
         if reg_type == 'TGV':
             self.symgrad_shape = self.unknown_shape + (8,)
 
@@ -1577,7 +1583,7 @@ class PDSolverStreamed(PDSolver):
                     self.r = r
                     self.z1 = z1
                     self.z2 = z2
-                    return x_new
+                    return x_new, v_new
                 if (gap > gap_old*self.stag) and myit > 1:
                     self.v = v_new
                     self.r = r
@@ -1585,7 +1591,7 @@ class PDSolverStreamed(PDSolver):
                     self.z2 = z2
                     print("Terminated at iteration %d "
                           "because the method stagnated" % (myit))
-                    return x_new
+                    return x_new, v_new
                 if np.abs((gap-gap_old)/gap_init) < self.tol:
                     self.v = v_new
                     self.r = r
@@ -1594,7 +1600,7 @@ class PDSolverStreamed(PDSolver):
                     print("Terminated at iteration %d because the relative "
                           "energy decrease of the PD gap was less than %.3e" %
                           (myit, np.abs((gap-gap_old) / gap_init)))
-                    return x_new
+                    return x_new, v_new
                 primal = primal_new
                 gap_old = gap
                 sys.stdout.write(
@@ -1786,7 +1792,7 @@ class PDSolverStreamed(PDSolver):
                     self.r = r
                     self.z1 = z1
                     self.z2 = z2
-                    return x_new
+                    return x_new, v_new
                 if (gap > gap_old*self.stag) and myit > 1:
                     self.v = v_new
                     self.r = r
@@ -1794,7 +1800,7 @@ class PDSolverStreamed(PDSolver):
                     self.z2 = z2
                     print("Terminated at iteration %d "
                           "because the method stagnated" % (myit))
-                    return x_new
+                    return x_new, v_new
                 if np.abs((gap-gap_old)/gap_init) < self.tol:
                     self.v = v_new
                     self.r = r
@@ -1803,7 +1809,7 @@ class PDSolverStreamed(PDSolver):
                     print("Terminated at iteration %d because the relative "
                           "energy decrease of the PD gap was less than %.3e" %
                           (myit, np.abs((gap-gap_old) / gap_init)))
-                    return x_new
+                    return x_new, v_new
                 primal = primal_new
                 gap_old = gap
                 sys.stdout.write(
@@ -1951,20 +1957,20 @@ class PDSolverStreamed(PDSolver):
                           (myit, np.abs(primal-primal_new) / self._fval_init))
                     self.r = r
                     self.z1 = z1
-                    return x_new
+                    return x_new, 0
                 if (gap > gap_old*self.stag) and myit > 1:
                     self.r = r
                     self.z1 = z1
                     print("Terminated at iteration %d because "
                           "the method stagnated" % (myit))
-                    return x_new
+                    return x_new, 0
                 if np.abs((gap-gap_old)/gap_init) < self.tol:
                     self.r = r
                     self.z1 = z1
                     print("Terminated at iteration %d because the relative "
                           "energy decrease of the PD gap was less than %.3e" %
                           (myit, np.abs((gap-gap_old) / gap_init)))
-                    return x_new
+                    return x_new, 0
                 primal = primal_new
                 gap_old = gap
                 sys.stdout.write(

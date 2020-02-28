@@ -175,9 +175,9 @@ def _genImages(myargs, par, data, off):
         del FFT, nFTH
 
     else:
-        tol = 1e-4
-        par_scans = 2
-        lambd = 1e-2
+        tol = 1e-6
+        par_scans = 4
+        lambd = 1e-3
         if "images" not in list(par["file"].keys()):
             images = np.zeros((par["NScan"],
                                par["NSlice"],
@@ -404,6 +404,7 @@ def _start_recon(myargs):
                + 1j*par["file"]['imag_dat'][
           ..., int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:
           int(NSlice/2)+int(np.ceil(reco_Slices/2))+off, :, :].astype(DTYPE)
+                 
     dimreduction = 0
     if myargs.trafo:
         par["traj"] = par["file"]['real_traj'][()].astype(DTYPE) + \
@@ -603,8 +604,7 @@ def _start_recon(myargs):
 #    tmp = par["dir_y"]
 #    par["dir_y"] = par["dir_x"]
 #    par["dir_x"] = tmp
-
-    del par["file"]["images"]
+#    del par["file"]["images"]
     if myargs.sig_model == "GeneralModel":
         par["modelfile"] = myargs.modelfile
         par["modelname"] = myargs.modelname
@@ -616,7 +616,6 @@ def _start_recon(myargs):
     if myargs.trafo is False:
         data = _precoompFFT(data, par)
     images = _genImages(myargs, par, data, off)
-
 ###############################################################################
 # Scale data norm  ############################################################
 ###############################################################################

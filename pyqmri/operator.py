@@ -1075,7 +1075,6 @@ class OperatorKspaceStreamed(Operator):
     def __init__(self, par, prg,
                  DTYPE=np.complex64, DTYPE_real=np.float32, trafo=True):
         super().__init__(par, prg, DTYPE, DTYPE_real)
-        par["overlap"] = 1
         self.overlap = par["overlap"]
         self.par_slices = par["par_slices"]
         if not trafo:
@@ -1259,9 +1258,8 @@ class OperatorKspaceSMSStreamed(Operator):
     def __init__(self, par, prg, DTYPE=np.complex64,
                  DTYPE_real=np.float32, trafo=True):
         super().__init__(par, prg, DTYPE, DTYPE_real)
-        par["overlap"] = 1
         self.overlap = par["overlap"]
-        self.par_slices = 1
+        self.par_slices = par["par_slices"]
         self.packs = par["packs"]*par["numofpacks"]
         if not trafo:
             self.Nproj = self.dimY

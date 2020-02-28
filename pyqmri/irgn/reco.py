@@ -118,6 +118,7 @@ class ModelReco:
                 self._coils = np.require(
                     np.transpose(par["C"], [1, 0, 2, 3]), requirements='C',
                     dtype=DTYPE)
+
                 if SMS:
                     self.data_shape = (par["packs"]*par["numofpacks"],
                                        par["NScan"],
@@ -387,7 +388,6 @@ class ModelReco:
 ###############################################################################
 ###############################################################################
     def _irgnSolve3D(self, x, iters, data, GN_it):
-
         b = self._calcResidual(x, data, GN_it)
 
         if self.streamed:
