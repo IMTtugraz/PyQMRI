@@ -26,7 +26,7 @@ DTYPE = np.complex64
 DTYPE_real = np.float32
 
 
-class ModelReco:
+class IRGNOptimizer:
     """ IRGN Optimization
 
     This Class performs IRGN Optimization either with TGV or TV regularization
@@ -123,8 +123,8 @@ class ModelReco:
                     self._expdim_dat = 1
                     self._expdim_C = 0
                 else:
-                    self.data_shape = np.transpose(self.data_shape,
-                                                   self.data_trans_axes)
+                    self.data_shape = (par["NSlice"], par["NScan"], par["NC"],
+                                       par["Nproj"], par["N"])
                     self.data_shape_T = self.data_shape
                     self._expdim_dat = 2
                     self._expdim_C = 1
@@ -420,7 +420,7 @@ class ModelReco:
                     v,
                     wait_for=sym_grad.events +
                     v.events))
-            sym_grad.get()
+            sym_grad = sym_grad.get()
 
         return b, grad, sym_grad
 
