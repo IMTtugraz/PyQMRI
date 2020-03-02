@@ -1,284 +1,147 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import matplotlib.gridspec as gridspec
-import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+from pyqmri.models.template import BaseModel, constraints, DTYPE
 plt.ion()
-DTYPE = np.complex64
 
 
-class constraint:
-    def __init__(self, min_val=-np.inf, max_val=np.inf, real_const=False):
-        self.min = min_val
-        self.max = max_val
-        self.real = real_const
+class Model(BaseModel):
+    """ Realization of a bi-exponential decay model
 
-    def update(self, scale):
-        self.min = self.min / scale
-        self.max = self.max / scale
+      The model assumes M0*(f*exp(-TE*A1)+(1-f)exp(-TE*A2))
 
+    Attributes:
+      TE (float): Echo time or parameter in exponential exp(-TR/x)
+      guess (numpy.Array): Initial guess
+    """
+    def __init__(self, par):
+        super().__init__(par)
 
-class Model:
-    def __init__(self, par, images):
-        self.constraints = []
-
-        self.images = images
-        self.NSlice = par['NSlice']
-        self.figure = None
-
-        (NScan, Nislice, dimX, dimY) = images.shape
-        self.TE = np.ones((NScan, 1, 1, 1))
+        self.TE = np.ones((self.NScan, 1, 1, 1))
         try:
-            self.NScan = par["T2PREP"].size
-            for i in range(self.NScan):
-                self.TE[i, ...] = par["T2PREP"][i] * np.ones((1, 1, 1))
-        except BaseException:
-            self.NScan = par["TE"].size
             for i in range(self.NScan):
                 self.TE[i, ...] = par["TE"][i] * np.ones((1, 1, 1))
-        self.uk_scale = []
-        self.uk_scale.append(1)
-        self.uk_scale.append(1)
-        self.uk_scale.append(1)
-        self.uk_scale.append(1)
-        self.uk_scale.append(1)
+        except KeyError:
+            raise KeyError("No TE found!")
 
-        test_M0 = 1 * np.sqrt((dimX * np.pi / 2) / par['Nproj'])
-        T21 = 1 / np.reshape(np.linspace(1e-4, 150, dimX *
-                                         dimY * Nislice),
-                             (Nislice, dimX, dimY))
-        test_M01 = 1
-        T21 = 1 / self.uk_scale[2] * T21 * \
-            np.ones((Nislice, dimY, dimX), dtype=DTYPE)
-        T22 = 1 / np.reshape(np.linspace(150, 1500, dimX *
-                                         dimY * Nislice),
-                             (Nislice, dimX, dimY))
-        test_M02 = 1
-        T22 = 1 / self.uk_scale[4] * T22 * \
-            np.ones((Nislice, dimY, dimX), dtype=DTYPE)
-#
-        G_x = self.execute_forward_3D(
-            np.array(
-                [
-                    test_M0 /
-                    self.uk_scale[0] *
-                    np.ones(
-                        (Nislice,
-                         dimY,
-                         dimX),
-                        dtype=DTYPE),
-                    test_M01 /
-                    self.uk_scale[1] *
-                    np.ones(
-                        (Nislice,
-                         dimY,
-                         dimX),
-                        dtype=DTYPE),
-                    T21,
-                    test_M02 /
-                    self.uk_scale[3] *
-                    np.ones(
-                        (Nislice,
-                         dimY,
-                         dimX),
-                        dtype=DTYPE),
-                    T22],
-                dtype=DTYPE))
-        self.uk_scale[0] = self.uk_scale[0] * \
-            np.max(np.abs(images)) / np.median(np.abs(G_x))
+        par["unknowns_TGV"] = 4
+        par["unknowns_H1"] = 0
+        par["unknowns"] = par["unknowns_TGV"] + par["unknowns_H1"]
 
-        DG_x = self.execute_gradient_3D(
-            np.array(
-                [
-                    test_M0 /
-                    self.uk_scale[0] *
-                    np.ones(
-                        (Nislice,
-                         dimY,
-                         dimX),
-                        dtype=DTYPE),
-                    test_M01 /
-                    self.uk_scale[1] *
-                    np.ones(
-                        (Nislice,
-                         dimY,
-                         dimX),
-                        dtype=DTYPE),
-                    T21,
-                    test_M02 /
-                    self.uk_scale[3] *
-                    np.ones(
-                        (Nislice,
-                         dimY,
-                         dimX),
-                        dtype=DTYPE),
-                    T22],
-                dtype=DTYPE))
-        self.uk_scale[1] = self.uk_scale[1] * np.linalg.norm(
-            np.abs(DG_x[0, ...])) / np.linalg.norm(np.abs(DG_x[1, ...]))
-        self.uk_scale[2] = self.uk_scale[2] * np.linalg.norm(
-            np.abs(DG_x[0, ...])) / np.linalg.norm(np.abs(DG_x[2, ...]))
-        self.uk_scale[3] = self.uk_scale[3] * np.linalg.norm(
-            np.abs(DG_x[0, ...])) / np.linalg.norm(np.abs(DG_x[3, ...]))
-        self.uk_scale[4] = self.uk_scale[4] * np.linalg.norm(
-            np.abs(DG_x[0, ...])) / np.linalg.norm(np.abs(DG_x[4, ...]))
-
-        DG_x = self.execute_gradient_3D(
-            np.array([test_M0 /
-                      self.uk_scale[0] *
-                      np.ones((Nislice, dimY, dimX), dtype=DTYPE), test_M01 /
-                      self.uk_scale[1] *
-                      np.ones((Nislice, dimY, dimX), dtype=DTYPE), T21 /
-                      self.uk_scale[2], test_M02 /
-                      self.uk_scale[3] *
-                      np.ones((Nislice, dimY, dimX), dtype=DTYPE), T22 /
-                      self.uk_scale[4]], dtype=DTYPE))
-
-        result = np.array(
-            [0.1 /
-             self.uk_scale[0] *
-             np.ones((Nislice, dimY, dimX), dtype=DTYPE), 0.5 /
-             self.uk_scale[1] *
-             np.ones((Nislice, dimY, dimX), dtype=DTYPE), (
-                 (1 /
-                  10) /
-                 self.uk_scale[2] *
-                 np.ones((Nislice, dimY, dimX), dtype=DTYPE)), 0.5 /
-             self.uk_scale[3] *
-             np.ones((Nislice, dimY, dimX), dtype=DTYPE), (
-                 (1 /
-                  150) /
-                 self.uk_scale[4] *
-                 np.ones((Nislice, dimY, dimX), dtype=DTYPE))], dtype=DTYPE)
-        self.guess = result
+        for j in range(par["unknowns"]):
+            self.uk_scale.append(1)
 
         self.constraints.append(
-            constraint(-100 / self.uk_scale[0], 100 / self.uk_scale[0], False))
+            constraints(-100 / self.uk_scale[0],
+                        100 / self.uk_scale[0],
+                        False))
         self.constraints.append(
-            constraint(
-                0 / self.uk_scale[1],
-                1 / self.uk_scale[1],
-                True))
+                constraints(0 / self.uk_scale[1],
+                            1 / self.uk_scale[1],
+                            True))
         self.constraints.append(
-            constraint(
-                ((1 / 150) / self.uk_scale[2]),
-                ((1 / 1e-4) / self.uk_scale[2]),
-                True))
+                constraints(((1 / 150) / self.uk_scale[2]),
+                            ((1 / 1e-4) / self.uk_scale[2]),
+                            True))
         self.constraints.append(
-            constraint(
-                0 / self.uk_scale[3],
-                1 / self.uk_scale[3],
-                True))
-        self.constraints.append(
-            constraint(
-                ((1 / 1500) / self.uk_scale[4]),
-                ((1 / 150) / self.uk_scale[4]),
-                True))
+                constraints(((1 / 1500) / self.uk_scale[3]),
+                            ((1 / 150) / self.uk_scale[3]),
+                            True))
 
     def rescale(self, x):
+        """ Rescales each unknown by its scaling factor.
+
+          This realization takes into account that A1 and A2 are fitted and
+          will return 1/A1 respectively 1/A2 as result.
+
+        Args:
+          x (numpy.Array): The array of unknowns to be rescaled
+        Returns:
+          numpy.Array: The rescaled array of unknowns
+        """
         M0 = x[0, ...] * self.uk_scale[0]
-        M01 = x[1, ...] * self.uk_scale[1]
+        f = x[1, ...] * self.uk_scale[1]
         T21 = 1 / (x[2, ...] * self.uk_scale[2])
-        M02 = x[3, ...] * self.uk_scale[3]
-        T22 = 1 / (x[4, ...] * self.uk_scale[4])
-        return np.array((M0, M01, T21, M02, T22))
+        T22 = 1 / (x[3, ...] * self.uk_scale[3])
+        return np.array((M0, f, T21, T22))
 
     def execute_forward_2D(self, x, islice):
-        M0 = x[0, ...] * self.uk_scale[0]
-        M01 = x[1, ...] * self.uk_scale[1]
-        T21 = x[2, ...] * self.uk_scale[2]
-        M02 = x[3, ...] * self.uk_scale[3]
-        T22 = x[4, ...] * self.uk_scale[4]
-        S = M0 * (M01 * np.exp(-self.TE * (T21)) +
-                  M02 * np.exp(-self.TE * (T22)))
-        S[~np.isfinite(S)] = 1e-200
-        S = np.array(S, dtype=DTYPE)
-        return S
+        pass
 
     def execute_gradient_2D(self, x, islice):
-        M0 = x[0, ...]
-        M01 = x[1, ...]
-        T21 = x[2, ...]
-        M02 = x[3, ...]
-        T22 = x[4, ...]
-        grad_M0 = self.uk_scale[0] * (
-            M01 * self.uk_scale[1] * np.exp(-self.TE * (
-                T21 * self.uk_scale[2])) +
-            M02 * self.uk_scale[3] *
-            np.exp(-self.TE * (T22 * self.uk_scale[4])))
-        grad_M01 = self.uk_scale[0] * M0 * self.uk_scale[1] * \
-            np.exp(-self.TE * (T21 * self.uk_scale[2]))
-        grad_T21 = -self.uk_scale[0] * M0 * M01 * self.uk_scale[1] * \
-            self.TE * \
-            self.uk_scale[2] * np.exp(-self.TE * (T21 * self.uk_scale[2]))
-        grad_M02 = self.uk_scale[0] * M0 * self.uk_scale[3] * \
-            np.exp(-self.TE * (T22 * self.uk_scale[4]))
-        grad_T22 = -self.uk_scale[0] * M0 * M02 * self.uk_scale[3] * \
-            self.TE * \
-            self.uk_scale[4] * np.exp(-self.TE * (T22 * self.uk_scale[4]))
-        grad = np.array([grad_M0, grad_M01, grad_T21,
-                         grad_M02, grad_T22], dtype=DTYPE)
-        grad[~np.isfinite(grad)] = 1e-20
-        return grad
+        pass
 
     def execute_forward_3D(self, x):
         M0 = x[0, ...] * self.uk_scale[0]
-        M01 = x[1, ...] * self.uk_scale[1]
+        f = x[1, ...] * self.uk_scale[1]
         T21 = x[2, ...] * self.uk_scale[2]
-        M02 = x[3, ...] * self.uk_scale[3]
-        T22 = x[4, ...] * self.uk_scale[4]
-        S = M0 * (M01 * np.exp(-self.TE * (T21)) +
-                  M02 * np.exp(-self.TE * (T22)))
+        T22 = x[3, ...] * self.uk_scale[3]
+        S = M0 * (f * np.exp(-self.TE * (T21)) +
+                  (1-f) * np.exp(-self.TE * (T22)))
         S[~np.isfinite(S)] = 1e-20
         S = np.array(S, dtype=DTYPE)
         return S
 
     def execute_gradient_3D(self, x):
         M0 = x[0, ...]
-        M01 = x[1, ...]
+        f = x[1, ...]
         T21 = x[2, ...]
-        M02 = x[3, ...]
-        T22 = x[4, ...]
+        T22 = x[3, ...]
         grad_M0 = self.uk_scale[0] * (
-            M01 * self.uk_scale[1] * np.exp(-self.TE * (
+            f * self.uk_scale[1] * np.exp(-self.TE * (
                 T21 * self.uk_scale[2])) +
-            M02 * self.uk_scale[3] *
-            np.exp(-self.TE * (T22 * self.uk_scale[4])))
-        grad_M01 = self.uk_scale[0] * M0 * self.uk_scale[1] * \
-            np.exp(-self.TE * (T21 * self.uk_scale[2]))
-        grad_T21 = -self.uk_scale[0] * M0 * M01 * self.uk_scale[1] * \
+            (1 - f * self.uk_scale[1]) *
+            np.exp(-self.TE * (T22 * self.uk_scale[3])))
+
+        grad_f = M0 * self.uk_scale[0] * (
+            self.uk_scale[1] * np.exp(-self.TE * (T21 * self.uk_scale[2])) -
+            self.uk_scale[1] * np.exp(-self.TE * (T22 * self.uk_scale[3])))
+
+        grad_T21 = -self.uk_scale[0] * M0 * f * self.uk_scale[1] * \
             self.TE * \
             self.uk_scale[2] * np.exp(-self.TE * (T21 * self.uk_scale[2]))
-        grad_M02 = self.uk_scale[0] * M0 * self.uk_scale[3] * \
-            np.exp(-self.TE * (T22 * self.uk_scale[4]))
-        grad_T22 = -self.uk_scale[0] * M0 * M02 * self.uk_scale[3] * \
+
+        grad_T22 = -self.uk_scale[0] * M0 * (1-f * self.uk_scale[1]) * \
             self.TE * \
-            self.uk_scale[4] * np.exp(-self.TE * (T22 * self.uk_scale[4]))
-        grad = np.array([grad_M0, grad_M01, grad_T21,
-                         grad_M02, grad_T22], dtype=DTYPE)
+            self.uk_scale[3] * np.exp(-self.TE * (T22 * self.uk_scale[4]))
+        grad = np.array([grad_M0, grad_f, grad_T21, grad_T22], dtype=DTYPE)
         grad[~np.isfinite(grad)] = 1e-20
         return grad
+
+    def computeInitialGuess(self, *args):
+        test_T21 = 1/150 * np.ones(
+            (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+        test_T22 = 1/500 * np.ones(
+            (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+        test_M0 = np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+        test_f = 0.5*np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+
+        x = np.array([test_M0 / self.uk_scale[0],
+                      test_f / self.uk_scale[1],
+                      test_T21 / self.uk_scale[2],
+                      test_T22 / self.uk_scale[3]], dtype=DTYPE)
+        self.guess = x
 
     def plot_unknowns(self, x, dim_2D=False):
         M0 = np.abs(x[0, ...]) * self.uk_scale[0]
         M0_min = M0.min()
         M0_max = M0.max()
 
-        M01 = np.abs(x[1, ...]) * self.uk_scale[1]
+        f = np.abs(x[1, ...]) * self.uk_scale[1]
+
         T21 = 1 / (np.abs(x[2, ...]) * self.uk_scale[2])
-        M01_min = M01.min()
-        M01_max = M01.max()
+        f_min = f.min()
+        f_max = f.max()
         T21_min = T21.min()
         T21_max = T21.max()
 
-        M02 = np.abs(x[3, ...]) * self.uk_scale[3]
-        T22 = 1 / (np.abs(x[4, ...]) * self.uk_scale[4])
-        M02_min = M02.min()
-        M02_max = M02.max()
+        T22 = 1 / (np.abs(x[3, ...]) * self.uk_scale[3])
         T22_min = T22.min()
         T22_max = T22.max()
 
-        [z, y, x] = M01.shape
+        [z, y, x] = f.shape
         self.ax = []
         if not self.figure:
             plt.ion()
@@ -314,9 +177,9 @@ class Model:
             self.M0_plot = self.ax[0].imshow(
                 (M0[int(self.NSlice / 2), ...]))
             self.M0_plot_cor = self.ax[17].imshow(
-                (M0[:, int(M01.shape[1] / 2), ...]))
+                (M0[:, int(f.shape[1] / 2), ...]))
             self.M0_plot_sag = self.ax[1].imshow(
-                np.flip((M0[:, :, int(M01.shape[-1] / 2)]).T, 1))
+                np.flip((M0[:, :, int(f.shape[-1] / 2)]).T, 1))
             self.ax[0].set_title('Proton Density in a.u.', color='white')
             self.ax[0].set_anchor('SE')
             self.ax[1].set_anchor('SW')
@@ -328,35 +191,18 @@ class Model:
             for spine in cbar.ax.spines:
                 cbar.ax.spines[spine].set_color('white')
 
-            self.M01_plot = self.ax[5].imshow(
-                (M01[int(self.NSlice / 2), ...]))
-            self.M01_plot_cor = self.ax[22].imshow(
-                (M01[:, int(M01.shape[1] / 2), ...]))
-            self.M01_plot_sag = self.ax[6].imshow(
-                np.flip((M01[:, :, int(M01.shape[-1] / 2)]).T, 1))
+            self.f_plot = self.ax[5].imshow(
+                (f[int(self.NSlice / 2), ...]))
+            self.f_plot_cor = self.ax[22].imshow(
+                (f[:, int(f.shape[1] / 2), ...]))
+            self.f_plot_sag = self.ax[6].imshow(
+                np.flip((f[:, :, int(f.shape[-1] / 2)]).T, 1))
             self.ax[5].set_title('Proton Density in a.u.', color='white')
             self.ax[5].set_anchor('SE')
             self.ax[6].set_anchor('SW')
             self.ax[22].set_anchor('NW')
             cax = plt.subplot(self.gs[:, 4])
-            cbar = self.figure.colorbar(self.M01_plot, cax=cax)
-            cbar.ax.tick_params(labelsize=12, colors='white')
-            cax.yaxis.set_ticks_position('left')
-            for spine in cbar.ax.spines:
-                cbar.ax.spines[spine].set_color('white')
-
-            self.M02_plot = self.ax[12].imshow(
-                (M02[int(self.NSlice / 2), ...]))
-            self.M02_plot_cor = self.ax[29].imshow(
-                (M02[:, int(M02.shape[1] / 2), ...]))
-            self.M02_plot_sag = self.ax[13].imshow(
-                np.flip((M02[:, :, int(M02.shape[-1] / 2)]).T, 1))
-            self.ax[12].set_title('Proton Density in a.u.', color='white')
-            self.ax[12].set_anchor('SE')
-            self.ax[13].set_anchor('SW')
-            self.ax[29].set_anchor('NW')
-            cax = plt.subplot(self.gs[:, 11])
-            cbar = self.figure.colorbar(self.M02_plot, cax=cax)
+            cbar = self.figure.colorbar(self.f_plot, cax=cax)
             cbar.ax.tick_params(labelsize=12, colors='white')
             cax.yaxis.set_ticks_position('left')
             for spine in cbar.ax.spines:
@@ -398,21 +244,21 @@ class Model:
             plt.pause(1e-10)
         else:
             self.M0_plot.set_data((M0[int(self.NSlice / 2), ...]))
-            self.M0_plot_cor.set_data((M0[:, int(M01.shape[1] / 2), ...]))
+            self.M0_plot_cor.set_data((M0[:, int(f.shape[1] / 2), ...]))
             self.M0_plot_sag.set_data(
-                np.flip((M0[:, :, int(M01.shape[-1] / 2)]).T, 1))
+                np.flip((M0[:, :, int(f.shape[-1] / 2)]).T, 1))
             self.M0_plot.set_clim([M0_min, M0_max])
             self.M0_plot_cor.set_clim([M0_min, M0_max])
             self.M0_plot_sag.set_clim([M0_min, M0_max])
 
-            self.M01_plot.set_data((M01[int(self.NSlice / 2), ...]))
-            self.M01_plot_cor.set_data(
-                (M01[:, int(M01.shape[1] / 2), ...]))
-            self.M01_plot_sag.set_data(
-                np.flip((M01[:, :, int(M01.shape[-1] / 2)]).T, 1))
-            self.M01_plot.set_clim([M01_min, M01_max])
-            self.M01_plot_cor.set_clim([M01_min, M01_max])
-            self.M01_plot_sag.set_clim([M01_min, M01_max])
+            self.f_plot.set_data((f[int(self.NSlice / 2), ...]))
+            self.f_plot_cor.set_data(
+                (f[:, int(f.shape[1] / 2), ...]))
+            self.f_plot_sag.set_data(
+                np.flip((f[:, :, int(f.shape[-1] / 2)]).T, 1))
+            self.f_plot.set_clim([f_min, f_max])
+            self.f_plot_cor.set_clim([f_min, f_max])
+            self.f_plot_sag.set_clim([f_min, f_max])
             self.T21_plot.set_data((T21[int(self.NSlice / 2), ...]))
             self.T21_plot_cor.set_data(
                 (T21[:, int(T21.shape[1] / 2), ...]))
@@ -422,14 +268,6 @@ class Model:
             self.T21_plot_sag.set_clim([T21_min, T21_max])
             self.T21_plot_cor.set_clim([T21_min, T21_max])
 
-            self.M02_plot.set_data((M02[int(self.NSlice / 2), ...]))
-            self.M02_plot_cor.set_data(
-                (M02[:, int(M02.shape[1] / 2), ...]))
-            self.M02_plot_sag.set_data(
-                np.flip((M02[:, :, int(M02.shape[-1] / 2)]).T, 1))
-            self.M02_plot.set_clim([M02_min, M02_max])
-            self.M02_plot_cor.set_clim([M02_min, M02_max])
-            self.M02_plot_sag.set_clim([M02_min, M02_max])
             self.T22_plot.set_data((T22[int(self.NSlice / 2), ...]))
             self.T22_plot_cor.set_data(
                 (T22[:, int(T22.shape[1] / 2), ...]))

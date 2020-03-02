@@ -18,7 +18,7 @@ from pyqmri._helper_fun import _goldcomp as goldcomp
 from pyqmri._helper_fun._est_coils import est_coils
 from pyqmri._helper_fun import _utils as utils
 from pyqmri.solver import CGSolver
-import pyqmri.irgn.reco as optimizer
+from pyqmri.irgn import IRGNOptimizer
 
 DTYPE = np.complex64
 DTYPE_real = np.float32
@@ -80,7 +80,6 @@ def _precoompFFT(data, par):
         par["mask"] = np.require(
             np.moveaxis(par["mask"], -1, -2),
             requirements='C')
-        par["transpXY"] = True
         par["fft_dim"] = [-1]
 
     elif full_dimX and full_dimY:
@@ -88,7 +87,6 @@ def _precoompFFT(data, par):
               "Precompute FFT along X and Y")
         data = np.fft.ifft2(data, norm='ortho')
         par["fft_dim"] = None
-
     else:
         par["fft_dim"] = [-2, -1]
     return data
@@ -145,7 +143,7 @@ def _setupOCL(myargs, par):
 
 def _genImages(myargs, par, data, off):
     if not myargs.usecg:
-        FFT = utils.NUFFT(par, trafo=myargs.trafo, SMS=myargs.sms)
+        FFT = utils.NUFFT(par, trafo=myargs.trafo)
         import pyopencl.array as clarray
 
         def nFTH(x, fft, par):
@@ -184,7 +182,7 @@ def _genImages(myargs, par, data, off):
                                par["dimY"],
                                par["dimX"]), dtype=DTYPE)
             if par["NScan"]/par_scans >= 1:
-                cgs = CGSolver(par, par_scans, myargs.trafo, myargs.sms)
+                cgs = CGSolver(par, par_scans, myargs.trafo)
                 for j in range(int(par["NScan"]/par_scans)):
                     if par["NSlice"] == 1:
                         images[par_scans*j:par_scans*(j+1), ...] = cgs.run(
@@ -197,7 +195,7 @@ def _genImages(myargs, par, data, off):
                 del cgs
             if np.mod(par["NScan"], par_scans):
                 cgs = CGSolver(par, np.mod(par["NScan"], par_scans),
-                               myargs.trafo, myargs.sms)
+                               myargs.trafo)
                 if par["NSlice"] == 1:
                     if np.mod(par["NScan"], par_scans) == 1:
                         images[-np.mod(par["NScan"], par_scans):, ...] = \
@@ -394,16 +392,12 @@ def _start_recon(myargs):
         reco_Slices = NSlice
     off = 0
 
-    if myargs.sms:
-        data = par["file"]['real_dat'][()].astype(DTYPE)\
-               + 1j*par["file"]['imag_dat'][()].astype(DTYPE)
-    else:
-        data = par["file"]['real_dat'][
-          ..., int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:
-          int(NSlice/2)+int(np.ceil(reco_Slices/2))+off, :, :].astype(DTYPE)\
-               + 1j*par["file"]['imag_dat'][
-          ..., int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:
-          int(NSlice/2)+int(np.ceil(reco_Slices/2))+off, :, :].astype(DTYPE)
+    data = par["file"]['real_dat'][
+      ..., int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:
+      int(NSlice/2)+int(np.ceil(reco_Slices/2))+off, :, :].astype(DTYPE)\
+           + 1j*par["file"]['imag_dat'][
+      ..., int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:
+      int(NSlice/2)+int(np.ceil(reco_Slices/2))+off, :, :].astype(DTYPE)
 
     dimreduction = 0
     if myargs.trafo:
@@ -450,17 +444,13 @@ def _start_recon(myargs):
 ###############################################################################
     if "fa_corr" in list(par["file"].keys()):
         print("Using provied flip angle correction.")
-        if myargs.sms:
-            par["fa_corr"] = np.flip(par["file"]['fa_corr'][()].astype(DTYPE),
-                                     0)[...]
-        else:
-            NSlice_fa, _, _ = par["file"]['fa_corr'][()].shape
-            par["fa_corr"] = np.flip(
-                par["file"]['fa_corr'][()].astype(DTYPE),
-                0)[
-                  int(NSlice_fa/2)-int(np.floor((reco_Slices)/2)):
-                  int(NSlice_fa/2)+int(np.ceil(reco_Slices/2)),
-                  ...]
+        NSlice_fa, _, _ = par["file"]['fa_corr'][()].shape
+        par["fa_corr"] = np.flip(
+            par["file"]['fa_corr'][()].astype(DTYPE),
+            0)[
+              int(NSlice_fa/2)-int(np.floor((reco_Slices)/2)):
+              int(NSlice_fa/2)+int(np.ceil(reco_Slices/2)),
+              ...]
         par["fa_corr"][par["fa_corr"] == 0] = 0
         par["fa_corr"] = par["fa_corr"][
            ...,
@@ -471,18 +461,13 @@ def _start_recon(myargs):
                                     requirements='C')
     elif "interpol_fa" in list(par["file"].keys()):
         print("Using provied flip angle correction.")
-        if myargs.sms:
-            par["fa_corr"] = np.flip(
-                par["file"]['interpol_fa'][()].astype(DTYPE),
-                0)[...]
-        else:
-            NSlice_fa, _, _ = par["file"]['interpol_fa'][()].shape
-            par["fa_corr"] = np.flip(
-                par["file"]['interpol_fa'][()].astype(DTYPE),
-                0)[
-                  int(NSlice_fa/2)-int(np.floor((reco_Slices)/2)):
-                  int(NSlice_fa/2)+int(np.ceil(reco_Slices/2)),
-                  ...]
+        NSlice_fa, _, _ = par["file"]['interpol_fa'][()].shape
+        par["fa_corr"] = np.flip(
+            par["file"]['interpol_fa'][()].astype(DTYPE),
+            0)[
+              int(NSlice_fa/2)-int(np.floor((reco_Slices)/2)):
+              int(NSlice_fa/2)+int(np.ceil(reco_Slices/2)),
+              ...]
         par["fa_corr"][par["fa_corr"] == 0] = 0
         par["fa_corr"] = par["fa_corr"][
            ...,
@@ -526,14 +511,9 @@ def _start_recon(myargs):
     par["NC"] = NC
     par["dimY"] = dimY
     par["dimX"] = dimX
-    if myargs.sms:
-        par["NSlice"] = NSlice
-        par["packs"] = int(par["packs"])
-        par["numofpacks"] = int(NSlice/(int(par["packs"])*int(par["MB"])))
-    else:
-        par["NSlice"] = reco_Slices
-        par["packs"] = 1
-        par["MB"] = 1
+    par["NSlice"] = reco_Slices
+    par["packs"] = 1
+    par["MB"] = 1
     par["NScan"] = NScan
     par["N"] = N
     par["Nproj"] = Nproj
@@ -568,21 +548,6 @@ def _start_recon(myargs):
 ###############################################################################
     est_coils(data, par, par["file"], myargs, off)
 ###############################################################################
-# phase correction ############################################################
-###############################################################################
-    # if "phase_map" in par["file"].keys():
-    #     full_slices = par["file"]["phase_map"].shape[1]
-    #     if myargs.sms:
-    #         reco_Slices = full_slices
-    #     sliceind = slice(int(full_slices / 2) -
-    #                      int(np.floor((reco_Slices) / 2)),
-    #                      int(full_slices / 2) +
-    #                      int(np.ceil(reco_Slices / 2)))
-    #     par["phase_map"] = par["file"]["phase_map"][
-    #         :,
-    #         sliceind].astype(DTYPE)
-    #     data = np.fft.ifft(data, axis=-1, norm='ortho')
-###############################################################################
 # Standardize data ############################################################
 ###############################################################################
     [NScan, NC, NSlice, Nproj, N] = data.shape
@@ -599,17 +564,10 @@ def _start_recon(myargs):
 ###############################################################################
 # Init forward model and initial guess ########################################
 ###############################################################################
-#    dir = par["file"].attrs["DWI_dir"]
-#    par["file"].attrs["dir_x"] = dir[0]
-#    tmp = par["dir_y"]
-#    par["dir_y"] = par["dir_x"]
-#    par["dir_x"] = tmp
-
     if myargs.sig_model == "GeneralModel":
         par["modelfile"] = myargs.modelfile
         par["modelname"] = myargs.modelname
     model = sig_model.Model(par)
-
 ###############################################################################
 # Reconstruct images using CG-SENSE  ##########################################
 ###############################################################################
@@ -634,13 +592,12 @@ def _start_recon(myargs):
 # initialize operator  ########################################################
 ###############################################################################
 
-    opt = optimizer.ModelReco(par, myargs.trafo,
-                              imagespace=myargs.imagespace,
-                              SMS=myargs.sms,
-                              config=myargs.config,
-                              model=model,
-                              streamed=myargs.streamed,
-                              reg_type=myargs.reg)
+    opt = IRGNOptimizer(par, myargs.trafo,
+                        imagespace=myargs.imagespace,
+                        config=myargs.config,
+                        model=model,
+                        streamed=myargs.streamed,
+                        reg_type=myargs.reg)
     if myargs.imagespace is True:
         opt.data = images
     else:
@@ -674,7 +631,7 @@ def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
         streamed=False,
         par_slices=1, data='', model='VFA', config='default',
         imagespace=False,
-        OCL_GPU=True, sms=False, devices=0, dz=1, weights=None,
+        OCL_GPU=True, devices=0, dz=1, weights=None,
         out='',
         modelfile="models.ini", modelname="VFA-E1",
         fft_dim=-1):
@@ -718,9 +675,6 @@ def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
       OCL_GPU (bool):
         Select between GPU (1) or CPU (0) OpenCL devices. Defaults to GPU
         CAVE: CPU FFT not working.
-      sms (bool):
-        use Simultaneous Multi Slice Recon (1) or normal reconstruction (0).
-        Defaults to 0
       devices (list of ints):
         The device ID of device(s) to use for streaming/reconstruction
       dz (float):
@@ -771,9 +725,6 @@ def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
       '--imagespace', default=imagespace, dest='imagespace', type=_str2bool,
       help="Select if Reco is performed on images (1) or on kspace (0) data. "
            "Defaults to 0")
-    argparrun.add_argument(
-      '--sms', default=sms, dest='sms', type=_str2bool,
-      help="Switch to SMS reconstruction")
     argparrun.add_argument(
       '--OCL_GPU', default=OCL_GPU, dest='use_GPU', type=_str2bool,
       help="Select if CPU or GPU should be used as OpenCL platform. "
@@ -851,9 +802,6 @@ if __name__ == '__main__':
       '--imagespace', default=False, dest='imagespace', type=_str2bool,
       help="Select if Reco is performed on images (1) or on kspace (0) data. "
            "Defaults to 0")
-    argparmain.add_argument(
-      '--sms', default=False, dest='sms', type=_str2bool,
-      help="Switch to SMS reconstruction")
     argparmain.add_argument(
       '--OCL_GPU', default=True, dest='use_GPU', type=_str2bool,
       help="Select if CPU or GPU should be used as OpenCL platform. "

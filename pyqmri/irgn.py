@@ -26,7 +26,7 @@ DTYPE = np.complex64
 DTYPE_real = np.float32
 
 
-class ModelReco:
+class IRGNOptimizer:
     """ IRGN Optimization
 
     This Class performs IRGN Optimization either with TGV or TV regularization
@@ -44,7 +44,7 @@ class ModelReco:
         appends its value to the list.
     """
 
-    def __init__(self, par, trafo=1, imagespace=False, SMS=0, reg_type='TGV',
+    def __init__(self, par, trafo=1, imagespace=False, reg_type='TGV',
                  config='', model=None, streamed=False):
         self.par = par
         self._fval_old = 0
@@ -61,7 +61,6 @@ class ModelReco:
         self.par_slices = par["par_slices"]
         self.streamed = streamed
         self._imagespace = imagespace
-        self._SMS = SMS
         if streamed and par["NSlice"]/(self.num_dev*self.par_slices) < 2:
             raise ValueError(
                 "Number of Slices devided by parallel "
@@ -112,22 +111,11 @@ class ModelReco:
                 self._coils = np.require(
                     np.swapaxes(par["C"], 0, 1), requirements='C',
                     dtype=DTYPE)
-
-                if SMS:
-                    self.data_shape = (par["packs"]*par["numofpacks"],
-                                       par["NScan"],
-                                       par["NC"], par["dimY"], par["dimX"])
-                    self.data_shape_T = (par["NScan"], par["NC"],
-                                         par["packs"]*par["numofpacks"],
-                                         par["dimY"], par["dimX"])
-                    self._expdim_dat = 1
-                    self._expdim_C = 0
-                else:
-                    self.data_shape = np.transpose(self.data_shape,
-                                                   self.data_trans_axes)
-                    self.data_shape_T = self.data_shape
-                    self._expdim_dat = 2
-                    self._expdim_C = 1
+                self.data_shape = (par["NSlice"], par["NScan"], par["NC"],
+                                   par["Nproj"], par["N"])
+                self.data_shape_T = self.data_shape
+                self._expdim_dat = 2
+                self._expdim_C = 1
             else:
                 self._coils = clarray.to_device(self._queue[0],
                                                 self.par["C"])
@@ -139,7 +127,6 @@ class ModelReco:
             DTYPE_real,
             trafo,
             imagespace,
-            SMS,
             streamed
             )
 
@@ -157,7 +144,6 @@ class ModelReco:
             linops=(self._op, self.grad_op, self.symgrad_op),
             model=model,
             reg_type=self.reg_type,
-            SMS=self._SMS,
             streamed=self.streamed,
             imagespace=self._imagespace
             )
@@ -213,9 +199,8 @@ class ModelReco:
 
         self.step_val = np.nan_to_num(self.model.execute_forward(result))
         if self.streamed:
-            if self._SMS is False:
-                self.step_val = np.require(
-                    np.swapaxes(self.step_val, 0, 1), requirements='C')
+            self.step_val = np.require(
+                np.swapaxes(self.step_val, 0, 1), requirements='C')
 
         for ign in range(self.irgn_par["max_gn_it"]):
             start = time.time()
@@ -229,9 +214,8 @@ class ModelReco:
             self.step_val = np.nan_to_num(self.model.execute_forward(result))
 
             if self.streamed:
-                if self._SMS is False:
-                    self.step_val = np.require(
-                        np.swapaxes(self.step_val, 0, 1), requirements='C')
+                self.step_val = np.require(
+                    np.swapaxes(self.step_val, 0, 1), requirements='C')
                 self.modelgrad = np.require(
                     np.transpose(self.modelgrad, self.data_trans_axes),
                     requirements='C')
@@ -420,7 +404,7 @@ class ModelReco:
                     v,
                     wait_for=sym_grad.events +
                     v.events))
-            sym_grad.get()
+            sym_grad = sym_grad.get()
 
         return b, grad, sym_grad
 
@@ -428,21 +412,10 @@ class ModelReco:
         x = np.require(np.swapaxes(x, 0, 1), requirements='C')
         if self._imagespace is False:
             b = np.zeros(self.data_shape_T, dtype=DTYPE)
-            if self._SMS is True:
-                self._op.FTstr.eval(
-                    [b],
-                    [[np.expand_dims(self.step_val, self._expdim_dat) *
-                      np.expand_dims(self.par["C"], self._expdim_C)]])
-                b = np.require(
-                    np.transpose(
-                        b,
-                        0, self.data_trans_axes),
-                    requirements='C')
-            else:
-                self._op.FTstr.eval(
-                    [b],
-                    [[np.expand_dims(self.step_val, self._expdim_dat) *
-                      np.expand_dims(self._coils, self._expdim_C)]])
+            self._op.FTstr.eval(
+                [b],
+                [[np.expand_dims(self.step_val, self._expdim_dat) *
+                  np.expand_dims(self._coils, self._expdim_C)]])
         else:
             b = self.step_val
         grad = np.zeros(x.shape+(4,), dtype=DTYPE)
