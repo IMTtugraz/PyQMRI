@@ -436,7 +436,7 @@ class IRGNOptimizer:
                 b = np.require(
                     np.transpose(
                         b,
-                        0, self.data_trans_axes),
+                        self.data_trans_axes),
                     requirements='C')
             else:
                 self._op.FTstr.eval(
@@ -452,10 +452,6 @@ class IRGNOptimizer:
         if self.reg_type == 'TGV':
             sym_grad = np.zeros(x.shape+(8,), dtype=DTYPE)
             self.symgrad_op.fwd([sym_grad], [[self.v]])
-            regcost = self.irgn_par["gamma"] * np.sum(
-                  np.abs(grad[:, :self.par["unknowns_TGV"]] -
-                         self.v)) + self.irgn_par["gamma"] * 2 * np.sum(
-                             np.abs(sym_grad))
 
         return b, grad, sym_grad
 
