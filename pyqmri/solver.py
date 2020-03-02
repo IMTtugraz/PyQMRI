@@ -387,17 +387,30 @@ class PDBaseSolver:
         elif reg_type == 'TGV':
             L = np.float32(0.5 * (18.0 + np.sqrt(33)))
             if streamed:
-                pdop = PDSolverStreamedTGV(
-                    par,
-                    irgn_par,
-                    queue,
-                    np.float32(1 / np.sqrt(L)),
-                    init_fval,
-                    prg,
-                    linops,
-                    coils,
-                    model,
-                    imagespace=imagespace)
+                if SMS:
+                    pdop = PDSolverStreamedTGVSMS(
+                        par,
+                        irgn_par,
+                        queue,
+                        np.float32(1 / np.sqrt(L)),
+                        init_fval,
+                        prg,
+                        linops,
+                        coils,
+                        model,
+                        imagespace=imagespace)
+                else:
+                    pdop = PDSolverStreamedTGV(
+                        par,
+                        irgn_par,
+                        queue,
+                        np.float32(1 / np.sqrt(L)),
+                        init_fval,
+                        prg,
+                        linops,
+                        coils,
+                        model,
+                        imagespace=imagespace)
             else:
                 pdop = PDSolverTGV(
                     par,
@@ -1452,7 +1465,7 @@ class PDSolverStreamed(PDBaseSolver):
             self._expdim_dat = 2
             self._expdim_C = 1
 
-    def _setup_reg_tmp_arrays(self, reg_type):
+    def _setup_reg_tmp_arrays(self, reg_type, SMS=False):
         if reg_type == 'TV':
             pass
         elif reg_type == 'TGV':
@@ -1464,7 +1477,7 @@ class PDSolverStreamed(PDBaseSolver):
                 dtype=DTYPE)
         else:
             raise NotImplementedError("Not implemented")
-        self._setupstreamingops(reg_type)
+        self._setupstreamingops(reg_type, SMS=SMS)
 
         self.r = np.zeros(
                 self.data_shape,
@@ -1635,8 +1648,18 @@ class PDSolverStreamed(PDBaseSolver):
 class PDSolverStreamedTGV(PDSolverStreamed):
     """Streamed TGV optimization."""
 
-    def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model, imagespace=False):
+    def __init__(self, 
+                 par,
+                 irgn_par, 
+                 queue, 
+                 tau, 
+                 fval, 
+                 prg,
+                 linop, 
+                 coils, 
+                 model, 
+                 imagespace=False,
+                 SMS=False):
 
         super().__init__(
             par,
@@ -1648,7 +1671,7 @@ class PDSolverStreamedTGV(PDSolverStreamed):
             linop,
             coils,
             model,
-            imagespace=False)
+            imagespace=imagespace)
 
         self.alpha = irgn_par["gamma"]
         self.beta = irgn_par["gamma"] * 2
@@ -1658,7 +1681,7 @@ class PDSolverStreamedTGV(PDSolverStreamed):
 
         self.symgrad_shape = self.unknown_shape + (8,)
 
-        self._setup_reg_tmp_arrays("TGV")
+        self._setup_reg_tmp_arrays("TGV", SMS=SMS)
 
     def _setupVariables(self, inp, data):
 
@@ -1871,6 +1894,16 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
     def __init__(self, par, irgn_par, queue, tau, fval, prg,
                  linop, coils, model, imagespace=False):
 
+        self.packs = par["packs"]
+        self.numofpacks = par["numofpacks"]
+        self.data_shape = (self.packs*self.numofpacks, par["NScan"],
+                           par["NC"], par["dimY"], par["dimX"])
+        self.data_shape_T = (par["NScan"], par["NC"],
+                             self.packs*self.numofpacks,
+                             par["dimY"], par["dimX"])
+        self._expdim_dat = 1
+        self._expdim_C = 0
+
         super().__init__(
             par,
             irgn_par,
@@ -1881,27 +1914,8 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
             linop,
             coils,
             model,
-            imagespace=False)
-        self.alpha = irgn_par["gamma"]
-        self.beta = irgn_par["gamma"] * 2
-        self._op = linop[0]
-        self.grad_op = linop[1]
-        self.symgrad_op = linop[2]
-
-        self.packs = par["packs"]
-        self.numofpacks = par["numofpacks"]
-        self.data_shape = (self.packs*self.numofpacks, par["NScan"],
-                           par["NC"], par["dimY"], par["dimX"])
-        self.data_shape_T = (par["NScan"], par["NC"],
-                             self.packs*self.numofpacks,
-                             par["dimY"], par["dimX"])
-
-        self._setupstreamingops = self._setupstreamingopsSMS
-
-        self._expdim_dat = 1
-        self._expdim_C = 0
-
-        self._setup_reg_tmp_arrays("TGV", SMS=True)
+            imagespace=imagespace,
+            SMS=True)
 
     def _updateInitial(self,
                        out_fwd, out_adj,
@@ -2001,7 +2015,7 @@ class PDSolverStreamedTV(PDSolverStreamed):
     """Streamed TV optimization."""
 
     def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model, imagespace=False):
+                 linop, coils, model, imagespace=False, SMS=False):
 
         super().__init__(
             par,
@@ -2013,7 +2027,7 @@ class PDSolverStreamedTV(PDSolverStreamed):
             linop,
             coils,
             model,
-            imagespace=False)
+            imagespace=imagespace)
 
         self.alpha = irgn_par["gamma"]
         self.beta = irgn_par["gamma"] * 2
@@ -2023,7 +2037,7 @@ class PDSolverStreamedTV(PDSolverStreamed):
 
         self.symgrad_shape = self.unknown_shape + (8,)
 
-        self._setup_reg_tmp_arrays("TV")
+        self._setup_reg_tmp_arrays("TV", SMS=SMS)
 
     def _setupVariables(self, inp, data):
 
@@ -2193,17 +2207,7 @@ class PDSolverStreamedTVSMS(PDSolverStreamedTV):
     def __init__(self, par, irgn_par, queue, tau, fval, prg,
                  linop, coils, model, imagespace=False):
 
-        super().__init__(
-            par,
-            irgn_par,
-            queue,
-            tau,
-            fval,
-            prg,
-            linop,
-            coils,
-            model,
-            imagespace=False)
+
 
         self.packs = par["packs"]
         self.numofpacks = par["numofpacks"]
@@ -2218,7 +2222,18 @@ class PDSolverStreamedTVSMS(PDSolverStreamedTV):
         self._expdim_dat = 1
         self._expdim_C = 0
 
-        self._setup_reg_tmp_arrays("TV", SMS=True)
+        super().__init__(
+            par,
+            irgn_par,
+            queue,
+            tau,
+            fval,
+            prg,
+            linop,
+            coils,
+            model,
+            imagespace=imagespace,
+            SMS=True)
 
     def _updateInitial(self,
                        out_fwd, out_adj,

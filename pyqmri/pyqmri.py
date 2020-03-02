@@ -591,7 +591,6 @@ def _start_recon(myargs):
             pass
         else:
             data = data*(par["dcf"])
-    del par["file"]["images"]
     if NC == 1:
         par['C'] = np.ones((data[0, ...].shape), dtype=DTYPE)
     else:
@@ -599,11 +598,7 @@ def _start_recon(myargs):
 ###############################################################################
 # Init forward model and initial guess ########################################
 ###############################################################################
-#    dir = par["file"].attrs["DWI_dir"]
-#    par["file"].attrs["dir_x"] = dir[0]
-#    tmp = par["dir_y"]
-#    par["dir_y"] = par["dir_x"]
-#    par["dir_x"] = tmp
+#    del par["file"]["images"]
 
     if myargs.sig_model == "GeneralModel":
         par["modelfile"] = myargs.modelfile
