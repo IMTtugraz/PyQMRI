@@ -533,7 +533,7 @@ def _start_recon(myargs):
             pass
         else:
             data = data*(par["dcf"])
-
+    del par["file"]["images"]
     if NC == 1:
         par['C'] = np.ones((data[0, ...].shape), dtype=DTYPE)
     else:

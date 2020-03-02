@@ -10,9 +10,8 @@ unknowns_H1 = 0
 
 
 class Model(BaseModel):
-    def __init__(self, par, images):
+    def __init__(self, par):
         super().__init__(par)
-        self.images = images
         self.NSlice = par['NSlice']
 
         self.figuref = None
@@ -792,13 +791,13 @@ class Model(BaseModel):
                 plt.draw()
                 plt.pause(1e-10)
 
-    def computeInitialGuess(self, images):
-        self.phase = np.exp(1j*(np.angle(images)-np.angle(images[0])))
-        self.guess = self._set_init_scales(images)
+    def computeInitialGuess(self, *args):
+        self.phase = np.exp(1j*(np.angle(args[0])-np.angle(args[0][0])))
+        self.guess = self._set_init_scales(args[0])
         if self.b0 is not None:
             test_M0 = self.b0
         else:
-            test_M0 = images[0]
+            test_M0 = args[0][0]
         ADC = 1 * np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
 
         x = np.array(

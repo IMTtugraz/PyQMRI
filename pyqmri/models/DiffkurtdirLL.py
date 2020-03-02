@@ -50,7 +50,7 @@ def _gradKurtOff3(comKurtfac, Kurtscale, bdir1, bdir2, bdir3):
 
 class Model(BaseModel):
     """ Test """
-    def __init__(self, par, images):
+    def __init__(self, par):
         super().__init__(par)
         self.images = images
 
