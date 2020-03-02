@@ -900,6 +900,7 @@ class PyOpenCLSMSNUFFT(PyOpenCLFFT):
             fft_dim=(
                 1,
                 2),
+            klength=200,
             DTYPE=np.complex64,
             DTYPE_real=np.float32):
         """ Setup the FFT-SMS object
@@ -1009,7 +1010,7 @@ class PyOpenCLSMSNUFFT(PyOpenCLFFT):
                                   self.DTYPE_real(self.fft_scale),
                                   wait_for=self._tmp_fft_array.events))
         else:
-            return self.prg.copy_SMS_adjkspace(
+            return self.prg.copy_SMS_adj(
                     self.queue,
                     (sg.shape[0] * sg.shape[1],
                      sg.shape[-2],
@@ -1073,7 +1074,7 @@ class PyOpenCLSMSNUFFT(PyOpenCLFFT):
                     wait_for=s.events+self._tmp_fft_array.events))
         else:
             return (
-                self.prg.copy_SMS_fwdkspace(
+                self.prg.copy_SMS_fwd(
                     self.queue,
                     (s.shape[0] * s.shape[1], s.shape[-2], s.shape[-1]),
                     None,
@@ -1822,13 +1823,16 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLFFT):
             The real precision type. Currently float32 is used.
         """
         super().__init__(ctx, queue, DTYPE, DTYPE_real)
-        self.fft_shape = (par["NSlice"] *
-                          par["NC"], par["dimY"], par["dimX"])
+        self.fft_shape = (
+            par["NC"] *
+            par["NSlice"], 
+            par["dimY"], 
+            par["dimX"])
 
         self.packs = int(par["packs"])
         self.MB = int(par["MB"])
         self.shift = clarray.to_device(
-            self.queue, par["shift"].astype(np.int32))
+            self.queue, par["shift"].astype(DTYPE_real))
         
         self.fft_dim = par["fft_dim"]
         self.par_fft = int(self.fft_shape[0])
@@ -1900,7 +1904,7 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLFFT):
                                   self.DTYPE_real(self.fft_scale),
                                   wait_for=self._tmp_fft_array.events))
         else:
-            return self.prg.copy_SMS_adjkspace(
+            return self.prg.copy_SMS_adj(
                     self.queue,
                     (sg.shape[0] * sg.shape[1],
                      sg.shape[-2],
@@ -1960,7 +1964,7 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLFFT):
                     wait_for=s.events+self._tmp_fft_array.events))
         else:
             return (
-                self.prg.copy_SMS_fwdkspace(
+                self.prg.copy_SMS_fwd(
                     self.queue,
                     (s.shape[0] * s.shape[1], s.shape[-2], s.shape[-1]),
                     None,
