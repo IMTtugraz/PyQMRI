@@ -180,6 +180,102 @@ class Operator(ABC):
         """
         ...
 
+    @staticmethod
+    def MRIOperatorFactory(par,
+                           prg,
+                           DTYPE,
+                           DTYPE_real,
+                           trafo=False,
+                           imagespace=False,
+                           SMS=False,
+                           streamed=False):
+        """MRI forward/adjoint operator factory method."""
+        if streamed:
+            if imagespace:
+                op = OperatorImagespaceStreamed(
+                    par, prg,
+                    DTYPE=DTYPE,
+                    DTYPE_real=DTYPE_real)
+                FT = None
+            else:
+                if SMS:
+                    op = OperatorKspaceSMSStreamed(
+                        par,
+                        prg,
+                        trafo=trafo,
+                        DTYPE=DTYPE,
+                        DTYPE_real=DTYPE_real)
+                else:
+                    op = OperatorKspaceStreamed(
+                        par,
+                        prg,
+                        trafo=trafo,
+                        DTYPE=DTYPE,
+                        DTYPE_real=DTYPE_real)
+                FT = op.NUFFT
+        else:
+            if imagespace:
+                op = OperatorImagespace(
+                    par, prg[0],
+                    DTYPE=DTYPE,
+                    DTYPE_real=DTYPE_real)
+                FT = None
+            else:
+                if SMS:
+                    op = OperatorKspaceSMS(
+                        par,
+                        prg[0],
+                        trafo=trafo,
+                        DTYPE=DTYPE,
+                        DTYPE_real=DTYPE_real)
+                else:
+                    op = OperatorKspace(
+                        par,
+                        prg[0],
+                        trafo=trafo,
+                        DTYPE=DTYPE,
+                        DTYPE_real=DTYPE_real)
+                FT = op.NUFFT
+        return op, FT
+
+    @staticmethod
+    def GradientOperatorFactory(par,
+                                prg,
+                                DTYPE,
+                                DTYPE_real,
+                                streamed=False):
+        """Gradient forward/adjoint operator factory method."""
+        if streamed:
+            op = OperatorFiniteGradientStreamed(par,
+                                                prg,
+                                                DTYPE,
+                                                DTYPE_real)
+        else:
+            op = OperatorFiniteGradient(par,
+                                        prg[0],
+                                        DTYPE,
+                                        DTYPE_real)
+        return op
+
+    @staticmethod
+    def SymGradientOperatorFactory(par,
+                                   prg,
+                                   DTYPE,
+                                   DTYPE_real,
+                                   streamed=False):
+        """Symmetrized Gradient forward/adjoint operator factory method."""
+        if streamed:
+            op = OperatorFiniteSymGradientStreamed(par,
+                                                   prg,
+                                                   DTYPE,
+                                                   DTYPE_real)
+        else:
+            op = OperatorFiniteSymGradient(par,
+                                           prg[0],
+                                           DTYPE,
+                                           DTYPE_real)
+        return op
+
     def _defineoperator(self,
                         functions,
                         outp,
@@ -1719,29 +1815,33 @@ class OperatorFiniteGradientStreamed(Operator):
         return out
 
     def updateRatio(self, inp):
-        x = np.require(np.transpose(inp, [1, 0, 2, 3]), requirements='C')
+        x = np.require(np.swapaxes(inp, 0, 1), requirements='C')
         grad = np.zeros(x.shape + (4,), dtype=self.DTYPE)
         for i in range(self.num_dev):
             for j in range(x.shape[1]):
                 self._ratio[i][j] = 1
         self.fwd([grad], [[x]])
-        grad = np.require(np.transpose(grad, [1, 0, 2, 3, 4]),
+        grad = np.require(np.swapaxes(grad, 0, 1),
                           requirements='C')
-        x = np.require(np.transpose(x, [1, 0, 2, 3]), requirements='C')
+        del x
         scale = np.reshape(
-            x, (self.unknowns, self.NSlice * self.dimY * self.dimX))
+            inp, (self.unknowns,
+                self.NSlice * self.dimY * self.dimX))
         grad = np.reshape(
-            grad, (self.unknowns, self.NSlice * self.dimY * self.dimX * 4))
+            grad, (self.unknowns,
+                   self.NSlice *
+                   self.dimY *
+                   self.dimX * 4))
         gradnorm = np.sum(np.abs(grad), axis=-1)
         scale = 1 / gradnorm
         scale[~np.isfinite(scale)] = 1
         sum_scale = 1 / 1e5
 
         for i in range(self.num_dev):
-            for j in range(x.shape[0])[:self.unknowns_TGV]:
+            for j in range(inp.shape[0])[:self.unknowns_TGV]:
                 self._ratio[i][j] = scale[j] / sum_scale * self._weights[j]
         for i in range(self.num_dev):
-            for j in range(x.shape[0])[self.unknowns_TGV:]:
+            for j in range(inp.shape[0])[self.unknowns_TGV:]:
                 self._ratio[i][j] = scale[j] / sum_scale * self._weights[j]
 
     def _grad(self, outp, inp, par=None, idx=0, idxq=0,

@@ -604,7 +604,7 @@ def _start_recon(myargs):
 #    par["dir_y"] = par["dir_x"]
 #    par["dir_x"] = tmp
 
-    del par["file"]["images"]
+    # del par["file"]["images"]
     if myargs.sig_model == "GeneralModel":
         par["modelfile"] = myargs.modelfile
         par["modelname"] = myargs.modelname
@@ -640,7 +640,8 @@ def _start_recon(myargs):
                               SMS=myargs.sms,
                               config=myargs.config,
                               model=model,
-                              streamed=myargs.streamed)
+                              streamed=myargs.streamed,
+                              reg_type=myargs.reg)
     if myargs.imagespace is True:
         opt.data = images
     else:
