@@ -50,7 +50,7 @@ def nlinvns(Y, n, *arg):  # *returnProfiles,**realConstr):
     P = np.ones(Y[0, :, :].shape, dtype=np.float64)  # 128,128
     P[Y[0, :, :] == 0] = 0
 
-    W = weights(x, y)  # W128,128
+    W = weights(y, x)  # W128,128
 
 #    P = fftshift2(P)  #128,128
     W = fftshift2(W)
@@ -198,5 +198,5 @@ def weights(x, y):
     for i in range(0, x):
         for j in range(0, y):
             d = ((i) / x - 0.5)**2 + ((j) / y - 0.5)**2
-            W[j, i] = 1 / (1 + 220 * d)**16  # 16
+            W[i, j] = 1 / (1 + 220 * d)**16  # 16
     return W

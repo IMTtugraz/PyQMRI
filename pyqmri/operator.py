@@ -70,6 +70,7 @@ class Operator(ABC):
       prg (PyOpenCL.Program):
         The PyOpenCL program containing all compiled kernels.
     """
+
     def __init__(self, par, prg, DTYPE=np.complex64, DTYPE_real=np.float32):
         """ Setup a Operator object
         Args:
@@ -179,6 +180,85 @@ class Operator(ABC):
         """
         ...
 
+    @staticmethod
+    def MRIOperatorFactory(par,
+                           prg,
+                           DTYPE,
+                           DTYPE_real,
+                           trafo=False,
+                           imagespace=False,
+                           streamed=False):
+        """MRI forward/adjoint operator factory method."""
+        if streamed:
+            if imagespace:
+                op = OperatorImagespaceStreamed(
+                    par, prg,
+                    DTYPE=DTYPE,
+                    DTYPE_real=DTYPE_real)
+                FT = None
+            else:
+                op = OperatorKspaceStreamed(
+                    par,
+                    prg,
+                    trafo=trafo,
+                    DTYPE=DTYPE,
+                    DTYPE_real=DTYPE_real)
+                FT = op.NUFFT
+        else:
+            if imagespace:
+                op = OperatorImagespace(
+                    par, prg[0],
+                    DTYPE=DTYPE,
+                    DTYPE_real=DTYPE_real)
+                FT = None
+            else:
+                op = OperatorKspace(
+                    par,
+                    prg[0],
+                    trafo=trafo,
+                    DTYPE=DTYPE,
+                    DTYPE_real=DTYPE_real)
+                FT = op.NUFFT
+        return op, FT
+
+    @staticmethod
+    def GradientOperatorFactory(par,
+                                prg,
+                                DTYPE,
+                                DTYPE_real,
+                                streamed=False):
+        """Gradient forward/adjoint operator factory method."""
+        if streamed:
+            op = OperatorFiniteGradientStreamed(par,
+                                                prg,
+                                                DTYPE,
+                                                DTYPE_real)
+        else:
+            op = OperatorFiniteGradient(par,
+                                        prg[0],
+                                        DTYPE,
+                                        DTYPE_real)
+        return op
+
+    @staticmethod
+    def SymGradientOperatorFactory(par,
+                                   prg,
+                                   DTYPE,
+                                   DTYPE_real,
+                                   streamed=False):
+        """Symmetrized Gradient forward/adjoint operator factory method."""
+        if streamed:
+            op = OperatorFiniteSymGradientStreamed(par,
+                                                   prg,
+                                                   DTYPE,
+                                                   DTYPE_real)
+        else:
+            op = OperatorFiniteSymGradient(par,
+                                           prg[0],
+                                           DTYPE,
+                                           DTYPE_real)
+        return op
+
     def _defineoperator(self,
                         functions,
                         outp,
@@ -209,6 +289,7 @@ class OperatorImagespace(Operator):
     Use this operator if you want to perform complex parameter fitting from
     complex image space data without the need of performing FFTs.
     """
+
     def __init__(self, par, prg, DTYPE=np.complex64, DTYPE_real=np.float32):
         super().__init__(par, prg, DTYPE, DTYPE_real)
         self.queue = self.queue[0]
@@ -231,7 +312,7 @@ class OperatorImagespace(Operator):
         """
         return self.prg.operator_fwd_imagespace(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
-            out.data, inp[0].data, inp[2],
+            out.data, inp[0].data, inp[2].data,
             np.int32(self.NScan),
             np.int32(self.unknowns),
             wait_for=inp[0].events + out.events + wait_for)
@@ -257,7 +338,7 @@ class OperatorImagespace(Operator):
             self.DTYPE, "C")
         tmp_result.add_event(self.prg.operator_fwd_imagespace(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
-            tmp_result.data, inp[0].data, inp[2],
+            tmp_result.data, inp[0].data, inp[2].data,
             np.int32(self.NScan),
             np.int32(self.unknowns),
             wait_for=inp[0].events + wait_for))
@@ -280,7 +361,7 @@ class OperatorImagespace(Operator):
         """
         return self.prg.operator_ad_imagespace(
             out.queue, (self.NSlice, self.dimY, self.dimX), None,
-            out.data, inp[0].data, inp[2],
+            out.data, inp[0].data, inp[2].data,
             np.int32(self.NScan),
             np.int32(self.unknowns),
             wait_for=wait_for + inp[0].events + out.events)
@@ -306,7 +387,7 @@ class OperatorImagespace(Operator):
             dtype=self.DTYPE)
         self.prg.operator_ad_imagespace(
             out.queue, (self.NSlice, self.dimY, self.dimX), None,
-            out.data, inp[0].data, inp[2],
+            out.data, inp[0].data, inp[2].data,
             np.int32(self.NScan),
             np.int32(self.unknowns),
             wait_for=wait_for + inp[0].events + out.events).wait()
@@ -331,7 +412,7 @@ class OperatorImagespace(Operator):
         """
         return self.prg.update_Kyk1_imagespace(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
-            out.data, inp[0].data, inp[3], inp[1].data,
+            out.data, inp[0].data, inp[3].data, inp[1].data,
             np.int32(self.NScan),
             inp[4].data,
             np.int32(self.unknowns),
@@ -348,6 +429,7 @@ class OperatorKspace(Operator):
     complex k-space data. The type of fft is defined through the NUFFT object.
     The NUFFT object can also be used for simple Cartesian FFTs.
     """
+
     def __init__(self, par, prg, DTYPE=np.complex64,
                  DTYPE_real=np.float32, trafo=True):
         super().__init__(par, prg, DTYPE, DTYPE_real)
@@ -388,8 +470,8 @@ class OperatorKspace(Operator):
                 (self.NSlice, self.dimY, self.dimX),
                 None,
                 self.tmp_result.data, inp[0].data,
-                inp[1],
-                inp[2], np.int32(self.NC),
+                inp[1].data,
+                inp[2].data, np.int32(self.NC),
                 np.int32(self.NScan),
                 np.int32(self.unknowns),
                 wait_for=self.tmp_result.events + inp[0].events + wait_for))
@@ -421,8 +503,8 @@ class OperatorKspace(Operator):
                 (self.NSlice, self.dimY, self.dimX),
                 None,
                 self.tmp_result.data, inp[0].data,
-                inp[1],
-                inp[2], np.int32(self.NC),
+                inp[1].data,
+                inp[2].data, np.int32(self.NC),
                 np.int32(self.NScan),
                 np.int32(self.unknowns),
                 wait_for=self.tmp_result.events + inp[0].events + wait_for))
@@ -454,8 +536,8 @@ class OperatorKspace(Operator):
                 self.tmp_result, inp[0], wait_for=wait_for + inp[0].events))
         return self.prg.operator_ad(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
-            out.data, self.tmp_result.data, inp[1],
-            inp[2], np.int32(self.NC),
+            out.data, self.tmp_result.data, inp[1].data,
+            inp[2].data, np.int32(self.NC),
             np.int32(self.NScan),
             np.int32(self.unknowns),
             wait_for=wait_for + self.tmp_result.events + out.events)
@@ -484,8 +566,8 @@ class OperatorKspace(Operator):
             dtype=self.DTYPE)
         self.prg.operator_ad(
             out.queue, (self.NSlice, self.dimY, self.dimX), None,
-            out.data, self.tmp_result.data, inp[1],
-            inp[2], np.int32(self.NC),
+            out.data, self.tmp_result.data, inp[1].data,
+            inp[2].data, np.int32(self.NC),
             np.int32(self.NScan),
             np.int32(self.unknowns),
             wait_for=wait_for + self.tmp_result.events + out.events).wait()
@@ -513,8 +595,8 @@ class OperatorKspace(Operator):
                 self.tmp_result, inp[0], wait_for=wait_for + inp[0].events))
         return self.prg.update_Kyk1(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
-            out.data, self.tmp_result.data, inp[2],
-            inp[3], inp[1].data, np.int32(self.NC),
+            out.data, self.tmp_result.data, inp[2].data,
+            inp[3].data, inp[1].data, np.int32(self.NC),
             np.int32(self.NScan),
             inp[4].data,
             np.int32(self.unknowns), self.DTYPE_real(self._dz),
@@ -543,6 +625,7 @@ class OperatorImagespaceStreamed(Operator):
       adjstr (PyQMRI.Stream):
         The streaming object to perform the adjoint evaluation
     """
+
     def __init__(self, par, prg, DTYPE=np.complex64, DTYPE_real=np.float32):
         super().__init__(par, prg, DTYPE, DTYPE_real)
         par["overlap"] = 1
@@ -596,58 +679,14 @@ class OperatorImagespaceStreamed(Operator):
         self.fwdstr.eval(out, inp)
 
     def fwdoop(self, inp, wait_for=[]):
-        """ Apply the linear operator from parameter space to measurement space
-        If streamed operations are used the PyOpenCL.Arrays are replaced
-        by Numpy.Array
-        This method needs to generate a temporary array and will return it as
-        the result.
-
-        Args:
-          inp (PyOpenCL.Array):
-            The complex parameter space data which is used as input.
-          wait_for (list of PyopenCL.Event):
-            A List of PyOpenCL events to wait for.
-        Returns:
-          PyOpenCL.Array: A PyOpenCL array containing the result of the
-          computation.
-        """
         tmp_result = np.zeros(self.data_shape, dtype=self.DTYPE)
         self.fwdstr.eval([tmp_result], inp)
         return tmp_result
 
     def adj(self, out, inp, wait_for=[]):
-        """ Apply the linear operator from measurement space to parameter space
-        If streamed operations are used the PyOpenCL.Arrays are replaced
-        by Numpy.Array
-        Args:
-          out (PyOpenCL.Array):
-            The complex parameter space data which is the result of the \
-            computation.
-          inp (PyOpenCL.Array):
-            The complex measurement space data which is used as input.
-          wait_for (list of PyopenCL.Event):
-            A List of PyOpenCL events to wait for.
-        Returns:
-          PyOpenCL.Event: A PyOpenCL event to wait for.
-        """
         self.adjstr.eval(out, inp)
 
     def adjoop(self, inp, wait_for=[]):
-        """ Apply the linear operator from measurement space to parameter space
-        If streamed operations are used the PyOpenCL.Arrays are replaced
-        by Numpy.Array
-        This method needs to generate a temporary array and will return it as
-        the result.
-
-        Args:
-          inp (PyOpenCL.Array):
-            The complex measurement space which is used as input.
-          wait_for (list of PyopenCL.Event):
-            A List of PyOpenCL events to wait for.
-        Returns:
-          PyOpenCL.Array: A PyOpenCL array containing the result of the
-          computation.
-        """
         tmp_result = np.zeros(self.unknown_shape, dtype=self.DTYPE)
         self.adjstr.eval([tmp_result], inp)
         return tmp_result
@@ -685,7 +724,7 @@ class OperatorImagespaceStreamed(Operator):
             inp[3].data,
             inp[1].data,
             np.int32(self.NScan),
-            par[-1][idx].data, np.int32(self.unknowns),
+            par[0][idx].data, np.int32(self.unknowns),
             np.int32(bound_cond), self.DTYPE_real(self._dz),
             wait_for=(outp.events+inp[0].events+inp[1].events +
                       inp[3].events+wait_for))
@@ -726,12 +765,11 @@ class OperatorKspaceStreamed(Operator):
         A list of NUFFT objects. One for each context.
       FTstr (PyQMRI.Stream):
         A streamed version of the used (non-uniform) FFT, applied forward.
-
     """
+
     def __init__(self, par, prg,
                  DTYPE=np.complex64, DTYPE_real=np.float32, trafo=True):
         super().__init__(par, prg, DTYPE, DTYPE_real)
-        par["overlap"] = 1
         self.overlap = par["overlap"]
         self.par_slices = par["par_slices"]
         if not trafo:
@@ -809,58 +847,14 @@ class OperatorKspaceStreamed(Operator):
         self.fwdstr.eval(out, inp)
 
     def fwdoop(self, inp, wait_for=[]):
-        """ Apply the linear operator from parameter space to measurement space
-        If streamed operations are used the PyOpenCL.Arrays are replaced
-        by Numpy.Array
-        This method needs to generate a temporary array and will return it as
-        the result.
-
-        Args:
-          inp (PyOpenCL.Array):
-            The complex parameter space data which is used as input.
-          wait_for (list of PyopenCL.Event):
-            A List of PyOpenCL events to wait for.
-        Returns:
-          PyOpenCL.Array: A PyOpenCL array containing the result of the
-          computation.
-        """
         tmp_result = np.zeros(self.data_shape, dtype=self.DTYPE)
         self.fwdstr.eval([tmp_result], inp)
         return tmp_result
 
     def adj(self, out, inp, wait_for=[]):
-        """ Apply the linear operator from measurement space to parameter space
-        If streamed operations are used the PyOpenCL.Arrays are replaced
-        by Numpy.Array
-        Args:
-          out (PyOpenCL.Array):
-            The complex parameter space data which is the result of the \
-            computation.
-          inp (PyOpenCL.Array):
-            The complex measurement space data which is used as input.
-          wait_for (list of PyopenCL.Event):
-            A List of PyOpenCL events to wait for.
-        Returns:
-          PyOpenCL.Event: A PyOpenCL event to wait for.
-        """
         self.adjstr.eval(out, inp)
 
     def adjoop(self, inp, wait_for=[]):
-        """ Apply the linear operator from measurement space to parameter space
-        If streamed operations are used the PyOpenCL.Arrays are replaced
-        by Numpy.Array
-        This method needs to generate a temporary array and will return it as
-        the result.
-
-        Args:
-          inp (PyOpenCL.Array):
-            The complex measurement space which is used as input.
-          wait_for (list of PyopenCL.Event):
-            A List of PyOpenCL events to wait for.
-        Returns:
-          PyOpenCL.Array: A PyOpenCL array containing the result of the
-          computation.
-        """
         tmp_result = np.zeros(self.unknown_shape, dtype=self.DTYPE)
         self.adjstr.eval([tmp_result], inp)
         return tmp_result
@@ -909,7 +903,7 @@ class OperatorKspaceStreamed(Operator):
             inp[2].data,
             inp[3].data,
             inp[1].data, np.int32(self.NC), np.int32(self.NScan),
-            par[-1][idx].data, np.int32(self.unknowns),
+            par[0][idx].data, np.int32(self.unknowns),
             np.int32(bound_cond), self.DTYPE_real(self._dz),
             wait_for=(
                 self.tmp_result[2*idx+idxq].events +
@@ -990,8 +984,8 @@ class OperatorFiniteGradient(Operator):
             wait_for=tmp_result.events + inp.events + wait_for))
         return tmp_result
 
-    def updateRatio(self, x):
-        x = clarray.to_device(self.queue, x)
+    def updateRatio(self, inp):
+        x = clarray.to_device(self.queue, inp)
         grad = clarray.to_device(
             self.queue, np.zeros(x.shape + (4,),
                                  dtype=self.DTYPE))
@@ -1018,38 +1012,13 @@ class OperatorFiniteGradient(Operator):
                    self.dimY *
                    self.dimX * 4))
         gradnorm = np.sum(np.abs(grad), axis=-1)
-#        gradnorm[gradnorm < 1e-8] = 0
-#        print("Diff between x: ", np.linalg.norm(scale, axis=-1))
-#        print("Diff between grad x: ", gradnorm)
         scale = 1/gradnorm
         scale[~np.isfinite(scale)] = 1
         sum_scale = 1 / 1e5
         for j in range(x.shape[0])[:self.unknowns_TGV]:
             self._ratio[j] = scale[j] / sum_scale * self._weights[j]
-#        sum_scale = np.sqrt(np.sum(np.abs(
-#            scale[self.unknowns_TGV:])**2/(1000)))
         for j in range(x.shape[0])[self.unknowns_TGV:]:
             self._ratio[j] = scale[j] / sum_scale * self._weights[j]
-#        print("Ratio: ", self._ratio)
-        x = clarray.to_device(self.queue, x)
-        grad = clarray.to_device(
-            self.queue, np.zeros(x.shape + (4,),
-                                 dtype=self.DTYPE))
-#        grad.add_event(
-#            self.fwd(
-#                grad,
-#                x,
-#                wait_for=grad.events +
-#                x.events))
-#        x = x.get()
-#        grad = grad.get()
-#        grad = np.reshape(
-#            grad, (self.unknowns,
-#                   self.NSlice *
-#                   self.dimY *
-#                   self.dimX * 4))
-#        print("Norm of grad x: ",  np.sum(np.abs(grad), axis=-1))
-#        print("Total Norm of grad x: ",  np.sum(np.abs(grad)))
 
 
 class OperatorFiniteSymGradient(Operator):
@@ -1107,7 +1076,8 @@ class OperatorFiniteGradientStreamed(Operator):
             self._ratio.append(
                 clarray.to_device(
                     self.queue[4*j],
-                    (np.ones(self.unknowns)).astype(dtype=DTYPE_real)))
+                    (1 / self.unknowns *
+                     np.ones(self.unknowns)).astype(dtype=DTYPE_real)))
 
         self.unknown_shape = (self.NSlice, self.unknowns, self.dimY, self.dimX)
         self.grad_shape = self.unknown_shape + (4,)
@@ -1140,29 +1110,33 @@ class OperatorFiniteGradientStreamed(Operator):
         return out
 
     def updateRatio(self, inp):
-        x = np.require(np.transpose(inp, [1, 0, 2, 3]), requirements='C')
+        x = np.require(np.swapaxes(inp, 0, 1), requirements='C')
         grad = np.zeros(x.shape + (4,), dtype=self.DTYPE)
         for i in range(self.num_dev):
-            for j in range(x.shape[0])[:self.unknowns_TGV]:
+            for j in range(x.shape[1]):
                 self._ratio[i][j] = 1
         self.fwd([grad], [[x]])
-        grad = np.require(np.transpose(grad, [1, 0, 2, 3, 4]),
+        grad = np.require(np.swapaxes(grad, 0, 1),
                           requirements='C')
-        x = np.require(np.transpose(x, [1, 0, 2, 3]), requirements='C')
+        del x
         scale = np.reshape(
-            x, (self.unknowns, self.NSlice * self.dimY * self.dimX))
+            inp, (self.unknowns,
+                self.NSlice * self.dimY * self.dimX))
         grad = np.reshape(
-            grad, (self.unknowns, self.NSlice * self.dimY * self.dimX * 4))
+            grad, (self.unknowns,
+                   self.NSlice *
+                   self.dimY *
+                   self.dimX * 4))
         gradnorm = np.sum(np.abs(grad), axis=-1)
         scale = 1 / gradnorm
         scale[~np.isfinite(scale)] = 1
         sum_scale = 1 / 1e5
 
         for i in range(self.num_dev):
-            for j in range(x.shape[0])[:self.unknowns_TGV]:
+            for j in range(inp.shape[0])[:self.unknowns_TGV]:
                 self._ratio[i][j] = scale[j] / sum_scale * self._weights[j]
         for i in range(self.num_dev):
-            for j in range(x.shape[0])[self.unknowns_TGV:]:
+            for j in range(inp.shape[0])[self.unknowns_TGV:]:
                 self._ratio[i][j] = scale[j] / sum_scale * self._weights[j]
 
     def _grad(self, outp, inp, par=None, idx=0, idxq=0,

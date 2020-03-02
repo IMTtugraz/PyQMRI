@@ -1,25 +1,34 @@
 Welcome to PyQMRI's documentation!
 ================================================================
-Requirements
+.. toctree::
+   :maxdepth: 6
+   :caption: Contents:
+
+   ./_modules/pyqmri
+   ./_modules/solver
+   ./_modules/streaming
+   ./_modules/operator
+   ./_modules/models
+   ./_modules/FFT
+   ./_modules/IRGN_RECO
+   ./_modules/IRGN_RECO_STREAMED
+
+
+Indices and tables
 ==================
-* Requires OpenCL_ >= 1.2
-* Requires clfft_
-* Requires gpyfft_
-* Requires Cython, pip >= 19, python >= 3.6
 
-The Software is tested on Linux using the latest Nvidia driver (418.56 CUDA Version: 10.1) but should be compatible with older drivers as well as different hardware (AMD). The following Installation Guide is targeted at Ubuntu but should work on any distribution provided the required packages are present (could be differently named).
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
 
-* It is highly recommended to use an Anaconda environment
-
+Quick Installing Guide:
+------------------------
 .. role:: bash(code)
    :language: bash
    
 .. role:: python(code)
    :language: python
    
-   
-Quick Installing Guide:
-------------------------
 First make sure that you have a working OpenCL installation
 
 * OpenCL is usually shipped with GPU driver (Nvidia/AMD)
@@ -182,24 +191,3 @@ at `[v0.1.0] <(https://github.com/IMTtugraz/PyQMRI/tree/v.0.1.0)>`_
 .. _zenodo: https://doi.org/10.5281/zenodo.1410918
 .. _NLINV: https://doi.org/10.1002/mrm.21691
 
-
-.. toctree::
-   :maxdepth: 6
-   :caption: Contents:
-
-   ./_modules/pyqmri
-   ./_modules/solver
-   ./_modules/streaming
-   ./_modules/operator
-   ./_modules/models
-   ./_modules/FFT
-   ./_modules/IRGN_RECO
-   ./_modules/IRGN_RECO_STREAMED
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`

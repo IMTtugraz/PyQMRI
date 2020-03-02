@@ -355,6 +355,10 @@ class Stream:
                             self.queue[4*idev+odd].flush()
 
     def _startcomputation(self, par=None, bound_cond=0, odd=0):
+        if par is None:
+            par = []
+            for ifun in range(self.num_fun):
+                par.append([])
         for idev in range(self.num_dev):
             for ifun in range(self.num_fun):
                 for inps in self.inp[ifun][2*idev+odd]:
@@ -367,7 +371,7 @@ class Stream:
                             self.fun[ifun](
                                 self.outp[ifun][2*idev+odd],
                                 self.inp[ifun][2*idev+odd][:],
-                                par,
+                                par[ifun],
                                 idev,
                                 odd,
                                 bound_cond))

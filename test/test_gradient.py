@@ -173,7 +173,7 @@ class GradientStreamedTest(unittest.TestCase):
         if DTYPE == np.complex128:
             file = open(
                     resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_streamed_double.c'))
+                        'pyqmri', 'kernels/OpenCL_Kernels_double_streamed.c'))
         else:
             file = open(
                     resource_filename(
@@ -257,7 +257,7 @@ class GradientStreamedTest(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertAlmostEqual(a, b, places=6)
 
     def test_adj_inplace(self):
 
@@ -273,7 +273,7 @@ class GradientStreamedTest(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=1)
+        self.assertAlmostEqual(a, b, places=6)
 
 
 if __name__ == '__main__':

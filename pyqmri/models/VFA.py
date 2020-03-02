@@ -14,6 +14,7 @@ class Model(BaseModel):
         self.constraints = []
         self.TR = par["TR"]
         self.fa = par["flip_angle(s)"]
+
         try:
             self.fa_corr = par["fa_corr"]
         except KeyError:

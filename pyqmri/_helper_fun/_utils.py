@@ -32,7 +32,7 @@ def NUFFT(par, trafo=True, SMS=False):
     par["NC"] = 1
     par["NScan"] = 1
     FFT = PyOpenCLFFT.create(par["ctx"][0], par["queue"][0], par,
-                             radial=trafo, SMS=SMS)
+                             radial=trafo, fft_dim=par["fft_dim"])
     par["NC"] = NC
     par["NScan"] = NScan
     return FFT
@@ -43,16 +43,16 @@ def gen_default_config():
     config = configparser.ConfigParser()
 
     config['TGV'] = {}
-    config['TGV']["max_iters"] = '500'
-    config['TGV']["start_iters"] = '50'
+    config['TGV']["max_iters"] = '1000'
+    config['TGV']["start_iters"] = '10'
     config['TGV']["max_gn_it"] = '7'
     config['TGV']["lambd"] = '1e0'
     config['TGV']["gamma"] = '1e-3'
-    config['TGV']["delta"] = '1e-1'
+    config['TGV']["delta"] = '1e-4'
     config['TGV']["omega"] = '0'
     config['TGV']["display_iterations"] = '0'
-    config['TGV']["gamma_min"] = '1e-4'
-    config['TGV']["delta_max"] = '1e2'
+    config['TGV']["gamma_min"] = '3e-4'
+    config['TGV']["delta_max"] = '1e-1'
     config['TGV']["omega_min"] = '0'
     config['TGV']["tol"] = '1e-6'
     config['TGV']["stag"] = '1e10'
@@ -61,16 +61,16 @@ def gen_default_config():
     config['TGV']["omega_dec"] = '0.5'
 
     config['TV'] = {}
-    config['TV']["max_iters"] = '500'
-    config['TV']["start_iters"] = '50'
+    config['TV']["max_iters"] = '1000'
+    config['TV']["start_iters"] = '10'
     config['TV']["max_gn_it"] = '7'
     config['TV']["lambd"] = '1e0'
     config['TV']["gamma"] = '1e-3'
-    config['TV']["delta"] = '1e-1'
+    config['TV']["delta"] = '1e-4'
     config['TV']["omega"] = '0'
     config['TV']["display_iterations"] = '0'
-    config['TV']["gamma_min"] = '1e-4'
-    config['TV']["delta_max"] = '1e2'
+    config['TV']["gamma_min"] = '3e-4'
+    config['TV']["delta_max"] = '1e-1'
     config['TV']["omega_min"] = '0'
     config['TV']["tol"] = '1e-6'
     config['TV']["stag"] = '1e10'

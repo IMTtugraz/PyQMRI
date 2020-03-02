@@ -9,30 +9,32 @@ plt.ion()
 
 
 class Model(BaseModel):
-    """ Realization of a simple image reconstruction model.
-
-    Attributes:
-      dscale (float): Data scaling factor
-      guess (numpy.Array): Initial guess
-    """
     def __init__(self, par):
         super().__init__(par)
+        self.constraints = []
         self.figure_img = []
-        self.dscale = par["dscale"]
 
         par["unknowns_TGV"] = 1
         par["unknowns_H1"] = 0
-        par["unknowns"] = par["unknowns_TGV"] + par["unknowns_H1"]
+        par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
+        self.unknowns = par["unknowns"]
 
         for j in range(par["unknowns"]):
             self.uk_scale.append(1)
 
-        self.unknowns = par["unknowns"]
         for j in range(par["unknowns"]):
             self.constraints.append(
                 constraints(-100 / self.uk_scale[j],
                             100 / self.uk_scale[j],
                             False))
+
+
+
+    def rescale(self, x):
+        tmp_x = np.copy(x)
+        for j in range(x.shape[0]):
+            tmp_x[j] *= self.uk_scale[j]
+        return tmp_x
 
     def _execute_forward_3D(self, x):
         S = np.zeros_like(x)
@@ -106,4 +108,4 @@ class Model(BaseModel):
                 plt.pause(1e-10)
 
     def computeInitialGuess(self, *args):
-        self.guess = np.abs(args[0]).astype(DTYPE)
+        self.guess = 1e-1*np.ones_like(np.abs(args[0]).astype(DTYPE))

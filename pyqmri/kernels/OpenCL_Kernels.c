@@ -40,7 +40,7 @@ __kernel void update_z2(__global float16 *z_new, __global float16 *z, __global f
   }
 }
 __kernel void update_z1(__global float8 *z_new, __global float8 *z, __global float8 *gx,__global float8 *gx_,
-                          __global float8 *vx,__global float8 *vx_, const float sigma, const float theta, const float alphainv,
+                          __global float8 *vx, __global float8 *vx_, const float sigma, const float theta, const float alphainv,
                           const int NUk_tgv, const int NUk_H1, const float h1inv) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
@@ -122,6 +122,58 @@ __kernel void update_primal(__global float2 *u_new, __global float2 *u, __global
   for (int uk=0; uk<NUk; uk++)
   {
      u_new[i] = (u[i]-tau*Kyk[i]+tauinv*u_k[i])*div;
+
+     if(real[uk]>=1)
+     {
+         u_new[i].s1 = 0.0f;
+         if (u_new[i].s0<min[uk])
+         {
+             u_new[i].s0 = min[uk];
+         }
+         if(u_new[i].s0>max[uk])
+         {
+             u_new[i].s0 = max[uk];
+         }
+     }
+     else
+     {
+         norm =  sqrt(pow((float)(u_new[i].s0),(float)(2.0))+pow((float)(u_new[i].s1),(float)(2.0)));
+         if (norm<min[uk])
+         {
+             u_new[i].s0 *= 1/norm*min[uk];
+             u_new[i].s1 *= 1/norm*min[uk];
+         }
+         if(norm>max[uk])
+         {
+            u_new[i].s0 *= 1/norm*max[uk];
+            u_new[i].s1 *= 1/norm*max[uk];
+         }
+     }
+
+     i += NSl*Nx*Ny;
+  }
+}
+
+__kernel void update_primal_LM(__global float2 *u_new, __global float2 *u, __global float2 *Kyk,
+                               __global float2 *u_k, __global float2* A,
+                            const float tau, const float tauinv, __global float* min, __global float* max,
+                            __global int* real, const int NUk) {
+  size_t Nx = get_global_size(2), Ny = get_global_size(1);
+  size_t NSl = get_global_size(0);
+  size_t x = get_global_id(2), y = get_global_id(1);
+  size_t k = get_global_id(0);
+  size_t i = k*Nx*Ny+Nx*y + x;
+  float norm = 0;
+  float2 Asqr = 0.0f;
+  int idx, idx2, idx3, idx4, idx5;
+  float2 tmp;
+
+
+
+  for (int uk=0; uk<NUk; uk++)
+  {
+     Asqr = (float2)(A[i].x*A[i].x + A[i].y*A[i].y);
+     u_new[i] = (u[i]-tau*Kyk[i]+tauinv*Asqr*u_k[i])/(1+tauinv*Asqr);
 
      if(real[uk]>=1)
      {
@@ -354,7 +406,7 @@ __kernel void sym_divergence(__global float8 *w, __global float16 *q,
   }
 }
 __kernel void update_Kyk2(__global float8 *w, __global float16 *q, __global float8 *z,
-                          const int NUk, const float dz) {
+                          const int NUk, const int first, const float dz) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
   size_t x = get_global_id(2), y = get_global_id(1);
@@ -864,5 +916,76 @@ __kernel void operator_ad_cg(__global float2 *out, __global float2 *in,
   out[scan*NSl*X*Y+k*X*Y+y*X+x] = sum;
   }
 
+
+}
+
+
+__kernel void addfield(__global float2 *out, __global float2 *in, __global float2 *fieldmap,
+                       const int NCo,const int NScan)
+{
+  size_t X = get_global_size(2);
+  size_t Y = get_global_size(1);
+  size_t NSl = get_global_size(0);
+  size_t x = get_global_id(2);
+  size_t y = get_global_id(1);
+  size_t k = get_global_id(0);
+
+  int fmind = x*NSl*X*Y+k*X*Y;
+  int outind, inind;
+
+  float2 fmcoeff = 0.0f;
+
+  for (int scan=0; scan<NScan; scan++)
+  {
+  for (int coil=0; coil < NCo; coil++)
+  {
+  outind = scan*NCo*NSl*X*Y+coil*NSl*X*Y+k*X*Y+y*X+x;
+  out[outind] = 0;
+  for (int ypos=0; ypos < Y; ypos++)
+  {
+    inind = scan*NCo*NSl*X*Y+coil*NSl*X*Y+k*X*Y+ypos*X+x;
+    fmcoeff = fieldmap[fmind+y*Y+ypos];
+    out[outind] += (float2) (in[inind].x*fmcoeff.x-in[inind].y*fmcoeff.y,
+                             in[inind].x*fmcoeff.y+in[inind].y*fmcoeff.x);
+
+
+  }
+  }
+  }
+
+}
+
+__kernel void addfieldadj(__global float2 *out, __global float2 *in, __global float2 *fieldmap,
+                       const int NCo,const int NScan)
+{
+  size_t X = get_global_size(2);
+  size_t Y = get_global_size(1);
+  size_t NSl = get_global_size(0);
+  size_t x = get_global_id(2);
+  size_t y = get_global_id(1);
+  size_t k = get_global_id(0);
+
+  int fmind = x*NSl*X*Y+k*X*Y;
+  int outind, inind;
+
+  float2 fmcoeff = 0.0f;
+
+  for (int scan=0; scan<NScan; scan++)
+  {
+  for (int coil=0; coil < NCo; coil++)
+  {
+  outind = scan*NCo*NSl*X*Y+coil*NSl*X*Y+k*X*Y+y*X+x;
+  out[outind] = 0;
+  for (int ypos=0; ypos < Y; ypos++)
+  {
+    inind = scan*NCo*NSl*X*Y+coil*NSl*X*Y+ypos*X+x;
+    fmcoeff = (float2) (fieldmap[fmind+ypos*Y+y].x, -fieldmap[fmind+ypos*Y+y].y);
+    out[outind] += (float2) (in[inind].x*fmcoeff.x-in[inind].y*fmcoeff.y,
+                             in[inind].x*fmcoeff.y+in[inind].y*fmcoeff.x);
+
+
+  }
+  }
+  }
 
 }

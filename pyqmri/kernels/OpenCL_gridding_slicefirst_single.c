@@ -185,7 +185,6 @@ __kernel void copy(__global float2 *out, __global float2 *in, const float scale)
     out[x] = in[x]*scale;
 
   }
-
 __kernel void masking(__global float2 *ksp, __global float *mask)
   {
     size_t x = get_global_id(0);
