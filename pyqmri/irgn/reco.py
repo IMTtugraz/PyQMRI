@@ -45,112 +45,155 @@ class ModelReco:
     """
 
     def __init__(self, par, trafo=1, imagespace=False, SMS=0, reg_type='TGV',
-                 config='', model=None):
+                 config='', model=None, streamed=False):
         self.par = par
         self._fval_old = 0
         self._fval = 0
         self._fval_init = 0
-        self._ctx = par["ctx"][0]
-        self._queue = par["queue"][0]
+        self._ctx = par["ctx"]
+        self._queue = par["queue"]
         self.gn_res = []
         self.irgn_par = utils.read_config(config, reg_type)
         self.model = model
         self.reg_type = reg_type
-        if DTYPE == np.complex128:
-            self._prg = Program(
-                self._ctx,
-                open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_double.c')).read())
-        else:
-            self._prg = Program(
-                self._ctx,
-                open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels.c')).read())
+        self._prg = []
+        self.num_dev = len(par["num_dev"])
+        self.par_slices = par["par_slices"]
+        self.streamed = streamed
         self._imagespace = imagespace
-        if imagespace:
-            self._coil_buf = []
-            self._op = operator.OperatorImagespace(par, self._prg, DTYPE=DTYPE,
-                                                   DTYPE_real=DTYPE_real)
-        else:
-            self._coil_buf = cl.Buffer(self._ctx,
-                                       cl.mem_flags.READ_ONLY |
-                                       cl.mem_flags.COPY_HOST_PTR,
-                                       hostbuf=self.par["C"].data)
-            if SMS:
-                self._op = operator.OperatorKspaceSMS(par, self._prg,
-                                                      trafo=trafo, DTYPE=DTYPE,
-                                                      DTYPE_real=DTYPE_real)
+        self._SMS = SMS
+        if streamed and par["NSlice"]/(self.num_dev*self.par_slices) < 2:
+            raise ValueError(
+                "Number of Slices devided by parallel "
+                "computed slices and devices needs to be larger two.\n"
+                "Current values are %i total Slices, %i parallel slices and "
+                "%i compute devices."
+                % (par["NSlice"], self.par_slices, self.num_dev))
+        if streamed and par["NSlice"] % self.par_slices:
+            raise ValueError(
+                "Number of Slices devided by parallel "
+                "computed slices needs to be an integer.\n"
+                "Current values are %i total Slices with %i parallel slices."
+                % (par["NSlice"], self.par_slices))
+        if DTYPE == np.complex128:
+            if streamed:
+                kernname = 'kernels/OpenCL_Kernels_double_streamed.c'
             else:
-                self._op = operator.OperatorKspace(
-                    par,
-                    self._prg,
-                    trafo=trafo,
-                    DTYPE=DTYPE,
-                    DTYPE_real=DTYPE_real)
-            self._FT = self._op.NUFFT.FFT
+                kernname = 'kernels/OpenCL_Kernels_double.c'
+            for j in range(self.num_dev):
+                self._prg.append(Program(
+                    self._ctx[j],
+                    open(
+                        resource_filename(
+                            'pyqmri', kernname)
+                        ).read()))
+        else:
+            if streamed:
+                kernname = 'kernels/OpenCL_Kernels_streamed.c'
+            else:
+                kernname = 'kernels/OpenCL_Kernels.c'
+            for j in range(self.num_dev):
+                self._prg.append(Program(
+                    self._ctx[j],
+                    open(
+                        resource_filename(
+                            'pyqmri', kernname)).read()))
 
-        self.grad_op, self.symgrad_op, self.v = self._setupLinearOps()
+        self._imagespace = imagespace
+
+        if imagespace:
+            self._coils = []
+            self.sliceaxis = 1
+        else:
+            self.data_shape = (par["NScan"], par["NC"],
+                               par["NSlice"], par["Nproj"], par["N"])
+            if self.streamed:
+                self.data_trans_axes = (2, 0, 1, 3, 4)
+                self._coils = np.require(
+                    np.swapaxes(par["C"], 0, 1), requirements='C',
+                    dtype=DTYPE)
+
+                if SMS:
+                    self.data_shape = (par["packs"]*par["numofpacks"],
+                                       par["NScan"],
+                                       par["NC"], par["dimY"], par["dimX"])
+                    self.data_shape_T = (par["NScan"], par["NC"],
+                                         par["packs"]*par["numofpacks"],
+                                         par["dimY"], par["dimX"])
+                    self._expdim_dat = 1
+                    self._expdim_C = 0
+                else:
+                    self.data_shape = np.transpose(self.data_shape,
+                                                   self.data_trans_axes)
+                    self.data_shape_T = self.data_shape
+                    self._expdim_dat = 2
+                    self._expdim_C = 1
+            else:
+                self._coils = clarray.to_device(self._queue[0],
+                                                self.par["C"])
+
+        self._op, self._FT = operator.Operator.MRIOperatorFactory(
+            par,
+            self._prg,
+            DTYPE,
+            DTYPE_real,
+            trafo,
+            imagespace,
+            SMS,
+            streamed
+            )
+
+        self.grad_op, self.symgrad_op, self.v = self._setupLinearOps(
+            DTYPE,
+            DTYPE_real)
+
+        self.pdop = optimizer.PDBaseSolver.factory(
+            self._prg,
+            self._queue,
+            self.par,
+            self.irgn_par,
+            self._fval_init,
+            self._coils,
+            linops=(self._op, self.grad_op, self.symgrad_op),
+            model=model,
+            reg_type=self.reg_type,
+            SMS=self._SMS,
+            streamed=self.streamed,
+            imagespace=self._imagespace
+            )
 
         self.step_val = None
-        self.pdop = None
         self.model_partial_der = None
-        self.grad_buf = None
+        self.modelgrad = None
         self.delta = None
         self.delta_max = None
         self.omega = None
         self.gamma = None
         self.data = None  # Needs to be set outside
 
-    def _setupLinearOps(self):
-        grad_op = operator.OperatorFiniteGradient(self.par, self._prg)
+    def _setupLinearOps(self, DTYPE, DTYPE_real):
+        grad_op = operator.Operator.GradientOperatorFactory(
+            self.par,
+            self._prg,
+            DTYPE,
+            DTYPE_real,
+            self.streamed)
         symgrad_op = None
         v = None
         if self.reg_type == 'TGV':
-            symgrad_op = operator.OperatorFiniteSymGradient(
-                self.par, self._prg)
+            symgrad_op = operator.Operator.SymGradientOperatorFactory(
+                self.par,
+                self._prg,
+                DTYPE,
+                DTYPE_real,
+                self.streamed)
             v = np.zeros(
                 ([self.par["unknowns"], self.par["NSlice"],
                   self.par["dimY"], self.par["dimX"], 4]),
                 dtype=DTYPE)
+            if self.streamed:
+                v = np.require(np.swapaxes(v, 0, 1), requirements='C')
         return grad_op, symgrad_op, v
-
-    def _setupPDOptimizer(self):
-        if self.reg_type == 'TV':
-            self.pdop = optimizer.PDSolver(self.par, self.irgn_par,
-                                           self._queue,
-                                           np.float32(1 / np.sqrt(8)),
-                                           self._fval_init, self._prg,
-                                           self.reg_type,
-                                           self._op,
-                                           self._coil_buf)
-            self.pdop.grad_op = self.grad_op
-        elif self.reg_type == 'TGV':
-            L = np.float32(0.5 * (18.0 + np.sqrt(33)))
-            self.pdop = optimizer.PDSolver(self.par, self.irgn_par,
-                                           self._queue,
-                                           np.float32(1 / np.sqrt(L)),
-                                           self._fval_init, self._prg,
-                                           self.reg_type,
-                                           self._op,
-                                           self._coil_buf)
-            self.pdop.grad_op = self.grad_op
-            self.pdop.symgrad_op = self.symgrad_op
-        else:
-            L = np.float32(0.5 * (18.0 + np.sqrt(33)))
-            self.pdop = optimizer.PDSolver(self.par, self.irgn_par,
-                                           self._queue,
-                                           np.float32(1 / np.sqrt(L)),
-                                           self._fval_init, self._prg,
-                                           self.reg_type,
-                                           self._op,
-                                           self._coil_buf)
-
-            self.pdop.grad_op = self.grad_op
-            self.pdop.symgrad_op = self.symgrad_op
-
-        self.pdop.model = self.model
 
 ###############################################################################
 # Start a 3D Reconstruction, set TV to True to perform TV instead of TGV#######
@@ -161,27 +204,43 @@ class ModelReco:
 ###############################################################################
     def _executeIRGN3D(self):
         iters = self.irgn_par["start_iters"]
-
         result = np.copy(self.model.guess)
 
+        if self.streamed:
+            self.data = np.require(
+                np.transpose(self.data, self.data_trans_axes),
+                requirements='C')
+
         self.step_val = np.nan_to_num(self.model.execute_forward(result))
-        self._calcResidual(result, self.data, 0)
-        self._setupPDOptimizer()
+        if self.streamed:
+            if self._SMS is False:
+                self.step_val = np.require(
+                    np.swapaxes(self.step_val, 0, 1), requirements='C')
 
         for ign in range(self.irgn_par["max_gn_it"]):
             start = time.time()
-            self.model_partial_der = np.nan_to_num(
+            self.modelgrad = np.nan_to_num(
                 self.model.execute_gradient(result))
 
             self._balanceModelGradients(result, ign)
-            self.pdop.grad_op.updateRatio(result)
+            if ign > 0:
+                self.pdop.grad_op.updateRatio(result)
 
             self.step_val = np.nan_to_num(self.model.execute_forward(result))
-            self.grad_buf = cl.Buffer(self._ctx,
-                                      cl.mem_flags.READ_ONLY |
-                                      cl.mem_flags.COPY_HOST_PTR,
-                                      hostbuf=self.model_partial_der.data)
-            self.pdop.grad_buf = self.grad_buf
+
+            if self.streamed:
+                if self._SMS is False:
+                    self.step_val = np.require(
+                        np.swapaxes(self.step_val, 0, 1), requirements='C')
+                self.modelgrad = np.require(
+                    np.transpose(self.modelgrad, self.data_trans_axes),
+                    requirements='C')
+                self.pdop.modelgrad = self.modelgrad
+            else:
+                self.modelgrad = clarray.to_device(
+                    self._queue[0],
+                    self.modelgrad)
+                self.pdop.modelgrad = self.modelgrad
 
             self._updateIRGNRegPar(result, ign)
             self.pdop.updateRegPar(self.irgn_par)
@@ -195,15 +254,6 @@ class ModelReco:
             print("-" * 75)
             print("GN-Iter: %d  Elapsed time: %f seconds" % (ign, end))
             print("-" * 75)
-#            if np.abs(self._fval_old - self._fval) / self._fval_init < \
-#               self.irgn_par["tol"]:
-#                print("Terminated at GN-iteration %d because "
-#                      "the energy decrease was less than %.3e" %
-#                      (ign, np.abs(self._fval_old - self._fval) /
-#                       self._fval_init))
-#                self._calcResidual(result, self.data, ign+1)
-#                self._saveToFile(ign, self.model.rescale(result))
-#                break
             self._fval_old = self._fval
             self._saveToFile(ign, self.model.rescale(result))
         self._calcResidual(result, self.data, ign+1)
@@ -226,31 +276,20 @@ class ModelReco:
 
     def _balanceModelGradients(self, result, ind):
         scale = np.reshape(
-            self.model_partial_der,
+            self.modelgrad,
             (self.par["unknowns"],
              self.par["NScan"] * self.par["NSlice"] *
              self.par["dimY"] * self.par["dimX"]))
         scale = np.linalg.norm(scale, axis=-1)
-#        print("Initial norm of the model Gradient: \n", scale)
-        scale = 1e3 / scale  # / np.sqrt(self.par["unknowns"])
-#        scale[~np.isfinite(scale)] = 1e3 / np.sqrt(self.par["unknowns"])
-#        print("Scalefactor of the model Gradient: \n", scale)
+        scale = 1e3 / scale
         if not np.mod(ind, 1):
             for uk in range(self.par["unknowns"]):
                 self.model.constraints[uk].update(scale[uk])
                 result[uk, ...] *= self.model.uk_scale[uk]
-                self.model_partial_der[uk] /= self.model.uk_scale[uk]
+                self.modelgrad[uk] /= self.model.uk_scale[uk]
                 self.model.uk_scale[uk] *= scale[uk]
                 result[uk, ...] /= self.model.uk_scale[uk]
-                self.model_partial_der[uk] *= self.model.uk_scale[uk]
-#        scale = np.reshape(
-#            self.model_partial_der,
-#            (self.par["unknowns"],
-#             self.par["NScan"] * self.par["NSlice"] *
-#             self.par["dimY"] * self.par["dimX"]))
-#        scale = np.linalg.norm(scale)
-#        print("Scale of the model Gradient: \n", scale)
-
+                self.modelgrad[uk] *= self.model.uk_scale[uk]
 ###############################################################################
 # New .hdf5 save files ########################################################
 ###############################################################################
@@ -276,37 +315,91 @@ class ModelReco:
 ###############################################################################
 ###############################################################################
     def _irgnSolve3D(self, x, iters, data, GN_it):
-        x = clarray.to_device(self._queue, np.require(x, requirements="C"))
-        if self._imagespace is False:
-            b = clarray.empty(self._queue, data.shape, dtype=DTYPE)
-            self._FT(b, clarray.to_device(
-                self._queue,
-                self.step_val[:, None, ...] * self.par["C"])).wait()
-            res = data - b.get() + self._op.fwdoop(
-                [x, self._coil_buf, self.grad_buf]).get()
-        else:
-            res = data - self.step_val + self._op.fwdoop(
-                [x, [], self.grad_buf]).get()
-        x = x.get()
-        if GN_it > 0:
-            self._calcResidual(x, data, GN_it)
+        b = self._calcResidual(x, data, GN_it)
 
-        x = self.pdop.run(x, res, iters)
+        if self.streamed:
+            x = np.require(np.swapaxes(x, 0, 1), requirements='C')
+            res = data - b + self._op.fwdoop(
+                [[x, self._coils, self.modelgrad]])
+        else:
+            tmpx = clarray.to_device(self._queue[0], x)
+            res = data - b + self._op.fwdoop(
+                [tmpx, self._coils, self.modelgrad]).get()
+            del tmpx
+
+        tmpres = self.pdop.run(x, res, iters)
+        for key in tmpres:
+            if key == 'x':
+                if type(tmpres[key]) == np.ndarray:
+                    x = tmpres["x"]
+                else:
+                    x = tmpres["x"].get()
+            if key == 'v':
+                if type(tmpres[key]) == np.ndarray:
+                    self.v = tmpres["v"]
+                else:
+                    self.v = tmpres["v"].get()
+        if self.streamed:
+            x = np.require(np.swapaxes(x, 0, 1), requirements='C')
 
         return x
 
     def _calcResidual(self, x, data, GN_it):
-        x = clarray.to_device(self._queue, np.require(x, requirements="C"))
+        if self.streamed:
+            b, grad, sym_grad = self._calcFwdGNPartStreamed(x)
+            grad_tv = grad[:, :self.par["unknowns_TGV"]]
+            grad_H1 = grad[:, self.par["unknowns_TGV"]:]
+        else:
+            b, grad, sym_grad = self._calcFwdGNPartLinear(x)
+            grad_tv = grad[:self.par["unknowns_TGV"]]
+            grad_H1 = grad[self.par["unknowns_TGV"]:]
+        del grad
+
+        datacost = self.irgn_par["lambd"] / 2 * np.linalg.norm(data - b)**2
+        L2Cost = np.linalg.norm(x)/(2.0*self.irgn_par["delta"])
+        if self.reg_type == 'TV':
+            regcost = self.irgn_par["gamma"] * \
+                np.sum(np.abs(grad_tv))
+        else:
+            regcost = self.irgn_par["gamma"] * np.sum(
+                  np.abs(grad_tv -
+                         self.v)) + self.irgn_par["gamma"] * 2 * np.sum(
+                             np.abs(sym_grad))
+            del sym_grad
+
+        self._fval = (datacost +
+                      regcost +
+                      self.irgn_par["omega"] / 2 *
+                      np.linalg.norm(grad_H1)**2)
+        del grad_tv, grad_H1
+
+        if GN_it == 0:
+            self._fval_init = self._fval
+            self.pdop._fval_init = self._fval
+
+        print("-" * 75)
+        print("Costs of Data: %f" % (datacost))
+        print("Costs of T(G)V: %f" % (regcost))
+        print("Costs of L2 Term: %f" % (L2Cost))
+        print("-" * 75)
+        print("Function value at GN-Step %i: %f" %
+              (GN_it, 1e3*self._fval / self._fval_init))
+        print("-" * 75)
+        return b
+
+    def _calcFwdGNPartLinear(self, x):
         if self._imagespace is False:
-            b = clarray.empty(self._queue, data.shape, dtype=DTYPE)
-            self._FT(b, clarray.to_device(
-                self._queue,
+            b = clarray.empty(self._queue[0], self.data_shape, dtype=DTYPE)
+            self._FT.FFT(b, clarray.to_device(
+                self._queue[0],
                 (self.step_val[:, None, ...] *
                  self.par["C"]))).wait()
             b = b.get()
         else:
             b = self.step_val
-        grad = clarray.to_device(self._queue,
+
+        x = clarray.to_device(self._queue[0], np.require(x, requirements="C"))
+        grad = clarray.to_device(self._queue[0],
                                  np.zeros(x.shape+(4,), dtype=DTYPE))
         grad.add_event(
             self.grad_op.fwd(
@@ -316,14 +409,10 @@ class ModelReco:
                 x.events))
         x = x.get()
         grad = grad.get()
-        datacost = self.irgn_par["lambd"] / 2 * np.linalg.norm(data - b)**2
-        L2Cost = np.linalg.norm(x)/(2.0*self.irgn_par["delta"])
-        if self.reg_type == 'TV':
-            regcost = self.irgn_par["gamma"] * \
-                np.sum(np.abs(grad[:self.par["unknowns_TGV"]]))
-        elif self.reg_type == 'TGV':
-            v = clarray.to_device(self._queue, self.v)
-            sym_grad = clarray.to_device(self._queue,
+        sym_grad = None
+        if self.reg_type == 'TGV':
+            v = clarray.to_device(self._queue[0], self.v)
+            sym_grad = clarray.to_device(self._queue[0],
                                          np.zeros(x.shape+(8,), dtype=DTYPE))
             sym_grad.add_event(
                 self.symgrad_op.fwd(
@@ -331,43 +420,44 @@ class ModelReco:
                     v,
                     wait_for=sym_grad.events +
                     v.events))
-            regcost = self.irgn_par["gamma"] * np.sum(
-                  np.abs(grad[:self.par["unknowns_TGV"]] -
-                         self.v)) + self.irgn_par["gamma"] * 2 * np.sum(
-                             np.abs(sym_grad.get()))
-            del sym_grad, v
+            sym_grad.get()
+
+        return b, grad, sym_grad
+
+    def _calcFwdGNPartStreamed(self, x):
+        x = np.require(np.swapaxes(x, 0, 1), requirements='C')
+        if self._imagespace is False:
+            b = np.zeros(self.data_shape_T, dtype=DTYPE)
+            if self._SMS is True:
+                self._op.FTstr.eval(
+                    [b],
+                    [[np.expand_dims(self.step_val, self._expdim_dat) *
+                      np.expand_dims(self.par["C"], self._expdim_C)]])
+                b = np.require(
+                    np.transpose(
+                        b,
+                        0, self.data_trans_axes),
+                    requirements='C')
+            else:
+                self._op.FTstr.eval(
+                    [b],
+                    [[np.expand_dims(self.step_val, self._expdim_dat) *
+                      np.expand_dims(self._coils, self._expdim_C)]])
         else:
-            v = clarray.to_device(self._queue, self.v)
-            sym_grad = clarray.to_device(self._queue,
-                                         np.zeros(x.shape+(8,), dtype=DTYPE))
-            sym_grad.add_event(
-                self.symgrad_op.fwd(
-                    sym_grad,
-                    v,
-                    wait_for=sym_grad.events +
-                    v.events))
+            b = self.step_val
+        grad = np.zeros(x.shape+(4,), dtype=DTYPE)
+        self.grad_op.fwd([grad], [[x]])
+
+        sym_grad = None
+        if self.reg_type == 'TGV':
+            sym_grad = np.zeros(x.shape+(8,), dtype=DTYPE)
+            self.symgrad_op.fwd([sym_grad], [[self.v]])
             regcost = self.irgn_par["gamma"] * np.sum(
-                  np.abs(grad[:self.par["unknowns_TGV"]] -
+                  np.abs(grad[:, :self.par["unknowns_TGV"]] -
                          self.v)) + self.irgn_par["gamma"] * 2 * np.sum(
-                             np.abs(sym_grad.get()))
-            del sym_grad, v
+                             np.abs(sym_grad))
 
-        self._fval = (datacost +
-                      regcost +
-                      self.irgn_par["omega"] / 2 *
-                      np.linalg.norm(grad[self.par["unknowns_TGV"]:])**2)
-        del grad, b
-
-        if GN_it == 0:
-            self._fval_init = self._fval
-        print("-" * 75)
-        print("Costs of Data: %f" % (datacost))
-        print("Costs of T(G)V: %f" % (regcost))
-        print("Costs of L2 Term: %f" % (L2Cost))
-        print("-" * 75)
-        print("Function value at GN-Step %i: %f" %
-              (GN_it, 1e3*self._fval / self._fval_init))
-        print("-" * 75)
+        return b, grad, sym_grad
 
     def execute(self, reco_2D=0):
         if reco_2D:

@@ -329,8 +329,8 @@ __kernel void copy_SMS_adjkspace(__global double2 *out, __global double2 *in, __
     double cosshift = 0.0f;
     int inind = 0;
 
-    double fftshift = ((double)y/((double)dimY/2.0f));
-    double exppos = ((double)y-fftshift);
+    double fftshift = ((double)x/((double)dimX/2.0f));
+    double exppos = ((double)x-fftshift);
 
     double2 tmpin = 0.0f;
 
