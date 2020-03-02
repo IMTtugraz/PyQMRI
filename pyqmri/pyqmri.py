@@ -18,7 +18,7 @@ from pyqmri._helper_fun import _goldcomp as goldcomp
 from pyqmri._helper_fun._est_coils import est_coils
 from pyqmri._helper_fun import _utils as utils
 from pyqmri.solver import CGSolver
-
+from pyqmri.irgn import IRGNOptimizer
 
 DTYPE = np.complex64
 DTYPE_real = np.float32
@@ -53,6 +53,45 @@ def _choosePlatform(myargs, par):
                 par["GPU"] = False
                 par["Platform_Indx"] = j
     return platforms
+
+
+def _precoompFFT(data, par):
+    full_dimY = (np.all(np.abs(data[0, 0, 0, :, 0])) or
+                 np.all(np.abs(data[0, 0, 0, :, 1])))
+    full_dimX = (np.all(np.abs(data[0, 0, 0, 0, :])) or
+                 np.all(np.abs(data[0, 0, 0, 1, :])))
+
+    if full_dimY and not full_dimX:
+        print("Image Dimensions Y seems fully sampled. "
+              "Precompute FFT along Y")
+        data = np.fft.ifft(data, axis=-2, norm='ortho')
+        par["fft_dim"] = [-1]
+
+    elif full_dimX and not full_dimY:
+        print("Image Dimensions X seems fully sampled. "
+              "Precompute FFT along X")
+        data = np.fft.ifft(data, axis=-1, norm='ortho')
+        data = np.require(
+            np.moveaxis(data, -1, -2),
+            requirements='C')
+        par["C"] = np.require(
+            np.moveaxis(par["C"], -1, -2),
+            requirements='C')
+        par["mask"] = np.require(
+            np.moveaxis(par["mask"], -1, -2),
+            requirements='C')
+        par["transpXY"] = True
+        par["fft_dim"] = [-1]
+
+    elif full_dimX and full_dimY:
+        print("Image Dimensions X and Y seem fully sampled. "
+              "Precompute FFT along X and Y")
+        data = np.fft.ifft2(data, norm='ortho')
+        par["fft_dim"] = None
+
+    else:
+        par["fft_dim"] = [-2, -1]
+    return data
 
 
 def _setupOCL(myargs, par):
@@ -136,9 +175,9 @@ def _genImages(myargs, par, data, off):
         del FFT, nFTH
 
     else:
-        tol = 1e-4
-        par_scans = 10
-        lambd = 1e-1
+        tol = 1e-6
+        par_scans = 4
+        lambd = 1e-3
         if "images" not in list(par["file"].keys()):
             images = np.zeros((par["NScan"],
                                par["NSlice"],
@@ -234,19 +273,32 @@ def _estScaleNorm(myargs, par, images, data):
         ind = np.zeros((par["dimY"], par["dimX"]), dtype=bool)
         ind[int(par["N"]/2-centerY):int(par["N"]/2+centerY),
             int(par["N"]/2-centerX):int(par["N"]/2+centerX)] = 1
-        if "phase_map" in par.keys():
-            ind = np.fft.fftshift(ind, axes=0)
+        if par["fft_dim"] is not None:
+            for shiftdim in par["fft_dim"]:
+                ind = np.fft.fftshift(ind, axes=shiftdim)
+            sig = np.sum(
+                data[..., int(par["NSlice"]/2/par["MB"]), ind] *
+                np.conj(
+                    data[...,
+                         int(par["NSlice"]/2/par["MB"]), ind]))/np.sum(ind)
+            noise = np.sum(
+                data[..., int(par["NSlice"]/2/par["MB"]), ~ind] *
+                np.conj(
+                    data[...,
+                         int(par["NSlice"]/2/par["MB"]), ~ind]))/np.sum(~ind)
         else:
-            ind = np.fft.fftshift(ind)
-
-        sig = np.sum(
-            data[..., int(par["NSlice"]/2/par["MB"]), ind] *
-            np.conj(
-                data[..., int(par["NSlice"]/2/par["MB"]), ind]))/np.sum(ind)
-        noise = np.sum(
-            data[..., int(par["NSlice"]/2/par["MB"]), ~ind] *
-            np.conj(
-                data[..., int(par["NSlice"]/2/par["MB"]), ~ind]))/np.sum(~ind)
+            tmp = np.fft.fft2(data, norm='ortho')
+            ind = np.fft.fftshift(ind, axes=(0, 1))
+            sig = np.sum(
+                tmp[..., int(par["NSlice"]/2/par["MB"]), ind] *
+                np.conj(
+                    data[...,
+                         int(par["NSlice"]/2/par["MB"]), ind]))/np.sum(ind)
+            noise = np.sum(
+                tmp[..., int(par["NSlice"]/2/par["MB"]), ~ind] *
+                np.conj(
+                    data[...,
+                         int(par["NSlice"]/2/par["MB"]), ~ind]))/np.sum(~ind)
         SNR_est = np.abs(sig/noise)
         par["SNR_est"] = SNR_est
         print("Estimated SNR from kspace", SNR_est)
@@ -276,10 +328,9 @@ def _readInput(myargs, par):
             print("Please specify a h5 file. ")
             sys.exit()
         file = myargs.file
-
+    name = os.path.normpath(file)
+    par["fname"] = name.split(os.sep)[-1]
     if myargs.outdir == '':
-        name = os.path.normpath(file)
-        par["fname"] = name.split(os.sep)[-1]
         outdir = os.sep.join(name.split(os.sep)[:-1]) + os.sep + \
             "PyQMRI_out" + \
             os.sep + myargs.sig_model + os.sep + \
@@ -322,10 +373,10 @@ def _start_recon(myargs):
     else:
         sig_model = importlib.import_module(
             "pyqmri.models."+str(sig_model_path))
-    if int(myargs.streamed) == 1:
-        import pyqmri.irgn.reco_streamed as optimizer
-    else:
-        import pyqmri.irgn.reco as optimizer
+    # if int(myargs.streamed) == 1:
+    #     import pyqmri.irgn.reco_streamed as optimizer
+    # else:
+    #     import pyqmri.irgn.reco as optimizer
     np.seterr(divide='ignore', invalid='ignore')
 
 # Create par struct to store everyting
@@ -353,6 +404,7 @@ def _start_recon(myargs):
                + 1j*par["file"]['imag_dat'][
           ..., int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:
           int(NSlice/2)+int(np.ceil(reco_Slices/2))+off, :, :].astype(DTYPE)
+
     dimreduction = 0
     if myargs.trafo:
         par["traj"] = par["file"]['real_traj'][()].astype(DTYPE) + \
@@ -486,8 +538,13 @@ def _start_recon(myargs):
     par["N"] = N
     par["Nproj"] = Nproj
     par["imagespace"] = myargs.imagespace
+    par["fft_dim"] = (-2, -1)
     if myargs.streamed:
         par["par_slices"] = myargs.par_slices
+        par["overlap"] = 1
+    else:
+        par["par_slices"] = reco_Slices
+        par["overlap"] = 0
     if not myargs.trafo:
         tmpmask = np.ones((data[0, 0,  ...]).shape)
         tmpmask[np.abs(data[0, 0,  ...]) == 0] = 0
@@ -497,6 +554,7 @@ def _start_recon(myargs):
         del tmpmask
     else:
         par['mask'] = None
+    par["transpXY"] = False
 ###############################################################################
 # ratio of z direction to x,y, important for finite differences ###############
 ###############################################################################
@@ -512,18 +570,18 @@ def _start_recon(myargs):
 ###############################################################################
 # phase correction ############################################################
 ###############################################################################
-    if "phase_map" in par["file"].keys():
-        full_slices = par["file"]["phase_map"].shape[1]
-        if myargs.sms:
-            reco_Slices = full_slices
-        sliceind = slice(int(full_slices / 2) -
-                         int(np.floor((reco_Slices) / 2)),
-                         int(full_slices / 2) +
-                         int(np.ceil(reco_Slices / 2)))
-        par["phase_map"] = par["file"]["phase_map"][
-            :,
-            sliceind].astype(DTYPE)
-        data = np.fft.ifft(data, axis=-1, norm='ortho')
+    # if "phase_map" in par["file"].keys():
+    #     full_slices = par["file"]["phase_map"].shape[1]
+    #     if myargs.sms:
+    #         reco_Slices = full_slices
+    #     sliceind = slice(int(full_slices / 2) -
+    #                      int(np.floor((reco_Slices) / 2)),
+    #                      int(full_slices / 2) +
+    #                      int(np.ceil(reco_Slices / 2)))
+    #     par["phase_map"] = par["file"]["phase_map"][
+    #         :,
+    #         sliceind].astype(DTYPE)
+    #     data = np.fft.ifft(data, axis=-1, norm='ortho')
 ###############################################################################
 # Standardize data ############################################################
 ###############################################################################
@@ -539,38 +597,52 @@ def _start_recon(myargs):
     else:
         par['C'] = par['C'].astype(DTYPE)
 ###############################################################################
+# Init forward model and initial guess ########################################
+###############################################################################
+#    dir = par["file"].attrs["DWI_dir"]
+#    par["file"].attrs["dir_x"] = dir[0]
+#    tmp = par["dir_y"]
+#    par["dir_y"] = par["dir_x"]
+#    par["dir_x"] = tmp
+
+    if myargs.sig_model == "GeneralModel":
+        par["modelfile"] = myargs.modelfile
+        par["modelname"] = myargs.modelname
+    model = sig_model.Model(par)
+
+###############################################################################
 # Reconstruct images using CG-SENSE  ##########################################
 ###############################################################################
+    if myargs.trafo is False:
+        data = _precoompFFT(data, par)
     images = _genImages(myargs, par, data, off)
 ###############################################################################
 # Scale data norm  ############################################################
 ###############################################################################
     data, images = _estScaleNorm(myargs, par, images, data)
-###############################################################################
-# Init forward model and initial guess ########################################
-###############################################################################
-    if myargs.sig_model == "GeneralModel":
-        par["modelfile"] = myargs.modelfile
-        par["modelname"] = myargs.modelname
-    model = sig_model.Model(par)
-###############################################################################
-# Compute initial guess #######################################################
-###############################################################################
-    model.computeInitialGuess(images/par["dscale"])
+
     if myargs.weights is None:
         par["weights"] = np.ones((par["unknowns"]), dtype=np.float32)
     else:
         par["weights"] = np.array(myargs.weights, dtype=np.float32)
     par["weights"] = par["weights"]/par["unknowns"]
 ###############################################################################
+# Compute initial guess #######################################################
+###############################################################################
+    model.computeInitialGuess(images, par["dscale"])
+###############################################################################
 # initialize operator  ########################################################
 ###############################################################################
-    opt = optimizer.ModelReco(par, myargs.trafo,
-                              imagespace=myargs.imagespace,
-                              SMS=myargs.sms,
-                              config=myargs.config,
-                              model=model)
-    if myargs.imagespace:
+
+    opt = IRGNOptimizer(par,
+                        myargs.trafo,
+                        imagespace=myargs.imagespace,
+                        SMS=myargs.sms,
+                        config=myargs.config,
+                        model=model,
+                        streamed=myargs.streamed,
+                        reg_type=myargs.reg)
+    if myargs.imagespace is True:
         opt.data = images
     else:
         opt.data = data
@@ -605,7 +677,8 @@ def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
         imagespace=False,
         OCL_GPU=True, sms=False, devices=0, dz=1, weights=None,
         out='',
-        modelfile="models.ini", modelname="VFA-E1"):
+        modelfile="models.ini", modelname="VFA-E1",
+        fft_dim=-1):
     """
     Start a 3D model based reconstruction. Data can also be selected at
     start up.
@@ -804,8 +877,8 @@ if __name__ == '__main__':
       help="Switch between CG sense and simple FFT as "
            "initial guess for the images.")
     argparmain.add_argument('--out', default='', dest='outdir', type=str,
-                          help="Set output directory. Defaults to the input "
-                               "file directory")
+                            help="Set output directory. Defaults to the input "
+                            "file directory")
     group = argparmain.add_mutually_exclusive_group()
     group.add_argument(
       '--model', default='GeneralModel', dest='sig_model',

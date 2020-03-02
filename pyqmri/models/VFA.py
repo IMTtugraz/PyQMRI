@@ -14,6 +14,7 @@ class Model(BaseModel):
         self.constraints = []
         self.TR = par["TR"]
         self.fa = par["flip_angle(s)"]
+
         try:
             self.fa_corr = par["fa_corr"]
         except KeyError:
@@ -201,7 +202,7 @@ class Model(BaseModel):
                 plt.draw()
                 plt.pause(1e-10)
 
-    def computeInitialGuess(self, images):
+    def computeInitialGuess(self, *args):
         test_T1 = 1500 * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         test_M0 = np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)

@@ -25,12 +25,14 @@ class Model(BaseModel):
             self.b /= 1000
 
         self.dir = self.dir[:, None, None, None, :]
-
+        par["unknowns_TGV"] = 14
+        par["unknowns_H1"] = 0 
+        par["unknowns"] = par["unknowns_TGV"] + par["unknowns_H1"]
         self.uk_scale = []
-        for j in range(unknowns_TGV + unknowns_H1):
+        for j in range(par["unknowns"]):
             self.uk_scale.append(1)
 
-        self.unknowns = par["unknowns_TGV"] + par["unknowns_H1"]
+        self.unknowns = par["unknowns"]
         try:
             self.b0 = np.flip(
                 np.transpose(par["file"]["b0"][()], (0, 2, 1)), 0)
@@ -793,7 +795,6 @@ class Model(BaseModel):
 
     def computeInitialGuess(self, *args):
         self.phase = np.exp(1j*(np.angle(args[0])-np.angle(args[0][0])))
-        self.guess = self._set_init_scales(args[0])
         if self.b0 is not None:
             test_M0 = self.b0
         else:
@@ -817,4 +818,4 @@ class Model(BaseModel):
                     ADC,
                     0 * ADC],
                 dtype=DTYPE)
-        return x
+        self.guess = x

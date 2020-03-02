@@ -40,7 +40,7 @@ __kernel void update_z2(__global float16 *z_new, __global float16 *z, __global f
   }
 }
 __kernel void update_z1(__global float8 *z_new, __global float8 *z, __global float8 *gx,__global float8 *gx_,
-                          __global float8 *vx,__global float8 *vx_, const float sigma, const float theta, const float alphainv,
+                          __global float8 *vx, __global float8 *vx_, const float sigma, const float theta, const float alphainv,
                           const int NUk_tgv, const int NUk_H1, const float h1inv) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
@@ -155,7 +155,7 @@ __kernel void update_primal(__global float2 *u_new, __global float2 *u, __global
 }
 
 __kernel void update_primal_LM(__global float2 *u_new, __global float2 *u, __global float2 *Kyk,
-                               __global float2* A, __global float2 *u_k,
+                               __global float2 *u_k, __global float2* A,
                             const float tau, const float tauinv, __global float* min, __global float* max,
                             __global int* real, const int NUk) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
@@ -164,7 +164,7 @@ __kernel void update_primal_LM(__global float2 *u_new, __global float2 *u, __glo
   size_t k = get_global_id(0);
   size_t i = k*Nx*Ny+Nx*y + x;
   float norm = 0;
-  float Asqr = 0.0f;
+  float2 Asqr = 0.0f;
   int idx, idx2, idx3, idx4, idx5;
   float2 tmp;
 
@@ -172,7 +172,7 @@ __kernel void update_primal_LM(__global float2 *u_new, __global float2 *u, __glo
 
   for (int uk=0; uk<NUk; uk++)
   {
-     Asqr = A[i].x*A[i].x + A[i].y*A[i].y;
+     Asqr = (float2)(A[i].x*A[i].x + A[i].y*A[i].y);
      u_new[i] = (u[i]-tau*Kyk[i]+tauinv*Asqr*u_k[i])/(1+tauinv*Asqr);
 
      if(real[uk]>=1)
@@ -406,7 +406,7 @@ __kernel void sym_divergence(__global float8 *w, __global float16 *q,
   }
 }
 __kernel void update_Kyk2(__global float8 *w, __global float16 *q, __global float8 *z,
-                          const int NUk, const float dz) {
+                          const int NUk, const int first, const float dz) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
   size_t x = get_global_id(2), y = get_global_id(1);

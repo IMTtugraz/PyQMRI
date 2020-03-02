@@ -5,14 +5,11 @@ import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 plt.ion()
-unknowns_TGV = 7
-unknowns_H1 = 0
 
 
 class Model(BaseModel):
-    def __init__(self, par, images):
+    def __init__(self, par):
         super().__init__(par)
-        self.images = images
         self.NSlice = par['NSlice']
 
         self.figure_phase = None
@@ -27,18 +24,21 @@ class Model(BaseModel):
 
         self.dir = self.dir[:, None, None, None, :]
 
-        self.uk_scale = []
-        for j in range(unknowns_TGV + unknowns_H1):
-            self.uk_scale.append(1)
-
+            
+        par["unknowns_TGV"] = 7
+        par["unknowns_H1"] = 0 
+        par["unknowns"] = par["unknowns_TGV"] + par["unknowns_H1"]
         self.unknowns = par["unknowns_TGV"] + par["unknowns_H1"]
+        
+        self.uk_scale = []
+        for j in range(par["unknowns_TGV"] + par["unknowns_H1"]):
+            self.uk_scale.append(1)
         try:
             self.b0 = np.flip(
                 np.transpose(par["file"]["b0"][()], (0, 2, 1)), 0)
         except KeyError:
-            self.b0 = images[0]
-        self.phase = np.exp(1j*(np.angle(images)-np.angle(images[0])))
-        self.guess = self._set_init_scales(images)
+            print("No b0 image provided")
+            self.b0 =  None
 
         self.constraints.append(
             constraints(
@@ -416,8 +416,12 @@ class Model(BaseModel):
                 plt.draw()
                 plt.pause(1e-10)
 
-    def _set_init_scales(self, images):
-        test_M0 = self.b0
+    def computeInitialGuess(self, *args):
+        self.phase = np.exp(1j*(np.angle(args[0])-np.angle(args[0][0])))
+        if self.b0 is not None:
+            test_M0 = self.b0
+        else:
+            test_M0 = args[0][0]
         ADC = 1 * np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
 
         x = np.array(
@@ -430,4 +434,4 @@ class Model(BaseModel):
                     ADC,
                     0 * ADC],
                 dtype=DTYPE)
-        return x
+        self.guess = x
