@@ -7,7 +7,7 @@ Created on Wed Jan 30 11:10:07 2019
 """
 import numpy as np
 import configparser
-from pyqmri.transforms.pyopencl_nufft import PyOpenCLFFT
+from pyqmri.transforms import PyOpenCLnuFFT
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
@@ -35,8 +35,8 @@ def NUFFT(par, trafo=True, SMS=False):
 #        packs = par["packs"]
 #        par["packs"] = 1
 #        par["NSlice"] = 2
-    FFT = PyOpenCLFFT.create(par["ctx"][0], par["queue"][0], par,
-                             radial=trafo, SMS=SMS, fft_dim=par["fft_dim"])
+    FFT = PyOpenCLnuFFT.create(par["ctx"][0], par["queue"][0], par,
+                               radial=trafo, SMS=SMS, fft_dim=par["fft_dim"])
     par["NC"] = NC
     par["NScan"] = NScan
 #    if SMS:

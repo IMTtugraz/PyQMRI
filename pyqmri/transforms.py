@@ -11,7 +11,7 @@ from pyqmri._helper_fun._calckbkernel import calckbkernel
 from pyqmri._helper_fun import CLProgram as Program
 
 
-class PyOpenCLFFT():
+class PyOpenCLnuFFT():
     """ Base class for FFT calculation.
 
     This class serves as the base class for all FFT object used in
@@ -98,7 +98,7 @@ class PyOpenCLFFT():
             streamed reconstruction of smaller blocks.
 
         Returns:
-          PyOpenCLFFT object:
+          PyOpenCLnuFFT object:
             The setup FFT object.
 
         Raises:
@@ -222,7 +222,7 @@ class PyOpenCLFFT():
         return obj
 
 
-class PyOpenCLRadialNUFFT(PyOpenCLFFT):
+class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
     """ Non-uniform FFT object
 
     This class performs the non-uniform FFT (NUFFT) operation. Linear
@@ -517,7 +517,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLFFT):
             wait_for=s.events + wait_for + self._tmp_fft_array.events)
 
 
-class PyOpenCLCartNUFFT(PyOpenCLFFT):
+class PyOpenCLCartNUFFT(PyOpenCLnuFFT):
     """ Cartesian FFT object
 
     This class performs the FFT operation.
@@ -713,7 +713,7 @@ class PyOpenCLCartNUFFT(PyOpenCLFFT):
                         wait_for=s.events+sg.events)
 
 
-class PyOpenCLFieldMapNUFFT(PyOpenCLFFT):
+class PyOpenCLFieldMapNUFFT(PyOpenCLnuFFT):
     """ Cartesian FFT object
 
     This class performs the FFT operation.
@@ -860,7 +860,7 @@ class PyOpenCLFieldMapNUFFT(PyOpenCLFFT):
                 wait_for=s.events+self._tmp_fft_array.events))
 
 
-class PyOpenCLSMSNUFFT(PyOpenCLFFT):
+class PyOpenCLSMSNUFFT(PyOpenCLnuFFT):
     """ Cartesian FFT-SMS object
 
     This class performs the FFT operation assuming a SMS acquisition.
@@ -1089,7 +1089,7 @@ class PyOpenCLSMSNUFFT(PyOpenCLFFT):
                     wait_for=s.events+sg.events))
 
 
-class PyOpenCLSMSNUFFTFieldMap(PyOpenCLFFT):
+class PyOpenCLSMSNUFFTFieldMap(PyOpenCLnuFFT):
     """ Cartesian FFT-SMS object
 
     This class performs the FFT operation assuming a SMS acquisition.
@@ -1288,7 +1288,7 @@ class PyOpenCLSMSNUFFTFieldMap(PyOpenCLFFT):
                 wait_for=s.events+self._tmp_fft_array2.events))
 
 
-class PyOpenCLRadialNUFFTStreamed(PyOpenCLFFT):
+class PyOpenCLRadialNUFFTStreamed(PyOpenCLnuFFT):
     """ The streamed version of the non-uniform FFT object
 
     This class performs the non-uniform FFT (NUFFT) operation. Linear
@@ -1561,7 +1561,7 @@ class PyOpenCLRadialNUFFTStreamed(PyOpenCLFFT):
                       sg.events))
 
 
-class PyOpenCLCartNUFFTStreamed(PyOpenCLFFT):
+class PyOpenCLCartNUFFTStreamed(PyOpenCLnuFFT):
     """ The streamed version of the Cartesian FFT object
 
     This class performs the FFT operation.
@@ -1758,7 +1758,7 @@ class PyOpenCLCartNUFFTStreamed(PyOpenCLFFT):
                 self.DTYPE_real(1),
                 wait_for=s.events+sg.events)
 
-class PyOpenCLSMSNUFFTStreamed(PyOpenCLFFT):
+class PyOpenCLSMSNUFFTStreamed(PyOpenCLnuFFT):
     """ The streamed version of the Cartesian FFT-SMS object
 
     This class performs the FFT operation assuming a SMS acquisition.
@@ -1978,7 +1978,7 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLFFT):
                     np.int32(sg.shape[2]/self.packs/self.MB),
                     wait_for=s.events+sg.events))
 
-class PyOpenCLSMSNUFFTStreamedFieldMap(PyOpenCLFFT):
+class PyOpenCLSMSNUFFTStreamedFieldMap(PyOpenCLnuFFT):
     """ The streamed version of the Cartesian FFT-SMS object
 
     This class performs the FFT operation assuming a SMS acquisition.

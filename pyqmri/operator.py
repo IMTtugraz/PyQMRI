@@ -11,7 +11,7 @@ Attribues:
 from abc import ABC, abstractmethod
 import pyopencl.array as clarray
 import numpy as np
-from pyqmri.transforms.pyopencl_nufft import PyOpenCLFFT as CLFFT
+from pyqmri.transforms import PyOpenCLnuFFT as CLnuFFT
 import pyqmri.streaming as streaming
 
 
@@ -64,8 +64,8 @@ class Operator(ABC):
         A placeholder for an list of temporary PyOpenCL.Arrays if streamed
         operators are used. In the case of one large block of data this
         reduces to a single PyOpenCL.Array.
-      NUFFT (PyQMRI.transforms.PyOpenCLFFT):
-        A PyOpenCLFFT object to perform forward and backword transformations
+      NUFFT (PyQMRI.transforms.PyOpenCLnuFFT):
+        A PyOpenCLnuFFT object to perform forward and backword transformations
         from image to k-space and vice versa.
       prg (PyOpenCL.Program):
         The PyOpenCL program containing all compiled kernels.
@@ -401,7 +401,7 @@ class OperatorKspace(Operator):
         if not trafo:
             self.Nproj = self.dimY
             self.N = self.dimX
-        self.NUFFT = CLFFT.create(self.ctx,
+        self.NUFFT = CLnuFFT.create(self.ctx,
                                   self.queue,
                                   par,
                                   radial=trafo,
@@ -531,7 +531,7 @@ class OperatorKspaceFieldMap(Operator):
         if not trafo:
             self.Nproj = self.dimY
             self.N = self.dimX
-        self.NUFFT = CLFFT.create(self.ctx,
+        self.NUFFT = CLnuFFT.create(self.ctx,
                                   self.queue,
                                   par,
                                   radial=trafo,
@@ -740,7 +740,7 @@ class OperatorKspaceSMS(Operator):
         if not trafo:
             self.Nproj = self.dimY
             self.N = self.dimX
-        self.NUFFT = CLFFT.create(self.ctx,
+        self.NUFFT = CLnuFFT.create(self.ctx,
                                   self.queue,
                                   par,
                                   radial=trafo,
@@ -872,7 +872,7 @@ class OperatorKspaceSMSFieldMap(Operator):
         if not trafo:
             self.Nproj = self.dimY
             self.N = self.dimX
-        self.NUFFTx = CLFFT.create(self.ctx,
+        self.NUFFTx = CLnuFFT.create(self.ctx,
                                    self.queue,
                                    par,
                                    radial=trafo,
@@ -880,7 +880,7 @@ class OperatorKspaceSMSFieldMap(Operator):
                                    fft_dim=1,
                                    DTYPE=DTYPE,
                                    DTYPE_real=DTYPE_real)
-        self.NUFFTy = CLFFT.create(self.ctx,
+        self.NUFFTy = CLnuFFT.create(self.ctx,
                                    self.queue,
                                    par,
                                    radial=trafo,
@@ -1162,7 +1162,7 @@ class OperatorKspaceStreamed(Operator):
         The streaming object to perform the forward evaluation
       adjstr (PyQMRI.Stream):
         The streaming object to perform the adjoint evaluation
-      NUFFT (list of PyQMRI.transforms.PyOpenCLFFT):
+      NUFFT (list of PyQMRI.transforms.PyOpenCLnuFFT):
         A list of NUFFT objects. One for each context.
       FTstr (PyQMRI.Stream):
         A streamed version of the used (non-uniform) FFT, applied forward.
@@ -1185,7 +1185,7 @@ class OperatorKspaceStreamed(Operator):
                          self.NC, self.dimY, self.dimX),
                         self.DTYPE, "C"))
                 self.NUFFT.append(
-                    CLFFT.create(self.ctx[j],
+                    CLnuFFT.create(self.ctx[j],
                                  self.queue[4*j+i], par,
                                  radial=trafo,
                                  streamed=True,
@@ -1342,7 +1342,7 @@ class OperatorKspaceSMSStreamed(Operator):
         The streaming object to perform the forward evaluation
       adjstr (PyQMRI.Stream):
         The streaming object to perform the adjoint evaluation
-      NUFFT (list of PyQMRI.transforms.PyOpenCLFFT):
+      NUFFT (list of PyQMRI.transforms.PyOpenCLnuFFT):
         A list of NUFFT objects. One for each context.
       FTstr (PyQMRI.Stream):
         A streamed version of the used (non-uniform) FFT, applied forward.
@@ -1370,7 +1370,7 @@ class OperatorKspaceSMSStreamed(Operator):
                          self.NC, self.dimY, self.dimX),
                         self.DTYPE, "C"))
                 self.NUFFT.append(
-                    CLFFT.create(self.ctx[j],
+                    CLnuFFT.create(self.ctx[j],
                                  self.queue[4*j+i], par,
                                  radial=trafo,
                                  SMS=True,
