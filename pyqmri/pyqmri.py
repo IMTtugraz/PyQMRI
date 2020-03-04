@@ -292,12 +292,12 @@ def _estScaleNorm(myargs, par, images, data):
             sig = np.sum(
                 tmp[..., int(par["NSlice"]/2/par["MB"]), ind] *
                 np.conj(
-                    data[...,
+                    tmp[...,
                          int(par["NSlice"]/2/par["MB"]), ind]))/np.sum(ind)
             noise = np.sum(
                 tmp[..., int(par["NSlice"]/2/par["MB"]), ~ind] *
                 np.conj(
-                    data[...,
+                    tmp[...,
                          int(par["NSlice"]/2/par["MB"]), ~ind]))/np.sum(~ind)
         SNR_est = np.abs(sig/noise)
         par["SNR_est"] = SNR_est
