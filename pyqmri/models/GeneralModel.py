@@ -155,7 +155,7 @@ class Model(BaseModel):
 
     def plot_unknowns(self, x, dim_2D=False):
         tmp_x = (self.rescale(x))
-        tmp_x[0] = np.abs(tmp_x[0])
+        tmp_x[0] = np.abs(tmp_x[0])#*np.sign(tmp_x[0])
         tmp_x = np.real(tmp_x)
 
         if dim_2D:

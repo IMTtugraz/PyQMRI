@@ -218,6 +218,7 @@ class Model(BaseModel):
         del_t_min = del_t.min()
         del_t_max = del_t.max()
         ind = 32  # int(images.shape[-1]/2) 30, 60
+        off = 0
         if dim_2D:
             if not self.figure:
                 plt.ion()
@@ -259,7 +260,7 @@ class Model(BaseModel):
                     self.ax[-1].axis('off')
 
                 self.f_plot = self.ax[1].imshow(
-                    (f[int(self.NSlice / 2), ...]))
+                    (f[int(self.NSlice / 2)+off, ...]))
                 self.f_plot_cor = self.ax[7].imshow(
                     (f[:, int(f.shape[1] / 2), ...]))
                 self.f_plot_sag = self.ax[2].imshow(
@@ -278,7 +279,7 @@ class Model(BaseModel):
                 plt.pause(1e-10)
 
                 self.del_t_plot = self.ax[3].imshow(
-                    (del_t[int(self.NSlice / 2), ...]))
+                    (del_t[int(self.NSlice / 2)+off, ...]))
                 self.del_t_plot_cor = self.ax[9].imshow(
                     (del_t[:, int(del_t.shape[1] / 2), ...]))
                 self.del_t_plot_sag = self.ax[4].imshow(
@@ -326,14 +327,15 @@ class Model(BaseModel):
                 plt.show()
                 plt.pause(1e-4)
             else:
-                self.f_plot.set_data((f[int(self.NSlice / 2), ...]))
+                self.f_plot.set_data((f[int(self.NSlice / 2)+off, ...]))
                 self.f_plot_cor.set_data((f[:, int(f.shape[1] / 2), ...]))
                 self.f_plot_sag.set_data(
                     np.flip((f[:, :, int(f.shape[-1] / 2)]).T, 1))
                 self.f_plot.set_clim([f_min, f_max])
                 self.f_plot_cor.set_clim([f_min, f_max])
                 self.f_plot_sag.set_clim([f_min, f_max])
-                self.del_t_plot.set_data((del_t[int(self.NSlice / 2), ...]))
+                self.del_t_plot.set_data((
+                    del_t[int(self.NSlice / 2)+off, ...]))
                 self.del_t_plot_cor.set_data(
                     (del_t[:, int(del_t.shape[1] / 2), ...]))
                 self.del_t_plot_sag.set_data(

@@ -238,13 +238,13 @@ def _genImages(myargs, par, data, off):
 
 def _estScaleNorm(myargs, par, images, data):
     if myargs.imagespace:
-        dscale = DTYPE_real(np.sqrt(2*1e3) /
+        dscale = DTYPE_real(np.sqrt(2) /
                             (np.linalg.norm(images.flatten())))
         par["dscale"] = dscale
         images = images*dscale
     else:
-        dscale = (DTYPE_real(np.sqrt(2*1e3)) /
-                  (np.linalg.norm(data.flatten())))
+        dscale = DTYPE_real(np.sqrt(2) /
+                            (np.linalg.norm(data.flatten())))
         par["dscale"] = dscale
         images = images*dscale
         data = data*dscale
@@ -292,14 +292,14 @@ def _estScaleNorm(myargs, par, images, data):
             sig = np.sum(
                 tmp[..., int(par["NSlice"]/2/par["MB"]), ind] *
                 np.conj(
-                    data[...,
-                         int(par["NSlice"]/2/par["MB"]), ind]))/np.sum(ind)
+                    tmp[...,
+                        int(par["NSlice"]/2/par["MB"]), ind]))/np.sum(ind)
             noise = np.sum(
                 tmp[..., int(par["NSlice"]/2/par["MB"]), ~ind] *
                 np.conj(
-                    data[...,
-                         int(par["NSlice"]/2/par["MB"]), ~ind]))/np.sum(~ind)
-        SNR_est = np.abs(sig/noise)
+                    tmp[...,
+                        int(par["NSlice"]/2/par["MB"]), ~ind]))/np.sum(~ind)
+        SNR_est = np.abs(sig/noise)#*par["mask"].size/np.sum(par["mask"])
         par["SNR_est"] = SNR_est
         print("Estimated SNR from kspace", SNR_est)
 
@@ -342,15 +342,17 @@ def _readInput(myargs, par):
     if not os.path.exists(outdir):
         os.makedirs(outdir)
     par["outdir"] = outdir
-    par["file"] = h5py.File(file)
+    par["file"] = h5py.File(file, 'a')
 
 
 def _start_recon(myargs):
     """
-    The Main Function. Reads in the data and
-    starts the model based reconstruction.
+    Model based reconstruction main function.
 
-    Args:
+    Reads in the data and starts the model based reconstruction.
+
+    Args
+    ----
       myargs:
         Arguments from pythons argparse to modify the behaviour of the
         reconstruction procedure.
@@ -505,10 +507,12 @@ def _start_recon(myargs):
         par["Nproj_measured"] = Nproj
         Nproj = Nproj_new
         data = np.require(np.transpose(np.reshape(data[..., :Nproj*NScan, :],
-                                       (NC, reco_Slices, NScan, Nproj, N)),
+                                                  (NC, reco_Slices, NScan,
+                                                   Nproj, N)),
                                        (2, 0, 1, 3, 4)), requirements='C')
         par["traj"] = np.require(np.reshape(par["traj"][:Nproj*NScan, :],
-                                 (NScan, Nproj, N)), requirements='C')
+                                            (NScan, Nproj, N)),
+                                 requirements='C')
         par["dcf"] = np.sqrt(np.array(goldcomp.cmp(par["traj"]),
                                       dtype=DTYPE_real)).astype(DTYPE_real)
         par["dcf"] = np.require(np.abs(par["dcf"]), DTYPE_real,
@@ -598,7 +602,7 @@ def _start_recon(myargs):
 ###############################################################################
 # Init forward model and initial guess ########################################
 ###############################################################################
-#    del par["file"]["images"]
+    # del par["file"]["images"]
 
     if myargs.sig_model == "GeneralModel":
         par["modelfile"] = myargs.modelfile
@@ -620,7 +624,7 @@ def _start_recon(myargs):
         par["weights"] = np.ones((par["unknowns"]), dtype=np.float32)
     else:
         par["weights"] = np.array(myargs.weights, dtype=np.float32)
-    par["weights"] = par["weights"]/par["unknowns"]
+    par["weights"] = par["weights"]
 ###############################################################################
 # Compute initial guess #######################################################
 ###############################################################################
@@ -641,7 +645,6 @@ def _start_recon(myargs):
         opt.data = images
     else:
         opt.data = data
-
     f = h5py.File(par["outdir"]+"output_" + par["fname"], "a")
     f.create_dataset("images_ifft", data=images)
     f.attrs['data_norm'] = par["dscale"]
@@ -675,10 +678,12 @@ def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
         modelfile="models.ini", modelname="VFA-E1",
         fft_dim=-1):
     """
-    Start a 3D model based reconstruction. Data can also be selected at
-    start up.
+    Start a 3D model based reconstruction.
 
-    Args:
+    Start a 3D model based reconstruction. Data can be selected at start up.
+
+    Args
+    ----
       recon_type (str):
         3D (2D currently not supported but 3D works on one slice also)
       reg_type (str):

@@ -58,23 +58,23 @@ class IRGNOptimizer:
         self.reg_type = reg_type
         self._prg = []
         self.num_dev = len(par["num_dev"])
-        self.par_slices = par["par_slices"]
+        self.NSlice = par["NSlice"]
         self.streamed = streamed
         self._imagespace = imagespace
         self._SMS = SMS
-        if streamed and par["NSlice"]/(self.num_dev*self.par_slices) < 2:
+        if streamed and par["NSlice"]/(self.num_dev*par["par_slices"]) < 2:
             raise ValueError(
                 "Number of Slices devided by parallel "
                 "computed slices and devices needs to be larger two.\n"
                 "Current values are %i total Slices, %i parallel slices and "
                 "%i compute devices."
-                % (par["NSlice"], self.par_slices, self.num_dev))
-        if streamed and par["NSlice"] % self.par_slices:
+                % (par["NSlice"], par["par_slices"], self.num_dev))
+        if streamed and par["NSlice"] % par["par_slices"]:
             raise ValueError(
                 "Number of Slices devided by parallel "
                 "computed slices needs to be an integer.\n"
                 "Current values are %i total Slices with %i parallel slices."
-                % (par["NSlice"], self.par_slices))
+                % (par["NSlice"], par["par_slices"]))
         if DTYPE == np.complex128:
             if streamed:
                 kernname = 'kernels/OpenCL_Kernels_double_streamed.c'
@@ -212,6 +212,7 @@ class IRGNOptimizer:
                 requirements='C')
 
         self.step_val = np.nan_to_num(self.model.execute_forward(result))
+
         if self.streamed:
             if self._SMS is False:
                 self.step_val = np.require(
@@ -222,9 +223,8 @@ class IRGNOptimizer:
             self.modelgrad = np.nan_to_num(
                 self.model.execute_gradient(result))
 
-            self._balanceModelGradients(result, ign)
-            if ign > 0:
-                self.pdop.grad_op.updateRatio(result)
+            self._balanceModelGradients(result)
+            # self.pdop.grad_op.updateRatio(result)
 
             self.step_val = np.nan_to_num(self.model.execute_forward(result))
 
@@ -235,11 +235,13 @@ class IRGNOptimizer:
                 self.modelgrad = np.require(
                     np.transpose(self.modelgrad, self.data_trans_axes),
                     requirements='C')
+                self.pdop.model = self.model
                 self.pdop.modelgrad = self.modelgrad
             else:
                 self.modelgrad = clarray.to_device(
                     self._queue[0],
                     self.modelgrad)
+                self.pdop.model = self.model
                 self.pdop.modelgrad = self.modelgrad
 
             self._updateIRGNRegPar(result, ign)
@@ -259,14 +261,10 @@ class IRGNOptimizer:
         self._calcResidual(result, self.data, ign+1)
 
     def _updateIRGNRegPar(self, result, ign):
-        self.irgn_par["delta_max"] = (self.delta_max /
-                                      1e3 *
-                                      np.linalg.norm(result))
         self.irgn_par["delta"] = np.minimum(
-            self.delta /
-            (1e3) *
-            np.linalg.norm(result)*self.irgn_par["delta_inc"]**ign,
-            self.irgn_par["delta_max"])
+            self.delta
+            * self.irgn_par["delta_inc"]**ign,
+            self.irgn_par["delta_max"]/np.sqrt(self.par["NSlice"]))
         self.irgn_par["gamma"] = np.maximum(
             self.gamma * self.irgn_par["gamma_dec"]**ign,
             self.irgn_par["gamma_min"])
@@ -274,22 +272,28 @@ class IRGNOptimizer:
             self.omega * self.irgn_par["omega_dec"]**ign,
             self.irgn_par["omega_min"])
 
-    def _balanceModelGradients(self, result, ind):
+    def _balanceModelGradients(self, result):
         scale = np.reshape(
             self.modelgrad,
             (self.par["unknowns"],
              self.par["NScan"] * self.par["NSlice"] *
              self.par["dimY"] * self.par["dimX"]))
         scale = np.linalg.norm(scale, axis=-1)
-        scale = 1e3 / scale
-        if not np.mod(ind, 1):
-            for uk in range(self.par["unknowns"]):
-                self.model.constraints[uk].update(scale[uk])
-                result[uk, ...] *= self.model.uk_scale[uk]
-                self.modelgrad[uk] /= self.model.uk_scale[uk]
-                self.model.uk_scale[uk] *= scale[uk]
-                result[uk, ...] /= self.model.uk_scale[uk]
-                self.modelgrad[uk] *= self.model.uk_scale[uk]
+        scale /= np.linalg.norm(scale)/np.sqrt(self.par["unknowns"])
+        scale = 1 / scale
+        for uk in range(self.par["unknowns"]):
+            self.model.constraints[uk].update(scale[uk])
+            result[uk, ...] *= self.model.uk_scale[uk]
+            self.modelgrad[uk] /= self.model.uk_scale[uk]
+            self.model.uk_scale[uk] *= scale[uk]
+            result[uk, ...] /= self.model.uk_scale[uk]
+            self.modelgrad[uk] *= self.model.uk_scale[uk]
+        scale = np.reshape(
+            self.modelgrad,
+            (self.par["unknowns"],
+             self.par["NScan"] * self.par["NSlice"] *
+             self.par["dimY"] * self.par["dimX"]))
+
 ###############################################################################
 # New .hdf5 save files ########################################################
 ###############################################################################
@@ -369,6 +373,7 @@ class IRGNOptimizer:
 
         self._fval = (datacost +
                       regcost +
+                      L2Cost +
                       self.irgn_par["omega"] / 2 *
                       np.linalg.norm(grad_H1)**2)
         del grad_tv, grad_H1
@@ -378,9 +383,9 @@ class IRGNOptimizer:
             self.pdop._fval_init = self._fval
 
         print("-" * 75)
-        print("Costs of Data: %f" % (datacost))
-        print("Costs of T(G)V: %f" % (regcost))
-        print("Costs of L2 Term: %f" % (L2Cost))
+        print("Costs of Data: %f" % (datacost * 1e3))
+        print("Costs of T(G)V: %f" % (regcost * 1e3))
+        print("Costs of L2 Term: %f" % (L2Cost * 1e3))
         print("-" * 75)
         print("Function value at GN-Step %i: %f" %
               (GN_it, 1e3*self._fval / self._fval_init))
@@ -461,9 +466,9 @@ class IRGNOptimizer:
                   3D can be used with a single slice.")
             raise NotImplementedError
         else:
-            self.irgn_par["lambd"] *= 1e2/np.sqrt(self.par["SNR_est"])
-            self.delta = self.irgn_par["delta"]
-            self.delta_max = self.irgn_par["delta_max"]
+            self.irgn_par["lambd"] *= (np.sqrt(self.par["NSlice"])
+                                       / np.sqrt(self.par["SNR_est"]))
             self.gamma = self.irgn_par["gamma"]
+            self.delta = self.irgn_par["delta"]/np.sqrt(self.par["NSlice"])
             self.omega = self.irgn_par["omega"]
             self._executeIRGN3D()
