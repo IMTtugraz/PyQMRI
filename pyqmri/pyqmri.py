@@ -315,6 +315,7 @@ def _readInput(myargs, par):
             root.update()
             file = filedialog.askopenfilename()
             root.destroy()
+            print(file)
             if not file == () and \
                not file.endswith((('.h5'), ('.hdf5'))):
                 print("Please specify a h5 file. Press cancel to exit.")
