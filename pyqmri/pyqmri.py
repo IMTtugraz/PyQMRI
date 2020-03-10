@@ -88,10 +88,11 @@ def _precoompFFT(data, par):
               "Precompute FFT along X and Y")
         data = np.fft.ifft2(data, norm='ortho')
         par["fft_dim"] = None
-
     else:
         par["fft_dim"] = [-2, -1]
-    return data
+
+    return np.require(data.astype(DTYPE),
+                      requirements='C')
 
 
 def _setupOCL(myargs, par):
