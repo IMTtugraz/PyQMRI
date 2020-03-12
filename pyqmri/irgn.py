@@ -54,6 +54,7 @@ class IRGNOptimizer:
         self._queue = par["queue"]
         self.gn_res = []
         self.irgn_par = utils.read_config(config, reg_type)
+        utils.save_config(self.irgn_par, par["outdir"], reg_type)
         self.model = model
         self.reg_type = reg_type
         self._prg = []

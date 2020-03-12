@@ -7,6 +7,7 @@ Created on Wed Jan 30 11:10:07 2019
 """
 import numpy as np
 import configparser
+import os
 from pyqmri.transforms import PyOpenCLnuFFT
 DTYPE = np.complex64
 DTYPE_real = np.float32
@@ -109,3 +110,11 @@ def read_config(conf_file, reg_type="DEFAULT"):
             else:
                 params[key] = float(config[reg_type][key])
         return params
+
+def save_config(conf, path, reg_type="DEFAULT"):
+    tmp_dict = {}
+    tmp_dict[reg_type] = conf
+    config = configparser.ConfigParser()
+    config.read_dict(tmp_dict)
+    with open(path+os.sep+'config.ini', 'w') as configfile:
+        config.write(configfile)
