@@ -20,6 +20,12 @@ from pyqmri._helper_fun import _utils as utils
 from pyqmri.solver import CGSolver
 from pyqmri.irgn import IRGNOptimizer
 
+from scipy.optimize import curve_fit
+
+def func(x, a, b, c, d, e):
+    return c/np.pi*(a/2/((x-b)**2+(a/2)**2))+(d/2/((x-e)**2+(d/2)**2))
+
+
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
@@ -268,39 +274,68 @@ def _estScaleNorm(myargs, par, images, data):
         SNR_est = np.abs(sig/noise)
         par["SNR_est"] = SNR_est
         print("Estimated SNR from kspace", SNR_est)
+
     else:
         centerX = int(par["dimX"]*0.1)
         centerY = int(par["dimY"]*0.1)
         ind = np.zeros((par["dimY"], par["dimX"]), dtype=bool)
-        ind[int(par["N"]/2-centerY):int(par["N"]/2+centerY),
-            int(par["N"]/2-centerX):int(par["N"]/2+centerX)] = 1
+        ind[int(par["dimY"]/2-centerY):int(par["dimY"]/2+centerY),
+            int(par["dimX"]/2-centerX):int(par["dimX"]/2+centerX)] = 1
         if par["fft_dim"] is not None:
             for shiftdim in par["fft_dim"]:
                 ind = np.fft.fftshift(ind, axes=shiftdim)
-            sig = np.sum(
-                data[..., int(par["NSlice"]/2/par["MB"]), ind] *
-                np.conj(
-                    data[...,
-                         int(par["NSlice"]/2/par["MB"]), ind]))/np.sum(ind)
-            noise = np.sum(
-                data[..., int(par["NSlice"]/2/par["MB"]), ~ind] *
-                np.conj(
-                    data[...,
-                         int(par["NSlice"]/2/par["MB"]), ~ind]))/np.sum(~ind)
+                sig = np.mean(
+                    data[..., ind] *
+                    np.conj(
+                        data[...,
+                             ind]))
+                noise = np.mean(
+                    data[..., ~ind] *
+                    np.conj(
+                        data[...,
+                             ~ind]))
         else:
             tmp = np.fft.fft2(data, norm='ortho')
-            ind = np.fft.fftshift(ind, axes=(0, 1))
-            sig = np.sum(
-                tmp[..., int(par["NSlice"]/2/par["MB"]), ind] *
+            inds = np.fft.fftshift(ind)
+            sig = np.max(
+                tmp[..., inds] *
                 np.conj(
                     tmp[...,
-                        int(par["NSlice"]/2/par["MB"]), ind]))/np.sum(ind)
-            noise = np.sum(
-                tmp[..., int(par["NSlice"]/2/par["MB"]), ~ind] *
+                        inds]))
+            noise = np.std(
+                tmp[..., ind] *
                 np.conj(
                     tmp[...,
-                        int(par["NSlice"]/2/par["MB"]), ~ind]))/np.sum(~ind)
-        SNR_est = np.abs(sig/noise)#*par["mask"].size/np.sum(par["mask"])
+                        ind]))
+            # SNR = []
+            # for j in range(par["NScan"]):
+                # fitpar,_  = curve_fit(func,
+                #                  np.linspace(-0.5, 0.5, par["dimX"]),
+                #                  np.mean(tmp[j,:,:,0], (0,1)),
+                #                  maxfev=10000)
+                # sig = func(np.linspace(-0.5, 0.5, par["dimX"]),
+                #              fitpar[0], fitpar[1], fitpar[2], fitpar[3], fitpar[4])
+                # noise = sig - np.mean(tmp[j,:,:,0], (0,1))
+                # SNR.append(
+                #     20*np.log(
+                #         (
+                #             np.sqrt(np.sum(sig**2))
+                #             / np.sqrt(np.sum(noise**2))
+                #             )**2
+                #         )
+                #     )
+            # ind = np.fft.fftshift(ind, axes=(0, 1))
+            # sig = np.mean(
+            #     tmp[..., ind] *
+            #     np.conj(
+            #         tmp[...,
+            #             ind]))
+            # noise = np.std(
+            #     tmp[..., ~ind] *
+            #     np.conj(
+            #         tmp[...,
+            #             ~ind]))
+        SNR_est = (np.abs(sig/noise))/1e3
         par["SNR_est"] = SNR_est
         print("Estimated SNR from kspace", SNR_est)
 

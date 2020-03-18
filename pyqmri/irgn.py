@@ -265,7 +265,7 @@ class IRGNOptimizer:
         self.irgn_par["delta"] = np.minimum(
             self.delta
             * self.irgn_par["delta_inc"]**ign,
-            self.irgn_par["delta_max"]/(self.par["NSlice"]))
+            self.irgn_par["delta_max"])/(self.par["NSlice"])
         self.irgn_par["gamma"] = np.maximum(
             self.gamma * self.irgn_par["gamma_dec"]**ign,
             self.irgn_par["gamma_min"])
@@ -468,7 +468,8 @@ class IRGNOptimizer:
             raise NotImplementedError
         else:
             self.irgn_par["lambd"] *= ((self.par["NSlice"])
-                                       / np.sqrt(self.par["SNR_est"]))
+                                        * (self.par["SNR_est"]))
+            # self.irgn_par["lambd"] *= (self.par["NSlice"])
             self.gamma = self.irgn_par["gamma"]
             self.delta = self.irgn_par["delta"]/(self.par["NSlice"])
             self.omega = self.irgn_par["omega"]

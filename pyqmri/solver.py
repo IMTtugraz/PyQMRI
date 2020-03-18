@@ -1648,16 +1648,16 @@ class PDSolverStreamed(PDBaseSolver):
 class PDSolverStreamedTGV(PDSolverStreamed):
     """Streamed TGV optimization."""
 
-    def __init__(self, 
+    def __init__(self,
                  par,
-                 irgn_par, 
-                 queue, 
-                 tau, 
-                 fval, 
+                 irgn_par,
+                 queue,
+                 tau,
+                 fval,
                  prg,
-                 linop, 
-                 coils, 
-                 model, 
+                 linop,
+                 coils,
+                 model,
                  imagespace=False,
                  SMS=False):
 

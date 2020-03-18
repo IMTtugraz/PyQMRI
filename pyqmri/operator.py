@@ -1618,9 +1618,7 @@ class OperatorFiniteGradient(Operator):
         self.ctx = self.ctx[0]
         self._ratio = clarray.to_device(
             self.queue,
-            (1 *
-             np.ones(
-                 self.unknowns)).astype(
+            (par["weights"]).astype(
                      dtype=self.DTYPE_real))
         self._weights = par["weights"]
 
