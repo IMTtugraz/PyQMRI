@@ -265,7 +265,7 @@ class IRGNOptimizer:
         self.irgn_par["delta"] = np.minimum(
             self.delta
             * self.irgn_par["delta_inc"]**ign,
-            self.irgn_par["delta_max"])/(self.par["NSlice"])
+            self.irgn_par["delta_max"])
         self.irgn_par["gamma"] = np.maximum(
             self.gamma * self.irgn_par["gamma_dec"]**ign,
             self.irgn_par["gamma_min"])
@@ -280,6 +280,8 @@ class IRGNOptimizer:
              self.par["NScan"] * self.par["NSlice"] *
              self.par["dimY"] * self.par["dimX"]))
         scale = np.linalg.norm(scale, axis=-1)
+        print("Initial Norm: ", np.linalg.norm(scale))
+        print("Initial Ratio: ", scale)
         scale /= np.linalg.norm(scale)/np.sqrt(self.par["unknowns"])
         scale = 1 / scale
         for uk in range(self.par["unknowns"]):
@@ -294,6 +296,9 @@ class IRGNOptimizer:
             (self.par["unknowns"],
              self.par["NScan"] * self.par["NSlice"] *
              self.par["dimY"] * self.par["dimX"]))
+        scale = np.linalg.norm(scale, axis=-1)
+        print("Norm after rescale: ", np.linalg.norm(scale))
+        print("Ratio after rescale: ", scale)
 
 ###############################################################################
 # New .hdf5 save files ########################################################
@@ -467,10 +472,9 @@ class IRGNOptimizer:
                   3D can be used with a single slice.")
             raise NotImplementedError
         else:
-            self.irgn_par["lambd"] *= ((self.par["NSlice"])
-                                        * (self.par["SNR_est"]))
-            # self.irgn_par["lambd"] *= (self.par["NSlice"])
+            # self.irgn_par["lambd"] *= (
+            #                             (self.par["SNR_est"]))
             self.gamma = self.irgn_par["gamma"]
-            self.delta = self.irgn_par["delta"]/(self.par["NSlice"])
+            self.delta = self.irgn_par["delta"]
             self.omega = self.irgn_par["omega"]
             self._executeIRGN3D()

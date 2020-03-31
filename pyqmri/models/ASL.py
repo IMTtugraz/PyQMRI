@@ -101,7 +101,6 @@ class Model(BaseModel):
         self.NSlice = par["NSlice"]
         self.dimY = par["dimY"]
         self.dimX = par["dimX"]
-
         par["unknowns_TGV"] = 2
         par["unknowns_H1"] = 0
         par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
@@ -116,7 +115,7 @@ class Model(BaseModel):
                         True))
         self.constraints.append(
             constraints(0.01/60,
-                        4/60,
+                        self.t[-3],
                         True))
 
     def _execute_forward_2D(self, x, islice):
@@ -217,7 +216,8 @@ class Model(BaseModel):
         f_max = f.max()
         del_t_min = del_t.min()
         del_t_max = del_t.max()
-        ind = 32  # int(images.shape[-1]/2) 30, 60
+        ind1 = 46
+        ind2 = 35# int(images.shape[-1]/2) 30, 60
         off = 0
         if dim_2D:
             if not self.figure:
@@ -299,28 +299,28 @@ class Model(BaseModel):
 
                 self.time_course_ref = self.plot_ax.scatter(
                     self.t*60, np.real(
-                        self.images[:, int(self.NSlice/2), ind, ind]),
+                        self.images[:, int(self.NSlice/2)+off, ind2, ind1]),
                     color='g', marker="2")
                 self.time_course = self.plot_ax.plot(
                     self.t*60, np.real(
-                        images[:, int(self.NSlice/2), ind, ind]), 'r')[0]
+                        images[:, int(self.NSlice/2)+off, ind2, ind1]), 'r')[0]
                 self.plot_ax.set_ylim(
                     np.real(self.images[:,
                                         int(self.NSlice/2),
-                                        ind,
-                                        ind]).min() - np.real(
+                                        ind2,
+                                        ind1]).min() - np.real(
                             self.images[:,
                                         int(self.NSlice/2),
-                                        ind,
-                                        ind]).min() * 0.01,
+                                        ind2,
+                                        ind1]).min() * 0.01,
                     np.real(self.images[:,
                                         int(self.NSlice/2),
-                                        ind,
-                                        ind]).max() + np.real(
+                                        ind2,
+                                        ind1]).max() + np.real(
                            self.images[:,
                                        int(self.NSlice/2),
-                                       ind,
-                                       ind]).max() * 0.01)
+                                       ind2,
+                                       ind1]).max() * 0.01)
                 for spine in self.plot_ax.spines:
                     self.plot_ax.spines[spine].set_color('white')
                 plt.draw()
@@ -345,24 +345,24 @@ class Model(BaseModel):
                 self.del_t_plot_cor.set_clim([del_t_min, del_t_max])
 
                 self.time_course.set_ydata(
-                    np.real(images[:, int(self.NSlice/2), ind, ind]))
+                    np.real(images[:, int(self.NSlice/2)+off, ind2, ind1]))
                 self.plot_ax.set_ylim(
                     np.real(self.images[:,
                                         int(self.NSlice/2),
-                                        ind,
-                                        ind]).min() - np.real(
+                                        ind2,
+                                        ind1]).min() - np.real(
                             self.images[:,
                                         int(self.NSlice/2),
-                                        ind,
-                                        ind]).min() * 0.01,
+                                        ind2,
+                                        ind1]).min() * 0.01,
                     np.real(self.images[:,
                                         int(self.NSlice/2),
-                                        ind,
-                                        ind]).max() + np.real(
+                                        ind2,
+                                        ind1]).max() + np.real(
                            self.images[:,
                                        int(self.NSlice/2),
-                                       ind,
-                                       ind]).max() * 0.01)
+                                       ind2,
+                                       ind1]).max() * 0.01)
                 plt.draw()
                 plt.pause(1e-10)
 
@@ -370,9 +370,9 @@ class Model(BaseModel):
         self.dscale = args[1]
         self.constraints[0].update(1/self.dscale)
         self.images = args[0]/args[1]
-        test_f = 10 * self.dscale * np.ones(
+        test_f = 30 * self.dscale * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
-        test_del_t = 1/60 * np.ones(
+        test_del_t = 0.6/60 * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         x = np.array([test_f,
                       test_del_t], dtype=DTYPE)

@@ -39,7 +39,7 @@ class Model(BaseModel):
 
         self.constraints.append(
             constraints(0 / self.uk_scale[0],
-                        10 / self.uk_scale[0],
+                        1e5 / self.uk_scale[0],
                         False))
         self.constraints.append(
             constraints(np.exp(-self.TR / (50)),
@@ -205,7 +205,9 @@ class Model(BaseModel):
     def computeInitialGuess(self, *args):
         test_T1 = 1500 * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
-        test_M0 = np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+        test_M0 = np.ones(
+            (self.NSlice, self.dimY, self.dimX),
+            dtype=DTYPE)
         test_T1 = np.exp(-self.TR / (test_T1))
         x = np.array([test_M0 / self.uk_scale[0],
                       test_T1 / self.uk_scale[1]], dtype=DTYPE)

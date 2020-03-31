@@ -20,11 +20,6 @@ from pyqmri._helper_fun import _utils as utils
 from pyqmri.solver import CGSolver
 from pyqmri.irgn import IRGNOptimizer
 
-from scipy.optimize import curve_fit
-
-def func(x, a, b, c, d, e):
-    return c/np.pi*(a/2/((x-b)**2+(a/2)**2))+(d/2/((x-e)**2+(d/2)**2))
-
 
 DTYPE = np.complex64
 DTYPE_real = np.float32
@@ -171,7 +166,7 @@ def _genImages(myargs, par, data, off):
                                             np.require(x[j, k, ...]
                                                         [None, None, ...],
                                                        requirements='C'))
-                    fft.FFTH(tmp_result, inp).wait()
+                    fft.FFTH(tmp_result, inp, scan_offset=j).wait()
                     result[j, k, ...] = np.squeeze(tmp_result.get())
             end = time.time()-start
             print("FT took %f s" % end)
@@ -196,11 +191,12 @@ def _genImages(myargs, par, data, off):
                     if par["NSlice"] == 1:
                         images[par_scans*j:par_scans*(j+1), ...] = cgs.run(
                             data[par_scans*j:par_scans*(j+1), ...],
-                            tol=tol, lambd=lambd)[:, None, ...]
+                            tol=tol, lambd=lambd,
+                            scan_offset=par_scans*j)[:, None, ...]
                     else:
                         images[par_scans*j:par_scans*(j+1), ...] = cgs.run(
                             data[par_scans*j:par_scans*(j+1), ...],
-                            tol=tol, lambd=lambd)
+                            tol=tol, lambd=lambd, scan_offset=par_scans*j)
                 del cgs
             if np.mod(par["NScan"], par_scans):
                 cgs = CGSolver(par, np.mod(par["NScan"], par_scans),
@@ -210,17 +206,23 @@ def _genImages(myargs, par, data, off):
                         images[-np.mod(par["NScan"], par_scans):, ...] = \
                             cgs.run(
                                 data[-np.mod(par["NScan"], par_scans):, ...],
-                                tol=tol, lambd=lambd)
+                                tol=tol, lambd=lambd,
+                                scan_offset=par["NScan"]-np.mod(
+                                    par["NScan"], par_scans))
                     else:
                         images[-np.mod(par["NScan"], par_scans):, ...] = \
                             cgs.run(
                                 data[-np.mod(par["NScan"], par_scans):, ...],
-                                tol=tol, lambd=lambd)[:, None, ...]
+                                tol=tol, lambd=lambd,
+                                scan_offset=par["NScan"]-np.mod(
+                                    par["NScan"], par_scans))[:, None, ...]
                 else:
                     images[-np.mod(par["NScan"], par_scans):, ...] = \
                         cgs.run(
                             data[-np.mod(par["NScan"], par_scans):, ...],
-                            tol=tol, lambd=lambd)
+                            tol=tol, lambd=lambd,
+                            scan_offset=par["NScan"]-np.mod(
+                                    par["NScan"], par_scans))
                 del cgs
             par["file"].create_dataset("images", images.shape,
                                        dtype=DTYPE, data=images)
@@ -244,36 +246,27 @@ def _genImages(myargs, par, data, off):
 
 
 def _estScaleNorm(myargs, par, images, data):
-    if myargs.imagespace:
-        dscale = DTYPE_real(np.sqrt(2) /
-                            (np.linalg.norm(images.flatten())))
-        par["dscale"] = dscale
-        images = images*dscale
-    else:
-        dscale = DTYPE_real(np.sqrt(2) /
-                            (np.linalg.norm(data.flatten())))
-        par["dscale"] = dscale
-        images = images*dscale
-        data = data*dscale
+    # if myargs.imagespace:
+    #     dscale = DTYPE_real(np.sqrt(2) /
+    #                         (np.linalg.norm(images.flatten())))
+    # else:
+    # dscale = DTYPE_real(np.sqrt(2) /
+    #                     (np.linalg.norm(data.flatten())))
+
 
     if myargs.trafo:
         center = int(par["N"]*0.1)
-        sig = []
-        noise = []
         ind = np.zeros((par["N"]), dtype=bool)
         ind[int(par["N"]/2-center):int(par["N"]/2+center)] = 1
-        for j in range(par["Nproj"]):
-            sig.append(np.sum(
-                data[..., int(par["NSlice"]/2), j, ind] *
-                np.conj(data[..., int(par["NSlice"]/2), j, ind])))
-            noise.append(np.sum(
-                data[..., int(par["NSlice"]/2), j, ~ind] *
-                np.conj(data[..., int(par["NSlice"]/2), j, ~ind])))
-        sig = (np.sum(np.array(sig)))/np.sum(ind)
-        noise = (np.sum(np.array(noise)))/np.sum(~ind)
-        SNR_est = np.abs(sig/noise)
-        par["SNR_est"] = SNR_est
-        print("Estimated SNR from kspace", SNR_est)
+        inds = np.fft.fftshift(ind)
+        dims = tuple(range(data.ndim - 3)) + (-2,)
+        print(dims)
+        sig = np.max(
+            np.sum(data[..., ind], dims) *
+            np.conj(np.sum(data[..., ind], dims)))
+        noise = np.std(
+            np.sum(data[..., inds], dims) *
+            np.conj(np.sum(data[..., inds], dims)))
 
     else:
         centerX = int(par["dimX"]*0.1)
@@ -283,17 +276,17 @@ def _estScaleNorm(myargs, par, images, data):
             int(par["dimX"]/2-centerX):int(par["dimX"]/2+centerX)] = 1
         if par["fft_dim"] is not None:
             for shiftdim in par["fft_dim"]:
-                ind = np.fft.fftshift(ind, axes=shiftdim)
-                sig = np.mean(
+                inds = np.fft.fftshift(ind, axes=shiftdim)
+                sig = np.max(
+                    data[..., inds] *
+                    np.conj(
+                        data[...,
+                             inds]))
+                noise = np.std(
                     data[..., ind] *
                     np.conj(
                         data[...,
                              ind]))
-                noise = np.mean(
-                    data[..., ~ind] *
-                    np.conj(
-                        data[...,
-                             ~ind]))
         else:
             tmp = np.fft.fft2(data, norm='ortho')
             inds = np.fft.fftshift(ind)
@@ -335,9 +328,15 @@ def _estScaleNorm(myargs, par, images, data):
             #     np.conj(
             #         tmp[...,
             #             ~ind]))
-        SNR_est = (np.abs(sig/noise))/1e3
-        par["SNR_est"] = SNR_est
-        print("Estimated SNR from kspace", SNR_est)
+    SNR_est = np.sqrt(np.abs(sig/noise))
+    par["SNR_est"] = SNR_est
+    print("Estimated SNR from kspace", SNR_est)
+
+    dscale = DTYPE_real(np.sqrt(1/SNR_est) /
+                        (np.quantile(np.abs(images.flatten()), 0.9)))
+    par["dscale"] = dscale
+    images = images*dscale
+    data = data*dscale
 
     return data, images
 
@@ -595,6 +594,7 @@ def _start_recon(myargs):
     else:
         par['mask'] = None
     par["transpXY"] = False
+
 ###############################################################################
 # ratio of z direction to x,y, important for finite differences ###############
 ###############################################################################

@@ -106,7 +106,7 @@ __kernel void update_z1(__global float8 *z_new, __global float8 *z, __global flo
   }
 }
 __kernel void update_primal(__global float2 *u_new, __global float2 *u, __global float2 *Kyk,__global float2 *u_k,
-                            const float tau, const float tauinv, float div, __global float* min, __global float* max,
+                            const float tau, const float tauinv, const float div, __global float* min, __global float* max,
                             __global int* real, const int NUk) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);

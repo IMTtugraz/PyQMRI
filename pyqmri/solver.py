@@ -103,7 +103,8 @@ class CGSolver:
         del self._FT
         del self._FTH
 
-    def run(self, data, iters=30, lambd=1e-5, tol=1e-8, guess=None):
+    def run(self, data, iters=30, lambd=1e-5, tol=1e-8, guess=None,
+            scan_offset=0):
         """
         Start the CG reconstruction.
 
@@ -123,6 +124,7 @@ class CGSolver:
           guess (complex64):
             An optional initial guess for the images. If None, zeros is used.
         """
+        self.scan_offset = scan_offset
         if guess is not None:
             x = clarray.to_device(self._queue, guess)
         else:
@@ -208,7 +210,7 @@ class CGSolver:
         self._tmp_result.add_event(self.eval_fwd_kspace_cg(
             self._tmp_result, x, wait_for=self._tmp_result.events+x.events))
         self._tmp_sino.add_event(self._FT(
-            self._tmp_sino, self._tmp_result))
+            self._tmp_sino, self._tmp_result, scan_offset=self.scan_offset))
         return self._operator_rhs(out, self._tmp_sino)
 
     def _operator_rhs(self, out, x, wait_for=[]):
@@ -225,7 +227,8 @@ class CGSolver:
             A List of PyOpenCL events to wait for.
         """
         self._tmp_result.add_event(self._FTH(
-            self._tmp_result, x, wait_for=wait_for+x.events))
+            self._tmp_result, x, wait_for=wait_for+x.events,
+            scan_offset=self.scan_offset))
         return self._prg.operator_ad_cg(self._queue,
                                         (self._NSlice, self._dimY,
                                          self._dimX),
@@ -285,7 +288,7 @@ class PDBaseSolver:
         self.display_iterations = irgn_par["display_iterations"]
         self.mu = 1 / self.delta
         self.tau = tau
-        self.beta_line = 400
+        self.beta_line = 1
         self.theta_line = np.float32(1.0)
         self.unknowns_TGV = par["unknowns_TGV"]
         self.unknowns_H1 = par["unknowns_H1"]
@@ -517,7 +520,8 @@ class PDBaseSolver:
                     tau_new = tau_new * mu_line
 
             tau = tau_new
-
+            self.beta_line = beta_line
+            self.tau = tau
             for j, k in zip(primal_vars_new,
                             tmp_results_adjoint_new):
                 (primal_vars[j],
@@ -579,10 +583,11 @@ class PDBaseSolver:
                 gap_old = gap
                 sys.stdout.write(
                     "Iteration: %04d ---- Primal: %2.2e, "
-                    "Dual: %2.2e, Gap: %2.2e \r" %
+                    "Dual: %2.2e, Gap: %2.2e, Beta: %2.2e \r" %
                     (i, 1000*primal / self._fval_init,
                      1000*dual / self._fval_init,
-                     1000*gap / self._fval_init))
+                     1000*gap / self._fval_init,
+                     self.beta_line))
                 sys.stdout.flush()
 
         return primal_vars

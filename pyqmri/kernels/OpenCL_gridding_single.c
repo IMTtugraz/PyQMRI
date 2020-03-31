@@ -61,7 +61,7 @@
 
   }
 
-  __kernel void grid_lut(__global float *sg, __global float2 *s, __global float2 *kpos, const int gridsize, const float kwidth, __global float *dcf, __constant float* kerneltable, const int nkernelpts )
+  __kernel void grid_lut(__global float *sg, __global float2 *s, __global float2 *kpos, const int gridsize, const float kwidth, __global float *dcf, __constant float* kerneltable, const int nkernelpts, const int scanoffset )
   {
     size_t k = get_global_id(2);
     size_t kDim = get_global_size(2);
@@ -80,8 +80,8 @@
 
 
 
-    kx = (kpos[k+kDim*scan]).s0;
-    ky = (kpos[k+kDim*scan]).s1;
+    kx = (kpos[k+kDim*(scan+scanoffset)]).s0;
+    ky = (kpos[k+kDim*(scan+scanoffset)]).s1;
 
 
     ixmin =  (int)((kx-kwidth)*gridsize +gridcenter);
@@ -119,7 +119,7 @@
   }
 
 
-  __kernel void invgrid_lut(__global float2 *s, __global float2 *sg, __global float2 *kpos, const int gridsize, const float kwidth, __global float *dcf, __constant float* kerneltable, const int nkernelpts )
+  __kernel void invgrid_lut(__global float2 *s, __global float2 *sg, __global float2 *kpos, const int gridsize, const float kwidth, __global float *dcf, __constant float* kerneltable, const int nkernelpts, const int scanoffset )
   {
     size_t k = get_global_id(2);
     size_t kDim = get_global_size(2);
@@ -135,8 +135,8 @@
     float2 tmp_dat = 0.0;
 
 
-    kx = (kpos[k+kDim*scan]).s0;
-    ky = (kpos[k+kDim*scan]).s1;
+    kx = (kpos[k+kDim*(scan+scanoffset)]).s0;
+    ky = (kpos[k+kDim*(scan+scanoffset)]).s1;
 
     ixmin =  (int)((kx-kwidth)*gridsize +gridcenter);
     ixmax = (int)((kx+kwidth)*gridsize +gridcenter)+1;

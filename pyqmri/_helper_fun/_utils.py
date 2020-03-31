@@ -36,10 +36,13 @@ def NUFFT(par, trafo=True, SMS=False):
 #        packs = par["packs"]
 #        par["packs"] = 1
 #        par["NSlice"] = 2
-    FFT = PyOpenCLnuFFT.create(par["ctx"][0], par["queue"][0], par,
-                               radial=trafo, SMS=SMS, fft_dim=par["fft_dim"])
+
+    FFT = (PyOpenCLnuFFT.create(
+        par["ctx"][0], par["queue"][0], par,
+        radial=trafo, SMS=SMS, fft_dim=par["fft_dim"]))
     par["NC"] = NC
     par["NScan"] = NScan
+
 #    if SMS:
 #        par["packs"] = packs
     return FFT
