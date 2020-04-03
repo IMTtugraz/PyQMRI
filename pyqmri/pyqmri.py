@@ -332,7 +332,7 @@ def _estScaleNorm(myargs, par, images, data):
     par["SNR_est"] = SNR_est
     print("Estimated SNR from kspace", SNR_est)
 
-    dscale = DTYPE_real(np.sqrt(1/SNR_est) /
+    dscale = DTYPE_real((SNR_est/1e6) /
                         (np.quantile(np.abs(images.flatten()), 0.9)))
     par["dscale"] = dscale
     images = images*dscale
