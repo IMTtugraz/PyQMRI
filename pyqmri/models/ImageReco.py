@@ -108,4 +108,4 @@ class Model(BaseModel):
                 plt.pause(1e-10)
 
     def computeInitialGuess(self, *args):
-        self.guess = 1e-1*np.ones_like(np.abs(args[0]).astype(DTYPE))
+        self.guess = ((args[0]).astype(DTYPE))

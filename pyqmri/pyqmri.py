@@ -269,8 +269,8 @@ def _estScaleNorm(myargs, par, images, data):
             np.conj(np.sum(data[..., inds], dims)))
 
     else:
-        centerX = int(par["dimX"]*0.1)
-        centerY = int(par["dimY"]*0.1)
+        centerX = int(par["dimX"]*0.05)
+        centerY = int(par["dimY"]*0.05)
         ind = np.zeros((par["dimY"], par["dimX"]), dtype=bool)
         ind[int(par["dimY"]/2-centerY):int(par["dimY"]/2+centerY),
             int(par["dimX"]/2-centerX):int(par["dimX"]/2+centerX)] = 1
@@ -282,11 +282,21 @@ def _estScaleNorm(myargs, par, images, data):
                     np.conj(
                         data[...,
                              inds]))
-                noise = np.std(
-                    data[..., ind] *
-                    np.conj(
+                noise = 0
+                percent = 0.05
+                while noise == 0:
+                  centerX = int(par["dimX"]*percent)
+                  centerY = int(par["dimY"]*percent)
+                  ind = np.zeros((par["dimY"], par["dimX"]), dtype=bool)
+                  ind[
+                    int(par["dimY"]/2-centerY):int(par["dimY"]/2+centerY),
+                    int(par["dimX"]/2-centerX):int(par["dimX"]/2+centerX)] = 1
+                  noise = np.std(
+                      data[..., ind] *
+                      np.conj(
                         data[...,
                              ind]))
+                  percent += 0.05
         else:
             tmp = np.fft.fft2(data, norm='ortho')
             inds = np.fft.fftshift(ind)
@@ -295,11 +305,21 @@ def _estScaleNorm(myargs, par, images, data):
                 np.conj(
                     tmp[...,
                         inds]))
-            noise = np.std(
-                tmp[..., ind] *
-                np.conj(
-                    tmp[...,
-                        ind]))
+            noise = 0
+            percent = 0.05
+            while noise == 0:
+              centerX = int(par["dimX"]*percent)
+              centerY = int(par["dimY"]*percent)
+              ind = np.zeros((par["dimY"], par["dimX"]), dtype=bool)
+              ind[
+                int(par["dimY"]/2-centerY):int(par["dimY"]/2+centerY),
+                int(par["dimX"]/2-centerX):int(par["dimX"]/2+centerX)] = 1
+              noise = np.std(
+                  data[..., ind] *
+                  np.conj(
+                    data[...,
+                         ind]))
+              percent += 0.05
             # SNR = []
             # for j in range(par["NScan"]):
                 # fitpar,_  = curve_fit(func,
@@ -328,7 +348,7 @@ def _estScaleNorm(myargs, par, images, data):
             #     np.conj(
             #         tmp[...,
             #             ~ind]))
-    SNR_est = np.sqrt(np.abs(sig/noise))
+    SNR_est = 20*np.log10(np.abs(sig/noise))
     par["SNR_est"] = SNR_est
     print("Estimated SNR from kspace", SNR_est)
 
