@@ -18,7 +18,7 @@ from pyqmri._helper_fun import _goldcomp as goldcomp
 from pyqmri._helper_fun._est_coils import est_coils
 from pyqmri._helper_fun import _utils as utils
 from pyqmri.solver import CGSolver
-from pyqmri.irgn import IRGNOptimizer
+from pyqmri.irgn import IRGNOptimizer,noIRGN
 
 
 DTYPE = np.complex64
@@ -668,15 +668,24 @@ def _start_recon(myargs):
 ###############################################################################
 # initialize operator  ########################################################
 ###############################################################################
-
-    opt = IRGNOptimizer(par,
-                        myargs.trafo,
-                        imagespace=myargs.imagespace,
-                        SMS=myargs.sms,
-                        config=myargs.config,
-                        model=model,
-                        streamed=myargs.streamed,
-                        reg_type=myargs.reg)
+    if "ImageReco" in myargs.model:
+        opt = noIRGN(par,
+                     myargs.trafo,
+                     imagespace=myargs.imagespace,
+                     SMS=myargs.sms,
+                     config=myargs.config,
+                     model=model,
+                     streamed=myargs.streamed,
+                     reg_type=myargs.reg)
+    else:
+        opt = IRGNOptimizer(par,
+                            myargs.trafo,
+                            imagespace=myargs.imagespace,
+                            SMS=myargs.sms,
+                            config=myargs.config,
+                            model=model,
+                            streamed=myargs.streamed,
+                            reg_type=myargs.reg)
     if myargs.imagespace is True:
         opt.data = images
     else:

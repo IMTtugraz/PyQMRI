@@ -478,3 +478,100 @@ class IRGNOptimizer:
             self.delta = self.irgn_par["delta"]
             self.omega = self.irgn_par["omega"]
             self._executeIRGN3D()
+
+
+class noIRGN(IRGNOptimizer):
+    """ Simple Optimization
+
+    This Class performs IRGN Optimization either with TGV or TV regularization
+    and a combination of TGV/TV + H1.
+
+    Attributes:
+      par (dict): A python dict containing the necessary information to
+        setup the object. Needs to contain the number of slices (NSlice),
+        number of scans (NScan), image dimensions (dimX, dimY), number of
+        coils (NC), sampling points (N) and read outs (NProj)
+        a PyOpenCL queue (queue) and the complex coil
+        sensitivities (C).
+      gn_res ((list of) float):
+        The residual values for of each Gauss-Newton step. Each iteration
+        appends its value to the list.
+    """
+
+    def __init__(self, par, trafo=1, imagespace=False, SMS=0, reg_type='TGV',
+                 config='', model=None, streamed=False):
+        self.super().__init__(par, trafo, imagespace, SMS, reg_type, config,
+                              model, streamed)
+
+###############################################################################
+# Start a 3D Reconstruction, set TV to True to perform TV instead of TGV#######
+# Precompute Model and Gradient values for xk #################################
+# Call inner optimization #####################################################
+# input: bool to switch between TV (1) and TGV (0) regularization #############
+# output: optimal value of x ##################################################
+###############################################################################
+    def _executeIRGN3D(self):
+        iters = self.irgn_par["start_iters"]
+        result = np.copy(self.model.guess)
+
+        if self.streamed:
+            self.data = np.require(
+                np.transpose(self.data, self.data_trans_axes),
+                requirements='C')
+
+        self.step_val = 0*np.nan_to_num(self.model.execute_forward(result))
+
+        if self.streamed:
+            if self._SMS is False:
+                self.step_val = np.require(
+                    np.swapaxes(self.step_val, 0, 1), requirements='C')
+
+        start = time.time()
+        self.modelgrad = np.ones_like(
+            self.model.execute_gradient(result))
+
+        if self.streamed:
+            self.modelgrad = np.require(
+                np.transpose(self.modelgrad, self.data_trans_axes),
+                requirements='C')
+            self.pdop.model = self.model
+            self.pdop.modelgrad = self.modelgrad
+        else:
+            self.modelgrad = clarray.to_device(
+                self._queue[0],
+                self.modelgrad)
+            self.pdop.model = self.model
+            self.pdop.modelgrad = self.modelgrad
+
+        result = self._irgnSolve3D(result, iters, self.data, 0)
+
+        iters = np.fmin(iters * 2, self.irgn_par["max_iters"])
+
+        end = time.time() - start
+        self.gn_res.append(self._fval)
+        print("-" * 75)
+        print("GN-Iter: %d  Elapsed time: %f seconds" % (0, end))
+        print("-" * 75)
+        self._fval_old = self._fval
+        self._saveToFile(0, self.model.rescale(result))
+        self._calcResidual(result, self.data, 1)
+
+    def _irgnSolve3D(self, x, iters, data, GN_it):
+        b = self._calcResidual(x, data, GN_it)
+
+        tmpres = self.pdop.run(x, data, iters)
+        for key in tmpres:
+            if key == 'x':
+                if type(tmpres[key]) == np.ndarray:
+                    x = tmpres["x"]
+                else:
+                    x = tmpres["x"].get()
+            if key == 'v':
+                if type(tmpres[key]) == np.ndarray:
+                    self.v = tmpres["v"]
+                else:
+                    self.v = tmpres["v"].get()
+        if self.streamed:
+            x = np.require(np.swapaxes(x, 0, 1), requirements='C')
+        return x
+
