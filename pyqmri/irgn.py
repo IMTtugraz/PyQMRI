@@ -500,7 +500,7 @@ class noIRGN(IRGNOptimizer):
 
     def __init__(self, par, trafo=1, imagespace=False, SMS=0, reg_type='TGV',
                  config='', model=None, streamed=False):
-        self.super().__init__(par, trafo, imagespace, SMS, reg_type, config,
+        super().__init__(par, trafo, imagespace, SMS, reg_type, config,
                               model, streamed)
 
 ###############################################################################
