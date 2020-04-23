@@ -668,7 +668,7 @@ def _start_recon(myargs):
 ###############################################################################
 # initialize operator  ########################################################
 ###############################################################################
-    if "ImageReco" in myargs.model:
+    if "ImageReco" in myargs.sig_model:
         opt = noIRGN(par,
                      myargs.trafo,
                      imagespace=myargs.imagespace,
