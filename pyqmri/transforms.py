@@ -484,6 +484,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
                 None,
                 self._tmp_fft_array.data,
                 self._check.data))
+
         for j in range(s.shape[0]):
             self._tmp_fft_array.add_event(
                 self.fft.enqueue_arrays(
