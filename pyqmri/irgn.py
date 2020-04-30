@@ -472,8 +472,8 @@ class IRGNOptimizer:
                   3D can be used with a single slice.")
             raise NotImplementedError
         else:
-            # self.irgn_par["lambd"] *= (
-            #                             (self.par["SNR_est"]))
+            self.irgn_par["lambd"] *= (
+                                       (self.par["SNR_est"]))
             self.gamma = self.irgn_par["gamma"]
             self.delta = self.irgn_par["delta"]
             self.omega = self.irgn_par["omega"]

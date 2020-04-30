@@ -269,57 +269,25 @@ def _estScaleNorm(myargs, par, images, data):
             np.conj(np.sum(data[..., inds], dims)))
 
     else:
-        centerX = int(par["dimX"]*0.05)
-        centerY = int(par["dimY"]*0.05)
+        centerX = int(par["dimX"]*0.1)
+        centerY = int(par["dimY"]*0.1)
         ind = np.zeros((par["dimY"], par["dimX"]), dtype=bool)
         ind[int(par["dimY"]/2-centerY):int(par["dimY"]/2+centerY),
             int(par["dimX"]/2-centerX):int(par["dimX"]/2+centerX)] = 1
         if par["fft_dim"] is not None:
             for shiftdim in par["fft_dim"]:
-                inds = np.fft.fftshift(ind, axes=shiftdim)
-                sig = np.max(
-                    data[..., inds] *
-                    np.conj(
-                        data[...,
-                             inds]))
-                noise = 0
-                percent = 0.05
-                while noise == 0:
-                  centerX = int(par["dimX"]*percent)
-                  centerY = int(par["dimY"]*percent)
-                  ind = np.zeros((par["dimY"], par["dimX"]), dtype=bool)
-                  ind[
-                    int(par["dimY"]/2-centerY):int(par["dimY"]/2+centerY),
-                    int(par["dimX"]/2-centerX):int(par["dimX"]/2+centerX)] = 1
-                  noise = np.std(
-                      data[..., ind] *
-                      np.conj(
-                        data[...,
-                             ind]))
-                  percent += 0.05
+                ind = np.fft.fftshift(ind, axes=shiftdim)
+            sig = np.sum(
+                np.abs(data[..., ind])**2)
+            noise = np.sum(
+                np.abs(data[..., ~ind])**2)
         else:
             tmp = np.fft.fft2(data, norm='ortho')
-            inds = np.fft.fftshift(ind)
-            sig = np.max(
-                tmp[..., inds] *
-                np.conj(
-                    tmp[...,
-                        inds]))
-            noise = 0
-            percent = 0.05
-            while noise == 0:
-              centerX = int(par["dimX"]*percent)
-              centerY = int(par["dimY"]*percent)
-              ind = np.zeros((par["dimY"], par["dimX"]), dtype=bool)
-              ind[
-                int(par["dimY"]/2-centerY):int(par["dimY"]/2+centerY),
-                int(par["dimX"]/2-centerX):int(par["dimX"]/2+centerX)] = 1
-              noise = np.std(
-                  data[..., ind] *
-                  np.conj(
-                    data[...,
-                         ind]))
-              percent += 0.05
+            ind = np.fft.fftshift(ind)
+            sig = np.sum(
+                np.abs(tmp[..., ind])**2)
+            noise = np.sum(
+                np.abs(tmp[..., ~ind])**2)
             # SNR = []
             # for j in range(par["NScan"]):
                 # fitpar,_  = curve_fit(func,
@@ -348,12 +316,13 @@ def _estScaleNorm(myargs, par, images, data):
             #     np.conj(
             #         tmp[...,
             #             ~ind]))
-    SNR_est = 20*np.log10(np.abs(sig/noise))
+    SNR_est = (np.abs(sig/noise))
     par["SNR_est"] = SNR_est
     print("Estimated SNR from kspace", SNR_est)
 
-    dscale = DTYPE_real((SNR_est/1e6) /
-                        (np.quantile(np.abs(images.flatten()), 0.9)))
+#    dscale = DTYPE_real((1/1e1) /
+#                        (np.quantile(np.abs(images.flatten()), 0.9)))
+    dscale = DTYPE_real(1 / np.linalg.norm(np.abs(data)))
     par["dscale"] = dscale
     images = images*dscale
     data = data*dscale

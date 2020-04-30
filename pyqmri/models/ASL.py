@@ -208,7 +208,7 @@ class Model(BaseModel):
         return grad
 
     def plot_unknowns(self, x, dim_2D=False):
-        images = self._execute_forward_3D(x) / self.dscale
+        images = self._execute_forward_3D(x) #/ self.dscale
         f = np.abs(x[0, ...] * self.uk_scale[0] / self.dscale)
         del_t = np.abs(x[1, ...] * self.uk_scale[1])*60
 #        del_t[f <= 15] = 0
@@ -369,7 +369,7 @@ class Model(BaseModel):
     def computeInitialGuess(self, *args):
         self.dscale = args[1]
         self.constraints[0].update(1/self.dscale)
-        self.images = args[0]/args[1]
+        self.images = args[0]#/args[1]
         test_f = 30 * self.dscale * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         test_del_t = 0.6/60 * np.ones(
