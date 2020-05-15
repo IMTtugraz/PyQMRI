@@ -86,7 +86,7 @@ class Model(BaseModel):
                 x[0] * self.uk_scale[0]
                 * (-x[1]*self.uk_scale[1]*self.b0 *
                    np.exp(-t / (x[3+j] * self.uk_scale[3+j]))
-                   + (1 - np.exp(-t / (x[2] * self.uk_scale[2])))
+                   + (1 - np.exp(-t / (x[3+j] * self.uk_scale[3+j])))
                    * self.b[1+j])
                 )
         S[~np.isfinite(S)] = 1e-20
@@ -294,12 +294,13 @@ class Model(BaseModel):
         test_M0 = 1e-3*np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         self.constraints[0].update(1/args[1])
-        test_Xi = 20*np.ones(
+        test_Xi = 1*np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         # self.constraints[1].update(1/args[1])
         test_R1 = 400 * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         test_Cx = []
+        self.b0 *= args[1]
         self.b *= args[1]
         for j in range(self.numT1Scale):
             test_Cx.append(200/(j+1) *

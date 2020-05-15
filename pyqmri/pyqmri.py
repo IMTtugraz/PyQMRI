@@ -674,7 +674,7 @@ def _start_recon(myargs):
                         config=myargs.config,
                         model=model,
                         streamed=myargs.streamed,
-                       reg_type=myargs.reg)
+                        reg_type=myargs.reg)
     if myargs.imagespace is True:
         opt.data = images
     else:
