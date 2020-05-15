@@ -5,8 +5,6 @@ import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 plt.ion()
-unknowns_TGV = 14
-unknowns_H1 = 0
 
 
 class Model(BaseModel):
@@ -26,7 +24,7 @@ class Model(BaseModel):
 
         self.dir = self.dir[:, None, None, None, :]
         par["unknowns_TGV"] = 14
-        par["unknowns_H1"] = 0 
+        par["unknowns_H1"] = 0
         par["unknowns"] = par["unknowns_TGV"] + par["unknowns_H1"]
         self.uk_scale = []
         for j in range(par["unknowns"]):
@@ -38,7 +36,7 @@ class Model(BaseModel):
                 np.transpose(par["file"]["b0"][()], (0, 2, 1)), 0)
         except KeyError:
             print("No b0 image provided")
-            self.b0 =  None
+            self.b0 = None
 
         self.constraints.append(
             constraints(
