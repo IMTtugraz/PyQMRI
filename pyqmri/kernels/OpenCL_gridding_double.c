@@ -63,7 +63,7 @@ void AtomicAdd(__global double *val, double delta) {
 
   }
 
-  __kernel void grid_lut(__global double *sg, __global double2 *s, __global double2 *kpos, const int gridsize, const double kwidth, __global double *dcf, __constant double* kerneltable, const int nkernelpts )
+  __kernel void grid_lut(__global double *sg, __global double2 *s, __global double2 *kpos, const int gridsize, const double kwidth, __global double *dcf, __constant double* kerneltable, const int nkernelpts, const int scanoffset  )
   {
     size_t k = get_global_id(2);
     size_t kDim = get_global_size(2);
@@ -82,8 +82,8 @@ void AtomicAdd(__global double *val, double delta) {
 
 
 
-    kx = (kpos[k+kDim*scan]).s0;
-    ky = (kpos[k+kDim*scan]).s1;
+    kx = (kpos[k+kDim*(scan+scanoffset)]).s0;
+    ky = (kpos[k+kDim*(scan+scanoffset)]).s1;
 
 
     ixmin =  (int)((kx-kwidth)*gridsize +gridcenter);
@@ -121,7 +121,7 @@ void AtomicAdd(__global double *val, double delta) {
   }
 
 
-  __kernel void invgrid_lut(__global double2 *s, __global double2 *sg, __global double2 *kpos, const int gridsize, const double kwidth, __global double *dcf, __constant double* kerneltable, const int nkernelpts )
+  __kernel void invgrid_lut(__global double2 *s, __global double2 *sg, __global double2 *kpos, const int gridsize, const double kwidth, __global double *dcf, __constant double* kerneltable, const int nkernelpts, const int scanoffset  )
   {
     size_t k = get_global_id(2);
     size_t kDim = get_global_size(2);
@@ -137,8 +137,8 @@ void AtomicAdd(__global double *val, double delta) {
     double2 tmp_dat = 0.0;
 
 
-    kx = (kpos[k+kDim*scan]).s0;
-    ky = (kpos[k+kDim*scan]).s1;
+    kx = (kpos[k+kDim*(scan+scanoffset)]).s0;
+    ky = (kpos[k+kDim*(scan+scanoffset)]).s1;
 
     ixmin =  (int)((kx-kwidth)*gridsize +gridcenter);
     ixmax = (int)((kx+kwidth)*gridsize +gridcenter)+1;
@@ -269,4 +269,85 @@ __kernel void fftshift(__global double2* ksp, __global double *check)
     size_t n = get_global_id(0);
 
     ksp[x+dimX*y+dimX*dimY*n] = ksp[x+dimX*y+dimX*dimY*n]*check[x]*check[y];
+  }
+
+__kernel void copy_SMS_fwdkspace(__global double2 *out, __global double2 *in, __global double *shift,
+                                 __global double *mask, const int packs, const int MB, const double scale, const int NGroups)
+  {
+    size_t x = get_global_id(2);
+    size_t dimX = get_global_size(2);
+    size_t y = get_global_id(1);
+    size_t dimY = get_global_size(1);
+    size_t n = get_global_id(0);
+
+    size_t NSlice = NGroups*packs*MB*dimX*dimY;
+    size_t idSlice = dimX*dimY;
+    double expshift = 0.0f;
+    double sinshift = 0.0f;
+    double cosshift = 0.0f;
+    int inind = 0;
+
+    double fftshift = ((double)y/((double)dimY/2.0f));
+    double exppos = ((double)y-fftshift);
+    double2 tmp = 0.0f;
+
+    for (int gid=0; gid<NGroups; gid++)
+    {
+    for (int k=0; k<packs; k++)
+    {
+    tmp = 0.0f;
+    for(int z=0; z< MB; z++)
+    {
+    expshift = 2.0f*M_PI*shift[z]*exppos;
+    sinshift = sin(expshift);
+    cosshift = cos(expshift);
+
+    inind = x+y*dimX+idSlice*(k+z*packs+gid*packs*MB)+NSlice*n;
+
+    tmp += (double2) (in[inind].x*cosshift-in[inind].y*sinshift,
+                             in[inind].x*sinshift+in[inind].y*cosshift);
+    }
+    out[x+y*dimX+idSlice*k+idSlice*packs*gid+idSlice*packs*NGroups*n] = tmp*mask[x+y*dimX];
+    }
+    }
+  }
+
+__kernel void copy_SMS_adjkspace(__global double2 *out, __global double2 *in, __global double *shift,
+                                __global double *mask, const int packs, const int MB, const double scale, const int NGroups)
+  {
+    size_t x = get_global_id(2);
+    size_t dimX = get_global_size(2);
+    size_t y = get_global_id(1);
+    size_t dimY = get_global_size(1);
+    size_t n = get_global_id(0);
+
+    size_t NSlice = NGroups*packs*MB*dimX*dimY;
+    size_t idSlice = dimX*dimY;
+
+    double expshift = 0.0f;
+    double sinshift = 0.0f;
+    double cosshift = 0.0f;
+    int inind = 0;
+
+    double fftshift = ((double)x/((double)dimX/2.0f));
+    double exppos = ((double)x-fftshift);
+
+    double2 tmpin = 0.0f;
+
+    for (int gid=0; gid<NGroups; gid++)
+    {
+    for (int k=0; k<packs; k++)
+    {
+    inind = x+y*dimX+idSlice*k+idSlice*packs*gid+idSlice*packs*NGroups*n;
+    tmpin = in[inind]*mask[x+y*dimX];
+    for(int z=0; z<MB; z++)
+    {
+        expshift = -2.0f*M_PI*shift[z]*exppos;
+        sinshift = sin(expshift);
+        cosshift = cos(expshift);
+        out[x+y*dimX+idSlice*(k+z*packs+gid*packs*MB)+NSlice*n] = (double2) (tmpin.x*cosshift-tmpin.y*sinshift,
+                             tmpin.x*sinshift+tmpin.y*cosshift);
+    }
+    }
+    }
   }

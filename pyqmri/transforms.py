@@ -11,7 +11,7 @@ from pyqmri._helper_fun._calckbkernel import calckbkernel
 from pyqmri._helper_fun import CLProgram as Program
 
 
-class PyOpenCLFFT():
+class PyOpenCLnuFFT():
     """ Base class for FFT calculation.
 
     This class serves as the base class for all FFT object used in
@@ -20,9 +20,9 @@ class PyOpenCLFFT():
 
     Attributes:
       DTYPE (Numpy.Type):
-        The comlex precission type. Currently complex64 is used.
+        The comlex precision type. Currently complex64 is used.
       DTYPE_real (Numpy.Type):
-        The real precission type. Currently float32 is used.
+        The real precision type. Currently float32 is used.
       ctx (PyOpenCL.Context):
         The context for the PyOpenCL computations.
       queue (PyOpenCL.Queue):
@@ -37,9 +37,9 @@ class PyOpenCLFFT():
           queue (PyOpenCL.Queue):
             The computation Queue for the PyOpenCL kernels.
           DTYPE (Numpy.Type):
-            The comlex precission type. Currently complex64 is used.
+            The comlex precision type. Currently complex64 is used.
           DTYPE_real (Numpy.Type):
-            The real precission type. Currently float32 is used.
+            The real precision type. Currently float32 is used.
         """
         self.DTYPE = DTYPE
         self.DTYPE_real = DTYPE_real
@@ -85,9 +85,9 @@ class PyOpenCLFFT():
             The length of the kernel lookup table which samples the contineous
             gridding kernel.
           DTYPE (Numpy.Type):
-            The comlex precission type. Currently complex64 is used.
+            The comlex precision type. Currently complex64 is used.
           DTYPE_real (Numpy.Type):
-            The real precission type. Currently float32 is used.
+            The real precision type. Currently float32 is used.
           radial (bool):
             Switch for Cartesian (False) and non-Cartesian (True) FFT.
           SMS (bool):
@@ -98,7 +98,7 @@ class PyOpenCLFFT():
             streamed reconstruction of smaller blocks.
 
         Returns:
-          PyOpenCLFFT object:
+          PyOpenCLnuFFT object:
             The setup FFT object.
 
         Raises:
@@ -118,15 +118,15 @@ class PyOpenCLFFT():
                     DTYPE=DTYPE,
                     DTYPE_real=DTYPE_real)
             elif SMS is True and radial is False:
-                if "phase_map" in par.keys():
-                    obj = PyOpenCLSMSNUFFTFieldMap(
-                        ctx,
-                        queue,
-                        par,
-                        fft_dim=fft_dim,
-                        DTYPE=DTYPE,
-                        DTYPE_real=DTYPE_real)
-                else:
+#                if "phase_map" in par.keys():
+#                    obj = PyOpenCLSMSNUFFTFieldMap(
+#                        ctx,
+#                        queue,
+#                        par,
+#                        fft_dim=fft_dim,
+#                        DTYPE=DTYPE,
+#                        DTYPE_real=DTYPE_real)
+#                else:
                     obj = PyOpenCLSMSNUFFT(
                         ctx,
                         queue,
@@ -135,15 +135,15 @@ class PyOpenCLFFT():
                         DTYPE=DTYPE,
                         DTYPE_real=DTYPE_real)
             elif SMS is False and radial is False:
-                if "phase_map" in par.keys():
-                    obj = PyOpenCLFieldMapNUFFT(
-                        ctx,
-                        queue,
-                        par,
-                        fft_dim=fft_dim,
-                        DTYPE=DTYPE,
-                        DTYPE_real=DTYPE_real)
-                else:
+#                if "phase_map" in par.keys():
+#                    obj = PyOpenCLFieldMapNUFFT(
+#                        ctx,
+#                        queue,
+#                        par,
+#                        fft_dim=fft_dim,
+#                        DTYPE=DTYPE,
+#                        DTYPE_real=DTYPE_real)
+#                else:
                     obj = PyOpenCLCartNUFFT(
                         ctx,
                         queue,
@@ -155,7 +155,7 @@ class PyOpenCLFFT():
                 raise AssertionError("Combination of Radial "
                                      "and SMS not allowed")
             if DTYPE == np.complex128:
-                print('Using double precission')
+                print('Using double precision')
                 file = open(
                     resource_filename(
                         'pyqmri', 'kernels/OpenCL_gridding_double.c'))
@@ -163,7 +163,7 @@ class PyOpenCLFFT():
                     obj.ctx,
                     file.read())
             else:
-                print('Using single precission')
+                print('Using single precision')
                 file = open(
                     resource_filename(
                         'pyqmri', 'kernels/OpenCL_gridding_single.c'))
@@ -201,7 +201,7 @@ class PyOpenCLFFT():
                 raise AssertionError("Combination of Radial "
                                      "and SMS not allowed")
             if DTYPE == np.complex128:
-                print('Using double precission')
+                print('Using double precision')
                 file = open(
                     resource_filename(
                         'pyqmri',
@@ -210,7 +210,7 @@ class PyOpenCLFFT():
                     obj.ctx,
                     file.read())
             else:
-                print('Using single precission')
+                print('Using single precision')
                 file = open(
                     resource_filename(
                         'pyqmri',
@@ -222,7 +222,7 @@ class PyOpenCLFFT():
         return obj
 
 
-class PyOpenCLRadialNUFFT(PyOpenCLFFT):
+class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
     """ Non-uniform FFT object
 
     This class performs the non-uniform FFT (NUFFT) operation. Linear
@@ -292,9 +292,9 @@ class PyOpenCLRadialNUFFT(PyOpenCLFFT):
             The dimensions which should be transformed. Defaults
             to 1 and 2 corresponding the the last two of fft_dim.
           DTYPE (Numpy.Type):
-            The comlex precission type. Currently complex64 is used.
+            The comlex precision type. Currently complex64 is used.
           DTYPE_real (Numpy.Type):
-            The real precission type. Currently float32 is used.
+            The real precision type. Currently float32 is used.
         """
         super().__init__(ctx, queue, DTYPE, DTYPE_real)
         self.ogf = par["N"]/par["dimX"]
@@ -353,7 +353,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLFFT):
         del self.prg
         del self.fft
 
-    def FFTH(self, sg, s, wait_for=[]):
+    def FFTH(self, sg, s, wait_for=[], scan_offset=0):
         """ Perform the inverse (adjoint) NUFFT operation
         Args:
           sg (PyOpenCL.Array):
@@ -392,6 +392,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLFFT):
                 self.dcf.data,
                 self.cl_kerneltable,
                 np.int32(self._kernelpoints),
+                np.int32(scan_offset),
                 wait_for=(wait_for + sg.events +
                           s.events + self._tmp_fft_array.events)))
         # FFT
@@ -435,7 +436,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLFFT):
             wait_for=(wait_for + sg.events + s.events +
                       self._tmp_fft_array.events))
 
-    def FFT(self, s, sg, wait_for=[]):
+    def FFT(self, s, sg, wait_for=[], scan_offset=0):
         """ Perform the forward NUFFT operation
         Args:
           s (PyOpenCL.Array):
@@ -483,6 +484,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLFFT):
                 None,
                 self._tmp_fft_array.data,
                 self._check.data))
+
         for j in range(s.shape[0]):
             self._tmp_fft_array.add_event(
                 self.fft.enqueue_arrays(
@@ -514,10 +516,11 @@ class PyOpenCLRadialNUFFT(PyOpenCLFFT):
             self.dcf.data,
             self.cl_kerneltable,
             np.int32(self._kernelpoints),
+            np.int32(scan_offset),
             wait_for=s.events + wait_for + self._tmp_fft_array.events)
 
 
-class PyOpenCLCartNUFFT(PyOpenCLFFT):
+class PyOpenCLCartNUFFT(PyOpenCLnuFFT):
     """ Cartesian FFT object
 
     This class performs the FFT operation.
@@ -569,9 +572,9 @@ class PyOpenCLCartNUFFT(PyOpenCLFFT):
             The dimensions which should be transformed. Defaults
             to 1 and 2 corresponding the the last two of fft_dim.
           DTYPE (Numpy.Type):
-            The comlex precission type. Currently complex64 is used.
+            The comlex precision type. Currently complex64 is used.
           DTYPE_real (Numpy.Type):
-            The real precission type. Currently float32 is used.
+            The real precision type. Currently float32 is used.
         """
         super().__init__(ctx, queue, DTYPE, DTYPE_real)
         self.fft_shape = (
@@ -580,30 +583,34 @@ class PyOpenCLCartNUFFT(PyOpenCLFFT):
             par["NSlice"],
             par["dimY"],
             par["dimX"])
-        self.fft_scale = DTYPE_real(
-            np.sqrt(np.prod(self.fft_shape[fft_dim[0]:])))
-        self._tmp_fft_array = (
-            clarray.empty(
-                self.queue,
-                self.fft_shape,
-                dtype=DTYPE))
-        self.par_fft = int(self.fft_shape[0] / par["NScan"] / par["NC"])
-        self.mask = clarray.to_device(self.queue, par["mask"])
-        self.fft = FFT(ctx, queue, self._tmp_fft_array[
-            0:self.par_fft, ...],
-                       out_array=self._tmp_fft_array[
-                           0:self.par_fft, ...],
-                       axes=fft_dim)
+        self.fft_dim = par["fft_dim"]
+        if par["fft_dim"] is not None:
+            self.fft_scale = DTYPE_real(
+                np.sqrt(np.prod(self.fft_shape[self.fft_dim[0]:])))
+            self._tmp_fft_array = (
+                clarray.empty(
+                    self.queue,
+                    self.fft_shape,
+                    dtype=DTYPE))
+            self.par_fft = int(self.fft_shape[0] / par["NScan"] / par["NC"])
+            self.mask = clarray.to_device(self.queue, par["mask"])
+            self.fft = FFT(ctx, queue, self._tmp_fft_array[
+                0:self.par_fft, ...],
+                           out_array=self._tmp_fft_array[
+                               0:self.par_fft, ...],
+                           axes=self.fft_dim)
 
     def __del__(self):
-        del self._tmp_fft_array
+        if self.fft_dim is not None:
+            del self._tmp_fft_array
+            del self.fft
+            del self.mask
         del self.queue
         del self.ctx
         del self.prg
-        del self.mask
-        del self.fft
 
-    def FFTH(self, sg, s, wait_for=[]):
+
+    def FFTH(self, sg, s, wait_for=[], scan_offset=0):
         """ Perform the inverse (adjoint) FFT operation
         Args:
           sg (PyOpenCL.Array):
@@ -615,35 +622,46 @@ class PyOpenCLCartNUFFT(PyOpenCLFFT):
         Returns:
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
-        self._tmp_fft_array.add_event(
-            self.prg.maskingcpy(
-                self.queue,
-                (self._tmp_fft_array.shape),
-                None,
-                self._tmp_fft_array.data,
-                s.data,
-                self.mask.data,
-                wait_for=s.events))
-        for j in range(np.prod(s.shape[0:2])):
+        if self.fft_dim is not None:
             self._tmp_fft_array.add_event(
-                self.fft.enqueue_arrays(
-                    data=self._tmp_fft_array[
-                        j * self.par_fft:(j + 1) * self.par_fft, ...],
-                    result=self._tmp_fft_array[
-                        j * self.par_fft:(j + 1) * self.par_fft, ...],
-                    forward=False)[0])
-        return (
-            self.prg.copy(
-                self.queue,
-                (sg.size,
-                 ),
-                None,
-                sg.data,
-                self._tmp_fft_array.data,
-                self.DTYPE_real(
-                    self.fft_scale)))
+                self.prg.maskingcpy(
+                    self.queue,
+                    (self._tmp_fft_array.shape),
+                    None,
+                    self._tmp_fft_array.data,
+                    s.data,
+                    self.mask.data,
+                    wait_for=s.events+self._tmp_fft_array.events))
+            for j in range(np.prod(s.shape[0:2])):
+                self._tmp_fft_array.add_event(
+                    self.fft.enqueue_arrays(
+                        data=self._tmp_fft_array[
+                            j * self.par_fft:(j + 1) * self.par_fft, ...],
+                        result=self._tmp_fft_array[
+                            j * self.par_fft:(j + 1) * self.par_fft, ...],
+                        forward=False)[0])
+            return (
+                self.prg.copy(
+                    self.queue,
+                    (sg.size,
+                     ),
+                    None,
+                    sg.data,
+                    self._tmp_fft_array.data,
+                    self.DTYPE_real(
+                        self.fft_scale)))
+        else:
+            return self.prg.copy(
+                        self.queue,
+                        (s.size,
+                         ),
+                        None,
+                        sg.data,
+                        s.data,
+                        self.DTYPE_real(1),
+                        wait_for=s.events+sg.events)
 
-    def FFT(self, s, sg, wait_for=[]):
+    def FFT(self, s, sg, wait_for=[], scan_offset=0):
         """ Perform the forward FFT operation
         Args:
           s (PyOpenCL.Array):
@@ -655,38 +673,50 @@ class PyOpenCLCartNUFFT(PyOpenCLFFT):
         Returns:
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
-        self._tmp_fft_array.add_event(
-            self.prg.copy(
-                self.queue,
-                (sg.size,
-                 ),
-                None,
-                self._tmp_fft_array.data,
-                sg.data,
-                self.DTYPE_real(
-                    1 /
-                    self.fft_scale)))
-
-        for j in range(np.prod(s.shape[0:2])):
+        if self.fft_dim is not None:
             self._tmp_fft_array.add_event(
-                self.fft.enqueue_arrays(
-                    data=self._tmp_fft_array[
-                        j * self.par_fft:(j + 1) * self.par_fft, ...],
-                    result=self._tmp_fft_array[
-                        j * self.par_fft:(j + 1) * self.par_fft, ...],
-                    forward=True)[0])
-        return (
-            self.prg.maskingcpy(
-                self.queue,
-                (self._tmp_fft_array.shape),
-                None,
-                s.data,
-                self._tmp_fft_array.data,
-                self.mask.data,
-                wait_for=s.events+self._tmp_fft_array.events))
+                self.prg.copy(
+                    self.queue,
+                    (sg.size,
+                     ),
+                    None,
+                    self._tmp_fft_array.data,
+                    sg.data,
+                    self.DTYPE_real(
+                        1 /
+                        self.fft_scale),
+                    wait_for=s.events+self._tmp_fft_array.events))
+
+            for j in range(np.prod(s.shape[0:2])):
+                self._tmp_fft_array.add_event(
+                    self.fft.enqueue_arrays(
+                        data=self._tmp_fft_array[
+                            j * self.par_fft:(j + 1) * self.par_fft, ...],
+                        result=self._tmp_fft_array[
+                            j * self.par_fft:(j + 1) * self.par_fft, ...],
+                        forward=True)[0])
+            return (
+                self.prg.maskingcpy(
+                    self.queue,
+                    (self._tmp_fft_array.shape),
+                    None,
+                    s.data,
+                    self._tmp_fft_array.data,
+                    self.mask.data,
+                    wait_for=s.events+self._tmp_fft_array.events))
+        else:
+            return self.prg.copy(
+                        self.queue,
+                        (sg.size,
+                         ),
+                        None,
+                        s.data,
+                        sg.data,
+                        self.DTYPE_real(1),
+                        wait_for=s.events+sg.events)
 
 
-class PyOpenCLFieldMapNUFFT(PyOpenCLFFT):
+class PyOpenCLFieldMapNUFFT(PyOpenCLnuFFT):
     """ Cartesian FFT object
 
     This class performs the FFT operation.
@@ -738,9 +768,9 @@ class PyOpenCLFieldMapNUFFT(PyOpenCLFFT):
             The dimensions which should be transformed. Defaults
             to 1 and 2 corresponding the the last two of fft_dim.
           DTYPE (Numpy.Type):
-            The comlex precission type. Currently complex64 is used.
+            The comlex precision type. Currently complex64 is used.
           DTYPE_real (Numpy.Type):
-            The real precission type. Currently float32 is used.
+            The real precision type. Currently float32 is used.
         """
         super().__init__(ctx, queue, DTYPE, DTYPE_real)
         self.fft_shape = (
@@ -765,7 +795,7 @@ class PyOpenCLFieldMapNUFFT(PyOpenCLFFT):
         del self.prg
         del self.mask
 
-    def FFTH(self, sg, s, wait_for=[]):
+    def FFTH(self, sg, s, wait_for=[], scan_offset=0):
         """ Perform the inverse (adjoint) FFT operation
         Args:
           sg (PyOpenCL.Array):
@@ -798,7 +828,7 @@ class PyOpenCLFieldMapNUFFT(PyOpenCLFFT):
                             np.int32(sg.shape[0]),
                             wait_for=self._tmp_fft_array.events+sg.events)
 
-    def FFT(self, s, sg, wait_for=[]):
+    def FFT(self, s, sg, wait_for=[], scan_offset=0):
         """ Perform the forward FFT operation
         Args:
           s (PyOpenCL.Array):
@@ -833,7 +863,7 @@ class PyOpenCLFieldMapNUFFT(PyOpenCLFFT):
                 wait_for=s.events+self._tmp_fft_array.events))
 
 
-class PyOpenCLSMSNUFFT(PyOpenCLFFT):
+class PyOpenCLSMSNUFFT(PyOpenCLnuFFT):
     """ Cartesian FFT-SMS object
 
     This class performs the FFT operation assuming a SMS acquisition.
@@ -873,6 +903,7 @@ class PyOpenCLSMSNUFFT(PyOpenCLFFT):
             fft_dim=(
                 1,
                 2),
+            klength=200,
             DTYPE=np.complex64,
             DTYPE_real=np.float32):
         """ Setup the FFT-SMS object
@@ -891,9 +922,9 @@ class PyOpenCLSMSNUFFT(PyOpenCLFFT):
             The dimensions which should be transformed. Defaults
             to 1 and 2 corresponding the the last two of fft_dim.
           DTYPE (Numpy.Type):
-            The comlex precission type. Currently complex64 is used.
+            The comlex precision type. Currently complex64 is used.
           DTYPE_real (Numpy.Type):
-            The real precission type. Currently float32 is used.
+            The real precision type. Currently float32 is used.
         """
         super().__init__(ctx, queue, DTYPE, DTYPE_real)
         self.fft_shape = (
@@ -906,35 +937,37 @@ class PyOpenCLSMSNUFFT(PyOpenCLFFT):
         self.packs = int(par["packs"])
         self.MB = int(par["MB"])
         self.shift = clarray.to_device(
-            self.queue, par["shift"].astype(np.int32))
+            self.queue, par["shift"].astype(DTYPE_real))
 
-        self.fft_shape = (
-            int(self.fft_shape[0] / self.MB),
-            self.fft_shape[1], self.fft_shape[2])
-
-        self.fft_scale = DTYPE_real(
-            np.sqrt(np.prod(self.fft_shape[fft_dim[0]:])))
-        self._tmp_fft_array = (
-            clarray.empty(
-                self.queue,
-                self.fft_shape,
-                dtype=DTYPE))
+        self.fft_dim = par["fft_dim"]
         self.par_fft = int(self.fft_shape[0] / par["NScan"])
+
         self.mask = clarray.to_device(self.queue, par["mask"])
-        self.fft = FFT(ctx, queue, self._tmp_fft_array[
-            0:self.par_fft, ...],
-                       out_array=self._tmp_fft_array[
-                           0:self.par_fft, ...],
-                       axes=fft_dim)
+        if self.fft_dim is not None:
+            self.fft_scale = DTYPE_real(
+                np.sqrt(np.prod(self.fft_shape[self.fft_dim[0]:])))
+            self._tmp_fft_array = (
+                clarray.empty(
+                    self.queue,
+                    self.fft_shape,
+                    dtype=DTYPE))
+            self.fft = FFT(ctx, queue, self._tmp_fft_array[
+                0:self.par_fft, ...],
+                           out_array=self._tmp_fft_array[
+                               0:self.par_fft, ...],
+                           axes=self.fft_dim)
 
     def __del__(self):
-        del self._tmp_fft_array
+        if self.fft_dim is not None:
+            del self._tmp_fft_array
+            del self.fft
+        del self.mask
         del self.queue
         del self.ctx
         del self.prg
-        del self.fft
 
-    def FFTH(self, sg, s, wait_for=[]):
+
+    def FFTH(self, sg, s, wait_for=[], scan_offset=0):
         """ Perform the inverse (adjoint) FFT operation
         Args:
           sg (PyOpenCL.Array):
@@ -946,38 +979,57 @@ class PyOpenCLSMSNUFFT(PyOpenCLFFT):
         Returns:
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
-        self._tmp_fft_array.add_event(
-            self.prg.maskingcpy(
-                self.queue,
-                (self._tmp_fft_array.shape),
-                None,
-                self._tmp_fft_array.data,
-                s.data,
-                self.mask.data,
-                wait_for=s.events))
-        for j in range(s.shape[0]):
+        if self.fft_dim is not None:
             self._tmp_fft_array.add_event(
-                self.fft.enqueue_arrays(
-                    data=self._tmp_fft_array[
-                        j * self.par_fft:(j + 1) * self.par_fft, ...],
-                    result=self._tmp_fft_array[
-                        j * self.par_fft:(j + 1) * self.par_fft, ...],
-                    forward=False)[0])
-        return (self.prg.copy_SMS_adj(self.queue,
-                                      (sg.shape[0] * sg.shape[1],
-                                       sg.shape[-2],
-                                       sg.shape[-1]),
-                                      None,
-                                      sg.data,
-                                      self._tmp_fft_array.data,
-                                      self.shift.data,
-                                      np.int32(self.packs),
-                                      np.int32(self.MB),
-                                      self.DTYPE_real(self.fft_scale),
-                                      np.int32(sg.shape[2]/self.packs/self.MB),
-                                      wait_for=self._tmp_fft_array.events))
+                self.prg.copy_SMS_adjkspace(
+                    self.queue,
+                    (sg.shape[0] * sg.shape[1],
+                     sg.shape[-2],
+                     sg.shape[-1]),
+                    None,
+                    self._tmp_fft_array.data,
+                    s.data,
+                    self.shift.data,
+                    self.mask.data,
+                    np.int32(self.packs),
+                    np.int32(self.MB),
+                    self.DTYPE_real(self.fft_scale),
+                    np.int32(sg.shape[2]/self.packs/self.MB),
+                    wait_for=s.events))
+            for j in range(s.shape[0]):
+                self._tmp_fft_array.add_event(
+                    self.fft.enqueue_arrays(
+                        data=self._tmp_fft_array[
+                            j * self.par_fft:(j + 1) * self.par_fft, ...],
+                        result=self._tmp_fft_array[
+                            j * self.par_fft:(j + 1) * self.par_fft, ...],
+                        forward=False)[0])
 
-    def FFT(self, s, sg, wait_for=[]):
+            return (self.prg.copy(self.queue,
+                                  (sg.size,),
+                                  None,
+                                  sg.data,
+                                  self._tmp_fft_array.data,
+                                  self.DTYPE_real(self.fft_scale),
+                                  wait_for=self._tmp_fft_array.events))
+        else:
+            return self.prg.copy_SMS_adj(
+                    self.queue,
+                    (sg.shape[0] * sg.shape[1],
+                     sg.shape[-2],
+                     sg.shape[-1]),
+                    None,
+                    sg.data,
+                    s.data,
+                    self.shift.data,
+                    self.mask.data,
+                    np.int32(self.packs),
+                    np.int32(self.MB),
+                    self.DTYPE_real(1),
+                    np.int32(sg.shape[2]/self.packs/self.MB),
+                    wait_for=s.events+sg.events)
+
+    def FFT(self, s, sg, wait_for=[], scan_offset=0):
         """ Perform the forward FFT operation
         Args:
           s (PyOpenCL.Array):
@@ -989,41 +1041,58 @@ class PyOpenCLSMSNUFFT(PyOpenCLFFT):
         Returns:
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
-        self._tmp_fft_array.add_event(
-            self.prg.copy_SMS_fwd(
-                self.queue,
-                (sg.shape[0] * sg.shape[1], sg.shape[-2], sg.shape[-1]),
-                None,
-                self._tmp_fft_array.data,
-                sg.data,
-                self.shift.data,
-                np.int32(self.packs),
-                np.int32(self.MB),
-                self.DTYPE_real(1 / self.fft_scale),
-                np.int32(sg.shape[2]/self.packs/self.MB),
-                wait_for=self._tmp_fft_array.events+sg.events))
-
-        for j in range(s.shape[0]):
+        if self.fft_dim is not None:
             self._tmp_fft_array.add_event(
-                self.fft.enqueue_arrays(
-                    data=self._tmp_fft_array[
-                        j * self.par_fft:(j + 1) * self.par_fft, ...],
-                    result=self._tmp_fft_array[
-                        j * self.par_fft:(j + 1) * self.par_fft, ...],
-                    forward=True)[0])
+                self.prg.copy(
+                    self.queue,
+                    (sg.size,),
+                    None,
+                    self._tmp_fft_array.data,
+                    sg.data,
+                    self.DTYPE_real(1 / self.fft_scale),
+                    wait_for=self._tmp_fft_array.events+sg.events))
 
-        return (
-            self.prg.maskingcpy(
-                self.queue,
-                (self._tmp_fft_array.shape),
-                None,
-                s.data,
-                self._tmp_fft_array.data,
-                self.mask.data,
-                wait_for=s.events+self._tmp_fft_array.events))
+            for j in range(s.shape[0]):
+                self._tmp_fft_array.add_event(
+                    self.fft.enqueue_arrays(
+                        data=self._tmp_fft_array[
+                            j * self.par_fft:(j + 1) * self.par_fft, ...],
+                        result=self._tmp_fft_array[
+                            j * self.par_fft:(j + 1) * self.par_fft, ...],
+                        forward=True)[0])
+
+            return (
+                self.prg.copy_SMS_fwdkspace(
+                    self.queue,
+                    (s.shape[0] * s.shape[1], s.shape[-2], s.shape[-1]),
+                    None,
+                    s.data,
+                    self._tmp_fft_array.data,
+                    self.shift.data,
+                    self.mask.data,
+                    np.int32(self.packs),
+                    np.int32(self.MB),
+                    self.DTYPE_real(self.fft_scale),
+                    np.int32(sg.shape[2]/self.packs/self.MB),
+                    wait_for=s.events+self._tmp_fft_array.events))
+        else:
+            return (
+                self.prg.copy_SMS_fwd(
+                    self.queue,
+                    (s.shape[0] * s.shape[1], s.shape[-2], s.shape[-1]),
+                    None,
+                    s.data,
+                    sg.data,
+                    self.shift.data,
+                    self.mask.data,
+                    np.int32(self.packs),
+                    np.int32(self.MB),
+                    self.DTYPE_real(1),
+                    np.int32(sg.shape[2]/self.packs/self.MB),
+                    wait_for=s.events+sg.events))
 
 
-class PyOpenCLSMSNUFFTFieldMap(PyOpenCLFFT):
+class PyOpenCLSMSNUFFTFieldMap(PyOpenCLnuFFT):
     """ Cartesian FFT-SMS object
 
     This class performs the FFT operation assuming a SMS acquisition.
@@ -1081,9 +1150,9 @@ class PyOpenCLSMSNUFFTFieldMap(PyOpenCLFFT):
             The dimensions which should be transformed. Defaults
             to 1 and 2 corresponding the the last two of fft_dim.
           DTYPE (Numpy.Type):
-            The comlex precission type. Currently complex64 is used.
+            The comlex precision type. Currently complex64 is used.
           DTYPE_real (Numpy.Type):
-            The real precission type. Currently float32 is used.
+            The real precision type. Currently float32 is used.
         """
         super().__init__(ctx, queue, DTYPE, DTYPE_real)
         self.fft_shape = (
@@ -1127,7 +1196,7 @@ class PyOpenCLSMSNUFFTFieldMap(PyOpenCLFFT):
         del self.ctx
         del self.prg
 
-    def FFTH(self, sg, s, wait_for=[]):
+    def FFTH(self, sg, s, wait_for=[], scan_offset=0):
         """ Perform the inverse (adjoint) FFT operation
         Args:
           sg (PyOpenCL.Array):
@@ -1174,7 +1243,7 @@ class PyOpenCLSMSNUFFTFieldMap(PyOpenCLFFT):
               np.int32(sg.shape[0]),
               wait_for=self._tmp_fft_array.events+sg.events)
 
-    def FFT(self, s, sg, wait_for=[]):
+    def FFT(self, s, sg, wait_for=[], scan_offset=0):
         """ Perform the forward FFT operation
         Args:
           s (PyOpenCL.Array):
@@ -1222,7 +1291,7 @@ class PyOpenCLSMSNUFFTFieldMap(PyOpenCLFFT):
                 wait_for=s.events+self._tmp_fft_array2.events))
 
 
-class PyOpenCLRadialNUFFTStreamed(PyOpenCLFFT):
+class PyOpenCLRadialNUFFTStreamed(PyOpenCLnuFFT):
     """ The streamed version of the non-uniform FFT object
 
     This class performs the non-uniform FFT (NUFFT) operation. Linear
@@ -1495,7 +1564,7 @@ class PyOpenCLRadialNUFFTStreamed(PyOpenCLFFT):
                       sg.events))
 
 
-class PyOpenCLCartNUFFTStreamed(PyOpenCLFFT):
+class PyOpenCLCartNUFFTStreamed(PyOpenCLnuFFT):
     """ The streamed version of the Cartesian FFT object
 
     This class performs the FFT operation.
@@ -1549,37 +1618,41 @@ class PyOpenCLCartNUFFTStreamed(PyOpenCLFFT):
             The dimensions which should be transformed. Defaults
             to 1 and 2 corresponding the the last two of fft_dim.
           DTYPE (Numpy.Type):
-            The comlex precission type. Currently complex64 is used.
+            The comlex precision type. Currently complex64 is used.
           DTYPE_real (Numpy.Type):
-            The real precission type. Currently float32 is used.
+            The real precision type. Currently float32 is used.
         """
         super().__init__(ctx, queue, DTYPE, DTYPE_real)
         self.fft_shape = (par["NScan"] *
                           par["NC"] *
                           (par["par_slices"] +
                            par["overlap"]), par["dimY"], par["dimX"])
+        self.fft_dim = par["fft_dim"]
         self.par_fft = int(self.fft_shape[0] / par["NScan"])
-        self.fft_scale = DTYPE_real(
-            np.sqrt(np.prod(self.fft_shape[fft_dim[0]:])))
-        self._tmp_fft_array = (
-            clarray.zeros(
-                self.queue,
-                self.fft_shape,
-                dtype=DTYPE))
-        self.mask = clarray.to_device(self.queue, par["mask"])
-        self.fft = FFT(ctx, queue, self._tmp_fft_array[
-            0:self.par_fft, ...],
-                       out_array=self._tmp_fft_array[
-                           0:self.par_fft, ...],
-                       axes=fft_dim)
+        if self.fft_dim is not None:
+            self.fft_scale = DTYPE_real(
+                np.sqrt(np.prod(self.fft_shape[self.fft_dim[0]:])))
+            self._tmp_fft_array = (
+                clarray.zeros(
+                    self.queue,
+                    self.fft_shape,
+                    dtype=DTYPE))
+            self.mask = clarray.to_device(self.queue, par["mask"])
+            self.fft = FFT(ctx, queue, self._tmp_fft_array[
+                0:self.par_fft, ...],
+                           out_array=self._tmp_fft_array[
+                               0:self.par_fft, ...],
+                           axes=self.fft_dim)
 
     def __del__(self):
-        del self._tmp_fft_array
+        if self.fft_dim is not None:
+            del self._tmp_fft_array
+            del self.mask
+            del self.fft
         del self.queue
         del self.ctx
         del self.prg
-        del self.mask
-        del self.fft
+
 
     def FFTH(self, sg, s, wait_for=[]):
         """ Perform the inverse (adjoint) FFT operation
@@ -1593,36 +1666,47 @@ class PyOpenCLCartNUFFTStreamed(PyOpenCLFFT):
         Returns:
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
-        self._tmp_fft_array.add_event(
-            self.prg.maskingcpy(
-                self.queue,
-                (self._tmp_fft_array.shape),
-                None,
-                self._tmp_fft_array.data,
-                s.data,
-                self.mask.data,
-                wait_for=s.events))
-
-        for j in range(int(self.fft_shape[0] / self.par_fft)):
+        if self.fft_dim is not None:
             self._tmp_fft_array.add_event(
-                self.fft.enqueue_arrays(
-                    data=self._tmp_fft_array[
-                        j * self.par_fft:
-                        (j + 1) * self.par_fft, ...],
-                    result=self._tmp_fft_array[
-                        j * self.par_fft:(j + 1) * self.par_fft, ...],
-                    forward=False)[0])
-        # Scaling
-        return (
-            self.prg.copy(
-                self.queue,
-                (sg.size,
-                 ),
-                None,
-                sg.data,
-                self._tmp_fft_array.data,
-                self.DTYPE_real(
-                    self.fft_scale)))
+                self.prg.maskingcpy(
+                    self.queue,
+                    (self._tmp_fft_array.shape),
+                    None,
+                    self._tmp_fft_array.data,
+                    s.data,
+                    self.mask.data,
+                    wait_for=s.events+self._tmp_fft_array.events))
+
+            for j in range(int(self.fft_shape[0] / self.par_fft)):
+                self._tmp_fft_array.add_event(
+                    self.fft.enqueue_arrays(
+                        data=self._tmp_fft_array[
+                            j * self.par_fft:
+                            (j + 1) * self.par_fft, ...],
+                        result=self._tmp_fft_array[
+                            j * self.par_fft:(j + 1) * self.par_fft, ...],
+                        forward=False)[0])
+            # Scaling
+            return (
+                self.prg.copy(
+                    self.queue,
+                    (sg.size,
+                     ),
+                    None,
+                    sg.data,
+                    self._tmp_fft_array.data,
+                    self.DTYPE_real(
+                        self.fft_scale)))
+        else:
+            return self.prg.copy(
+                        self.queue,
+                        (s.size,
+                         ),
+                        None,
+                        sg.data,
+                        s.data,
+                        self.DTYPE_real(1),
+                        wait_for=s.events+sg.events)
 
     def FFT(self, s, sg, wait_for=[]):
         """ Perform the forward FFT operation
@@ -1636,38 +1720,48 @@ class PyOpenCLCartNUFFTStreamed(PyOpenCLFFT):
         Returns:
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
-        self._tmp_fft_array.add_event(
-            self.prg.copy(
+        if self.fft_dim is not None:
+            self._tmp_fft_array.add_event(
+                self.prg.copy(
+                    self.queue,
+                    (sg.size,
+                     ),
+                    None,
+                    self._tmp_fft_array.data,
+                    sg.data,
+                    self.DTYPE_real(
+                        1 /
+                        self.fft_scale)))
+            for j in range(int(self.fft_shape[0] / self.par_fft)):
+                self._tmp_fft_array.add_event(
+                    self.fft.enqueue_arrays(
+                        data=self._tmp_fft_array[
+                            j * self.par_fft:(j + 1) * self.par_fft, ...],
+                        result=self._tmp_fft_array[
+                            j * self.par_fft:(j + 1) * self.par_fft, ...],
+                        forward=True)[0])
+
+            return (
+                self.prg.maskingcpy(
+                    self.queue,
+                    (self._tmp_fft_array.shape),
+                    None,
+                    s.data,
+                    self._tmp_fft_array.data,
+                    self.mask.data,
+                    wait_for=s.events+self._tmp_fft_array.events))
+        else:
+            return self.prg.copy(
                 self.queue,
                 (sg.size,
                  ),
                 None,
-                self._tmp_fft_array.data,
-                sg.data,
-                self.DTYPE_real(
-                    1 /
-                    self.fft_scale)))
-        for j in range(int(self.fft_shape[0] / self.par_fft)):
-            self._tmp_fft_array.add_event(
-                self.fft.enqueue_arrays(
-                    data=self._tmp_fft_array[
-                        j * self.par_fft:(j + 1) * self.par_fft, ...],
-                    result=self._tmp_fft_array[
-                        j * self.par_fft:(j + 1) * self.par_fft, ...],
-                    forward=True)[0])
-
-        return (
-            self.prg.maskingcpy(
-                self.queue,
-                (self._tmp_fft_array.shape),
-                None,
                 s.data,
-                self._tmp_fft_array.data,
-                self.mask.data,
-                wait_for=s.events+self._tmp_fft_array.events))
+                sg.data,
+                self.DTYPE_real(1),
+                wait_for=s.events+sg.events)
 
-
-class PyOpenCLSMSNUFFTStreamed(PyOpenCLFFT):
+class PyOpenCLSMSNUFFTStreamed(PyOpenCLnuFFT):
     """ The streamed version of the Cartesian FFT-SMS object
 
     This class performs the FFT operation assuming a SMS acquisition.
@@ -1727,45 +1821,49 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLFFT):
             The dimensions which should be transformed. Defaults
             to 1 and 2 corresponding the the last two of fft_dim.
           DTYPE (Numpy.Type):
-            The comlex precission type. Currently complex64 is used.
+            The comlex precision type. Currently complex64 is used.
           DTYPE_real (Numpy.Type):
-            The real precission type. Currently float32 is used.
+            The real precision type. Currently float32 is used.
         """
         super().__init__(ctx, queue, DTYPE, DTYPE_real)
-        self.MB = int(par["MB"])
-        self.fft_shape = (par["NSlice"] *
-                          par["NC"], par["dimY"], par["dimX"])
+        self.fft_shape = (
+            par["NC"] *
+            par["NSlice"],
+            par["dimY"],
+            par["dimX"])
+
         self.packs = int(par["packs"])
         self.MB = int(par["MB"])
         self.shift = clarray.to_device(
-            self.queue, par["shift"].astype(np.int32))
-        self.fft_shape = (
-            int(self.fft_shape[0] / self.MB),
-            self.fft_shape[1], self.fft_shape[2])
-        self.par_fft = int(self.fft_shape[0])
-        self.scanind = 0
+            self.queue, par["shift"].astype(DTYPE_real))
 
-        self.fft_scale = DTYPE_real(
-            np.sqrt(np.prod(self.fft_shape[fft_dim[0]:])))
-        self._tmp_fft_array = (
-            clarray.zeros(
-                self.queue,
-                self.fft_shape,
-                dtype=DTYPE))
-        self.fft = []
+        self.fft_dim = par["fft_dim"]
+        self.par_fft = int(self.fft_shape[0])
+
         self.mask = clarray.to_device(self.queue, par["mask"])
-        self.fft = FFT(ctx, queue, self._tmp_fft_array[
-            0:self.par_fft, ...],
-                       out_array=self._tmp_fft_array[
-                           0:self.par_fft, ...],
-                       axes=fft_dim)
+
+        if self.fft_dim is not None:
+            self.fft_scale = DTYPE_real(
+                np.sqrt(np.prod(self.fft_shape[self.fft_dim[0]:])))
+            self._tmp_fft_array = (
+                clarray.zeros(
+                    self.queue,
+                    self.fft_shape,
+                    dtype=DTYPE))
+            self.fft = FFT(ctx, queue, self._tmp_fft_array[
+                0:self.par_fft, ...],
+                           out_array=self._tmp_fft_array[
+                               0:self.par_fft, ...],
+                           axes=self.fft_dim)
 
     def __del__(self):
-        del self._tmp_fft_array
+        if self.fft_dim is not None:
+            del self._tmp_fft_array
+            del self.fft
+        del self.mask
         del self.queue
         del self.ctx
         del self.prg
-        del self.fft
 
     def FFTH(self, sg, s, wait_for=[]):
         """ Perform the inverse (adjoint) FFT operation
@@ -1779,33 +1877,51 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLFFT):
         Returns:
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
-        self._tmp_fft_array.add_event(
-            self.prg.maskingcpy(
-                self.queue,
-                (self._tmp_fft_array.shape),
-                None,
-                self._tmp_fft_array.data,
-                s.data,
-                self.mask.data,
-                wait_for=s.events))
-        self._tmp_fft_array.add_event(
-            self.fft.enqueue_arrays(
-                data=self._tmp_fft_array,
-                result=self._tmp_fft_array,
-                forward=False)[0])
-        return (self.prg.copy_SMS_adj(self.queue,
-                                      (sg.shape[0] * sg.shape[1],
-                                       sg.shape[-2],
-                                       sg.shape[-1]),
-                                      None,
-                                      sg.data,
-                                      self._tmp_fft_array.data,
-                                      self.shift.data,
-                                      np.int32(self.packs),
-                                      np.int32(self.MB),
-                                      self.DTYPE_real(self.fft_scale),
-                                      np.int32(sg.shape[2]/self.packs/self.MB),
-                                      wait_for=self._tmp_fft_array.events))
+        if self.fft_dim is not None:
+            self._tmp_fft_array.add_event(
+                self.prg.copy_SMS_adjkspace(
+                    self.queue,
+                    (sg.shape[0] * sg.shape[1],
+                     sg.shape[-2],
+                     sg.shape[-1]),
+                    None,
+                    self._tmp_fft_array.data,
+                    s.data,
+                    self.shift.data,
+                    self.mask.data,
+                    np.int32(self.packs),
+                    np.int32(self.MB),
+                    self.DTYPE_real(self.fft_scale),
+                    np.int32(sg.shape[2]/self.packs/self.MB),
+                    wait_for=s.events))
+            self._tmp_fft_array.add_event(
+                self.fft.enqueue_arrays(
+                    data=self._tmp_fft_array,
+                    result=self._tmp_fft_array,
+                    forward=False)[0])
+            return (self.prg.copy(self.queue,
+                                  (sg.size,),
+                                  None,
+                                  sg.data,
+                                  self._tmp_fft_array.data,
+                                  self.DTYPE_real(self.fft_scale),
+                                  wait_for=self._tmp_fft_array.events))
+        else:
+            return self.prg.copy_SMS_adj(
+                    self.queue,
+                    (sg.shape[0] * sg.shape[1],
+                     sg.shape[-2],
+                     sg.shape[-1]),
+                    None,
+                    sg.data,
+                    s.data,
+                    self.shift.data,
+                    self.mask.data,
+                    np.int32(self.packs),
+                    np.int32(self.MB),
+                    self.DTYPE_real(1),
+                    np.int32(sg.shape[2]/self.packs/self.MB),
+                    wait_for=s.events+sg.events)
 
     def FFT(self, s, sg, wait_for=[]):
         """ Perform the forward FFT operation
@@ -1819,37 +1935,53 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLFFT):
         Returns:
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
-        self._tmp_fft_array.add_event(
-            self.prg.copy_SMS_fwd(
-                self.queue,
-                (sg.shape[0] * sg.shape[1], sg.shape[-2], sg.shape[-1]),
-                None,
-                self._tmp_fft_array.data,
-                sg.data,
-                self.shift.data,
-                np.int32(self.packs),
-                np.int32(self.MB),
-                self.DTYPE_real(1 / self.fft_scale),
-                np.int32(sg.shape[2]/self.packs/self.MB),
-                wait_for=self._tmp_fft_array.events+sg.events))
+        if self.fft_dim is not None:
+            self._tmp_fft_array.add_event(
+                self.prg.copy(
+                    self.queue,
+                    (sg.size,),
+                    None,
+                    self._tmp_fft_array.data,
+                    sg.data,
+                    self.DTYPE_real(1 / self.fft_scale),
+                    wait_for=self._tmp_fft_array.events+sg.events))
 
-        self._tmp_fft_array.add_event(
-            self.fft.enqueue_arrays(
-                data=self._tmp_fft_array,
-                result=self._tmp_fft_array,
-                forward=True)[0])
-        return (
-            self.prg.maskingcpy(
-                self.queue,
-                (self._tmp_fft_array.shape),
-                None,
-                s.data,
-                self._tmp_fft_array.data,
-                self.mask.data,
-                wait_for=s.events+self._tmp_fft_array.events))
+            self._tmp_fft_array.add_event(
+                self.fft.enqueue_arrays(
+                    data=self._tmp_fft_array,
+                    result=self._tmp_fft_array,
+                    forward=True)[0])
+            return (
+                self.prg.copy_SMS_fwdkspace(
+                    self.queue,
+                    (s.shape[0] * s.shape[1], s.shape[-2], s.shape[-1]),
+                    None,
+                    s.data,
+                    self._tmp_fft_array.data,
+                    self.shift.data,
+                    self.mask.data,
+                    np.int32(self.packs),
+                    np.int32(self.MB),
+                    self.DTYPE_real(self.fft_scale),
+                    np.int32(sg.shape[2]/self.packs/self.MB),
+                    wait_for=s.events+self._tmp_fft_array.events))
+        else:
+            return (
+                self.prg.copy_SMS_fwd(
+                    self.queue,
+                    (s.shape[0] * s.shape[1], s.shape[-2], s.shape[-1]),
+                    None,
+                    s.data,
+                    sg.data,
+                    self.shift.data,
+                    self.mask.data,
+                    np.int32(self.packs),
+                    np.int32(self.MB),
+                    self.DTYPE_real(1),
+                    np.int32(sg.shape[2]/self.packs/self.MB),
+                    wait_for=s.events+sg.events))
 
-
-class PyOpenCLSMSNUFFTStreamedFieldMap(PyOpenCLFFT):
+class PyOpenCLSMSNUFFTStreamedFieldMap(PyOpenCLnuFFT):
     """ The streamed version of the Cartesian FFT-SMS object
 
     This class performs the FFT operation assuming a SMS acquisition.
@@ -1909,9 +2041,9 @@ class PyOpenCLSMSNUFFTStreamedFieldMap(PyOpenCLFFT):
             The dimensions which should be transformed. Defaults
             to 1 and 2 corresponding the the last two of fft_dim.
           DTYPE (Numpy.Type):
-            The comlex precission type. Currently complex64 is used.
+            The comlex precision type. Currently complex64 is used.
           DTYPE_real (Numpy.Type):
-            The real precission type. Currently float32 is used.
+            The real precision type. Currently float32 is used.
         """
         super().__init__(ctx, queue, DTYPE, DTYPE_real)
         self.MB = int(par["MB"])

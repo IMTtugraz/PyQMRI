@@ -4,40 +4,42 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from pyqmri.models.template import BaseModel, constraints, DTYPE
-
 plt.ion()
 
-unknowns_TGV = 2
-unknowns_H1 = 0
 
 
 class Model(BaseModel):
-    def __init__(self, par, images):
+    def __init__(self, par):
         super().__init__(par)
         self.constraints = []
         self.TR = par["TR"]
         self.fa = par["flip_angle(s)"]
+
         try:
             self.fa_corr = par["fa_corr"]
         except KeyError:
             self.fa_corr = 1
             print("No flipangle correction found!")
 
-        phi_corr = np.zeros_like(images, dtype=DTYPE)
+        phi_corr = np.zeros(
+          (self.NScan, self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         for i in range(np.size(par["flip_angle(s)"])):
             phi_corr[i, :, :, :] = par["flip_angle(s)"][i] *\
                 np.pi / 180 * self.fa_corr
 
+        par["unknowns_TGV"] = 2
+        par["unknowns_H1"] = 0
+        par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
+
         self.sin_phi = np.sin(phi_corr)
         self.cos_phi = np.cos(phi_corr)
 
-        for j in range(unknowns_TGV + unknowns_H1):
+        for j in range(par["unknowns"]):
             self.uk_scale.append(1)
-        self.guess = self._set_init_scales(images)
 
         self.constraints.append(
             constraints(0 / self.uk_scale[0],
-                        10 / self.uk_scale[0],
+                        1e5 / self.uk_scale[0],
                         False))
         self.constraints.append(
             constraints(np.exp(-self.TR / (50)),
@@ -200,11 +202,13 @@ class Model(BaseModel):
                 plt.draw()
                 plt.pause(1e-10)
 
-    def _set_init_scales(self, images):
+    def computeInitialGuess(self, *args):
         test_T1 = 1500 * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
-        test_M0 = np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+        test_M0 = np.ones(
+            (self.NSlice, self.dimY, self.dimX),
+            dtype=DTYPE)
         test_T1 = np.exp(-self.TR / (test_T1))
         x = np.array([test_M0 / self.uk_scale[0],
                       test_T1 / self.uk_scale[1]], dtype=DTYPE)
-        return x
+        self.guess = x

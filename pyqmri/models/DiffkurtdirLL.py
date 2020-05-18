@@ -6,8 +6,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numexpr as ne
 plt.ion()
-unknowns_TGV = 22
-unknowns_H1 = 0
 
 
 def _S(M0, M0sc, ADC, meanADC, kurt, b):
@@ -50,7 +48,7 @@ def _gradKurtOff3(comKurtfac, Kurtscale, bdir1, bdir2, bdir3):
 
 class Model(BaseModel):
     """ Test """
-    def __init__(self, par, images):
+    def __init__(self, par):
         super().__init__(par)
         self.images = images
 
@@ -68,6 +66,8 @@ class Model(BaseModel):
         self.dircub = self.dir**3
         self.dir4th = self.dir**4
 
+        par["unknowns_TGV"] = 7
+        par["unknowns_H1"] = 0 
         self.uk_scale = []
         for j in range(unknowns_TGV + unknowns_H1):
             self.uk_scale.append(1)

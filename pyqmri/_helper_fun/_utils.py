@@ -7,7 +7,8 @@ Created on Wed Jan 30 11:10:07 2019
 """
 import numpy as np
 import configparser
-from pyqmri.transforms.pyopencl_nufft import PyOpenCLFFT
+import os
+from pyqmri.transforms import PyOpenCLnuFFT
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
@@ -35,10 +36,13 @@ def NUFFT(par, trafo=True, SMS=False):
 #        packs = par["packs"]
 #        par["packs"] = 1
 #        par["NSlice"] = 2
-    FFT = PyOpenCLFFT.create(par["ctx"][0], par["queue"][0], par,
-                             radial=trafo, SMS=SMS)
+
+    FFT = (PyOpenCLnuFFT.create(
+        par["ctx"][0], par["queue"][0], par,
+        radial=trafo, SMS=SMS, fft_dim=par["fft_dim"]))
     par["NC"] = NC
     par["NScan"] = NScan
+
 #    if SMS:
 #        par["packs"] = packs
     return FFT
@@ -109,3 +113,11 @@ def read_config(conf_file, reg_type="DEFAULT"):
             else:
                 params[key] = float(config[reg_type][key])
         return params
+
+def save_config(conf, path, reg_type="DEFAULT"):
+    tmp_dict = {}
+    tmp_dict[reg_type] = conf
+    config = configparser.ConfigParser()
+    config.read_dict(tmp_dict)
+    with open(path+os.sep+'config.ini', 'w') as configfile:
+        config.write(configfile)

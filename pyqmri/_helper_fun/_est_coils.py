@@ -81,6 +81,7 @@ def est_coils(data, par, file, args, off):
             par_coils["queue"] = par["queue"]
             par_coils["dimX"] = par["dimX"]
             par_coils["dimY"] = par["dimY"]
+            par_coils["fft_dim"] = [-2, -1]
             FFT = utils.NUFFT(par_coils)
 
             result = []
@@ -231,7 +232,6 @@ def est_coils(data, par, file, args, off):
                 par["C"] = par["C"] / \
                     np.tile(sumSqrC, (par["NC"], 1, 1, 1))
             del file['Coils']
-
             file.create_dataset(
                 "Coils",
                 par["C"].shape,
@@ -276,7 +276,7 @@ def est_coils(data, par, file, args, off):
             par_coils["NSlice"] = 1
             par_coils["ctx"] = par["ctx"]
             par_coils["queue"] = par["queue"]
-
+            par_coils["fft_dim"] = [-2, -1]
             FFT = utils.NUFFT(par_coils)
 
             result = []
@@ -414,7 +414,6 @@ def est_coils(data, par, file, args, off):
                 if not nlinvRealConstr:
                     par["phase"][i, :, :] = np.exp(
                         1j * np.angle(result[i].get()[0, -1, :, :]))
-
                     # standardize coil sensitivity profiles
             sumSqrC = np.sqrt(
                 np.sum(
@@ -424,7 +423,7 @@ def est_coils(data, par, file, args, off):
                     0))  # 4, 9, 128, 128
             par["InScale"] = sumSqrC
             if par["NC"] == 1:
-                par["C"] = sumSqrC
+                par["C"] = sumSqrC[None,...]
             else:
                 par["C"] = par["C"] / np.tile(sumSqrC, (par["NC"], 1, 1, 1))
         file.create_dataset(
