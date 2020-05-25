@@ -20,6 +20,7 @@ from pyqmri._helper_fun import _utils as utils
 from pyqmri.solver import CGSolver
 from pyqmri.irgn import IRGNOptimizer
 
+
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
@@ -88,10 +89,11 @@ def _precoompFFT(data, par):
               "Precompute FFT along X and Y")
         data = np.fft.ifft2(data, norm='ortho')
         par["fft_dim"] = None
-
     else:
         par["fft_dim"] = [-2, -1]
-    return data
+
+    return np.require(data.astype(DTYPE),
+                      requirements='C')
 
 
 def _setupOCL(myargs, par):
@@ -164,7 +166,7 @@ def _genImages(myargs, par, data, off):
                                             np.require(x[j, k, ...]
                                                         [None, None, ...],
                                                        requirements='C'))
-                    fft.FFTH(tmp_result, inp).wait()
+                    fft.FFTH(tmp_result, inp, scan_offset=j).wait()
                     result[j, k, ...] = np.squeeze(tmp_result.get())
             end = time.time()-start
             print("FT took %f s" % end)
@@ -189,11 +191,12 @@ def _genImages(myargs, par, data, off):
                     if par["NSlice"] == 1:
                         images[par_scans*j:par_scans*(j+1), ...] = cgs.run(
                             data[par_scans*j:par_scans*(j+1), ...],
-                            tol=tol, lambd=lambd)[:, None, ...]
+                            tol=tol, lambd=lambd,
+                            scan_offset=par_scans*j)[:, None, ...]
                     else:
                         images[par_scans*j:par_scans*(j+1), ...] = cgs.run(
                             data[par_scans*j:par_scans*(j+1), ...],
-                            tol=tol, lambd=lambd)
+                            tol=tol, lambd=lambd, scan_offset=par_scans*j)
                 del cgs
             if np.mod(par["NScan"], par_scans):
                 cgs = CGSolver(par, np.mod(par["NScan"], par_scans),
@@ -203,17 +206,23 @@ def _genImages(myargs, par, data, off):
                         images[-np.mod(par["NScan"], par_scans):, ...] = \
                             cgs.run(
                                 data[-np.mod(par["NScan"], par_scans):, ...],
-                                tol=tol, lambd=lambd)
+                                tol=tol, lambd=lambd,
+                                scan_offset=par["NScan"]-np.mod(
+                                    par["NScan"], par_scans))
                     else:
                         images[-np.mod(par["NScan"], par_scans):, ...] = \
                             cgs.run(
                                 data[-np.mod(par["NScan"], par_scans):, ...],
-                                tol=tol, lambd=lambd)[:, None, ...]
+                                tol=tol, lambd=lambd,
+                                scan_offset=par["NScan"]-np.mod(
+                                    par["NScan"], par_scans))[:, None, ...]
                 else:
                     images[-np.mod(par["NScan"], par_scans):, ...] = \
                         cgs.run(
                             data[-np.mod(par["NScan"], par_scans):, ...],
-                            tol=tol, lambd=lambd)
+                            tol=tol, lambd=lambd,
+                            scan_offset=par["NScan"]-np.mod(
+                                    par["NScan"], par_scans))
                 del cgs
             par["file"].create_dataset("images", images.shape,
                                        dtype=DTYPE, data=images)
@@ -237,71 +246,51 @@ def _genImages(myargs, par, data, off):
 
 
 def _estScaleNorm(myargs, par, images, data):
-    if myargs.imagespace:
-        dscale = DTYPE_real(np.sqrt(2*1e3) /
-                            (np.linalg.norm(images.flatten())))
-        par["dscale"] = dscale
-        images = images*dscale
-    else:
-        dscale = (DTYPE_real(np.sqrt(2*1e3)) /
-                  (np.linalg.norm(data.flatten())))
-        par["dscale"] = dscale
-        images = images*dscale
-        data = data*dscale
 
     if myargs.trafo:
         center = int(par["N"]*0.1)
-        sig = []
-        noise = []
         ind = np.zeros((par["N"]), dtype=bool)
         ind[int(par["N"]/2-center):int(par["N"]/2+center)] = 1
-        for j in range(par["Nproj"]):
-            sig.append(np.sum(
-                data[..., int(par["NSlice"]/2), j, ind] *
-                np.conj(data[..., int(par["NSlice"]/2), j, ind])))
-            noise.append(np.sum(
-                data[..., int(par["NSlice"]/2), j, ~ind] *
-                np.conj(data[..., int(par["NSlice"]/2), j, ~ind])))
-        sig = (np.sum(np.array(sig)))/np.sum(ind)
-        noise = (np.sum(np.array(noise)))/np.sum(~ind)
-        SNR_est = np.abs(sig/noise)
-        par["SNR_est"] = SNR_est
-        print("Estimated SNR from kspace", SNR_est)
+        inds = np.fft.fftshift(ind)
+        dims = tuple(range(data.ndim - 3)) + (-2,)
+        print(dims)
+        sig = np.max(
+            np.sum(data[..., ind], dims) *
+            np.conj(np.sum(data[..., ind], dims)))
+        noise = np.std(
+            np.sum(data[..., inds], dims) *
+            np.conj(np.sum(data[..., inds], dims)))
+
     else:
         centerX = int(par["dimX"]*0.1)
         centerY = int(par["dimY"]*0.1)
         ind = np.zeros((par["dimY"], par["dimX"]), dtype=bool)
-        ind[int(par["N"]/2-centerY):int(par["N"]/2+centerY),
-            int(par["N"]/2-centerX):int(par["N"]/2+centerX)] = 1
+        ind[int(par["dimY"]/2-centerY):int(par["dimY"]/2+centerY),
+            int(par["dimX"]/2-centerX):int(par["dimX"]/2+centerX)] = 1
         if par["fft_dim"] is not None:
             for shiftdim in par["fft_dim"]:
                 ind = np.fft.fftshift(ind, axes=shiftdim)
             sig = np.sum(
-                data[..., int(par["NSlice"]/2/par["MB"]), ind] *
-                np.conj(
-                    data[...,
-                         int(par["NSlice"]/2/par["MB"]), ind]))/np.sum(ind)
+                np.abs(data[..., ind])**2)
             noise = np.sum(
-                data[..., int(par["NSlice"]/2/par["MB"]), ~ind] *
-                np.conj(
-                    data[...,
-                         int(par["NSlice"]/2/par["MB"]), ~ind]))/np.sum(~ind)
+                np.abs(data[..., ~ind])**2)
         else:
             tmp = np.fft.fft2(data, norm='ortho')
-            ind = np.fft.fftshift(ind, axes=(0, 1))
+            ind = np.fft.fftshift(ind)
             sig = np.sum(
-                tmp[..., int(par["NSlice"]/2/par["MB"]), ind] *
-                np.conj(
-                    tmp[...,
-                         int(par["NSlice"]/2/par["MB"]), ind]))/np.sum(ind)
+                np.abs(tmp[..., ind])**2)
             noise = np.sum(
-                tmp[..., int(par["NSlice"]/2/par["MB"]), ~ind] *
-                np.conj(
-                    tmp[...,
-                         int(par["NSlice"]/2/par["MB"]), ~ind]))/np.sum(~ind)
-        SNR_est = np.abs(sig/noise)
-        par["SNR_est"] = SNR_est
-        print("Estimated SNR from kspace", SNR_est)
+                np.abs(tmp[..., ~ind])**2)
+
+    SNR_est = (np.abs(sig/noise))
+    par["SNR_est"] = SNR_est
+    print("Estimated SNR from kspace", SNR_est)
+
+    dscale = DTYPE_real(1 / np.linalg.norm(np.abs(data)))
+    print("Dscale: ", dscale)
+    par["dscale"] = dscale
+    images = images*dscale
+    data = data*dscale
 
     return data, images
 
@@ -315,10 +304,10 @@ def _readInput(myargs, par):
             root.update()
             file = filedialog.askopenfilename()
             root.destroy()
-            if not file == () and \
+            if file and \
                not file.endswith((('.h5'), ('.hdf5'))):
                 print("Please specify a h5 file. Press cancel to exit.")
-            elif file == ():
+            elif not file:
                 print("Exiting...")
                 sys.exit()
             else:
@@ -342,15 +331,17 @@ def _readInput(myargs, par):
     if not os.path.exists(outdir):
         os.makedirs(outdir)
     par["outdir"] = outdir
-    par["file"] = h5py.File(file)
+    par["file"] = h5py.File(file, 'a')
 
 
 def _start_recon(myargs):
     """
-    The Main Function. Reads in the data and
-    starts the model based reconstruction.
+    Model based reconstruction main function.
 
-    Args:
+    Reads in the data and starts the model based reconstruction.
+
+    Args
+    ----
       myargs:
         Arguments from pythons argparse to modify the behaviour of the
         reconstruction procedure.
@@ -505,10 +496,12 @@ def _start_recon(myargs):
         par["Nproj_measured"] = Nproj
         Nproj = Nproj_new
         data = np.require(np.transpose(np.reshape(data[..., :Nproj*NScan, :],
-                                       (NC, reco_Slices, NScan, Nproj, N)),
+                                                  (NC, reco_Slices, NScan,
+                                                   Nproj, N)),
                                        (2, 0, 1, 3, 4)), requirements='C')
         par["traj"] = np.require(np.reshape(par["traj"][:Nproj*NScan, :],
-                                 (NScan, Nproj, N)), requirements='C')
+                                            (NScan, Nproj, N)),
+                                 requirements='C')
         par["dcf"] = np.sqrt(np.array(goldcomp.cmp(par["traj"]),
                                       dtype=DTYPE_real)).astype(DTYPE_real)
         par["dcf"] = np.require(np.abs(par["dcf"]), DTYPE_real,
@@ -555,6 +548,7 @@ def _start_recon(myargs):
     else:
         par['mask'] = None
     par["transpXY"] = False
+
 ###############################################################################
 # ratio of z direction to x,y, important for finite differences ###############
 ###############################################################################
@@ -598,7 +592,7 @@ def _start_recon(myargs):
 ###############################################################################
 # Init forward model and initial guess ########################################
 ###############################################################################
-#    del par["file"]["images"]
+    # del par["file"]["images"]
 
     if myargs.sig_model == "GeneralModel":
         par["modelfile"] = myargs.modelfile
@@ -620,7 +614,7 @@ def _start_recon(myargs):
         par["weights"] = np.ones((par["unknowns"]), dtype=np.float32)
     else:
         par["weights"] = np.array(myargs.weights, dtype=np.float32)
-    par["weights"] = par["weights"]/par["unknowns"]
+    # par["weights"] *= par["unknowns"]/np.sum(par["weights"])
 ###############################################################################
 # Compute initial guess #######################################################
 ###############################################################################
@@ -628,7 +622,16 @@ def _start_recon(myargs):
 ###############################################################################
 # initialize operator  ########################################################
 ###############################################################################
-
+#    if "ImageReco" in myargs.sig_model:
+#        opt = noIRGN(par,
+#                     myargs.trafo,
+#                     imagespace=myargs.imagespace,
+#                     SMS=myargs.sms,
+#                     config=myargs.config,
+#                     model=model,
+#                     streamed=myargs.streamed,
+#                     reg_type=myargs.reg)
+#    else:
     opt = IRGNOptimizer(par,
                         myargs.trafo,
                         imagespace=myargs.imagespace,
@@ -641,7 +644,6 @@ def _start_recon(myargs):
         opt.data = images
     else:
         opt.data = data
-
     f = h5py.File(par["outdir"]+"output_" + par["fname"], "a")
     f.create_dataset("images_ifft", data=images)
     f.attrs['data_norm'] = par["dscale"]
@@ -675,10 +677,12 @@ def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
         modelfile="models.ini", modelname="VFA-E1",
         fft_dim=-1):
     """
-    Start a 3D model based reconstruction. Data can also be selected at
-    start up.
+    Start a 3D model based reconstruction.
 
-    Args:
+    Start a 3D model based reconstruction. Data can be selected at start up.
+
+    Args
+    ----
       recon_type (str):
         3D (2D currently not supported but 3D works on one slice also)
       reg_type (str):

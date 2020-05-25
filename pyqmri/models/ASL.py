@@ -101,7 +101,6 @@ class Model(BaseModel):
         self.NSlice = par["NSlice"]
         self.dimY = par["dimY"]
         self.dimX = par["dimX"]
-
         par["unknowns_TGV"] = 2
         par["unknowns_H1"] = 0
         par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
@@ -116,7 +115,7 @@ class Model(BaseModel):
                         True))
         self.constraints.append(
             constraints(0.01/60,
-                        4/60,
+                        self.t[-3],
                         True))
 
     def _execute_forward_2D(self, x, islice):
@@ -209,7 +208,7 @@ class Model(BaseModel):
         return grad
 
     def plot_unknowns(self, x, dim_2D=False):
-        images = self._execute_forward_3D(x) / self.dscale
+        images = self._execute_forward_3D(x) #/ self.dscale
         f = np.abs(x[0, ...] * self.uk_scale[0] / self.dscale)
         del_t = np.abs(x[1, ...] * self.uk_scale[1])*60
 #        del_t[f <= 15] = 0
@@ -217,7 +216,9 @@ class Model(BaseModel):
         f_max = f.max()
         del_t_min = del_t.min()
         del_t_max = del_t.max()
-        ind = 32  # int(images.shape[-1]/2) 30, 60
+        ind1 = 46
+        ind2 = 35# int(images.shape[-1]/2) 30, 60
+        off = 0
         if dim_2D:
             if not self.figure:
                 plt.ion()
@@ -259,7 +260,7 @@ class Model(BaseModel):
                     self.ax[-1].axis('off')
 
                 self.f_plot = self.ax[1].imshow(
-                    (f[int(self.NSlice / 2), ...]))
+                    (f[int(self.NSlice / 2)+off, ...]))
                 self.f_plot_cor = self.ax[7].imshow(
                     (f[:, int(f.shape[1] / 2), ...]))
                 self.f_plot_sag = self.ax[2].imshow(
@@ -278,7 +279,7 @@ class Model(BaseModel):
                 plt.pause(1e-10)
 
                 self.del_t_plot = self.ax[3].imshow(
-                    (del_t[int(self.NSlice / 2), ...]))
+                    (del_t[int(self.NSlice / 2)+off, ...]))
                 self.del_t_plot_cor = self.ax[9].imshow(
                     (del_t[:, int(del_t.shape[1] / 2), ...]))
                 self.del_t_plot_sag = self.ax[4].imshow(
@@ -298,42 +299,43 @@ class Model(BaseModel):
 
                 self.time_course_ref = self.plot_ax.scatter(
                     self.t*60, np.real(
-                        self.images[:, int(self.NSlice/2), ind, ind]),
+                        self.images[:, int(self.NSlice/2)+off, ind2, ind1]),
                     color='g', marker="2")
                 self.time_course = self.plot_ax.plot(
                     self.t*60, np.real(
-                        images[:, int(self.NSlice/2), ind, ind]), 'r')[0]
+                        images[:, int(self.NSlice/2)+off, ind2, ind1]), 'r')[0]
                 self.plot_ax.set_ylim(
                     np.real(self.images[:,
                                         int(self.NSlice/2),
-                                        ind,
-                                        ind]).min() - np.real(
+                                        ind2,
+                                        ind1]).min() - np.real(
                             self.images[:,
                                         int(self.NSlice/2),
-                                        ind,
-                                        ind]).min() * 0.01,
+                                        ind2,
+                                        ind1]).min() * 0.01,
                     np.real(self.images[:,
                                         int(self.NSlice/2),
-                                        ind,
-                                        ind]).max() + np.real(
+                                        ind2,
+                                        ind1]).max() + np.real(
                            self.images[:,
                                        int(self.NSlice/2),
-                                       ind,
-                                       ind]).max() * 0.01)
+                                       ind2,
+                                       ind1]).max() * 0.01)
                 for spine in self.plot_ax.spines:
                     self.plot_ax.spines[spine].set_color('white')
                 plt.draw()
                 plt.show()
                 plt.pause(1e-4)
             else:
-                self.f_plot.set_data((f[int(self.NSlice / 2), ...]))
+                self.f_plot.set_data((f[int(self.NSlice / 2)+off, ...]))
                 self.f_plot_cor.set_data((f[:, int(f.shape[1] / 2), ...]))
                 self.f_plot_sag.set_data(
                     np.flip((f[:, :, int(f.shape[-1] / 2)]).T, 1))
                 self.f_plot.set_clim([f_min, f_max])
                 self.f_plot_cor.set_clim([f_min, f_max])
                 self.f_plot_sag.set_clim([f_min, f_max])
-                self.del_t_plot.set_data((del_t[int(self.NSlice / 2), ...]))
+                self.del_t_plot.set_data((
+                    del_t[int(self.NSlice / 2)+off, ...]))
                 self.del_t_plot_cor.set_data(
                     (del_t[:, int(del_t.shape[1] / 2), ...]))
                 self.del_t_plot_sag.set_data(
@@ -343,34 +345,34 @@ class Model(BaseModel):
                 self.del_t_plot_cor.set_clim([del_t_min, del_t_max])
 
                 self.time_course.set_ydata(
-                    np.real(images[:, int(self.NSlice/2), ind, ind]))
+                    np.real(images[:, int(self.NSlice/2)+off, ind2, ind1]))
                 self.plot_ax.set_ylim(
                     np.real(self.images[:,
                                         int(self.NSlice/2),
-                                        ind,
-                                        ind]).min() - np.real(
+                                        ind2,
+                                        ind1]).min() - np.real(
                             self.images[:,
                                         int(self.NSlice/2),
-                                        ind,
-                                        ind]).min() * 0.01,
+                                        ind2,
+                                        ind1]).min() * 0.01,
                     np.real(self.images[:,
                                         int(self.NSlice/2),
-                                        ind,
-                                        ind]).max() + np.real(
+                                        ind2,
+                                        ind1]).max() + np.real(
                            self.images[:,
                                        int(self.NSlice/2),
-                                       ind,
-                                       ind]).max() * 0.01)
+                                       ind2,
+                                       ind1]).max() * 0.01)
                 plt.draw()
                 plt.pause(1e-10)
 
     def computeInitialGuess(self, *args):
         self.dscale = args[1]
         self.constraints[0].update(1/self.dscale)
-        self.images = args[0]/args[1]
-        test_f = 10 * self.dscale * np.ones(
+        self.images = args[0]#/args[1]
+        test_f = 30 * self.dscale * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
-        test_del_t = 1/60 * np.ones(
+        test_del_t = 0.6/60 * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         x = np.array([test_f,
                       test_del_t], dtype=DTYPE)

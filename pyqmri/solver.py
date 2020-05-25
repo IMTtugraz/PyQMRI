@@ -18,6 +18,7 @@ import pyqmri.operator as operator
 from pyqmri._helper_fun import CLProgram as Program
 import sys
 import pyqmri.streaming as streaming
+import scipy.sparse as ssp
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
@@ -103,7 +104,8 @@ class CGSolver:
         del self._FT
         del self._FTH
 
-    def run(self, data, iters=30, lambd=1e-5, tol=1e-8, guess=None):
+    def run(self, data, iters=30, lambd=1e-5, tol=1e-8, guess=None,
+            scan_offset=0):
         """
         Start the CG reconstruction.
 
@@ -123,6 +125,7 @@ class CGSolver:
           guess (complex64):
             An optional initial guess for the images. If None, zeros is used.
         """
+        self.scan_offset = scan_offset
         if guess is not None:
             x = clarray.to_device(self._queue, guess)
         else:
@@ -208,7 +211,7 @@ class CGSolver:
         self._tmp_result.add_event(self.eval_fwd_kspace_cg(
             self._tmp_result, x, wait_for=self._tmp_result.events+x.events))
         self._tmp_sino.add_event(self._FT(
-            self._tmp_sino, self._tmp_result))
+            self._tmp_sino, self._tmp_result, scan_offset=self.scan_offset))
         return self._operator_rhs(out, self._tmp_sino)
 
     def _operator_rhs(self, out, x, wait_for=[]):
@@ -225,7 +228,8 @@ class CGSolver:
             A List of PyOpenCL events to wait for.
         """
         self._tmp_result.add_event(self._FTH(
-            self._tmp_result, x, wait_for=wait_for+x.events))
+            self._tmp_result, x, wait_for=wait_for+x.events,
+            scan_offset=self.scan_offset))
         return self._prg.operator_ad_cg(self._queue,
                                         (self._NSlice, self._dimY,
                                          self._dimX),
@@ -285,7 +289,7 @@ class PDBaseSolver:
         self.display_iterations = irgn_par["display_iterations"]
         self.mu = 1 / self.delta
         self.tau = tau
-        self.beta_line = 400
+        self.beta_line = 1#1e10#1e12
         self.theta_line = np.float32(1.0)
         self.unknowns_TGV = par["unknowns_TGV"]
         self.unknowns_H1 = par["unknowns_H1"]
@@ -446,8 +450,8 @@ class PDBaseSolver:
           iters (int):
             Number of primal-dual iterations to run
         """
+        # self._estOperatorNorm()
         self._updateConstraints()
-
         tau = self.tau
         tau_new = np.float32(0)
 
@@ -492,8 +496,10 @@ class PDBaseSolver:
                 )
 
             beta_new = beta_line * (1 + self.mu * tau)
-            tau_new = tau * np.sqrt(beta_line / beta_new * (1 + theta_line))
+            # tau_new = tau * np.sqrt(beta_line / beta_new)
+            tau_new = tau * np.sqrt(beta_line / beta_new*(1 + theta_line))
             beta_line = beta_new
+            # tau_new = tau*np.sqrt(1+theta_line)
 
             while True:
                 theta_line = tau_new / tau
@@ -517,7 +523,8 @@ class PDBaseSolver:
                     tau_new = tau_new * mu_line
 
             tau = tau_new
-
+            # self.beta_line = beta_line
+            # self.tau = tau
             for j, k in zip(primal_vars_new,
                             tmp_results_adjoint_new):
                 (primal_vars[j],
@@ -579,13 +586,37 @@ class PDBaseSolver:
                 gap_old = gap
                 sys.stdout.write(
                     "Iteration: %04d ---- Primal: %2.2e, "
-                    "Dual: %2.2e, Gap: %2.2e \r" %
+                    "Dual: %2.2e, Gap: %2.2e, Beta: %2.2e \r" %
                     (i, 1000*primal / self._fval_init,
                      1000*dual / self._fval_init,
-                     1000*gap / self._fval_init))
+                     1000*gap / self._fval_init,
+                     beta_line))
                 sys.stdout.flush()
 
         return primal_vars
+
+    def _estOperatorNorm(self):
+        spatialdim = np.prod(self.modelgrad.shape[-3:])
+        x_dim = spatialdim*self.modelgrad.shape[0]
+        y_dim = spatialdim*self.modelgrad.shape[1]
+        try:
+            tmp_dat = self.modelgrad.get().reshape(self.modelgrad.shape[0], -1)
+        except AttributeError:
+            tmp_dat = self.modelgrad.reshape(self.modelgrad.shape[0], -1)
+        offset = np.array(
+            [spatialdim*j for j in range(self.modelgrad.shape[0])]
+            )
+        Op = ssp.dia_matrix((tmp_dat, offset), shape=(y_dim, x_dim))
+        from scipy.sparse.linalg import svds
+        norm = svds(Op, k=1, return_singular_vectors=False)
+        if isinstance(self._coils, (np.ndarray, cl.array.Array)):
+            try:
+                norm *= np.max(np.abs(self._coils.get()))
+            except AttributeError:
+                norm *= np.max(np.abs(self._coils))
+            norm *= np.sqrt(self._coils.size)
+        self.beta_line = norm**2
+        print(norm)
 
     def _updateInitial(self, outp, inp):
         pass
@@ -796,7 +827,8 @@ class PDBaseSolver:
             self._queue[4*idx+idxq],
             self._kernelsize, None,
             outp.data, inp[0].data, inp[1].data,
-            np.int32(self.unknowns), np.int32(bound_cond), np.float32(self.dz),
+            np.int32(self.unknowns), np.int32(bound_cond),
+            par[0].data, np.float32(self.dz),
             wait_for=outp.events + inp[0].events + inp[1].events+wait_for)
 
     def update_r(self, outp, inp, par=None, idx=0, idxq=0,
@@ -1240,7 +1272,8 @@ class PDSolverTGV(PDBaseSolver):
         out_adj["Kyk2"].add_event(
             self.update_Kyk2(
                 outp=out_adj["Kyk2"],
-                inp=(in_dual["z2"], in_dual["z1"])))
+                inp=(in_dual["z2"], in_dual["z1"]),
+                par=[self.symgrad_op._ratio]))
 
         out_fwd["Ax"].add_event(self._op.fwd(
             out_fwd["Ax"], [in_primal["x"], self._coils, self.modelgrad]))
@@ -1334,7 +1367,8 @@ class PDSolverTGV(PDBaseSolver):
         out_adj["Kyk2"].add_event(
             self.update_Kyk2(
                 outp=out_adj["Kyk2"],
-                inp=(out_dual["z2"], out_dual["z1"])))
+                inp=(out_dual["z2"], out_dual["z1"]),
+                par=[self.symgrad_op._ratio]))
 
         ynorm = (
             (
@@ -1648,16 +1682,16 @@ class PDSolverStreamed(PDBaseSolver):
 class PDSolverStreamedTGV(PDSolverStreamed):
     """Streamed TGV optimization."""
 
-    def __init__(self, 
+    def __init__(self,
                  par,
-                 irgn_par, 
-                 queue, 
-                 tau, 
-                 fval, 
+                 irgn_par,
+                 queue,
+                 tau,
+                 fval,
                  prg,
-                 linop, 
-                 coils, 
-                 model, 
+                 linop,
+                 coils,
+                 model,
                  imagespace=False,
                  SMS=False):
 

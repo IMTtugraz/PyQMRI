@@ -36,7 +36,8 @@ def setupPar(par):
     par["unknowns_H1"] = 0
     par["unknowns"] = 2
     par["dz"] = 1
-    par["weights"] = [1, 1]
+    par["weights"] = np.array([1, 1])
+    par["overlap"] = 1
     file = h5py.File('./test/smalltest.h5')
 
     par["traj"] = file['real_traj'][()].astype(DTYPE) + \
@@ -811,5 +812,5 @@ class OperatorRadialKSpaceStreamed(unittest.TestCase):
         self.assertAlmostEqual(a, b, places=12)
 
 
-if __name__ == '__main__':
-    unittest.main()
+#if __name__ == '__main__':
+#    unittest.main()

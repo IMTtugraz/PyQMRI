@@ -6,8 +6,6 @@ import matplotlib.gridspec as gridspec
 from pyqmri.models.template import BaseModel, constraints, DTYPE
 import numexpr as ne
 plt.ion()
-unknowns_TGV = 4
-unknowns_H1 = 0
 
 
 def _expAttT1b(del_t, del_t_sc, T1b):
@@ -99,7 +97,7 @@ def _delATTa(M0, alpha, aCBV, aCBV_sc,  del_ta, del_ta_sc, T1b, lambd, t):
 
 
 class Model(BaseModel):
-    def __init__(self, par, images):
+    def __init__(self, par):
         super().__init__(par)
         self.constraints = []
         full_slices = par["file"]["T1b"].shape[0]
@@ -119,29 +117,29 @@ class Model(BaseModel):
         self.NSlice = par["NSlice"]
         self.dimY = par["dimY"]
         self.dimX = par["dimX"]
-        self.unknowns = unknowns_TGV+unknowns_H1
-        self.images = images
-        self.dscale = par["dscale"]
+        par["unknowns_TGV"] = 4
+        par["unknowns_H1"] = 0
+        par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
+        self.unknowns = par["unknowns"]
 
-        for j in range(unknowns_TGV + unknowns_H1):
+        for j in range(par["unknowns"]):
             self.uk_scale.append(1)
-        self.guess = self._set_init_scales(images)
 
         self.constraints.append(
-            constraints(0 * self.dscale,
-                        200 * self.dscale,
+            constraints(0,
+                        200,
+                        True))
+        self.constraints.append(
+            constraints(0.01/60,
+                        self.t[-3],
                         True))
         self.constraints.append(
             constraints(0,
-                        4/60,
+                        10,
                         True))
         self.constraints.append(
-            constraints(0 * self.dscale,
-                        10 * self.dscale,
-                        True))
-        self.constraints.append(
-            constraints(0,
-                        3/60,
+            constraints(0.01/60,
+                        self.t[-3],
                         True))
 
     def _execute_forward_2D(self, x, islice):
@@ -263,7 +261,7 @@ class Model(BaseModel):
         return grad
 
     def plot_unknowns(self, x, dim_2D=False):
-        images = self._execute_forward_3D(x)
+        images = self._execute_forward_3D(x) / self.dscale
         f = np.abs(x[0, ...] * self.uk_scale[0] / self.dscale)
         del_t = np.abs(x[1, ...] * self.uk_scale[1])*60
         CBV = np.abs(x[2, ...] * self.uk_scale[2] / self.dscale)
@@ -378,7 +376,7 @@ class Model(BaseModel):
 
                 self.del_ta_plot = self.ax[11].imshow(
                     (del_t[int(self.NSlice / 2), ...]))
-                self.del_ta_plot_cor = self.ax[21].imshow(
+                self.del_ta_plot_cor = self.ax[25].imshow(
                     (del_ta[:, int(del_ta.shape[1] / 2), ...]))
                 self.del_ta_plot_sag = self.ax[12].imshow(
                     np.flip((del_ta[:, :, int(del_ta.shape[-1] / 2)]).T, 1))
@@ -479,17 +477,21 @@ class Model(BaseModel):
                 plt.draw()
                 plt.pause(1e-10)
 
-    def _set_init_scales(self, images):
-        test_f = 10 * self.dscale * np.ones(
+    def computeInitialGuess(self, *args):
+        self.dscale = args[1]
+        self.constraints[0].update(1/self.dscale)
+        self.constraints[2].update(1/self.dscale)
+        self.images = args[0]/args[1]
+        test_f = 30 * self.dscale * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
-        test_del_t = 1/60 * np.ones(
+        test_del_t = 0.6/60 * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
-        CBV = 00.1 * self.dscale * np.ones(
+        CBV = 1e-2 * self.dscale * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
-        test_del_ta = 0.01 * np.ones(
+        test_del_ta = 0.6/60 * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
-        x = np.array([test_f,
-                      test_del_t,
-                      CBV,
-                      test_del_ta], dtype=DTYPE)
-        return x
+
+        self.guess = np.array([test_f,
+                               test_del_t,
+                               CBV,
+                               test_del_ta], dtype=DTYPE)

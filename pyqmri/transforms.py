@@ -11,7 +11,7 @@ from pyqmri._helper_fun._calckbkernel import calckbkernel
 from pyqmri._helper_fun import CLProgram as Program
 
 
-class PyOpenCLFFT():
+class PyOpenCLnuFFT():
     """ Base class for FFT calculation.
 
     This class serves as the base class for all FFT object used in
@@ -98,7 +98,7 @@ class PyOpenCLFFT():
             streamed reconstruction of smaller blocks.
 
         Returns:
-          PyOpenCLFFT object:
+          PyOpenCLnuFFT object:
             The setup FFT object.
 
         Raises:
@@ -222,7 +222,7 @@ class PyOpenCLFFT():
         return obj
 
 
-class PyOpenCLRadialNUFFT(PyOpenCLFFT):
+class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
     """ Non-uniform FFT object
 
     This class performs the non-uniform FFT (NUFFT) operation. Linear
@@ -353,7 +353,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLFFT):
         del self.prg
         del self.fft
 
-    def FFTH(self, sg, s, wait_for=[]):
+    def FFTH(self, sg, s, wait_for=[], scan_offset=0):
         """ Perform the inverse (adjoint) NUFFT operation
         Args:
           sg (PyOpenCL.Array):
@@ -392,6 +392,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLFFT):
                 self.dcf.data,
                 self.cl_kerneltable,
                 np.int32(self._kernelpoints),
+                np.int32(scan_offset),
                 wait_for=(wait_for + sg.events +
                           s.events + self._tmp_fft_array.events)))
         # FFT
@@ -435,7 +436,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLFFT):
             wait_for=(wait_for + sg.events + s.events +
                       self._tmp_fft_array.events))
 
-    def FFT(self, s, sg, wait_for=[]):
+    def FFT(self, s, sg, wait_for=[], scan_offset=0):
         """ Perform the forward NUFFT operation
         Args:
           s (PyOpenCL.Array):
@@ -483,6 +484,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLFFT):
                 None,
                 self._tmp_fft_array.data,
                 self._check.data))
+
         for j in range(s.shape[0]):
             self._tmp_fft_array.add_event(
                 self.fft.enqueue_arrays(
@@ -514,10 +516,11 @@ class PyOpenCLRadialNUFFT(PyOpenCLFFT):
             self.dcf.data,
             self.cl_kerneltable,
             np.int32(self._kernelpoints),
+            np.int32(scan_offset),
             wait_for=s.events + wait_for + self._tmp_fft_array.events)
 
 
-class PyOpenCLCartNUFFT(PyOpenCLFFT):
+class PyOpenCLCartNUFFT(PyOpenCLnuFFT):
     """ Cartesian FFT object
 
     This class performs the FFT operation.
@@ -607,7 +610,7 @@ class PyOpenCLCartNUFFT(PyOpenCLFFT):
         del self.prg
 
 
-    def FFTH(self, sg, s, wait_for=[]):
+    def FFTH(self, sg, s, wait_for=[], scan_offset=0):
         """ Perform the inverse (adjoint) FFT operation
         Args:
           sg (PyOpenCL.Array):
@@ -658,7 +661,7 @@ class PyOpenCLCartNUFFT(PyOpenCLFFT):
                         self.DTYPE_real(1),
                         wait_for=s.events+sg.events)
 
-    def FFT(self, s, sg, wait_for=[]):
+    def FFT(self, s, sg, wait_for=[], scan_offset=0):
         """ Perform the forward FFT operation
         Args:
           s (PyOpenCL.Array):
@@ -713,7 +716,7 @@ class PyOpenCLCartNUFFT(PyOpenCLFFT):
                         wait_for=s.events+sg.events)
 
 
-class PyOpenCLFieldMapNUFFT(PyOpenCLFFT):
+class PyOpenCLFieldMapNUFFT(PyOpenCLnuFFT):
     """ Cartesian FFT object
 
     This class performs the FFT operation.
@@ -792,7 +795,7 @@ class PyOpenCLFieldMapNUFFT(PyOpenCLFFT):
         del self.prg
         del self.mask
 
-    def FFTH(self, sg, s, wait_for=[]):
+    def FFTH(self, sg, s, wait_for=[], scan_offset=0):
         """ Perform the inverse (adjoint) FFT operation
         Args:
           sg (PyOpenCL.Array):
@@ -825,7 +828,7 @@ class PyOpenCLFieldMapNUFFT(PyOpenCLFFT):
                             np.int32(sg.shape[0]),
                             wait_for=self._tmp_fft_array.events+sg.events)
 
-    def FFT(self, s, sg, wait_for=[]):
+    def FFT(self, s, sg, wait_for=[], scan_offset=0):
         """ Perform the forward FFT operation
         Args:
           s (PyOpenCL.Array):
@@ -860,7 +863,7 @@ class PyOpenCLFieldMapNUFFT(PyOpenCLFFT):
                 wait_for=s.events+self._tmp_fft_array.events))
 
 
-class PyOpenCLSMSNUFFT(PyOpenCLFFT):
+class PyOpenCLSMSNUFFT(PyOpenCLnuFFT):
     """ Cartesian FFT-SMS object
 
     This class performs the FFT operation assuming a SMS acquisition.
@@ -964,7 +967,7 @@ class PyOpenCLSMSNUFFT(PyOpenCLFFT):
         del self.prg
 
 
-    def FFTH(self, sg, s, wait_for=[]):
+    def FFTH(self, sg, s, wait_for=[], scan_offset=0):
         """ Perform the inverse (adjoint) FFT operation
         Args:
           sg (PyOpenCL.Array):
@@ -1026,7 +1029,7 @@ class PyOpenCLSMSNUFFT(PyOpenCLFFT):
                     np.int32(sg.shape[2]/self.packs/self.MB),
                     wait_for=s.events+sg.events)
 
-    def FFT(self, s, sg, wait_for=[]):
+    def FFT(self, s, sg, wait_for=[], scan_offset=0):
         """ Perform the forward FFT operation
         Args:
           s (PyOpenCL.Array):
@@ -1089,7 +1092,7 @@ class PyOpenCLSMSNUFFT(PyOpenCLFFT):
                     wait_for=s.events+sg.events))
 
 
-class PyOpenCLSMSNUFFTFieldMap(PyOpenCLFFT):
+class PyOpenCLSMSNUFFTFieldMap(PyOpenCLnuFFT):
     """ Cartesian FFT-SMS object
 
     This class performs the FFT operation assuming a SMS acquisition.
@@ -1193,7 +1196,7 @@ class PyOpenCLSMSNUFFTFieldMap(PyOpenCLFFT):
         del self.ctx
         del self.prg
 
-    def FFTH(self, sg, s, wait_for=[]):
+    def FFTH(self, sg, s, wait_for=[], scan_offset=0):
         """ Perform the inverse (adjoint) FFT operation
         Args:
           sg (PyOpenCL.Array):
@@ -1240,7 +1243,7 @@ class PyOpenCLSMSNUFFTFieldMap(PyOpenCLFFT):
               np.int32(sg.shape[0]),
               wait_for=self._tmp_fft_array.events+sg.events)
 
-    def FFT(self, s, sg, wait_for=[]):
+    def FFT(self, s, sg, wait_for=[], scan_offset=0):
         """ Perform the forward FFT operation
         Args:
           s (PyOpenCL.Array):
@@ -1288,7 +1291,7 @@ class PyOpenCLSMSNUFFTFieldMap(PyOpenCLFFT):
                 wait_for=s.events+self._tmp_fft_array2.events))
 
 
-class PyOpenCLRadialNUFFTStreamed(PyOpenCLFFT):
+class PyOpenCLRadialNUFFTStreamed(PyOpenCLnuFFT):
     """ The streamed version of the non-uniform FFT object
 
     This class performs the non-uniform FFT (NUFFT) operation. Linear
@@ -1561,7 +1564,7 @@ class PyOpenCLRadialNUFFTStreamed(PyOpenCLFFT):
                       sg.events))
 
 
-class PyOpenCLCartNUFFTStreamed(PyOpenCLFFT):
+class PyOpenCLCartNUFFTStreamed(PyOpenCLnuFFT):
     """ The streamed version of the Cartesian FFT object
 
     This class performs the FFT operation.
@@ -1758,7 +1761,7 @@ class PyOpenCLCartNUFFTStreamed(PyOpenCLFFT):
                 self.DTYPE_real(1),
                 wait_for=s.events+sg.events)
 
-class PyOpenCLSMSNUFFTStreamed(PyOpenCLFFT):
+class PyOpenCLSMSNUFFTStreamed(PyOpenCLnuFFT):
     """ The streamed version of the Cartesian FFT-SMS object
 
     This class performs the FFT operation assuming a SMS acquisition.
@@ -1825,15 +1828,15 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLFFT):
         super().__init__(ctx, queue, DTYPE, DTYPE_real)
         self.fft_shape = (
             par["NC"] *
-            par["NSlice"], 
-            par["dimY"], 
+            par["NSlice"],
+            par["dimY"],
             par["dimX"])
 
         self.packs = int(par["packs"])
         self.MB = int(par["MB"])
         self.shift = clarray.to_device(
             self.queue, par["shift"].astype(DTYPE_real))
-        
+
         self.fft_dim = par["fft_dim"]
         self.par_fft = int(self.fft_shape[0])
 
@@ -1978,7 +1981,7 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLFFT):
                     np.int32(sg.shape[2]/self.packs/self.MB),
                     wait_for=s.events+sg.events))
 
-class PyOpenCLSMSNUFFTStreamedFieldMap(PyOpenCLFFT):
+class PyOpenCLSMSNUFFTStreamedFieldMap(PyOpenCLnuFFT):
     """ The streamed version of the Cartesian FFT-SMS object
 
     This class performs the FFT operation assuming a SMS acquisition.

@@ -36,7 +36,7 @@ def setupPar(par):
     par["unknowns_H1"] = 0
     par["unknowns"] = 2
     par["dz"] = 1
-    par["weights"] = [1, 1]
+    par["weights"] = np.array([1, 1])
 
 
 class GradientTest(unittest.TestCase):
@@ -183,11 +183,11 @@ class GradientStreamedTest(unittest.TestCase):
         for j in range(1):
             prg.append(
                 Program(
-                    par["ctx"][0],
+                    par["ctx"][j],
                     file.read()))
         file.close()
 
-        par["par_slices"] = 4
+        par["par_slices"] = 5
 
         self.grad = pyqmri.operator.OperatorFiniteGradientStreamed(
             par, prg,
