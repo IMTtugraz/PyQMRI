@@ -130,16 +130,16 @@ class Model(BaseModel):
                         200,
                         True))
         self.constraints.append(
-            constraints(0,
-                        4/60,
+            constraints(0.01/60,
+                        self.t[-3],
                         True))
         self.constraints.append(
             constraints(0,
                         10,
                         True))
         self.constraints.append(
-            constraints(0,
-                        2/60,
+            constraints(0.01/60,
+                        self.t[-3],
                         True))
 
     def _execute_forward_2D(self, x, islice):
@@ -482,13 +482,13 @@ class Model(BaseModel):
         self.constraints[0].update(1/self.dscale)
         self.constraints[2].update(1/self.dscale)
         self.images = args[0]/args[1]
-        test_f = 10 * self.dscale * np.ones(
+        test_f = 30 * self.dscale * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
-        test_del_t = 1/60 * np.ones(
+        test_del_t = 0.6/60 * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         CBV = 1e-2 * self.dscale * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
-        test_del_ta = 0 * np.ones(
+        test_del_ta = 0.6/60 * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
 
         self.guess = np.array([test_f,

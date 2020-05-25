@@ -1666,7 +1666,7 @@ class OperatorFiniteGradient(Operator):
                                  dtype=self.DTYPE))
         self._ratio = clarray.to_device(
             self.queue,
-            (1 *
+            (self._weights *
              np.ones(
                  self.unknowns)).astype(
                      self.DTYPE_real))
@@ -1686,20 +1686,20 @@ class OperatorFiniteGradient(Operator):
                    self.NSlice *
                    self.dimY *
                    self.dimX * 4))
-        print("TV x: ", np.sum(np.abs(grad)))
+        print("Total Norm of grad x pre: ", np.sum(np.abs(grad)))
         gradnorm = np.sum(np.abs(grad), axis=-1)
-        print("Diff between grad x: ", gradnorm)
+        print("Norm of grad x pre: ", gradnorm)
         gradnorm /= np.sum(gradnorm)/self.unknowns
         scale = 1/gradnorm
         scale[~np.isfinite(scale)] = 1
-        print("Scale: ", scale)
+        # print("Scale: ", scale)
         for j in range(x.shape[0])[:self.unknowns_TGV]:
             self._ratio[j] = scale[j] * self._weights[j]
 #        sum_scale = np.sqrt(np.sum(np.abs(
 #            scale[self.unknowns_TGV:])**2/(1000)))
         for j in range(x.shape[0])[self.unknowns_TGV:]:
             self._ratio[j] = scale[j] * self._weights[j]
-        print("Ratio: ", self._ratio)
+        # print("Ratio: ", self._ratio)
         x = clarray.to_device(self.queue, x)
         grad = clarray.to_device(
             self.queue, np.zeros(x.shape + (4,),
@@ -1714,11 +1714,11 @@ class OperatorFiniteGradient(Operator):
         grad = grad.get()
         grad = np.reshape(
             grad, (self.unknowns,
-                  self.NSlice *
-                  self.dimY *
-                  self.dimX * 4))
-        print("Norm of grad x: ",  np.sum(np.abs(grad), axis=-1))
-        print("Total Norm of grad x: ",  np.sum(np.abs(grad)))
+                   self.NSlice *
+                   self.dimY *
+                   self.dimX * 4))
+        print("Norm of grad x post: ",  np.sum(np.abs(grad), axis=-1))
+        print("Total Norm of grad x post: ",  np.sum(np.abs(grad)))
 
 
 class OperatorFiniteSymGradient(Operator):
@@ -1726,11 +1726,18 @@ class OperatorFiniteSymGradient(Operator):
         super().__init__(par, prg, DTYPE, DTYPE_real)
         self.queue = self.queue[0]
         self.ctx = self.ctx[0]
+        self._ratio = clarray.to_device(
+            self.queue,
+            (par["weights"]).astype(
+                     dtype=self.DTYPE_real))
+        self._weights = par["weights"]
 
     def fwd(self, out, inp, wait_for=[]):
         return self.prg.sym_grad(
             self.queue, inp.shape[1:-1], None, out.data, inp.data,
-            np.int32(self.unknowns_TGV), self.DTYPE_real(self._dz),
+            np.int32(self.unknowns_TGV),
+            self._ratio.data,
+            self.DTYPE_real(self._dz),
             wait_for=out.events + inp.events + wait_for)
 
     def fwdoop(self, inp, wait_for=[]):
@@ -1740,14 +1747,18 @@ class OperatorFiniteSymGradient(Operator):
             self.DTYPE, "C")
         tmp_result.add_event(self.prg.sym_grad(
             self.queue, inp.shape[1:-1], None, tmp_result.data, inp.data,
-            np.int32(self.unknowns_TGV), self.DTYPE_real(self._dz),
+            np.int32(self.unknowns_TGV),
+            self._ratio.data,
+            self.DTYPE_real(self._dz),
             wait_for=tmp_result.events + inp.events + wait_for))
         return tmp_result
 
     def adj(self, out, inp, wait_for=[]):
         return self.prg.sym_divergence(
             self.queue, inp.shape[1:-1], None, out.data, inp.data,
-            np.int32(self.unknowns_TGV), self.DTYPE_real(self._dz),
+            np.int32(self.unknowns_TGV),
+            self._ratio.data,
+            self.DTYPE_real(self._dz),
             wait_for=out.events + inp.events + wait_for)
 
     def adjoop(self, inp, wait_for=[]):
@@ -1757,7 +1768,9 @@ class OperatorFiniteSymGradient(Operator):
             self.DTYPE, "C")
         tmp_result.add_event(self.prg.sym_divergence(
             self.queue, inp.shape[1:-1], None, tmp_result.data, inp.data,
-            np.int32(self.unknowns_TGV), self.DTYPE_real(self._dz),
+            np.int32(self.unknowns_TGV),
+            self._ratio.data,
+            self.DTYPE_real(self._dz),
             wait_for=tmp_result.events + inp.events + wait_for))
         return tmp_result
 
@@ -1776,8 +1789,8 @@ class OperatorFiniteGradientStreamed(Operator):
             self._ratio.append(
                 clarray.to_device(
                     self.queue[4*j],
-                    (1 *
-                     np.ones(self.unknowns)).astype(dtype=DTYPE_real)))
+                    (par["weights"]).astype(
+                        dtype=self.DTYPE_real)))
 
         self.unknown_shape = (self.NSlice, self.unknowns, self.dimY, self.dimX)
         self.grad_shape = self.unknown_shape + (4,)
@@ -1873,6 +1886,14 @@ class OperatorFiniteSymGradientStreamed(Operator):
         self.grad_shape = unknown_shape + (4,)
         self.symgrad_shape = unknown_shape + (8,)
 
+        self._ratio = []
+        for j in range(self.num_dev):
+            self._ratio.append(
+                clarray.to_device(
+                    self.queue[4*j],
+                    (par["weights"]).astype(
+                        dtype=self.DTYPE_real)))
+
         self._stream_symgrad = self._defineoperator(
             [self._symgrad],
             [self.symgrad_shape],
@@ -1906,6 +1927,7 @@ class OperatorFiniteSymGradientStreamed(Operator):
             self.queue[4*idx+idxq],
             (self.overlap+self.par_slices, self.dimY, self.dimX), None,
             outp.data, inp[0].data, np.int32(self.unknowns),
+            self._ratio[idx].data,
             self.DTYPE_real(self._dz),
             wait_for=outp.events + inp[0].events + wait_for)
 
@@ -1917,5 +1939,6 @@ class OperatorFiniteSymGradientStreamed(Operator):
             outp.data, inp[0].data,
             np.int32(self.unknowns),
             np.int32(bound_cond),
+            self._ratio[idx].data,
             self.DTYPE_real(self._dz),
             wait_for=outp.events + inp[0].events + wait_for)

@@ -82,20 +82,24 @@ __kernel void update_z1(__global float8 *z_new, __global float8 *z, __global flo
   size_t i = k*Nx*Ny+Nx*y + x;
 
   float fac = 0.0f;
+  float8 square = 0.0f;
 
   for (int uk=0; uk<NUk_tgv; uk++)
   {
      z_new[i] = z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]);
 
      // reproject
+     //square = powr(z_new[i], 2);
+     //fac += square.s0+square.s1+square.s2+square.s3+square.s4+square.s5;
      fac = hypot(fac,hypot(hypot(z_new[i].s0,z_new[i].s1), hypot(hypot(z_new[i].s2,z_new[i].s3),hypot(z_new[i].s4,z_new[i].s5))));
      i += NSl*Nx*Ny;
   }
   fac *= alphainv;
+  //printf("fac: %2.2f\n", fac);
   i = k*Nx*Ny+Nx*y + x;
   for (int uk=0; uk<NUk_tgv; uk++)
   {
-    if (fac > 1.0f) z_new[i] /=fac;
+    if (fac > 1.0f){z_new[i] /= fac;}
     i += NSl*Nx*Ny;
   }
   i = NSl*Nx*Ny*NUk_tgv+k*Nx*Ny+Nx*y + x;
@@ -103,6 +107,7 @@ __kernel void update_z1(__global float8 *z_new, __global float8 *z, __global flo
   {
     z_new[i] = (z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]))*h1inv;
     i += NSl*Nx*Ny;
+    printf("test");
   }
 }
 __kernel void update_primal(__global float2 *u_new, __global float2 *u, __global float2 *Kyk,__global float2 *u_k,
@@ -237,7 +242,8 @@ __kernel void gradient(__global float8 *grad, __global float2 *u, const int NUk,
   }
 }
 
-__kernel void sym_grad(__global float16 *sym, __global float8 *w, const int NUk, const float dz) {
+__kernel void sym_grad(__global float16 *sym, __global float8 *w, const int NUk,
+                        __global float* ratio, const float dz) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
   size_t x = get_global_id(2), y = get_global_id(1);
@@ -270,6 +276,8 @@ __kernel void sym_grad(__global float16 *sym, __global float8 *w, const int NUk,
                         0.5f*(val_real.s2 + val_real.s6/dz), 0.5f*(val_imag.s2 + val_imag.s6/dz),
                         0.5f*(val_real.s5 + val_real.s7/dz), 0.5f*(val_imag.s5 + val_imag.s7/dz),
                         0.0f,0.0f,0.0f,0.0f);
+     // scale gradients
+     {sym[i]*=ratio[uk];}
      i += NSl*Nx*Ny;
    }
 }
@@ -335,7 +343,9 @@ __kernel void divergence(__global float2 *div, __global float8 *p, const int NUk
 
 }
 __kernel void sym_divergence(__global float8 *w, __global float16 *q,
-                             const int NUk, const float dz) {
+                             const int NUk,
+                             __global float* ratio,
+                             const float dz) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
   size_t x = get_global_id(2), y = get_global_id(1);
@@ -401,12 +411,15 @@ __kernel void sym_divergence(__global float8 *w, __global float16 *q,
      w[i].s024 = val_real.s012 + val_real.s345 + val_real.s678/dz;
      //imag
      w[i].s135 = val_imag.s012 + val_imag.s345 + val_imag.s678/dz;
-
+     // scale gradients
+     {w[i]*=ratio[uk];}
      i += NSl*Nx*Ny;
   }
 }
 __kernel void update_Kyk2(__global float8 *w, __global float16 *q, __global float8 *z,
-                          const int NUk, const int first, const float dz) {
+                          const int NUk, const int first,
+                          __global float* ratio,
+                          const float dz) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
   size_t x = get_global_id(2), y = get_global_id(1);
@@ -468,6 +481,10 @@ __kernel void update_Kyk2(__global float8 *w, __global float16 *q, __global floa
          val_imag.s678 += (float3)(q[i+Nx*Ny].s9b, q[i+Nx*Ny].s5);
      }
      // linear step
+
+     // scale gradients
+     {val_real*=ratio[uk];}
+     {val_imag*=ratio[uk];}
      //real
      w[i].s024 = -val_real.s012 - val_real.s345 - val_real.s678/dz -z[i].s024;
      //imag

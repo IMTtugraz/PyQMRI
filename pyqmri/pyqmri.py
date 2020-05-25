@@ -320,9 +320,10 @@ def _estScaleNorm(myargs, par, images, data):
     par["SNR_est"] = SNR_est
     print("Estimated SNR from kspace", SNR_est)
 
-#    dscale = DTYPE_real((1/1e1) /
-#                        (np.quantile(np.abs(images.flatten()), 0.9)))
+    # dscale = DTYPE_real((1) /
+    #                     (np.quantile(np.abs(images.flatten()), 0.9)))
     dscale = DTYPE_real(1 / np.linalg.norm(np.abs(data)))
+    print("Dscale: ", dscale)
     par["dscale"] = dscale
     images = images*dscale
     data = data*dscale
@@ -649,7 +650,7 @@ def _start_recon(myargs):
         par["weights"] = np.ones((par["unknowns"]), dtype=np.float32)
     else:
         par["weights"] = np.array(myargs.weights, dtype=np.float32)
-    par["weights"] = par["weights"]
+    # par["weights"] *= par["unknowns"]/np.sum(par["weights"])
 ###############################################################################
 # Compute initial guess #######################################################
 ###############################################################################
