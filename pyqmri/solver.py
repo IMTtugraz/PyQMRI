@@ -18,7 +18,6 @@ import pyqmri.operator as operator
 from pyqmri._helper_fun import CLProgram as Program
 import sys
 import pyqmri.streaming as streaming
-import scipy.sparse as ssp
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
@@ -450,7 +449,6 @@ class PDBaseSolver:
           iters (int):
             Number of primal-dual iterations to run
         """
-        # self._estOperatorNorm()
         self._updateConstraints()
         tau = self.tau
         tau_new = np.float32(0)
@@ -594,29 +592,6 @@ class PDBaseSolver:
                 sys.stdout.flush()
 
         return primal_vars
-
-    def _estOperatorNorm(self):
-        spatialdim = np.prod(self.modelgrad.shape[-3:])
-        x_dim = spatialdim*self.modelgrad.shape[0]
-        y_dim = spatialdim*self.modelgrad.shape[1]
-        try:
-            tmp_dat = self.modelgrad.get().reshape(self.modelgrad.shape[0], -1)
-        except AttributeError:
-            tmp_dat = self.modelgrad.reshape(self.modelgrad.shape[0], -1)
-        offset = np.array(
-            [spatialdim*j for j in range(self.modelgrad.shape[0])]
-            )
-        Op = ssp.dia_matrix((tmp_dat, offset), shape=(y_dim, x_dim))
-        from scipy.sparse.linalg import svds
-        norm = svds(Op, k=1, return_singular_vectors=False)
-        if isinstance(self._coils, (np.ndarray, cl.array.Array)):
-            try:
-                norm *= np.max(np.abs(self._coils.get()))
-            except AttributeError:
-                norm *= np.max(np.abs(self._coils))
-            norm *= np.sqrt(self._coils.size)
-        self.beta_line = norm**2
-        print(norm)
 
     def _updateInitial(self, outp, inp):
         pass
