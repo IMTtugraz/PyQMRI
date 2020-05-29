@@ -689,8 +689,6 @@ def _start_recon(myargs):
     f.create_dataset("images_ifft", data=images)
     f.attrs['data_norm'] = par["dscale"]
     f.close()
-    import ipdb
-    ipdb.set_trace()
     par["file"].close()
 
 ###############################################################################
