@@ -85,6 +85,8 @@ def _precoompFFT(data, par):
         dimY = par["dimY"]
         par["dimX"] = dimY
         par["dimY"] = dimX
+        par["N"] = dimY
+        par["Nproj"] = dimX
         par["transpXY"] = True
         par["fft_dim"] = [-1]
 
