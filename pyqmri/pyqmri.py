@@ -274,6 +274,8 @@ def _estScaleNorm(myargs, par, images, data):
         ind = np.zeros((par["dimY"], par["dimX"]), dtype=bool)
         ind[int(par["dimY"]/2-centerY):int(par["dimY"]/2+centerY),
             int(par["dimX"]/2-centerX):int(par["dimX"]/2+centerX)] = 1
+        import ipdb
+        ipdb.set_trace()
         if par["fft_dim"] is not None:
             for shiftdim in par["fft_dim"]:
                 ind = np.fft.fftshift(ind, axes=shiftdim)
