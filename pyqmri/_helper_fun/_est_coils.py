@@ -45,8 +45,6 @@ def est_coils(data, par, file, args, off):
     if args.sms or "Coils_real" in list(file.keys()):
         print("Using precomputed coil sensitivities")
         slices_coils = file['Coils_real'][()].shape[1]
-        import ipdb
-        ipdb.set_trace()
         par["C"] = file['Coils_real'][
             :,
             int(slices_coils / 2) - int(np.floor((par["NSlice"]) / 2)) + off:
