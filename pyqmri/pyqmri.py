@@ -81,6 +81,10 @@ def _precoompFFT(data, par):
         par["mask"] = np.require(
             np.moveaxis(par["mask"], -1, -2),
             requirements='C')
+        dimX = par["dimX"]
+        dimY = par["dimY"]
+        par["dimX"] = dimY
+        par["dimY"] = dimX
         par["transpXY"] = True
         par["fft_dim"] = [-1]
 
@@ -274,8 +278,6 @@ def _estScaleNorm(myargs, par, images, data):
         ind = np.zeros((par["dimY"], par["dimX"]), dtype=bool)
         ind[int(par["dimY"]/2-centerY):int(par["dimY"]/2+centerY),
             int(par["dimX"]/2-centerX):int(par["dimX"]/2+centerX)] = 1
-        if par["transpXY"]:
-            ind = ind.T
         if par["fft_dim"] is not None:
             for shiftdim in par["fft_dim"]:
                 ind = np.fft.fftshift(ind, axes=shiftdim)
