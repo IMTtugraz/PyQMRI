@@ -276,6 +276,8 @@ def _estScaleNorm(myargs, par, images, data):
             int(par["dimX"]/2-centerX):int(par["dimX"]/2+centerX)] = 1
         import ipdb
         ipdb.set_trace()
+        if par["transpXY"]:
+            ind = ind.T
         if par["fft_dim"] is not None:
             for shiftdim in par["fft_dim"]:
                 ind = np.fft.fftshift(ind, axes=shiftdim)
