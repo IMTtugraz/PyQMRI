@@ -81,6 +81,12 @@ def _precoompFFT(data, par):
         par["mask"] = np.require(
             np.moveaxis(par["mask"], -1, -2),
             requirements='C')
+        dimX = par["dimX"]
+        dimY = par["dimY"]
+        par["dimX"] = dimY
+        par["dimY"] = dimX
+        par["N"] = dimY
+        par["Nproj"] = dimX
         par["transpXY"] = True
         par["fft_dim"] = [-1]
 
