@@ -360,7 +360,7 @@ class Model(BaseModel):
             [z, y, x] = M0.shape
             self.ax = []
             self.axf = []
-            if not self.figure:
+            if not self.figure and not self.figure_ref:
                 plt.ion()
                 self.figure = plt.figure(figsize=(12, 6))
                 self.figure.subplots_adjust(hspace=0, wspace=0)
@@ -507,7 +507,7 @@ class Model(BaseModel):
                 plt.pause(1e-10)
                 self.figure.canvas.draw_idle()
 
-            if not self.figuref:
+            # if not self.figuref:
                 plt.ion()
                 self.figuref = plt.figure(figsize=(12, 6))
                 self.figuref.subplots_adjust(hspace=0, wspace=0)

@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 plt.ion()
 
+
 class Model(BaseModel):
     def __init__(self, par, images):
         super().__init__(par)
@@ -31,8 +32,6 @@ class Model(BaseModel):
         self.uk_scale = []
         for j in range(par["unknowns"]):
             self.uk_scale.append(1)
-
-        self.unknowns = par["unknowns_TGV"] + par["unknowns_H1"]
 
         self.unknowns = par["unknowns"]
         try:

@@ -284,6 +284,7 @@ class IRGNOptimizer:
         print("Initial Ratio: ", scale)
         scale /= np.linalg.norm(scale)/np.sqrt(self.par["unknowns"])
         scale = 1 / scale
+        scale[~np.isfinite(scale)] = 1
         for uk in range(self.par["unknowns"]):
             self.model.constraints[uk].update(scale[uk])
             result[uk, ...] *= self.model.uk_scale[uk]
