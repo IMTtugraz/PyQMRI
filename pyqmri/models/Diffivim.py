@@ -81,7 +81,7 @@ class Model(BaseModel):
         self.constraints.append(
             constraints(
                 (0 / self.uk_scale[8]),
-                (100 / self.uk_scale[8]),
+                (10 / self.uk_scale[8]),
                 True))
 
     def rescale(self, x):
@@ -571,8 +571,8 @@ class Model(BaseModel):
         else:
             test_M0 = args[0][0]
         ADC = 1 * np.ones(args[0].shape[-3:], dtype=DTYPE)
-        f = 0.1 * np.ones(args[0].shape[-3:], dtype=DTYPE)
-        ADC_ivim = 10 * np.ones(args[0].shape[-3:], dtype=DTYPE)
+        f = 0 * np.ones(args[0].shape[-3:], dtype=DTYPE)
+        ADC_ivim = 30 * np.ones(args[0].shape[-3:], dtype=DTYPE)
 
         x = np.array(
                 [
