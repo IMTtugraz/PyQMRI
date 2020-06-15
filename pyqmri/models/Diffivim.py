@@ -81,7 +81,7 @@ class Model(BaseModel):
         self.constraints.append(
             constraints(
                 (0 / self.uk_scale[8]),
-                (10 / self.uk_scale[8]),
+                (15 / self.uk_scale[8]),
                 True))
 
     def rescale(self, x):
@@ -102,7 +102,6 @@ class Model(BaseModel):
                           x[3, ...] * self.uk_scale[3]))
         f = x[7, ...] * self.uk_scale[7]
         ADC_ivim = x[8, ...] * self.uk_scale[8]
-
 
         return np.array((M0, ADC_x, ADC_xy, ADC_y, ADC_xz, ADC_z, ADC_yz,
                          f, ADC_ivim))
@@ -134,10 +133,11 @@ class Model(BaseModel):
                    x[3, ...] * self.uk_scale[3]) * \
               self.dir[..., 1] * self.dir[..., 2]
 
-        S = (x[0, ...] * self.uk_scale[0] * (x[7, ...] * self.uk_scale[7] *
-             np.exp(-(ADC + x[8, ...] * self.uk_scale[8]) * self.b) +
-             (1-x[7, ...] * self.uk_scale[7]) *
-             np.exp(- ADC * self.b)
+        S = (x[0, ...] * self.uk_scale[0] * (
+                x[7, ...] * self.uk_scale[7]
+                * np.exp(-(ADC + x[8, ...] * self.uk_scale[8]) * self.b)
+                + (1-x[7, ...] * self.uk_scale[7])
+                * np.exp(- ADC * self.b)
              )).astype(DTYPE)
 
         S *= self.phase
@@ -163,21 +163,19 @@ class Model(BaseModel):
                    x[3, ...] * self.uk_scale[3]) * \
               self.dir[..., 1] * self.dir[..., 2]
 
-        grad_M0 = (self.uk_scale[0] * (
-            x[7, ...] * self.uk_scale[7] *
-            np.exp(- (ADC + x[8, ...] * self.uk_scale[8]) * self.b)
-            + (1-x[7, ...] * self.uk_scale[7]) *
-            np.exp(- ADC * self.b)))
+        grad_M0 = self.uk_scale[0] * (
+            x[7, ...] * self.uk_scale[7]
+            * np.exp(- (ADC + x[8, ...] * self.uk_scale[8]) * self.b)
+            + (1-x[7, ...] * self.uk_scale[7])
+            * np.exp(- ADC * self.b))
         # del ADC
 
-        grad_M0 *= self.phase
         grad_ADC_x = -x[0, ...] * self.b * grad_M0 * \
             (2 * x[1, ...] * self.uk_scale[1]**2 * self.dir[..., 0]**2 +
              2 * self.uk_scale[1] * x[2, ...] * self.uk_scale[2] *
              self.dir[..., 0] * self.dir[..., 1] +
              2 * self.uk_scale[1] * x[4, ...] * self.uk_scale[4] *
              self.dir[..., 0] * self.dir[..., 2])
-
         grad_ADC_xy = -x[0, ...] * self.b * grad_M0 * \
             (2 * x[1, ...] * self.uk_scale[1] * self.uk_scale[2] *
              self.dir[..., 0] * self.dir[..., 1] +
@@ -205,16 +203,15 @@ class Model(BaseModel):
              self.dir[..., 1] * self.dir[..., 2] +
              2 * x[6, ...] * self.uk_scale[6]**2 * self.dir[..., 2]**2)
 
-        grad_f = (x[0, ...] * self.uk_scale[0] * (
-            self.uk_scale[7] *
-            np.exp(- (ADC + x[8, ...] * self.uk_scale[8]) * self.b)
-            - self.uk_scale[7] *
-            np.exp(- ADC * self.b))) * self.phase
+        grad_f = (x[0, ...] * self.uk_scale[0] * self.uk_scale[7] * (
+            np.exp(-(ADC + x[8, ...] * self.uk_scale[8]) * self.b)
+            - np.exp(- ADC * self.b)))
 
-        grad_ADC_ivim = (-x[0, ...] * self.b*self.uk_scale[0] * (
-            x[7, ...] * self.uk_scale[7] *
-            np.exp(- (ADC + x[8, ...] * self.uk_scale[8]) * self.b))
-            * self.phase)
+        grad_ADC_ivim = (
+            -x[0, ...] * self.b*self.uk_scale[0] * self.uk_scale[8] * (
+                x[7, ...] * self.uk_scale[7] *
+                np.exp(- (ADC + x[8, ...] * self.uk_scale[8]) * self.b))
+            )
 
         grad = np.array(
             [grad_M0,
@@ -227,6 +224,7 @@ class Model(BaseModel):
              grad_f,
              grad_ADC_ivim], dtype=DTYPE)
         grad[~np.isfinite(grad)] = 0
+        grad *= self.phase
         return grad
 
     def plot_unknowns(self, x, dim_2D=False):
@@ -571,8 +569,8 @@ class Model(BaseModel):
         else:
             test_M0 = args[0][0]
         ADC = 1 * np.ones(args[0].shape[-3:], dtype=DTYPE)
-        f = 0 * np.ones(args[0].shape[-3:], dtype=DTYPE)
-        ADC_ivim = 30 * np.ones(args[0].shape[-3:], dtype=DTYPE)
+        f = 0.2 * np.ones(args[0].shape[-3:], dtype=DTYPE)
+        ADC_ivim = 2 * np.ones(args[0].shape[-3:], dtype=DTYPE)
 
         x = np.array(
                 [
