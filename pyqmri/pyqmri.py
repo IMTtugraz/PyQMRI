@@ -547,8 +547,11 @@ def _start_recon(myargs):
                                       dtype=DTYPE_real)).astype(DTYPE_real)
         par["dcf"] = np.require(np.abs(par["dcf"]), DTYPE_real,
                                 requirements='C')
+    elif data.ndim == 4 and "ImageReco" in myargs.sig_model:
+        data = data[None]
+        [NScan, NC, reco_Slices, Nproj, N] = data.shape
     else:
-        print("Wrong data dimension / model inkompatible. Returning")
+        print("Wrong data dimension / model incompatible. Returning")
         return
 
 ###############################################################################
