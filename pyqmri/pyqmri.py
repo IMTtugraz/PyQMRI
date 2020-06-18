@@ -81,6 +81,12 @@ def _precoompFFT(data, par):
         par["mask"] = np.require(
             np.moveaxis(par["mask"], -1, -2),
             requirements='C')
+        dimX = par["dimX"]
+        dimY = par["dimY"]
+        par["dimX"] = dimY
+        par["dimY"] = dimX
+        par["N"] = dimY
+        par["Nproj"] = dimX
         par["transpXY"] = True
         par["fft_dim"] = [-1]
 
@@ -506,8 +512,11 @@ def _start_recon(myargs):
                                       dtype=DTYPE_real)).astype(DTYPE_real)
         par["dcf"] = np.require(np.abs(par["dcf"]), DTYPE_real,
                                 requirements='C')
+    elif data.ndim == 4 and "ImageReco" in myargs.sig_model:
+        data = data[None]
+        [NScan, NC, reco_Slices, Nproj, N] = data.shape
     else:
-        print("Wrong data dimension / model inkompatible. Returning")
+        print("Wrong data dimension / model incompatible. Returning")
         return
 
 ###############################################################################
