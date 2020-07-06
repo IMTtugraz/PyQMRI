@@ -347,7 +347,7 @@ __kernel void sym_divergence(__global double8 *w, __global double16 *q,
   }
 }
 __kernel void update_Kyk2(__global double8 *w, __global double16 *q, __global double8 *z,
-                       const int NUk, const int first, __global double* ratio, const double dz) {
+                       const int NUk, __global double* ratio, const int first,  const double dz) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
   size_t x = get_global_id(2), y = get_global_id(1);
