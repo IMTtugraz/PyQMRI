@@ -201,23 +201,20 @@ class SymmetrizedGradientStreamedTest(unittest.TestCase):
         pyqmri.pyqmri._setupOCL(parser, par)
         setupPar(par)
         if DTYPE == np.complex128:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_double_streamed.c'))
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels_double_streamed.c')
         else:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_streamed.c'))
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels_streamed.c')
 
         prg = []
-        for j in range(1):
-            prg.append(
-                Program(
-                    par["ctx"][0],
-                    file.read()))
-        file.close()
+        for j in range(len(par["ctx"])):
+          with open(file) as myfile:
+            prg.append(Program(
+                par["ctx"][j],
+                myfile.read()))
 
-        par["par_slices"] = 4
+        par["par_slices"] = 1
 
         self.weights = par["weights"]
 

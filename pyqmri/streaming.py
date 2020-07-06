@@ -261,11 +261,11 @@ class Stream:
             self._streamtohost(outp, 1)
             self._streamtohost(outp, 0)
         # Wait for all Queues to finish
-        for i in range(self.num_dev):
-            self.queue[4*i].finish()
-            self.queue[4*i+1].finish()
-            self.queue[4*i+2].finish()
-            self.queue[4*i+3].finish()
+#        for i in range(self.num_dev):
+#            self.queue[4*i].finish()
+#            self.queue[4*i+1].finish()
+#            self.queue[4*i+2].finish()
+#            self.queue[4*i+3].finish()
 
     def evalwithnorm(self, outp, inp, par=None):
         """The same as eval but also returns norms for in-output
@@ -322,11 +322,11 @@ class Stream:
             (rhs, lhs) = self._streamtohostnorm(outp, rhs, lhs, 1)
             (rhs, lhs) = self._streamtohostnorm(outp, rhs, lhs, 0)
         # Wait for all Queues to finish
-        for i in range(self.num_dev):
-            self.queue[4*i].finish()
-            self.queue[4*i+1].finish()
-            self.queue[4*i+2].finish()
-            self.queue[4*i+3].finish()
+#        for i in range(self.num_dev):
+#            self.queue[4*i].finish()
+#            self.queue[4*i+1].finish()
+#            self.queue[4*i+2].finish()
+#            self.queue[4*i+3].finish()
         return (lhs, rhs)
 
     def _streamtodevice(self, inp, odd):
