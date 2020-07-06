@@ -37,7 +37,7 @@ def setupPar(par):
     par["unknowns_H1"] = 0
     par["unknowns"] = 2
     par["dz"] = 1
-    par["weights"] = np.array([1, 1])
+    par["weights"] = np.array([1, 0.1])
 
 
 class SymmetrizedGradientTest(unittest.TestCase):
@@ -62,6 +62,8 @@ class SymmetrizedGradientTest(unittest.TestCase):
             par["ctx"][0],
             file.read())
         file.close()
+
+        self.weights = par["weights"]
 
         self.symgrad = pyqmri.operator.OperatorFiniteSymGradient(
             par, prg,
@@ -103,6 +105,7 @@ class SymmetrizedGradientTest(unittest.TestCase):
                             1/2 * (gradx[..., 2] + gradz[..., 0]/self.dz),
                             1/2 * (grady[..., 2] + gradz[..., 1]/self.dz)),
                            axis=-1)
+        symgrad *= self.weights[:, None, None, None, None]
 
         inp = clarray.to_device(self.queue, self.symgradin)
         outp = self.symgrad.fwdoop(inp)
@@ -132,7 +135,7 @@ class SymmetrizedGradientTest(unittest.TestCase):
                             1/2 * (gradx[..., 2] + gradz[..., 0]/self.dz),
                             1/2 * (grady[..., 2] + gradz[..., 1]/self.dz)),
                            axis=-1)
-
+        symgrad *= self.weights[:, None, None, None, None]
         inp = clarray.to_device(self.queue, self.symgradin)
         outp = clarray.to_device(self.queue, self.symdivin)
         self.symgrad.fwd(outp, inp)
@@ -159,7 +162,7 @@ class SymmetrizedGradientTest(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertAlmostEqual(a, b, places=12)
 
     def test_adj_inplace(self):
         inpgrad = clarray.to_device(self.queue, self.symgradin)
@@ -184,7 +187,7 @@ class SymmetrizedGradientTest(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertAlmostEqual(a, b, places=12)
 
 
 class SymmetrizedGradientStreamedTest(unittest.TestCase):
@@ -215,6 +218,8 @@ class SymmetrizedGradientStreamedTest(unittest.TestCase):
         file.close()
 
         par["par_slices"] = 4
+
+        self.weights = par["weights"]
 
         self.symgrad = pyqmri.operator.OperatorFiniteSymGradientStreamed(
             par, prg,
@@ -255,7 +260,7 @@ class SymmetrizedGradientStreamedTest(unittest.TestCase):
                             1/2 * (gradx[..., 2] + gradz[..., 0]/self.dz),
                             1/2 * (grady[..., 2] + gradz[..., 1]/self.dz)),
                            axis=-1)
-
+        symgrad *= self.weights[None, :, None, None, None]
         outp = self.symgrad.fwdoop([[self.symgradin]])
 
         np.testing.assert_allclose(outp[..., :6], symgrad)
@@ -282,7 +287,7 @@ class SymmetrizedGradientStreamedTest(unittest.TestCase):
                             1/2 * (gradx[..., 2] + gradz[..., 0]/self.dz),
                             1/2 * (grady[..., 2] + gradz[..., 1]/self.dz)),
                            axis=-1)
-
+        symgrad *= self.weights[None, :, None, None, None]
         outp = np.zeros_like(self.symdivin)
 
         self.symgrad.fwd([outp], [[self.symgradin]])
@@ -304,7 +309,7 @@ class SymmetrizedGradientStreamedTest(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertAlmostEqual(a, b, places=12)
 
     def test_adj_inplace(self):
 
@@ -324,7 +329,7 @@ class SymmetrizedGradientStreamedTest(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertAlmostEqual(a, b, places=12)
 
 
 if __name__ == '__main__':

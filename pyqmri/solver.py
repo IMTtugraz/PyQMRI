@@ -802,8 +802,10 @@ class PDBaseSolver:
             self._queue[4*idx+idxq],
             self._kernelsize, None,
             outp.data, inp[0].data, inp[1].data,
-            np.int32(self.unknowns), np.int32(bound_cond),
-            par[0].data, np.float32(self.dz),
+            np.int32(self.unknowns),
+            par[0].data,
+            np.int32(bound_cond),
+            np.float32(self.dz),
             wait_for=outp.events + inp[0].events + inp[1].events+wait_for)
 
     def update_r(self, outp, inp, par=None, idx=0, idxq=0,

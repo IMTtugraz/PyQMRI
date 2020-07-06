@@ -226,7 +226,7 @@ __kernel void gradient(__global float8 *grad, __global float2 *u, const int NUk,
   }
 }
 
-__kernel void sym_grad(__global float16 *sym, __global float8 *w, const int NUk, const float dz) {
+__kernel void sym_grad(__global float16 *sym, __global float8 *w, const int NUk, __global float* ratio, const float dz) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
   size_t x = get_global_id(2), y = get_global_id(1);
@@ -259,6 +259,7 @@ __kernel void sym_grad(__global float16 *sym, __global float8 *w, const int NUk,
                         0.5f*(val_real.s2 + val_real.s6/dz), 0.5f*(val_imag.s2 + val_imag.s6/dz),
                         0.5f*(val_real.s5 + val_real.s7/dz), 0.5f*(val_imag.s5 + val_imag.s7/dz),
                         0.0f,0.0f,0.0f,0.0f);
+    {sym[i]*=ratio[uk];}
     i+=Nx*Ny;
    }
 }
@@ -323,7 +324,9 @@ __kernel void divergence(__global float2 *div, __global float8 *p, const int NUk
 
 }
 __kernel void sym_divergence(__global float8 *w, __global float16 *q,
-                       const int NUk, const int first, const float dz) {
+                       const int NUk,
+                       __global float* ratio,
+                       const int first, const float dz) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
   size_t x = get_global_id(2), y = get_global_id(1);
@@ -391,11 +394,12 @@ __kernel void sym_divergence(__global float8 *w, __global float16 *q,
      w[i].s024 = val_real.s012 + val_real.s345 + val_real.s678/dz;
      //imag
      w[i].s135 = val_imag.s012 + val_imag.s345 + val_imag.s678/dz;
+     {w[i]*=ratio[uk];}
      i+=Nx*Ny;
   }
 }
 __kernel void update_Kyk2(__global float8 *w, __global float16 *q, __global float8 *z,
-                       const int NUk, const int first, const float dz) {
+                       const int NUk, const int first, __global float* ratio, const float dz) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
   size_t x = get_global_id(2), y = get_global_id(1);
@@ -460,6 +464,8 @@ __kernel void update_Kyk2(__global float8 *w, __global float16 *q, __global floa
          val_imag.s678 += (float3)(q[i+Nx*Ny*NUk].s9b, q[i+Nx*Ny*NUk].s5);
      }
      // linear step
+     {val_real*=ratio[uk];}
+     {val_imag*=ratio[uk];}
      //real
      w[i].s024 = -val_real.s012 - val_real.s345 - val_real.s678/dz -z[i].s024;
      //imag

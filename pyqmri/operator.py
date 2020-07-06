@@ -1938,7 +1938,7 @@ class OperatorFiniteSymGradientStreamed(Operator):
             (self.overlap+self.par_slices, self.dimY, self.dimX), None,
             outp.data, inp[0].data,
             np.int32(self.unknowns),
-            np.int32(bound_cond),
             self._ratio[idx].data,
+            np.int32(bound_cond),
             self.DTYPE_real(self._dz),
             wait_for=outp.events + inp[0].events + wait_for)
