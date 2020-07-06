@@ -803,7 +803,7 @@ class PDBaseSolver:
             self._kernelsize, None,
             outp.data, inp[0].data, inp[1].data,
             np.int32(self.unknowns),
-            par[0].data,
+            par[idx].data,
             np.int32(bound_cond),
             np.float32(self.dz),
             wait_for=outp.events + inp[0].events + inp[1].events+wait_for)
@@ -1776,7 +1776,7 @@ class PDSolverStreamedTGV(PDSolverStreamed):
             [[in_primal["x"]],
              [in_dual["z2"], in_dual["z1"], []]],
             [[],
-             [self.symgrad_op._ratio]])
+             self.symgrad_op._ratio])
 
     def _updatePrimal(self,
                       out_primal, out_fwd,
@@ -1838,7 +1838,7 @@ class PDSolverStreamedTGV(PDSolverStreamed):
               in_precomp_fwd["symgradx"]],
              [[], out_dual["z1"], in_precomp_adj["Kyk2"]]],
             [[beta*tau, theta, self.beta],
-             [self.symgrad_op.ratio]])
+             self.symgrad_op._ratio])
 
         ynorm = np.abs(ynorm1 + ynorm2)**(1/2)
         lhs = np.sqrt(beta) * tau * np.abs(lhs1 + lhs2)**(1/2)
@@ -1950,7 +1950,7 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
             [[in_primal["x"]],
              [in_dual["z2"], in_dual["z1"], []]],
             [[],
-             [self.symgrad_op._ratio]])
+             self.symgrad_op._ratio])
 
     def _updatePrimal(self,
                       out_primal, out_fwd,
@@ -2018,7 +2018,7 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
               in_precomp_fwd["symgradx"]],
              [[], out_dual["z1"], in_precomp_adj["Kyk2"]]],
             [[beta*tau, theta, self.beta],
-             [self.symgrad_op._ratio]])
+             self.symgrad_op._ratio])
 
         ynorm = np.abs(ynorm1+ynorm2+ynorm3+ynorm4)**(1/2)
         lhs = np.sqrt(beta)*tau*np.abs(lhs1+lhs2+lhs3+lhs4)**(1/2)
