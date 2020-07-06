@@ -239,6 +239,7 @@ class Stream:
         # Warmup Queue 1
         self._streamtodevice(inp, 1)
         self._startcomputation(par, bound_cond=0, odd=1)
+
         # Start Streaming
         islice = 2*self.slices*self.num_dev
         odd = True
@@ -292,6 +293,7 @@ class Stream:
         # Warmup Queue 1
         self._streamtodevice(inp, 0)
         self._startcomputation(par, bound_cond=1, odd=0)
+        
         # Warmup Queue 2
         self._streamtodevice(inp, 1)
         self._startcomputation(par, bound_cond=0, odd=1)
@@ -360,11 +362,7 @@ class Stream:
             for ifun in range(self.num_fun):
                 par.append([])
         for idev in range(self.num_dev):
-            for ifun in range(self.num_fun):
-                for inps in self.inp[ifun][2*idev+odd]:
-                    for inp in inps:
-                        for event in inp.events:
-                            event.wait()
+            for ifun in range(self.num_fun):      
                 self.outp[
                     ifun][
                         2*idev+odd].add_event(
@@ -380,9 +378,10 @@ class Stream:
 
     def _streamtohost(self, outp, odd):
         for idev in range(self.num_dev):
-            self.queue[4*(self.num_dev-1)+3-odd].finish()
-            if idev > 1:
-                self.queue[4*(idev-1)+2+odd].finish()
+            self.queue[4*idev+3-odd].finish()
+            if self.num_dev > 1:
+                self.queue[4*np.mod(idev-1,4)+2+odd].finish()
+                self.queue[4*np.mod(idev-1,4)+3-odd].finish()
             idx = self._getindtohost()
             for ifun in range(self.num_fun):
                 self.outp[ifun][2*idev+odd].add_event(
@@ -396,9 +395,10 @@ class Stream:
 
     def _streamtohostnorm(self, outp, rhs, lhs, odd):
         for idev in range(self.num_dev):
-            self.queue[4*(self.num_dev-1)+3-odd].finish()
-            if idev > 1:
-                self.queue[4*(idev-1)+2+odd].finish()
+            self.queue[4*idev+3-odd].finish()
+            if self.num_dev > 1:
+                self.queue[4*np.mod(idev-1,4)+2+odd].finish()
+                self.queue[4*np.mod(idev-1,4)+3-odd].finish()
             idx = self._getindtohost()
             for ifun in range(self.num_fun):
                 self.outp[ifun][2*idev+odd].add_event(

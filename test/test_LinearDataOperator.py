@@ -58,24 +58,26 @@ class OperatorKspaceRadial(unittest.TestCase):
     def setUp(self):
         parser = tmpArgs()
         parser.streamed = False
-        parser.devices = [0]
+        parser.devices = -1
         parser.use_GPU = True
 
         par = {}
         pyqmri.pyqmri._setupOCL(parser, par)
         setupPar(par)
         if DTYPE == np.complex128:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_double.c'))
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels_double.c')
         else:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels.c'))
-        prg = Program(
-            par["ctx"][0],
-            file.read())
-        file.close()
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels.c')
+
+        prg = []
+        for j in range(len(par["ctx"])):
+          with open(file) as myfile:
+            prg.append(Program(
+                par["ctx"][j],
+                myfile.read()))
+        prg = prg[0]
 
         self.op = pyqmri.operator.OperatorKspace(
             par, prg,
@@ -156,24 +158,26 @@ class OperatorKspaceCartesian(unittest.TestCase):
     def setUp(self):
         parser = tmpArgs()
         parser.streamed = False
-        parser.devices = [0]
+        parser.devices = -1
         parser.use_GPU = True
 
         par = {}
         pyqmri.pyqmri._setupOCL(parser, par)
         setupPar(par)
         if DTYPE == np.complex128:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_double.c'))
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels_double.c')
         else:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels.c'))
-        prg = Program(
-            par["ctx"][0],
-            file.read())
-        file.close()
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels.c')
+
+        prg = []
+        for j in range(len(par["ctx"])):
+          with open(file) as myfile:
+            prg.append(Program(
+                par["ctx"][j],
+                myfile.read()))
+        prg = prg[0]
 
         par["mask"] = np.ones((par["dimY"], par["dimX"]),
                               dtype=DTYPE_real)
@@ -257,7 +261,7 @@ class OperatorKspaceSMSCartesian(unittest.TestCase):
     def setUp(self):
         parser = tmpArgs()
         parser.streamed = False
-        parser.devices = [0]
+        parser.devices = -1
         parser.use_GPU = True
 
         par = {}
@@ -269,17 +273,19 @@ class OperatorKspaceSMSCartesian(unittest.TestCase):
 
         setupPar(par)
         if DTYPE == np.complex128:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_double.c'))
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels_double.c')
         else:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels.c'))
-        prg = Program(
-            par["ctx"][0],
-            file.read())
-        file.close()
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels.c')
+
+        prg = []
+        for j in range(len(par["ctx"])):
+          with open(file) as myfile:
+            prg.append(Program(
+                par["ctx"][j],
+                myfile.read()))
+        prg = prg[0]
 
         par["mask"] = np.ones((par["dimY"], par["dimX"]),
                               dtype=DTYPE_real)
@@ -363,24 +369,26 @@ class OperatorImageSpace(unittest.TestCase):
     def setUp(self):
         parser = tmpArgs()
         parser.streamed = True
-        parser.devices = [0]
+        parser.devices = -1
         parser.use_GPU = True
 
         par = {}
         pyqmri.pyqmri._setupOCL(parser, par)
         setupPar(par)
         if DTYPE == np.complex128:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_double.c'))
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels_double.c')
         else:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels.c'))
-        prg = Program(
-            par["ctx"][0],
-            file.read())
-        file.close()
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels.c')
+
+        prg = []
+        for j in range(len(par["ctx"])):
+          with open(file) as myfile:
+            prg.append(Program(
+                par["ctx"][j],
+                myfile.read()))
+        prg = prg[0]
 
         self.op = pyqmri.operator.OperatorImagespace(
             par, prg,
@@ -454,27 +462,25 @@ class OperatorImageSpaceStreamed(unittest.TestCase):
     def setUp(self):
         parser = tmpArgs()
         parser.streamed = True
-        parser.devices = [0]
+        parser.devices = -1
         parser.use_GPU = True
 
         par = {}
         pyqmri.pyqmri._setupOCL(parser, par)
         setupPar(par)
         if DTYPE == np.complex128:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_double_streamed.c'))
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels_double_streamed.c')
         else:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_streamed.c'))
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels_streamed.c')
+
         prg = []
-        for j in range(1):
-            prg.append(
-                Program(
-                    par["ctx"][j],
-                    file.read()))
-        file.close()
+        for j in range(len(par["ctx"])):
+          with open(file) as myfile:
+            prg.append(Program(
+                par["ctx"][j],
+                myfile.read()))
 
         par["par_slices"] = 1
 
@@ -537,27 +543,25 @@ class OperatorCartesianKSpaceStreamed(unittest.TestCase):
     def setUp(self):
         parser = tmpArgs()
         parser.streamed = True
-        parser.devices = [0]
+        parser.devices = -1
         parser.use_GPU = True
 
         par = {}
         pyqmri.pyqmri._setupOCL(parser, par)
         setupPar(par)
         if DTYPE == np.complex128:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_double_streamed.c'))
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels_double_streamed.c')
         else:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_streamed.c'))
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels_streamed.c')
+
         prg = []
-        for j in range(1):
-            prg.append(
-                Program(
-                    par["ctx"][j],
-                    file.read()))
-        file.close()
+        for j in range(len(par["ctx"])):
+          with open(file) as myfile:
+            prg.append(Program(
+                par["ctx"][j],
+                myfile.read()))
 
         par["par_slices"] = 1
         par["mask"] = np.ones((par["dimY"], par["dimX"]),
@@ -629,7 +633,7 @@ class OperatorKspaceSMSCartesianStreamed(unittest.TestCase):
     def setUp(self):
         parser = tmpArgs()
         parser.streamed = True
-        parser.devices = [0]
+        parser.devices = -1
         parser.use_GPU = True
 
         par = {}
@@ -639,23 +643,20 @@ class OperatorKspaceSMSCartesianStreamed(unittest.TestCase):
         par["numofpacks"] = 1
         pyqmri.pyqmri._setupOCL(parser, par)
         setupPar(par)
-
         if DTYPE == np.complex128:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_double_streamed.c'))
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels_double_streamed.c')
         else:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_streamed.c'))
-        prg = []
-        for j in range(1):
-            prg.append(
-                Program(
-                    par["ctx"][j],
-                    file.read()))
-        file.close()
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels_streamed.c')
 
+        prg = []
+        for j in range(len(par["ctx"])):
+          with open(file) as myfile:
+            prg.append(Program(
+                par["ctx"][j],
+                myfile.read()))
+            
         par["par_slices"] = 1
         par["mask"] = np.ones((par["dimY"], par["dimX"]),
                               dtype=DTYPE_real)
@@ -725,27 +726,25 @@ class OperatorRadialKSpaceStreamed(unittest.TestCase):
     def setUp(self):
         parser = tmpArgs()
         parser.streamed = True
-        parser.devices = [0]
+        parser.devices = -1
         parser.use_GPU = True
 
         par = {}
         pyqmri.pyqmri._setupOCL(parser, par)
         setupPar(par)
         if DTYPE == np.complex128:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_double_streamed.c'))
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels_double_streamed.c')
         else:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_streamed.c'))
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels_streamed.c')
+
         prg = []
-        for j in range(1):
-            prg.append(
-                Program(
-                    par["ctx"][j],
-                    file.read()))
-        file.close()
+        for j in range(len(par["ctx"])):
+          with open(file) as myfile:
+            prg.append(Program(
+                par["ctx"][j],
+                myfile.read()))
 
         par["par_slices"] = 1
         par["mask"] = np.ones((par["dimY"], par["dimX"]),

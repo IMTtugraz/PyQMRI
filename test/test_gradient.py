@@ -43,31 +43,32 @@ class GradientTest(unittest.TestCase):
     def setUp(self):
         parser = tmpArgs()
         parser.streamed = False
-        parser.devices = [0]
+        parser.devices = -1
         parser.use_GPU = True
 
         par = {}
         pyqmri.pyqmri._setupOCL(parser, par)
         setupPar(par)
         if DTYPE == np.complex128:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_double.c'))
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels_double.c')
         else:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels.c'))
-        prg = Program(
-            par["ctx"][0],
-            file.read())
-        file.close()
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels.c')
+
+        prg = []
+        for j in range(len(par["ctx"])):
+          with open(file) as myfile:
+            prg.append(Program(
+                par["ctx"][j],
+                myfile.read()))
+        prg = prg[0]
 
         self.grad = pyqmri.operator.OperatorFiniteGradient(
             par, prg,
             DTYPE=DTYPE,
             DTYPE_real=DTYPE_real)
-        self.grad._ratio[0] = 1
-        self.grad._ratio[1] = 1
+
         self.gradin = np.random.randn(par["unknowns"], par["NSlice"],
                                       par["dimY"], par["dimX"]) +\
             1j * np.random.randn(par["unknowns"], par["NSlice"],
@@ -164,39 +165,33 @@ class GradientStreamedTest(unittest.TestCase):
     def setUp(self):
         parser = tmpArgs()
         parser.streamed = True
-        parser.devices = [0]
+        parser.devices = -1
         parser.use_GPU = True
 
         par = {}
         pyqmri.pyqmri._setupOCL(parser, par)
         setupPar(par)
         if DTYPE == np.complex128:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_double_streamed.c'))
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels_double_streamed.c')
         else:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_streamed.c'))
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels_streamed.c')
 
         prg = []
-        for j in range(1):
-            prg.append(
-                Program(
-                    par["ctx"][j],
-                    file.read()))
-        file.close()
+        for j in range(len(par["ctx"])):
+          with open(file) as myfile:
+            prg.append(Program(
+                par["ctx"][j],
+                myfile.read()))
 
-        par["par_slices"] = 5
+
+        par["par_slices"] = 1
 
         self.grad = pyqmri.operator.OperatorFiniteGradientStreamed(
             par, prg,
             DTYPE=DTYPE,
             DTYPE_real=DTYPE_real)
-
-        for j in range(len(self.grad._ratio)):
-            self.grad._ratio[j][0] = 1
-            self.grad._ratio[j][1] = 1
 
         self.gradin = np.random.randn(par["NSlice"], par["unknowns"],
                                       par["dimY"], par["dimX"]) +\

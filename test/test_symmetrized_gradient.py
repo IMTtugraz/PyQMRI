@@ -44,7 +44,7 @@ class SymmetrizedGradientTest(unittest.TestCase):
     def setUp(self):
         parser = tmpArgs()
         parser.streamed = False
-        parser.devices = [0]
+        parser.devices = -1
         parser.use_GPU = True
 
         par = {}
@@ -194,7 +194,7 @@ class SymmetrizedGradientStreamedTest(unittest.TestCase):
     def setUp(self):
         parser = tmpArgs()
         parser.streamed = True
-        parser.devices = [0]
+        parser.devices = -1
         parser.use_GPU = True
 
         par = {}
