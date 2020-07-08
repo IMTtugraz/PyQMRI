@@ -1371,12 +1371,12 @@ class OperatorKspaceSMSStreamed(Operator):
                         self.DTYPE, "C"))
                 self.NUFFT.append(
                     CLnuFFT.create(self.ctx[j],
-                                   self.queue[4*j+i], par,
-                                   radial=trafo,
-                                   SMS=True,
-                                   streamed=True,
-                                   DTYPE=DTYPE,
-                                   DTYPE_real=DTYPE_real))
+                                 self.queue[4*j+i], par,
+                                 radial=trafo,
+                                 SMS=True,
+                                 streamed=True,
+                                 DTYPE=DTYPE,
+                                 DTYPE_real=DTYPE_real))
 
         unknown_shape = (self.NSlice, self.unknowns, self.dimY, self.dimX)
         coil_shape = (self.NSlice, self.NC, self.dimY, self.dimX)
@@ -1660,66 +1660,65 @@ class OperatorFiniteGradient(Operator):
         return tmp_result
 
     def updateRatio(self, inp):
-        pass
-#         x = clarray.to_device(self.queue, inp)
-#         grad = clarray.to_device(
-#             self.queue, np.zeros(x.shape + (4,),
-#                                  dtype=self.DTYPE))
-#         self._ratio = clarray.to_device(
-#             self.queue,
-#             (self._weights *
-#              np.ones(
-#                  self.unknowns)).astype(
-#                      self.DTYPE_real))
-#         grad.add_event(
-#             self.fwd(
-#                 grad,
-#                 x,
-#                 wait_for=grad.events +
-#                 x.events))
-#         x = x.get()
-#         grad = grad.get()
-#         scale = np.reshape(
-#             x, (self.unknowns,
-#                 self.NSlice * self.dimY * self.dimX))
-#         grad = np.reshape(
-#             grad, (self.unknowns,
-#                    self.NSlice *
-#                    self.dimY *
-#                    self.dimX * 4))
-#         print("Total Norm of grad x pre: ", np.sum(np.abs(grad)))
-#         gradnorm = np.sum(np.abs(grad), axis=-1)
-#         print("Norm of grad x pre: ", gradnorm)
-#         gradnorm /= np.sum(gradnorm)/self.unknowns
-#         scale = 1/gradnorm
-#         scale[~np.isfinite(scale)] = 1
-#         # print("Scale: ", scale)
-#         for j in range(x.shape[0])[:self.unknowns_TGV]:
-#             self._ratio[j] = scale[j] * self._weights[j]
-# #        sum_scale = np.sqrt(np.sum(np.abs(
-# #            scale[self.unknowns_TGV:])**2/(1000)))
-#         for j in range(x.shape[0])[self.unknowns_TGV:]:
-#             self._ratio[j] = scale[j] * self._weights[j]
-#         # print("Ratio: ", self._ratio)
-#         x = clarray.to_device(self.queue, x)
-#         grad = clarray.to_device(
-#             self.queue, np.zeros(x.shape + (4,),
-#                                  dtype=self.DTYPE))
-#         grad.add_event(
-#             self.fwd(
-#                 grad,
-#                 x,
-#                 wait_for=grad.events +
-#                 x.events))
-#         x = x.get()
-#         grad = grad.get()
-#         grad = np.reshape(
-#             grad, (self.unknowns,
-#                    self.NSlice *
-#                    self.dimY *
-#                    self.dimX * 4))
-#         print("Norm of grad x post: ",  np.sum(np.abs(grad), axis=-1))
-#         print("Total Norm of grad x post: ",  np.sum(np.abs(grad)))
+        x = clarray.to_device(self.queue, inp)
+        grad = clarray.to_device(
+            self.queue, np.zeros(x.shape + (4,),
+                                 dtype=self.DTYPE))
+        self._ratio = clarray.to_device(
+            self.queue,
+            (self._weights *
+             np.ones(
+                 self.unknowns)).astype(
+                     self.DTYPE_real))
+        grad.add_event(
+            self.fwd(
+                grad,
+                x,
+                wait_for=grad.events +
+                x.events))
+        x = x.get()
+        grad = grad.get()
+        scale = np.reshape(
+            x, (self.unknowns,
+                self.NSlice * self.dimY * self.dimX))
+        grad = np.reshape(
+            grad, (self.unknowns,
+                   self.NSlice *
+                   self.dimY *
+                   self.dimX * 4))
+        print("Total Norm of grad x pre: ", np.sum(np.abs(grad)))
+        gradnorm = np.sum(np.abs(grad), axis=-1)
+        print("Norm of grad x pre: ", gradnorm)
+        gradnorm /= np.sum(gradnorm)/self.unknowns
+        scale = 1/gradnorm
+        scale[~np.isfinite(scale)] = 1
+        # print("Scale: ", scale)
+        for j in range(x.shape[0])[:self.unknowns_TGV]:
+            self._ratio[j] = scale[j] * self._weights[j]
+#        sum_scale = np.sqrt(np.sum(np.abs(
+#            scale[self.unknowns_TGV:])**2/(1000)))
+        for j in range(x.shape[0])[self.unknowns_TGV:]:
+            self._ratio[j] = scale[j] * self._weights[j]
+        # print("Ratio: ", self._ratio)
+        x = clarray.to_device(self.queue, x)
+        grad = clarray.to_device(
+            self.queue, np.zeros(x.shape + (4,),
+                                 dtype=self.DTYPE))
+        grad.add_event(
+            self.fwd(
+                grad,
+                x,
+                wait_for=grad.events +
+                x.events))
+        x = x.get()
+        grad = grad.get()
+        grad = np.reshape(
+            grad, (self.unknowns,
+                   self.NSlice *
+                   self.dimY *
+                   self.dimX * 4))
+        print("Norm of grad x post: ",  np.sum(np.abs(grad), axis=-1))
+        print("Total Norm of grad x post: ",  np.sum(np.abs(grad)))
 
 
 class OperatorFiniteSymGradient(Operator):
@@ -1775,10 +1774,6 @@ class OperatorFiniteSymGradient(Operator):
             wait_for=tmp_result.events + inp.events + wait_for))
         return tmp_result
 
-    def updateRatio(self, inp):
-        for j in range(inp.shape[0]):
-            self._ratio[j] = inp[j]
-
 
 class OperatorFiniteGradientStreamed(Operator):
     def __init__(self, par, prg, DTYPE=np.complex64, DTYPE_real=np.float32):
@@ -1828,48 +1823,35 @@ class OperatorFiniteGradientStreamed(Operator):
         return out
 
     def updateRatio(self, inp):
-        pass
-        # x = np.require(np.swapaxes(inp, 0, 1), requirements='C')
-        # grad = np.zeros(x.shape + (4,), dtype=self.DTYPE)
-        # for i in range(self.num_dev):
-        #     for j in range(x.shape[1]):
-        #         self._ratio[i][j] = 1
-        # self.fwd([grad], [[x]])
-        # grad = np.swapaxes(grad, 0, 1)
+        x = np.require(np.swapaxes(inp, 0, 1), requirements='C')
+        grad = np.zeros(x.shape + (4,), dtype=self.DTYPE)
+        for i in range(self.num_dev):
+            for j in range(x.shape[1]):
+                self._ratio[i][j] = 1
+        self.fwd([grad], [[x]])
+        grad = np.require(np.swapaxes(grad, 0, 1),
+                          requirements='C')
+        del x
+        scale = np.reshape(
+            inp, (self.unknowns,
+                self.NSlice * self.dimY * self.dimX))
+        grad = np.reshape(
+            grad, (self.unknowns,
+                   self.NSlice *
+                   self.dimY *
+                   self.dimX * 4))
+        gradnorm = np.sum(np.abs(grad), axis=-1)
+        gradnorm /= np.sum(gradnorm)
+        scale = 1 / gradnorm
+        scale[~np.isfinite(scale)] = 1
+        sum_scale = 1
 
-        # scale = np.reshape(
-        #     inp, (self.unknowns,
-        #           self.NSlice * self.dimY * self.dimX))
-        # grad = np.reshape(
-        #     grad, (self.unknowns,
-        #            self.NSlice *
-        #            self.dimY *
-        #            self.dimX * 4))
-        # print("Total Norm of grad x pre: ", np.sum(np.abs(grad)))
-        # gradnorm = np.sum(np.abs(grad), axis=-1)
-        # print("Norm of grad x pre: ", gradnorm)
-        # gradnorm /= np.sum(gradnorm)
-        # scale = 1 / gradnorm
-        # scale[~np.isfinite(scale)] = 1
-
-        # for i in range(self.num_dev):
-        #     for j in range(inp.shape[0])[:self.unknowns_TGV]:
-        #         self._ratio[i][j] = scale[j] * self._weights[j]
-        # for i in range(self.num_dev):
-        #     for j in range(inp.shape[0])[self.unknowns_TGV:]:
-        #         self._ratio[i][j] = scale[j] * self._weights[j]
-
-        # grad = np.zeros(x.shape + (4,), dtype=self.DTYPE)
-        # self.fwd([grad], [[x]])
-        # grad = np.swapaxes(grad, 0, 1)
-
-        # grad = np.reshape(
-        #     grad, (self.unknowns,
-        #            self.NSlice *
-        #            self.dimY *
-        #            self.dimX * 4))
-        # print("Norm of grad x post: ",  np.sum(np.abs(grad), axis=-1))
-        # print("Total Norm of grad x post: ",  np.sum(np.abs(grad)))
+        for i in range(self.num_dev):
+            for j in range(inp.shape[0])[:self.unknowns_TGV]:
+                self._ratio[i][j] = scale[j] / sum_scale * self._weights[j]
+        for i in range(self.num_dev):
+            for j in range(inp.shape[0])[self.unknowns_TGV:]:
+                self._ratio[i][j] = scale[j] / sum_scale * self._weights[j]
 
     def _grad(self, outp, inp, par=None, idx=0, idxq=0,
               bound_cond=0, wait_for=[]):
@@ -1960,8 +1942,3 @@ class OperatorFiniteSymGradientStreamed(Operator):
             np.int32(bound_cond),
             self.DTYPE_real(self._dz),
             wait_for=outp.events + inp[0].events + wait_for)
-
-    def updateRatio(self, inp):
-        for i in range(self.num_dev):
-            for j in range(inp[0].shape[0]):
-                self._ratio[i][j] = inp[i][j]

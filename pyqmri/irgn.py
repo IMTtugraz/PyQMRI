@@ -240,13 +240,19 @@ class IRGNOptimizer:
                     requirements='C')
                 self.pdop.model = self.model
                 self.pdop.modelgrad = self.modelgrad
+                self.pdop.jacobi = np.sum(
+                    np.abs(self.modelgrad)**2, 2).astype(DTYPE_real)
             else:
+                self.jacobi = np.sum(
+                    np.abs(self.modelgrad)**2, 1).astype(DTYPE_real)
                 self.modelgrad = clarray.to_device(
                     self._queue[0],
                     self.modelgrad)
                 self.pdop.model = self.model
                 self.pdop.modelgrad = self.modelgrad
-
+                self.pdop.jacobi = clarray.to_device(
+                    self._queue[0],
+                    self.jacobi)
             self._updateIRGNRegPar(result, ign)
             self.pdop.updateRegPar(self.irgn_par)
 

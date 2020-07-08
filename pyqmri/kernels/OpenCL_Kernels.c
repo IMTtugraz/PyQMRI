@@ -160,7 +160,7 @@ __kernel void update_primal(__global float2 *u_new, __global float2 *u, __global
 }
 
 __kernel void update_primal_LM(__global float2 *u_new, __global float2 *u, __global float2 *Kyk,
-                               __global float2 *u_k, __global float2* A,
+                               __global float2 *u_k, __global float* A,
                             const float tau, const float tauinv, __global float* min, __global float* max,
                             __global int* real, const int NUk) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
@@ -169,16 +169,10 @@ __kernel void update_primal_LM(__global float2 *u_new, __global float2 *u, __glo
   size_t k = get_global_id(0);
   size_t i = k*Nx*Ny+Nx*y + x;
   float norm = 0;
-  float2 Asqr = 0.0f;
-  int idx, idx2, idx3, idx4, idx5;
-  float2 tmp;
-
-
 
   for (int uk=0; uk<NUk; uk++)
   {
-     Asqr = (float2)(A[i].x*A[i].x + A[i].y*A[i].y);
-     u_new[i] = (u[i]-tau*Kyk[i]+tauinv*Asqr*u_k[i])/(1+tauinv*Asqr);
+     u_new[i] = (u[i]-tau*Kyk[i]+tauinv*A[i]*u_k[i])/(1+tauinv*A[i]);
 
      if(real[uk]>=1)
      {
