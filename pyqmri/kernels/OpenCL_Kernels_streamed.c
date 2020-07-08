@@ -109,14 +109,18 @@ __kernel void update_primal(__global float2 *u_new, __global float2 *u, __global
   size_t k = get_global_id(0);
   size_t i = k*Nx*Ny*NUk+Nx*y + x;
   float norm = 0;
+  int idx, idx2, idx3, idx4, idx5;
+  float2 tmp;
+
+
 
   for (int uk=0; uk<NUk; uk++)
   {
      u_new[i] = (u[i]-tau*Kyk[i]+tauinv*u_k[i])*div;
 
-     if(real[uk]>0)
+     if(real[uk]>=1)
      {
-         u_new[i].s1 = 0;
+         u_new[i].s1 = 0.0f;
          if (u_new[i].s0<min[uk])
          {
              u_new[i].s0 = min[uk];
@@ -140,7 +144,8 @@ __kernel void update_primal(__global float2 *u_new, __global float2 *u, __global
             u_new[i].s1 *= 1/norm*max[uk];
          }
      }
-     i+=Nx*Ny;
+
+     i += Nx*Ny;
   }
 }
 
@@ -192,7 +197,7 @@ __kernel void update_primal_LM(__global float2 *u_new, __global float2 *u, __glo
          }
      }
 
-     i+=Nx*Ny;
+     i += Nx*Ny;
   }
 }
 
@@ -399,7 +404,7 @@ __kernel void sym_divergence(__global float8 *w, __global float16 *q,
   }
 }
 __kernel void update_Kyk2(__global float8 *w, __global float16 *q, __global float8 *z,
-                       const int NUk, __global float* ratio, const int first, const float dz) {
+                       const int NUk, const int first, const float dz) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
   size_t x = get_global_id(2), y = get_global_id(1);
@@ -464,8 +469,8 @@ __kernel void update_Kyk2(__global float8 *w, __global float16 *q, __global floa
          val_imag.s678 += (float3)(q[i+Nx*Ny*NUk].s9b, q[i+Nx*Ny*NUk].s5);
      }
      // linear step
-     {val_real*=ratio[uk];}
-     {val_imag*=ratio[uk];}
+//     {val_real*=ratio[uk];}
+//     {val_imag*=ratio[uk];}
      //real
      w[i].s024 = -val_real.s012 - val_real.s345 - val_real.s678/dz -z[i].s024;
      //imag

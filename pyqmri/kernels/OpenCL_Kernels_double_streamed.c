@@ -144,6 +144,58 @@ __kernel void update_primal(__global double2 *u_new, __global double2 *u, __glob
   }
 }
 
+__kernel void update_primal_LM(__global double2 *u_new, __global double2 *u, __global double2 *Kyk,
+                               __global double2 *u_k, __global double2* A,
+                            const double tau, const double tauinv, __global double* min, __global double* max,
+                            __global int* real, const int NUk) {
+  size_t Nx = get_global_size(2), Ny = get_global_size(1);
+  size_t NSl = get_global_size(0);
+  size_t x = get_global_id(2), y = get_global_id(1);
+  size_t k = get_global_id(0);
+  size_t i = k*Nx*Ny*NUk+Nx*y + x;
+  double norm = 0;
+  double2 Asqr = 0.0f;
+  int idx, idx2, idx3, idx4, idx5;
+  double2 tmp;
+
+
+
+  for (int uk=0; uk<NUk; uk++)
+  {
+     Asqr = (double2)(A[i].x*A[i].x + A[i].y*A[i].y);
+     u_new[i] = (u[i]-tau*Kyk[i]+tauinv*Asqr*u_k[i])/(1+tauinv*Asqr);
+
+     if(real[uk]>=1)
+     {
+         u_new[i].s1 = 0.0f;
+         if (u_new[i].s0<min[uk])
+         {
+             u_new[i].s0 = min[uk];
+         }
+         if(u_new[i].s0>max[uk])
+         {
+             u_new[i].s0 = max[uk];
+         }
+     }
+     else
+     {
+         norm =  sqrt(pow((double)(u_new[i].s0),(double)(2.0))+pow((double)(u_new[i].s1),(double)(2.0)));
+         if (norm<min[uk])
+         {
+             u_new[i].s0 *= 1/norm*min[uk];
+             u_new[i].s1 *= 1/norm*min[uk];
+         }
+         if(norm>max[uk])
+         {
+            u_new[i].s0 *= 1/norm*max[uk];
+            u_new[i].s1 *= 1/norm*max[uk];
+         }
+     }
+
+     i+=Nx*Ny;
+  }
+}
+
 __kernel void gradient(__global double8 *grad, __global double2 *u, const int NUk, __global double* ratio, const double dz) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
@@ -347,7 +399,7 @@ __kernel void sym_divergence(__global double8 *w, __global double16 *q,
   }
 }
 __kernel void update_Kyk2(__global double8 *w, __global double16 *q, __global double8 *z,
-                       const int NUk, __global double* ratio, const int first,  const double dz) {
+                       const int NUk, __global double* ratio, const int first, const double dz) {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
   size_t x = get_global_id(2), y = get_global_id(1);

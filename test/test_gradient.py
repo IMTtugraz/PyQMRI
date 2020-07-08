@@ -27,7 +27,7 @@ class tmpArgs():
 def setupPar(par):
     par["NScan"] = 10
     par["NC"] = 15
-    par["NSlice"] = 20
+    par["NSlice"] = 10
     par["dimX"] = 128
     par["dimY"] = 128
     par["Nproj"] = 21
@@ -99,7 +99,7 @@ class GradientTest(unittest.TestCase):
         outp = self.grad.fwdoop(inp)
         outp = outp.get()
 
-        np.testing.assert_allclose(outp[..., :-1], grad)
+        np.testing.assert_allclose(outp[..., :-1], grad, rtol=0)
 
     def test_grad_inplace(self):
         gradx = np.zeros_like(self.gradin)
@@ -119,7 +119,7 @@ class GradientTest(unittest.TestCase):
         self.grad.fwd(outp, inp)
         outp = outp.get()
 
-        np.testing.assert_allclose(outp[..., :-1], grad)
+        np.testing.assert_allclose(outp[..., :-1], grad, rtol=0)
 
     def test_adj_outofplace(self):
         inpgrad = clarray.to_device(self.queue, self.gradin)
@@ -137,7 +137,7 @@ class GradientTest(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertAlmostEqual(a, b, places=15)
 
     def test_adj_inplace(self):
         inpgrad = clarray.to_device(self.queue, self.gradin)
@@ -158,7 +158,7 @@ class GradientTest(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertAlmostEqual(a, b, places=15)
 
 
 class GradientStreamedTest(unittest.TestCase):
@@ -220,7 +220,7 @@ class GradientStreamedTest(unittest.TestCase):
 
         outp = self.grad.fwdoop([[self.gradin]])
 
-        np.testing.assert_allclose(outp[..., :-1], grad)
+        np.testing.assert_allclose(outp[..., :-1], grad, rtol=0)
 
     def test_grad_inplace(self):
         gradx = np.zeros_like(self.gradin)
@@ -239,7 +239,7 @@ class GradientStreamedTest(unittest.TestCase):
 
         self.grad.fwd([outp], [[self.gradin]])
 
-        np.testing.assert_allclose(outp[..., :-1], grad)
+        np.testing.assert_allclose(outp[..., :-1], grad, rtol=0)
 
     def test_adj_outofplace(self):
 
@@ -252,7 +252,7 @@ class GradientStreamedTest(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=6)
+        self.assertAlmostEqual(a, b, places=15)
 
     def test_adj_inplace(self):
 
@@ -268,7 +268,7 @@ class GradientStreamedTest(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=6)
+        self.assertAlmostEqual(a, b, places=15)
 
 
 if __name__ == '__main__':

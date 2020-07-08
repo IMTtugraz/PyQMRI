@@ -30,7 +30,7 @@ class CGSolver:
     data.
     """
 
-    def __init__(self, par, NScan=1, trafo=1, SMS=0):
+    def __init__(self, par, NScan=1, trafo=1):
         """
         CG reconstruction Object.
 
@@ -45,7 +45,6 @@ class CGSolver:
           NScan (int): Number of Scan which should be used internally. Do not
             need to be the same number as in par["NScan"]
           trafo (bool): Switch between radial (1) and Cartesian (0) fft.
-          SMS (bool): Simultaneouos Multi Slice. Switch between noraml (0)
           and slice accelerated (1) reconstruction.
         """
         self._NSlice = par["NSlice"]
@@ -67,19 +66,11 @@ class CGSolver:
                                 cl.mem_flags.READ_ONLY |
                                 cl.mem_flags.COPY_HOST_PTR,
                                 hostbuf=par["C"].data)
-        if SMS:
-            self._op = operator.OperatorKspaceSMS(par, self._prg, trafo=trafo)
-            self._tmp_sino = clarray.empty(
-                self._queue,
-                (self._NScan, self._NC,
-                 int(self._NSlice/par["MB"]), par["Nproj"], par["N"]),
-                DTYPE, "C")
-        else:
-            self._op = operator.OperatorKspace(par, self._prg, trafo=trafo)
-            self._tmp_sino = clarray.empty(
-                self._queue,
-                (self._NScan, self._NC,
-                 self._NSlice, par["Nproj"], par["N"]),
+        self._op = operator.OperatorKspace(par, self._prg, trafo=trafo)
+        self._tmp_sino = clarray.empty(
+            self._queue,
+            (self._NScan, self._NC,
+             self._NSlice, par["Nproj"], par["N"]),
                 DTYPE, "C")
         self._FT = self._op.NUFFT.FFT
         self._FTH = self._op.NUFFT.FFTH
@@ -103,8 +94,7 @@ class CGSolver:
         del self._FT
         del self._FTH
 
-    def run(self, data, iters=30, lambd=1e-5, tol=1e-8, guess=None,
-            scan_offset=0):
+    def run(self, data, iters=30, lambd=1e-5, tol=1e-8, guess=None):
         """
         Start the CG reconstruction.
 
@@ -124,7 +114,6 @@ class CGSolver:
           guess (complex64):
             An optional initial guess for the images. If None, zeros is used.
         """
-        self.scan_offset = scan_offset
         if guess is not None:
             x = clarray.to_device(self._queue, guess)
         else:
@@ -147,8 +136,6 @@ class CGSolver:
         p = res
         delta = np.linalg.norm(res.get())**2/np.linalg.norm(b.get())**2
 
-#        print("Initial Residuum: ", delta)
-
         for i in range(iters):
             self._operator_lhs(Ax, p)
             Ax = Ax + lambd*p
@@ -158,13 +145,13 @@ class CGSolver:
             res_new = res - alpha*Ax
             delta = np.linalg.norm(res_new.get())**2 /\
                 np.linalg.norm(b.get())**2
+#            print("Residum: %f" % (delta))
             if delta < tol:
                 print(
                     "Converged after %i iterations to %1.3e." % (i, delta))
                 del Ax, \
                     b, res, p, data, res_new
                 return np.squeeze(x.get())
-#            print("Res after iteration %i: %1.3e." % (i, delta))
             beta = (clarray.vdot(res_new, res_new) /
                     clarray.vdot(res, res)).real.get()
             p = res_new+beta*p
@@ -210,7 +197,7 @@ class CGSolver:
         self._tmp_result.add_event(self.eval_fwd_kspace_cg(
             self._tmp_result, x, wait_for=self._tmp_result.events+x.events))
         self._tmp_sino.add_event(self._FT(
-            self._tmp_sino, self._tmp_result, scan_offset=self.scan_offset))
+            self._tmp_sino, self._tmp_result))
         return self._operator_rhs(out, self._tmp_sino)
 
     def _operator_rhs(self, out, x, wait_for=[]):
@@ -227,8 +214,7 @@ class CGSolver:
             A List of PyOpenCL events to wait for.
         """
         self._tmp_result.add_event(self._FTH(
-            self._tmp_result, x, wait_for=wait_for+x.events,
-            scan_offset=self.scan_offset))
+            self._tmp_result, x, wait_for=wait_for+x.events))
         return self._prg.operator_ad_cg(self._queue,
                                         (self._NSlice, self._dimY,
                                          self._dimX),
@@ -288,7 +274,7 @@ class PDBaseSolver:
         self.display_iterations = irgn_par["display_iterations"]
         self.mu = 1 / self.delta
         self.tau = tau
-        self.beta_line = 1#1e10#1e12
+        self.beta_line = 400
         self.theta_line = np.float32(1.0)
         self.unknowns_TGV = par["unknowns_TGV"]
         self.unknowns_H1 = par["unknowns_H1"]
@@ -318,9 +304,9 @@ class PDBaseSolver:
             linops,
             model,
             reg_type='TGV',
-            SMS=False,
             streamed=False,
-            imagespace=False):
+            imagespace=False,
+            SMS=False):
         """
         Generate a PDSolver object.
 
@@ -353,30 +339,17 @@ class PDBaseSolver:
         """
         if reg_type == 'TV':
             if streamed:
-                if SMS:
-                    pdop = PDSolverStreamedTVSMS(
-                        par,
-                        irgn_par,
-                        queue,
-                        np.float32(1 / np.sqrt(8)),
-                        init_fval,
-                        prg,
-                        linops,
-                        coils,
-                        model,
-                        imagespace=imagespace)
-                else:
-                    pdop = PDSolverStreamedTV(
-                        par,
-                        irgn_par,
-                        queue,
-                        np.float32(1 / np.sqrt(8)),
-                        init_fval,
-                        prg,
-                        linops,
-                        coils,
-                        model,
-                        imagespace=imagespace)
+                pdop = PDSolverStreamedTV(
+                    par,
+                    irgn_par,
+                    queue,
+                    np.float32(1 / np.sqrt(8)),
+                    init_fval,
+                    prg,
+                    linops,
+                    coils,
+                    model,
+                    imagespace=imagespace)
             else:
                 pdop = PDSolverTV(par,
                                   irgn_par,
@@ -390,30 +363,17 @@ class PDBaseSolver:
         elif reg_type == 'TGV':
             L = np.float32(0.5 * (18.0 + np.sqrt(33)))
             if streamed:
-                if SMS:
-                    pdop = PDSolverStreamedTGVSMS(
-                        par,
-                        irgn_par,
-                        queue,
-                        np.float32(1 / np.sqrt(L)),
-                        init_fval,
-                        prg,
-                        linops,
-                        coils,
-                        model,
-                        imagespace=imagespace)
-                else:
-                    pdop = PDSolverStreamedTGV(
-                        par,
-                        irgn_par,
-                        queue,
-                        np.float32(1 / np.sqrt(L)),
-                        init_fval,
-                        prg,
-                        linops,
-                        coils,
-                        model,
-                        imagespace=imagespace)
+                pdop = PDSolverStreamedTGV(
+                    par,
+                    irgn_par,
+                    queue,
+                    np.float32(1 / np.sqrt(L)),
+                    init_fval,
+                    prg,
+                    linops,
+                    coils,
+                    model,
+                    imagespace=imagespace)
             else:
                 pdop = PDSolverTGV(
                     par,
@@ -450,6 +410,7 @@ class PDBaseSolver:
             Number of primal-dual iterations to run
         """
         self._updateConstraints()
+
         tau = self.tau
         tau_new = np.float32(0)
 
@@ -494,10 +455,8 @@ class PDBaseSolver:
                 )
 
             beta_new = beta_line * (1 + self.mu * tau)
-            # tau_new = tau * np.sqrt(beta_line / beta_new)
-            tau_new = tau * np.sqrt(beta_line / beta_new*(1 + theta_line))
+            tau_new = tau * np.sqrt(beta_line / beta_new * (1 + theta_line))
             beta_line = beta_new
-            # tau_new = tau*np.sqrt(1+theta_line)
 
             while True:
                 theta_line = tau_new / tau
@@ -521,8 +480,7 @@ class PDBaseSolver:
                     tau_new = tau_new * mu_line
 
             tau = tau_new
-            # self.beta_line = beta_line
-            # self.tau = tau
+
             for j, k in zip(primal_vars_new,
                             tmp_results_adjoint_new):
                 (primal_vars[j],
@@ -584,11 +542,10 @@ class PDBaseSolver:
                 gap_old = gap
                 sys.stdout.write(
                     "Iteration: %04d ---- Primal: %2.2e, "
-                    "Dual: %2.2e, Gap: %2.2e, Beta: %2.2e \r" %
+                    "Dual: %2.2e, Gap: %2.2e \r" %
                     (i, 1000*primal / self._fval_init,
                      1000*dual / self._fval_init,
-                     1000*gap / self._fval_init,
-                     beta_line))
+                     1000*gap / self._fval_init))
                 sys.stdout.flush()
 
         return primal_vars
@@ -802,10 +759,7 @@ class PDBaseSolver:
             self._queue[4*idx+idxq],
             self._kernelsize, None,
             outp.data, inp[0].data, inp[1].data,
-            np.int32(self.unknowns),
-            par[idx].data,
-            np.int32(bound_cond),
-            np.float32(self.dz),
+            np.int32(self.unknowns), np.int32(bound_cond), np.float32(self.dz),
             wait_for=outp.events + inp[0].events + inp[1].events+wait_for)
 
     def update_r(self, outp, inp, par=None, idx=0, idxq=0,
@@ -1249,8 +1203,7 @@ class PDSolverTGV(PDBaseSolver):
         out_adj["Kyk2"].add_event(
             self.update_Kyk2(
                 outp=out_adj["Kyk2"],
-                inp=(in_dual["z2"], in_dual["z1"]),
-                par=[self.symgrad_op._ratio]))
+                inp=(in_dual["z2"], in_dual["z1"])))
 
         out_fwd["Ax"].add_event(self._op.fwd(
             out_fwd["Ax"], [in_primal["x"], self._coils, self.modelgrad]))
@@ -1344,8 +1297,7 @@ class PDSolverTGV(PDBaseSolver):
         out_adj["Kyk2"].add_event(
             self.update_Kyk2(
                 outp=out_adj["Kyk2"],
-                inp=(out_dual["z2"], out_dual["z1"]),
-                par=[self.symgrad_op._ratio]))
+                inp=(out_dual["z2"], out_dual["z1"])))
 
         ynorm = (
             (
@@ -1476,7 +1428,7 @@ class PDSolverStreamed(PDBaseSolver):
             self._expdim_dat = 2
             self._expdim_C = 1
 
-    def _setup_reg_tmp_arrays(self, reg_type, SMS=False):
+    def _setup_reg_tmp_arrays(self, reg_type):
         if reg_type == 'TV':
             pass
         elif reg_type == 'TGV':
@@ -1488,7 +1440,7 @@ class PDSolverStreamed(PDBaseSolver):
                 dtype=DTYPE)
         else:
             raise NotImplementedError("Not implemented")
-        self._setupstreamingops(reg_type, SMS=SMS)
+        self._setupstreamingops(reg_type)
 
         self.r = np.zeros(
                 self.data_shape,
@@ -1497,19 +1449,16 @@ class PDSolverStreamed(PDBaseSolver):
             self.grad_shape,
             dtype=DTYPE)
 
-    def _setupstreamingops(self, reg_type, SMS=False):
-        if not SMS:
-            self.stream_initial_1 = self._defineoperator(
-                [],
-                [],
-                [[]],
-                reverse_dir=True)
-            self.stream_initial_1 += self._op.fwdstr
-            self.stream_initial_1 += self._op.adjstrKyk1
-            if reg_type == 'TGV':
-                self.stream_initial_1 += self.symgrad_op._stream_symgrad
-
+    def _setupstreamingops(self, reg_type):
+        self.stream_initial_1 = self._defineoperator(
+            [],
+            [],
+            [[]],
+            reverse_dir=True)
+        self.stream_initial_1 += self._op.fwdstr
+        self.stream_initial_1 += self._op.adjstrKyk1
         if reg_type == 'TGV':
+            self.stream_initial_1 += self.symgrad_op._stream_symgrad
             self.stream_Kyk2 = self._defineoperator(
                 [self.update_Kyk2],
                 [self.grad_shape],
@@ -1542,9 +1491,8 @@ class PDSolverStreamed(PDBaseSolver):
         self.update_primal_1 += self.grad_op._stream_grad
         self.update_primal_1.connectouttoin(0, (1, 0))
 
-        if not SMS:
-            self.update_primal_1 += self._op.fwdstr
-            self.update_primal_1.connectouttoin(0, (2, 0))
+        self.update_primal_1 += self._op.fwdstr
+        self.update_primal_1.connectouttoin(0, (2, 0))
 
         if reg_type == 'TGV':
             self.stream_update_v = self._defineoperator(
@@ -1581,40 +1529,27 @@ class PDSolverStreamed(PDBaseSolver):
                   self. grad_shape]],
                 reverse_dir=True,
                 posofnorm=[False])
-        if not SMS:
-            self.stream_update_r = self._defineoperator(
-                [self.update_r],
-                [self.data_shape],
-                [[self.data_shape,
-                  self.data_shape,
-                  self.data_shape,
-                  self.data_shape]])
-            self.update_dual_1 = self._defineoperator(
-                [],
-                [],
-                [[]],
-                reverse_dir=True,
-                posofnorm=[False, False, True])
 
-            self.update_dual_1 += self.stream_update_z1
-            self.update_dual_1 += self.stream_update_r
-            self.update_dual_1 += self._op.adjstrKyk1
-            self.update_dual_1.connectouttoin(0, (2, 1))
-            self.update_dual_1.connectouttoin(1, (2, 0))
-            del self.stream_update_z1, self.stream_update_r, self.stream_primal
+        self.stream_update_r = self._defineoperator(
+            [self.update_r],
+            [self.data_shape],
+            [[self.data_shape,
+              self.data_shape,
+              self.data_shape,
+              self.data_shape]])
+        self.update_dual_1 = self._defineoperator(
+            [],
+            [],
+            [[]],
+            reverse_dir=True,
+            posofnorm=[False, False, True])
 
-        else:
-            self.stream_update_r = self._defineoperator(
-                [self.update_r],
-                [self.data_shape],
-                [[self.data_shape,
-                  self.data_shape,
-                  self.data_shape,
-                  self.data_shape]],
-                slices=self.packs*self.numofpacks,
-                reverse_dir=True,
-                posofnorm=[False])
-            del self.stream_primal
+        self.update_dual_1 += self.stream_update_z1
+        self.update_dual_1 += self.stream_update_r
+        self.update_dual_1 += self._op.adjstrKyk1
+        self.update_dual_1.connectouttoin(0, (2, 1))
+        self.update_dual_1.connectouttoin(1, (2, 0))
+        del self.stream_update_z1, self.stream_update_r, self.stream_primal
 
         if reg_type == 'TGV':
             self.stream_update_z2 = self._defineoperator(
@@ -1659,18 +1594,8 @@ class PDSolverStreamed(PDBaseSolver):
 class PDSolverStreamedTGV(PDSolverStreamed):
     """Streamed TGV optimization."""
 
-    def __init__(self,
-                 par,
-                 irgn_par,
-                 queue,
-                 tau,
-                 fval,
-                 prg,
-                 linop,
-                 coils,
-                 model,
-                 imagespace=False,
-                 SMS=False):
+    def __init__(self, par, irgn_par, queue, tau, fval, prg,
+                 linop, coils, model, imagespace=False):
 
         super().__init__(
             par,
@@ -1682,7 +1607,7 @@ class PDSolverStreamedTGV(PDSolverStreamed):
             linop,
             coils,
             model,
-            imagespace=imagespace)
+            imagespace=False)
 
         self.alpha = irgn_par["gamma"]
         self.beta = irgn_par["gamma"] * 2
@@ -1692,7 +1617,7 @@ class PDSolverStreamedTGV(PDSolverStreamed):
 
         self.symgrad_shape = self.unknown_shape + (8,)
 
-        self._setup_reg_tmp_arrays("TGV", SMS=SMS)
+        self._setup_reg_tmp_arrays("TGV")
 
     def _setupVariables(self, inp, data):
 
@@ -1774,9 +1699,7 @@ class PDSolverStreamedTGV(PDSolverStreamed):
             [out_fwd["gradx"],
              out_adj["Kyk2"]],
             [[in_primal["x"]],
-             [in_dual["z2"], in_dual["z1"], []]],
-            [[],
-             self.symgrad_op._ratio])
+             [in_dual["z2"], in_dual["z1"], []]])
 
     def _updatePrimal(self,
                       out_primal, out_fwd,
@@ -1838,7 +1761,7 @@ class PDSolverStreamedTGV(PDSolverStreamed):
               in_precomp_fwd["symgradx"]],
              [[], out_dual["z1"], in_precomp_adj["Kyk2"]]],
             [[beta*tau, theta, self.beta],
-             self.symgrad_op._ratio])
+             []])
 
         ynorm = np.abs(ynorm1 + ynorm2)**(1/2)
         lhs = np.sqrt(beta) * tau * np.abs(lhs1 + lhs2)**(1/2)
@@ -1901,136 +1824,11 @@ class PDSolverStreamedTGV(PDSolverStreamed):
         return primal_new, dual, gap
 
 
-class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
-    """Streamed TGV optimization for SMS data."""
-
-    def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model, imagespace=False):
-
-        self.packs = par["packs"]
-        self.numofpacks = par["numofpacks"]
-        self.data_shape = (self.packs*self.numofpacks, par["NScan"],
-                           par["NC"], par["dimY"], par["dimX"])
-        self.data_shape_T = (par["NScan"], par["NC"],
-                             self.packs*self.numofpacks,
-                             par["dimY"], par["dimX"])
-        self._expdim_dat = 1
-        self._expdim_C = 0
-
-        super().__init__(
-            par,
-            irgn_par,
-            queue,
-            tau,
-            fval,
-            prg,
-            linop,
-            coils,
-            model,
-            imagespace=imagespace,
-            SMS=True)
-
-    def _updateInitial(self,
-                       out_fwd, out_adj,
-                       in_primal, in_dual):
-        out_fwd["Ax"] = self._op.fwdoop(
-            [[in_primal["x"], self._coils, self.modelgrad]])
-        self._op.adjKyk1(
-            [out_adj["Kyk1"]],
-            [[in_dual["r"], in_dual["z1"], self._coils, self.modelgrad, []]],
-            [[self.grad_op._ratio]])
-
-        self.symgrad_op.fwd(
-            [out_fwd["symgradx"]],
-            [[in_primal["v"]]])
-
-        self.stream_initial_2.eval(
-            [out_fwd["gradx"],
-             out_adj["Kyk1"]],
-            [[in_primal["x"]],
-             [in_dual["z2"], in_dual["z1"], []]],
-            [[],
-             self.symgrad_op._ratio])
-
-    def _updatePrimal(self,
-                      out_primal, out_fwd,
-                      in_primal, in_precomp_adj,
-                      tau):
-        self.update_primal_1.eval(
-            [out_primal["x"],
-             out_fwd["gradx"]],
-            [[in_primal["x"],
-              in_precomp_adj["Kyk1"],
-              in_primal["xk"],
-              self.modelgrad],
-             []],
-            [[tau, self.delta],
-             []])
-        out_fwd["Ax"] = self._op.fwdoop(
-            [[out_primal["x"], self._coils, self.modelgrad]])
-
-        self.update_primal_2.eval(
-            [out_primal["v"],
-             out_fwd["symgradx"]],
-            [[in_primal["v"], in_precomp_adj["Kyk2"]],
-             []],
-            [[tau],
-             []])
-
-    def _updateDual(self,
-                    out_dual, out_adj,
-                    in_primal,
-                    in_primal_new,
-                    in_dual,
-                    in_precomp_fwd,
-                    in_precomp_fwd_new,
-                    in_precomp_adj,
-                    data,
-                    beta,
-                    tau,
-                    theta):
-
-        (lhs1, ynorm1) = self.stream_update_z1.evalwithnorm(
-            [out_dual["z1"]],
-            [[in_dual["z1"],
-              in_precomp_fwd_new["gradx"],
-              in_precomp_fwd["gradx"],
-              in_primal_new["v"], in_primal["v"]]],
-            [[beta*tau, theta,
-              self.alpha, self.omega]])
-        (lhs2, ynorm2) = self.stream_update_r.evalwithnorm(
-            [out_dual["r"]],
-            [[in_dual["r"], in_precomp_fwd_new["Ax"],
-              in_precomp_fwd["Ax"], data]],
-            [[beta*tau, theta,
-              self.lambd]])
-        (lhs3, ynorm3) = self._op.adjKyk1(
-            [out_adj["Kyk1"]],
-            [[out_dual["r"],
-              out_dual["z1"],
-              self._coils, self.modelgrad, in_precomp_adj["Kyk1"]]],
-            [[self.grad_op._ratio]])
-
-        (lhs4, ynorm4) = self.update_dual_2.evalwithnorm(
-            [out_dual["z2"],
-             out_adj["Kyk2"]],
-            [[in_dual["z2"], in_precomp_fwd_new["symgradx"],
-              in_precomp_fwd["symgradx"]],
-             [[], out_dual["z1"], in_precomp_adj["Kyk2"]]],
-            [[beta*tau, theta, self.beta],
-             self.symgrad_op._ratio])
-
-        ynorm = np.abs(ynorm1+ynorm2+ynorm3+ynorm4)**(1/2)
-        lhs = np.sqrt(beta)*tau*np.abs(lhs1+lhs2+lhs3+lhs4)**(1/2)
-
-        return lhs, ynorm
-
-
 class PDSolverStreamedTV(PDSolverStreamed):
     """Streamed TV optimization."""
 
     def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model, imagespace=False, SMS=False):
+                 linop, coils, model, imagespace=False):
 
         super().__init__(
             par,
@@ -2042,7 +1840,7 @@ class PDSolverStreamedTV(PDSolverStreamed):
             linop,
             coils,
             model,
-            imagespace=imagespace)
+            imagespace=False)
 
         self.alpha = irgn_par["gamma"]
         self.beta = irgn_par["gamma"] * 2
@@ -2052,7 +1850,7 @@ class PDSolverStreamedTV(PDSolverStreamed):
 
         self.symgrad_shape = self.unknown_shape + (8,)
 
-        self._setup_reg_tmp_arrays("TV", SMS=SMS)
+        self._setup_reg_tmp_arrays("TV")
 
     def _setupVariables(self, inp, data):
 
@@ -2214,103 +2012,3 @@ class PDSolverStreamedTV(PDSolverStreamed):
                 ).real
         gap = np.abs(primal_new - dual)
         return primal_new, dual, gap
-
-
-class PDSolverStreamedTVSMS(PDSolverStreamedTV):
-    """Streamed TGV optimization for SMS data."""
-
-    def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model, imagespace=False):
-
-
-
-        self.packs = par["packs"]
-        self.numofpacks = par["numofpacks"]
-        self.data_shape = (self.packs*self.numofpacks, par["NScan"],
-                           par["NC"], par["dimY"], par["dimX"])
-        self.data_shape_T = (par["NScan"], par["NC"],
-                             self.packs*self.numofpacks,
-                             par["dimY"], par["dimX"])
-
-        self._setupstreamingops = self._setupstreamingopsSMS
-
-        self._expdim_dat = 1
-        self._expdim_C = 0
-
-        super().__init__(
-            par,
-            irgn_par,
-            queue,
-            tau,
-            fval,
-            prg,
-            linop,
-            coils,
-            model,
-            imagespace=imagespace,
-            SMS=True)
-
-    def _updateInitial(self,
-                       out_fwd, out_adj,
-                       in_primal, in_dual):
-        out_fwd["Ax"] = self._op.fwdoop(
-            [[in_primal["x"], self._coils, self.modelgrad]])
-        self._op.adjKyk1(
-            [out_adj["Kyk1"]],
-            [[in_dual["r"], in_dual["z1"], self._coils, self.modelgrad, []]],
-            [[self.grad_op._ratio]])
-
-    def _updatePrimal(self,
-                      out_primal, out_fwd,
-                      in_primal, in_precomp_adj,
-                      tau):
-        self.update_primal_1.eval(
-            [out_primal["x"],
-             out_fwd["gradx"]],
-            [[in_primal["x"],
-              in_precomp_adj["Kyk1"],
-              in_primal["xk"],
-              self.modelgrad],
-             []],
-            [[tau, self.delta],
-             []])
-        out_fwd["Ax"] = self._op.fwdoop(
-            [[out_primal["x"], self._coils, self.modelgrad]])
-
-    def _updateDual(self,
-                    out_dual, out_adj,
-                    in_primal,
-                    in_primal_new,
-                    in_dual,
-                    in_precomp_fwd,
-                    in_precomp_fwd_new,
-                    in_precomp_adj,
-                    data,
-                    beta,
-                    tau,
-                    theta):
-
-        (lhs1, ynorm1) = self.stream_update_z1.evalwithnorm(
-            [out_dual["z1"]],
-            [[in_dual["z1"],
-              in_precomp_fwd_new["gradx"],
-              in_precomp_fwd["gradx"]]],
-            [[beta*tau, theta,
-              self.alpha, self.omega]])
-        (lhs2, ynorm2) = self.stream_update_r.evalwithnorm(
-            [out_dual["r"]],
-            [[in_dual["r"], in_precomp_fwd_new["Ax"],
-              in_precomp_fwd["Ax"], data]],
-            [[beta*tau, theta,
-              self.lambd]])
-        (lhs3, ynorm3) = self._op.adjKyk1(
-            [out_adj["Kyk1"]],
-            [[out_dual["r"],
-              out_dual["z1"],
-              self._coils, self.modelgrad, in_precomp_adj["Kyk1"]]],
-            [[self.grad_op._ratio]])
-
-        ynorm = np.abs(ynorm1+ynorm2+ynorm3)**(1/2)
-        lhs = np.sqrt(beta)*tau*np.abs(lhs1+lhs2+lhs3)**(1/2)
-
-        return lhs, ynorm

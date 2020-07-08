@@ -225,7 +225,9 @@ class IRGNOptimizer:
                 self.model.execute_gradient(result))
 
             self._balanceModelGradients(result)
-            # self.pdop.grad_op.updateRatio(result)
+            self.pdop.grad_op.updateRatio(result)
+            # if self.reg_type == 'TGV':
+            #     self.pdop.symgrad_op.updateRatio(self.pdop.grad_op._ratio)
 
             self.step_val = np.nan_to_num(self.model.execute_forward(result))
 

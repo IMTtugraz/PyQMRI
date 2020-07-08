@@ -38,7 +38,7 @@ def setupPar(par):
     par["dz"] = 1
     par["weights"] = np.array([1, 1])
     par["overlap"] = 1
-    file = h5py.File('./test/smalltest.h5')
+    file = h5py.File('./test/smalltest.h5', 'r')
 
     par["traj"] = file['real_traj'][()].astype(DTYPE) + \
         1j*file['imag_traj'][()].astype(DTYPE)
@@ -304,10 +304,10 @@ class OperatorKspaceSMSCartesian(unittest.TestCase):
             1j * np.random.randn(par["NScan"], par["NC"], par["packs"],
                                  par["dimY"], par["dimX"])
 
-        self.model_gradient = np.random.randn(par["NSlice"], par["unknowns"], 
+        self.model_gradient = np.random.randn(par["NSlice"], par["unknowns"],
                                               par["NScan"],
                                               par["dimY"], par["dimX"]) + \
-            1j * np.random.randn(par["NSlice"], par["unknowns"], 
+            1j * np.random.randn(par["NSlice"], par["unknowns"],
                                  par["NScan"],
                                  par["dimY"], par["dimX"])
         self.C = np.random.randn(par["NC"], par["NSlice"],
@@ -656,7 +656,7 @@ class OperatorKspaceSMSCartesianStreamed(unittest.TestCase):
             prg.append(Program(
                 par["ctx"][j],
                 myfile.read()))
-            
+
         par["par_slices"] = 1
         par["mask"] = np.ones((par["dimY"], par["dimX"]),
                               dtype=DTYPE_real)
