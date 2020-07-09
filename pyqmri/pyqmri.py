@@ -259,7 +259,6 @@ def _estScaleNorm(myargs, par, images, data):
         ind[int(par["N"]/2-center):int(par["N"]/2+center)] = 1
         inds = np.fft.fftshift(ind)
         dims = tuple(range(data.ndim - 3)) + (-2,)
-        print(dims)
         sig = np.max(
             np.sum(data[..., ind], dims) *
             np.conj(np.sum(data[..., ind], dims)))
@@ -458,7 +457,7 @@ def _start_recon(myargs):
                   int(NSlice_fa/2)-int(np.floor((reco_Slices)/2)):
                   int(NSlice_fa/2)+int(np.ceil(reco_Slices/2)),
                   ...]
-        par["fa_corr"][par["fa_corr"] == 0] = 0
+        par["fa_corr"][par["fa_corr"] == 0] = 1
         par["fa_corr"] = par["fa_corr"][
            ...,
            int(dimreduction/2):par["fa_corr"].shape[-2]-int(dimreduction/2),
