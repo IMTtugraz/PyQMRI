@@ -1089,7 +1089,7 @@ class PDSolverTV(PDBaseSolver):
 
         dual = (
             -self.delta / 2 * clarray.vdot(
-                - in_precomp_adj["Kyk1"]/self.jacobi,
+                - in_precomp_adj["Kyk1"],
                 - in_precomp_adj["Kyk1"])
             - clarray.vdot(
                 in_primal["xk"],
@@ -1401,7 +1401,7 @@ class PDSolverTGV(PDBaseSolver):
 
         dual = (
             -self.delta / 2 * clarray.vdot(
-                - in_precomp_adj["Kyk1"]/self.jacobi,
+                - in_precomp_adj["Kyk1"]*self.jacobi,
                 - in_precomp_adj["Kyk1"])
             - clarray.vdot(
                 in_primal["xk"],

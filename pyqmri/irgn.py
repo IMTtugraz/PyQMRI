@@ -242,9 +242,11 @@ class IRGNOptimizer:
                 self.pdop.modelgrad = self.modelgrad
                 self.pdop.jacobi = np.sum(
                     np.abs(self.modelgrad)**2, 2).astype(DTYPE_real)
+                self.pdop.jacobi[self.pdop.jacobi == 0] = 1e-8
             else:
                 self.jacobi = np.sum(
                     np.abs(self.modelgrad)**2, 1).astype(DTYPE_real)
+                self.jacobi[self.jacobi == 0] = 1e-8
                 self.modelgrad = clarray.to_device(
                     self._queue[0],
                     self.modelgrad)
