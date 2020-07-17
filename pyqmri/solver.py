@@ -288,7 +288,7 @@ class PDBaseSolver:
         self.display_iterations = irgn_par["display_iterations"]
         self.mu = 1 / self.delta
         self.tau = tau
-        self.beta_line = 1
+        self.beta_line = 1e3#1e10#1e12
         self.theta_line = np.float32(1.0)
         self.unknowns_TGV = par["unknowns_TGV"]
         self.unknowns_H1 = par["unknowns_H1"]
@@ -450,7 +450,6 @@ class PDBaseSolver:
             Number of primal-dual iterations to run
         """
         self._updateConstraints()
-
         tau = self.tau
         tau_new = np.float32(0)
 
@@ -495,8 +494,10 @@ class PDBaseSolver:
                 )
 
             beta_new = beta_line * (1 + self.mu * tau)
-            tau_new = tau * np.sqrt(beta_line / beta_new * (1 + theta_line))
+            # tau_new = tau * np.sqrt(beta_line / beta_new)
+            tau_new = tau * np.sqrt(beta_line / beta_new*(1 + theta_line))
             beta_line = beta_new
+            # tau_new = tau*np.sqrt(1+theta_line)
 
             while True:
                 theta_line = tau_new / tau
@@ -520,8 +521,8 @@ class PDBaseSolver:
                     tau_new = tau_new * mu_line
 
             tau = tau_new
-            self.beta_line = beta_line
-            self.tau = tau
+            # self.beta_line = beta_line
+            # self.tau = tau
             for j, k in zip(primal_vars_new,
                             tmp_results_adjoint_new):
                 (primal_vars[j],
@@ -587,7 +588,7 @@ class PDBaseSolver:
                     (i, 1000*primal / self._fval_init,
                      1000*dual / self._fval_init,
                      1000*gap / self._fval_init,
-                     self.beta_line))
+                     beta_line))
                 sys.stdout.flush()
 
         return primal_vars
@@ -801,7 +802,10 @@ class PDBaseSolver:
             self._queue[4*idx+idxq],
             self._kernelsize, None,
             outp.data, inp[0].data, inp[1].data,
-            np.int32(self.unknowns), np.int32(bound_cond), np.float32(self.dz),
+            np.int32(self.unknowns),
+            par[idx].data,
+            np.int32(bound_cond),
+            np.float32(self.dz),
             wait_for=outp.events + inp[0].events + inp[1].events+wait_for)
 
     def update_r(self, outp, inp, par=None, idx=0, idxq=0,
@@ -984,7 +988,7 @@ class PDSolverTV(PDBaseSolver):
         out_primal["x"].add_event(self.update_primal(
             outp=out_primal["x"],
             inp=(in_primal["x"], in_precomp_adj["Kyk1"],
-                 in_primal["xk"], self.modelgrad),
+                 in_primal["xk"], self.jacobi),
             par=(tau, self.delta)))
 
         out_fwd["gradx"].add_event(
@@ -1078,7 +1082,7 @@ class PDSolverTV(PDBaseSolver):
                 abs(in_precomp_fwd["gradx"])
                 )
             + 1 / (2 * self.delta) * clarray.vdot(
-                in_primal["x"] - in_primal["xk"],
+                (in_primal["x"] - in_primal["xk"])*self.jacobi,
                 in_primal["x"] - in_primal["xk"]
                 )
             ).real
@@ -1245,7 +1249,8 @@ class PDSolverTGV(PDBaseSolver):
         out_adj["Kyk2"].add_event(
             self.update_Kyk2(
                 outp=out_adj["Kyk2"],
-                inp=(in_dual["z2"], in_dual["z1"])))
+                inp=(in_dual["z2"], in_dual["z1"]),
+                par=[self.symgrad_op._ratio]))
 
         out_fwd["Ax"].add_event(self._op.fwd(
             out_fwd["Ax"], [in_primal["x"], self._coils, self.modelgrad]))
@@ -1261,7 +1266,7 @@ class PDSolverTGV(PDBaseSolver):
         out_primal["x"].add_event(self.update_primal(
             outp=out_primal["x"],
             inp=(in_primal["x"], in_precomp_adj["Kyk1"],
-                 in_primal["xk"], self.modelgrad),
+                 in_primal["xk"], self.jacobi),
             par=(tau, self.delta)))
 
         out_primal["v"].add_event(self.update_v(
@@ -1339,7 +1344,8 @@ class PDSolverTGV(PDBaseSolver):
         out_adj["Kyk2"].add_event(
             self.update_Kyk2(
                 outp=out_adj["Kyk2"],
-                inp=(out_dual["z2"], out_dual["z1"])))
+                inp=(out_dual["z2"], out_dual["z1"]),
+                par=[self.symgrad_op._ratio]))
 
         ynorm = (
             (
@@ -1388,14 +1394,14 @@ class PDSolverTGV(PDBaseSolver):
                 abs(in_precomp_fwd["symgradx"])
                 )
             + 1 / (2 * self.delta) * clarray.vdot(
-                in_primal["x"] - in_primal["xk"],
+                (in_primal["x"] - in_primal["xk"])*self.jacobi,
                 in_primal["x"] - in_primal["xk"]
                 )
             ).real
 
         dual = (
             -self.delta / 2 * clarray.vdot(
-                - in_precomp_adj["Kyk1"],
+                - in_precomp_adj["Kyk1"]*self.jacobi,
                 - in_precomp_adj["Kyk1"])
             - clarray.vdot(
                 in_primal["xk"],
@@ -1525,7 +1531,7 @@ class PDSolverStreamed(PDBaseSolver):
             [[self.unknown_shape,
               self.unknown_shape,
               self.unknown_shape,
-              self.model_deriv_shape]])
+              self.unknown_shape]])
 
         self.update_primal_1 = self._defineoperator(
             [],
@@ -1768,7 +1774,9 @@ class PDSolverStreamedTGV(PDSolverStreamed):
             [out_fwd["gradx"],
              out_adj["Kyk2"]],
             [[in_primal["x"]],
-             [in_dual["z2"], in_dual["z1"], []]])
+             [in_dual["z2"], in_dual["z1"], []]],
+            [[],
+             self.symgrad_op._ratio])
 
     def _updatePrimal(self,
                       out_primal, out_fwd,
@@ -1781,7 +1789,7 @@ class PDSolverStreamedTGV(PDSolverStreamed):
             [[in_primal["x"],
               in_precomp_adj["Kyk1"],
               in_primal["xk"],
-              self.modelgrad],
+              self.jacobi],
              [],
              [[], self._coils, self.modelgrad]],
             [[tau, self.delta],
@@ -1830,7 +1838,7 @@ class PDSolverStreamedTGV(PDSolverStreamed):
               in_precomp_fwd["symgradx"]],
              [[], out_dual["z1"], in_precomp_adj["Kyk2"]]],
             [[beta*tau, theta, self.beta],
-             []])
+             self.symgrad_op._ratio])
 
         ynorm = np.abs(ynorm1 + ynorm2)**(1/2)
         lhs = np.sqrt(beta) * tau * np.abs(lhs1 + lhs2)**(1/2)
@@ -1855,14 +1863,14 @@ class PDSolverStreamedTGV(PDSolverStreamed):
                 abs(in_precomp_fwd["symgradx"])
                 )
             + 1 / (2 * self.delta) * np.vdot(
-                in_primal["x"] - in_primal["xk"],
+                (in_primal["x"] - in_primal["xk"])*self.jacobi,
                 in_primal["x"] - in_primal["xk"]
                 )
             ).real
 
         dual = (
             -self.delta / 2 * np.vdot(
-                - in_precomp_adj["Kyk1"],
+                - in_precomp_adj["Kyk1"]/self.jacobi,
                 - in_precomp_adj["Kyk1"])
             - np.vdot(
                 in_primal["xk"],
@@ -1940,7 +1948,9 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
             [out_fwd["gradx"],
              out_adj["Kyk1"]],
             [[in_primal["x"]],
-             [in_dual["z2"], in_dual["z1"], []]])
+             [in_dual["z2"], in_dual["z1"], []]],
+            [[],
+             self.symgrad_op._ratio])
 
     def _updatePrimal(self,
                       out_primal, out_fwd,
@@ -1952,7 +1962,7 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
             [[in_primal["x"],
               in_precomp_adj["Kyk1"],
               in_primal["xk"],
-              self.modelgrad],
+              self.jacobi],
              []],
             [[tau, self.delta],
              []])
@@ -2008,7 +2018,7 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
               in_precomp_fwd["symgradx"]],
              [[], out_dual["z1"], in_precomp_adj["Kyk2"]]],
             [[beta*tau, theta, self.beta],
-             []])
+             self.symgrad_op._ratio])
 
         ynorm = np.abs(ynorm1+ynorm2+ynorm3+ynorm4)**(1/2)
         lhs = np.sqrt(beta)*tau*np.abs(lhs1+lhs2+lhs3+lhs4)**(1/2)
@@ -2113,7 +2123,7 @@ class PDSolverStreamedTV(PDSolverStreamed):
             [[in_primal["x"],
               in_precomp_adj["Kyk1"],
               in_primal["xk"],
-              self.modelgrad],
+              self.jacobi],
              [],
              [[], self._coils, self.modelgrad]],
             [[tau, self.delta],
@@ -2169,14 +2179,14 @@ class PDSolverStreamedTV(PDSolverStreamed):
                 abs(in_precomp_fwd["gradx"])
                 )
             + 1 / (2 * self.delta) * np.vdot(
-                in_primal["x"] - in_primal["xk"],
+                (in_primal["x"] - in_primal["xk"])*self.jacobi,
                 in_primal["x"] - in_primal["xk"]
                 )
             ).real
 
         dual = (
             -self.delta / 2 * np.vdot(
-                - in_precomp_adj["Kyk1"],
+                - in_precomp_adj["Kyk1"]/self.jacobi,
                 - in_precomp_adj["Kyk1"])
             - np.vdot(
                 in_primal["xk"],
