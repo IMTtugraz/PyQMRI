@@ -226,6 +226,8 @@ class IRGNOptimizer:
 
             self._balanceModelGradients(result)
             # self.pdop.grad_op.updateRatio(result)
+            # if self.reg_type == 'TGV':
+            #     self.pdop.symgrad_op.updateRatio(self.pdop.grad_op._ratio)
 
             self.step_val = np.nan_to_num(self.model.execute_forward(result))
 
@@ -238,13 +240,21 @@ class IRGNOptimizer:
                     requirements='C')
                 self.pdop.model = self.model
                 self.pdop.modelgrad = self.modelgrad
+                self.pdop.jacobi = np.sum(
+                    np.abs(self.modelgrad)**2, 2).astype(DTYPE_real)
+                self.pdop.jacobi[self.pdop.jacobi == 0] = 1e-8
             else:
+                self.jacobi = np.sum(
+                    np.abs(self.modelgrad)**2, 1).astype(DTYPE_real)
+                self.jacobi[self.jacobi == 0] = 1e-8
                 self.modelgrad = clarray.to_device(
                     self._queue[0],
                     self.modelgrad)
                 self.pdop.model = self.model
                 self.pdop.modelgrad = self.modelgrad
-
+                self.pdop.jacobi = clarray.to_device(
+                    self._queue[0],
+                    self.jacobi)
             self._updateIRGNRegPar(result, ign)
             self.pdop.updateRegPar(self.irgn_par)
 
@@ -390,9 +400,10 @@ class IRGNOptimizer:
             self.pdop._fval_init = self._fval
 
         print("-" * 75)
-        print("Costs of Data: %f" % (datacost * 1e3))
-        print("Costs of T(G)V: %f" % (regcost * 1e3))
-        print("Costs of L2 Term: %f" % (L2Cost * 1e3))
+        print("Initial Cost: %f" % (self._fval_init))
+        print("Costs of Data: %f" % (1e3*datacost / self._fval_init))
+        print("Costs of T(G)V: %f" % (1e3*regcost / self._fval_init))
+        print("Costs of L2 Term: %f" % (1e3*L2Cost / self._fval_init))
         print("-" * 75)
         print("Function value at GN-Step %i: %f" %
               (GN_it, 1e3*self._fval / self._fval_init))
@@ -473,8 +484,8 @@ class IRGNOptimizer:
                   3D can be used with a single slice.")
             raise NotImplementedError
         else:
-            self.irgn_par["lambd"] *= (
-                                       (self.par["SNR_est"]))
+            # self.irgn_par["lambd"] *= (
+            #                             (self.par["SNR_est"]))
             self.gamma = self.irgn_par["gamma"]
             self.delta = self.irgn_par["delta"]
             self.omega = self.irgn_par["omega"]
