@@ -39,8 +39,8 @@ class Model(BaseModel):
                         1000,
                         False))
         self.constraints.append(
-            constraints(0.6,
-                        1.4,
+            constraints(0,
+                        2,
                         True))
         self.constraints.append(
             constraints(1/2000,

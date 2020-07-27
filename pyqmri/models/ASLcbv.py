@@ -8,14 +8,14 @@ import numexpr as ne
 plt.ion()
 
 
-def _expAttT1b(del_t, del_t_sc, T1b):
+def _expAttT1b(del_t, T1b):
     return ne.evaluate(
-        "exp(-(del_t*del_t_sc)/T1b)")
+        "exp(-(del_t)/T1b)")
 
 
-def _T1pr(T1, f, f_sc, lambd):
+def _T1pr(T1, f, lambd):
     return ne.evaluate(
-        "1/T1+f*f_sc/lambd")
+        "1/T1+f/lambd")
 
 
 def _S1(M0, alpha, lambd, f, T1, T1p, del_t,  t, tau, expAttT1b):
@@ -130,7 +130,7 @@ class Model(BaseModel):
                         200,
                         True))
         self.constraints.append(
-            constraints(0.01/60,
+            constraints(0/60,
                         self.t[-3],
                         True))
         self.constraints.append(
@@ -138,7 +138,7 @@ class Model(BaseModel):
                         10,
                         True))
         self.constraints.append(
-            constraints(0.01/60,
+            constraints(0,
                         self.t[-3],
                         True))
 
@@ -154,13 +154,13 @@ class Model(BaseModel):
         f = x[0, ...] * self.uk_scale[0]
         del_t = x[1, ...] * self.uk_scale[1]
         aCBV = x[2] * self.uk_scale[2]
-        del_ta = x[1, ...] * self.uk_scale[1]
+        del_ta = x[3, ...] * self.uk_scale[3]
         S = np.zeros((self.NScan, self.NSlice, self.dimY, self.dimX),
                      dtype=DTYPE)
 
-        T1prinv = _T1pr(self.T1, x[0], self.uk_scale[0], self.lambd)
-        expAtt = _expAttT1b(x[1], self.uk_scale[1], self.T1b)
-        for j in range((self.t).size):
+        T1prinv = _T1pr(self.T1, f, self.lambd)
+        expAtt = _expAttT1b(del_t, self.T1b)
+        for j in range(self.t.shape[0]):
             ind_low = self.t[j] >= del_t
             ind_high = self.t[j] < (del_t+self.tau[j])
             ind = ind_low & ind_high
@@ -192,14 +192,14 @@ class Model(BaseModel):
         f_sc = self.uk_scale[0]
         del_t_sc = self.uk_scale[1]
         del_t = x[1]*del_t_sc
-        del_ta = x[2]*self.uk_scale[2]
+        del_ta = x[3]*self.uk_scale[3]
 
         grad = np.zeros((self.unknowns, self.NScan,
                          self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         t = self.t
-        T1prinv = _T1pr(self.T1, x[0], self.uk_scale[0], self.lambd)
-        expAtt = _expAttT1b(x[1], self.uk_scale[1], self.T1b)
-        for j in range((self.t).size):
+        T1prinv = _T1pr(self.T1, x[0]*f_sc, self.lambd)
+        expAtt = _expAttT1b(del_t, self.T1b)
+        for j in range(self.t.shape[0]):
             ind_low = self.t[j] >= del_t
             ind_high = self.t[j] < (del_t+self.tau[j])
             ind = ind_low & ind_high
@@ -275,8 +275,8 @@ class Model(BaseModel):
         CBV_max = CBV.max()
         del_ta_min = del_ta.min()
         del_ta_max = del_ta.max()
-        ind = 29
-        ind2 = 22  # int(images.shape[-1]/2) 30, 60
+        ind = 30
+        ind2 = 60  # int(images.shape[-1]/2) 30, 60
         if dim_2D:
             if not self.figure:
                 plt.ion()
@@ -486,9 +486,9 @@ class Model(BaseModel):
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
         test_del_t = 0.6/60 * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
-        CBV = 1e-2 * self.dscale * np.ones(
+        CBV = 1 * self.dscale * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
-        test_del_ta = 0.6/60 * np.ones(
+        test_del_ta = 0.5/60 * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
 
         self.guess = np.array([test_f,
