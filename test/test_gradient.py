@@ -185,7 +185,6 @@ class GradientStreamedTest(unittest.TestCase):
                 par["ctx"][j],
                 myfile.read()))
 
-
         par["par_slices"] = 1
 
         self.grad = pyqmri.operator.OperatorFiniteGradientStreamed(

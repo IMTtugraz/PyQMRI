@@ -28,7 +28,7 @@ class tmpArgs():
 def setupPar(par):
     par["NScan"] = 10
     par["NC"] = 15
-    par["NSlice"] = 2
+    par["NSlice"] = 10
     par["dimX"] = 128
     par["dimY"] = 128
     par["Nproj"] = 21
