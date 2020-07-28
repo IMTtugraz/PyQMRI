@@ -1,3 +1,8 @@
+.. image:: https://travis-ci.com/IMTtugraz/PyQMRI.svg?branch=master
+    :target: https://travis-ci.com/IMTtugraz/PyQMRI
+.. image:: https://badge.fury.io/py/pyqmri.svg
+    :target: https://pypi.org/project/pyqmri
+    
 PyQMRI - Model-Based Parameter Quantification
 =============================================
 
@@ -69,7 +74,8 @@ can be done by:
 
 Sample Data
 -----------
-In-vivo datasets used in the original publication (doi: `[10.1002/mrm.27502]`_) can be found at zenodo_.
+In-vivo datasets used in the original publication (doi: `[10.1002/mrm.27502]`_) can be found at zenodo_. If you use the sample data with the recent release of PyQMRI please delete the "Coils"
+entry in the .h5 to force a recomputation of the receive coil sensitivities as the orientation does not match the data.
 
 Prerequests on the .h5 file:
 -----------------------------
@@ -171,7 +177,7 @@ You can find the code for
 | **Rapid T1 quantification from high resolution 3D data with model‐based reconstruction.**
 | *Magn Reson Med.*, 2018; 00:1–16 doi: `[10.1002/mrm.27502]`_
 
-at `[v0.1.0] <(https://github.com/IMTtugraz/PyQMRI/tree/v.0.1.0)>`_
+at `[v0.1.0] <https://github.com/IMTtugraz/PyQMRI/tree/v.0.1.0>`_
 
 .. _OpenCL: https://www.khronos.org/opencl/
 .. _clfft: https://github.com/clMathLibraries/clFFT
