@@ -54,6 +54,7 @@ class Stream:
 
           For one function and one device the list would have dimension [1][1]
     """
+
     def __init__(self,
                  fun,
                  outp_shape,
@@ -385,8 +386,8 @@ class Stream:
         for idev in range(self.num_dev):
             self.queue[4*idev+3-odd].finish()
             if self.num_dev > 1:
-                self.queue[4*np.mod(idev-1,self.num_dev)+2+odd].finish()
-                self.queue[4*np.mod(idev-1,self.num_dev)+3-odd].finish()
+                self.queue[4*np.mod(idev-1, self.num_dev)+2+odd].finish()
+                self.queue[4*np.mod(idev-1, self.num_dev)+3-odd].finish()
             idx = self._getindtohost()
             for ifun in range(self.num_fun):
                 self.outp[ifun][2*idev+odd].add_event(
@@ -402,8 +403,8 @@ class Stream:
         for idev in range(self.num_dev):
             self.queue[4*idev+3-odd].finish()
             if self.num_dev > 1:
-                self.queue[4*np.mod(idev-1,self.num_dev)+2+odd].finish()
-                self.queue[4*np.mod(idev-1,self.num_dev)+3-odd].finish()
+                self.queue[4*np.mod(idev-1, self.num_dev)+2+odd].finish()
+                self.queue[4*np.mod(idev-1, self.num_dev)+3-odd].finish()
             idx = self._getindtohost()
             for ifun in range(self.num_fun):
                 self.outp[ifun][2*idev+odd].add_event(

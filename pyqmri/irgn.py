@@ -13,7 +13,6 @@ import time
 import numpy as np
 
 from pkg_resources import resource_filename
-#import pyopencl as cl
 import pyopencl.array as clarray
 import h5py
 
@@ -490,6 +489,3 @@ class IRGNOptimizer:
             self.delta = self.irgn_par["delta"]
             self.omega = self.irgn_par["omega"]
             self._executeIRGN3D()
-
-
-

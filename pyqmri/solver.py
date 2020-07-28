@@ -288,7 +288,7 @@ class PDBaseSolver:
         self.display_iterations = irgn_par["display_iterations"]
         self.mu = 1 / self.delta
         self.tau = tau
-        self.beta_line = 1e3#1e10#1e12
+        self.beta_line = 1e3  # 1e10#1e12
         self.theta_line = np.float32(1.0)
         self.unknowns_TGV = par["unknowns_TGV"]
         self.unknowns_H1 = par["unknowns_H1"]
@@ -2221,9 +2221,6 @@ class PDSolverStreamedTVSMS(PDSolverStreamedTV):
 
     def __init__(self, par, irgn_par, queue, tau, fval, prg,
                  linop, coils, model, imagespace=False):
-
-
-
         self.packs = par["packs"]
         self.numofpacks = par["numofpacks"]
         self.data_shape = (self.packs*self.numofpacks, par["NScan"],

@@ -369,10 +369,6 @@ def _start_recon(myargs):
     else:
         sig_model = importlib.import_module(
             "pyqmri.models."+str(sig_model_path))
-    # if int(myargs.streamed) == 1:
-    #     import pyqmri.irgn.reco_streamed as optimizer
-    # else:
-    #     import pyqmri.irgn.reco as optimizer
     np.seterr(divide='ignore', invalid='ignore')
 
 # Create par struct to store everyting
@@ -600,13 +596,10 @@ def _start_recon(myargs):
 ###############################################################################
 # Init forward model and initial guess ########################################
 ###############################################################################
-    # del par["file"]["images"]
-
     if myargs.sig_model == "GeneralModel":
         par["modelfile"] = myargs.modelfile
         par["modelname"] = myargs.modelname
     model = sig_model.Model(par)
-
 ###############################################################################
 # Reconstruct images using CG-SENSE  ##########################################
 ###############################################################################
@@ -630,16 +623,6 @@ def _start_recon(myargs):
 ###############################################################################
 # initialize operator  ########################################################
 ###############################################################################
-#    if "ImageReco" in myargs.sig_model:
-#        opt = noIRGN(par,
-#                     myargs.trafo,
-#                     imagespace=myargs.imagespace,
-#                     SMS=myargs.sms,
-#                     config=myargs.config,
-#                     model=model,
-#                     streamed=myargs.streamed,
-#                     reg_type=myargs.reg)
-#    else:
     opt = IRGNOptimizer(par,
                         myargs.trafo,
                         imagespace=myargs.imagespace,

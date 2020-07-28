@@ -402,11 +402,11 @@ class OperatorKspace(Operator):
             self.Nproj = self.dimY
             self.N = self.dimX
         self.NUFFT = CLnuFFT.create(self.ctx,
-                                  self.queue,
-                                  par,
-                                  radial=trafo,
-                                  DTYPE=DTYPE,
-                                  DTYPE_real=DTYPE_real)
+                                    self.queue,
+                                    par,
+                                    radial=trafo,
+                                    DTYPE=DTYPE,
+                                    DTYPE_real=DTYPE_real)
 
     def fwd(self, out, inp, wait_for=[]):
         self.tmp_result.add_event(
@@ -532,12 +532,12 @@ class OperatorKspaceFieldMap(Operator):
             self.Nproj = self.dimY
             self.N = self.dimX
         self.NUFFT = CLnuFFT.create(self.ctx,
-                                  self.queue,
-                                  par,
-                                  radial=trafo,
-                                  fft_dim=[2],
-                                  DTYPE=DTYPE,
-                                  DTYPE_real=DTYPE_real)
+                                    self.queue,
+                                    par,
+                                    radial=trafo,
+                                    fft_dim=[2],
+                                    DTYPE=DTYPE,
+                                    DTYPE_real=DTYPE_real)
 
         self.phase_map = clarray.to_device(self.queue,
                                            par["phase_map"])
@@ -570,8 +570,6 @@ class OperatorKspaceFieldMap(Operator):
                             np.int32(self.NC),
                             np.int32(self.NScan),
                             wait_for=self.tmp_result.events+out.events))
-        import ipdb
-        ipdb.set_trace()
 
         return self.NUFFT.FFT(
             out,
@@ -688,8 +686,6 @@ class OperatorKspaceFieldMap(Operator):
                 self.tmp_result,
                 inp[0],
                 wait_for=wait_for + inp[0].events + self.tmp_result.events))
-        import ipdb
-        ipdb.set_trace()
         self.tmp_result2.add_event(
             self.prg.addfield(
                 self.queue,
@@ -741,12 +737,12 @@ class OperatorKspaceSMS(Operator):
             self.Nproj = self.dimY
             self.N = self.dimX
         self.NUFFT = CLnuFFT.create(self.ctx,
-                                  self.queue,
-                                  par,
-                                  radial=trafo,
-                                  SMS=True,
-                                  DTYPE=DTYPE,
-                                  DTYPE_real=DTYPE_real)
+                                    self.queue,
+                                    par,
+                                    radial=trafo,
+                                    SMS=True,
+                                    DTYPE=DTYPE,
+                                    DTYPE_real=DTYPE_real)
 
     def fwd(self, out, inp, wait_for=[]):
         self.tmp_result.add_event(
@@ -873,20 +869,20 @@ class OperatorKspaceSMSFieldMap(Operator):
             self.Nproj = self.dimY
             self.N = self.dimX
         self.NUFFTx = CLnuFFT.create(self.ctx,
-                                   self.queue,
-                                   par,
-                                   radial=trafo,
-                                   SMS=True,
-                                   fft_dim=1,
-                                   DTYPE=DTYPE,
-                                   DTYPE_real=DTYPE_real)
+                                     self.queue,
+                                     par,
+                                     radial=trafo,
+                                     SMS=True,
+                                     fft_dim=1,
+                                     DTYPE=DTYPE,
+                                     DTYPE_real=DTYPE_real)
         self.NUFFTy = CLnuFFT.create(self.ctx,
-                                   self.queue,
-                                   par,
-                                   radial=trafo,
-                                   fft_dim=2,
-                                   DTYPE=DTYPE,
-                                   DTYPE_real=DTYPE_real)
+                                     self.queue,
+                                     par,
+                                     radial=trafo,
+                                     fft_dim=2,
+                                     DTYPE=DTYPE,
+                                     DTYPE_real=DTYPE_real)
         self.NUFFTy.mask = clarray.to_device(self.queue,
                                              np.ones_like(par["mask"]))
         self.phase_map = clarray.to_device(self.queue, par["phase_map"])
@@ -1186,11 +1182,11 @@ class OperatorKspaceStreamed(Operator):
                         self.DTYPE, "C"))
                 self.NUFFT.append(
                     CLnuFFT.create(self.ctx[j],
-                                 self.queue[4*j+i], par,
-                                 radial=trafo,
-                                 streamed=True,
-                                 DTYPE=DTYPE,
-                                 DTYPE_real=DTYPE_real))
+                                   self.queue[4*j+i], par,
+                                   radial=trafo,
+                                   streamed=True,
+                                   DTYPE=DTYPE,
+                                   DTYPE_real=DTYPE_real))
 
         self.unknown_shape = (self.NSlice, self.unknowns, self.dimY, self.dimX)
         coil_shape = (self.NSlice, self.NC, self.dimY, self.dimX)
@@ -1371,12 +1367,12 @@ class OperatorKspaceSMSStreamed(Operator):
                         self.DTYPE, "C"))
                 self.NUFFT.append(
                     CLnuFFT.create(self.ctx[j],
-                                 self.queue[4*j+i], par,
-                                 radial=trafo,
-                                 SMS=True,
-                                 streamed=True,
-                                 DTYPE=DTYPE,
-                                 DTYPE_real=DTYPE_real))
+                                   self.queue[4*j+i], par,
+                                   radial=trafo,
+                                   SMS=True,
+                                   streamed=True,
+                                   DTYPE=DTYPE,
+                                   DTYPE_real=DTYPE_real))
 
         unknown_shape = (self.NSlice, self.unknowns, self.dimY, self.dimX)
         coil_shape = (self.NSlice, self.NC, self.dimY, self.dimX)
@@ -1693,13 +1689,8 @@ class OperatorFiniteGradient(Operator):
         scale = 1/gradnorm
         scale[~np.isfinite(scale)] = 1
         # print("Scale: ", scale)
-        for j in range(x.shape[0])[:self.unknowns_TGV]:
+        for j in range(x.shape[0]):
             self._ratio[j] = scale[j] * self._weights[j]
-#        sum_scale = np.sqrt(np.sum(np.abs(
-#            scale[self.unknowns_TGV:])**2/(1000)))
-        for j in range(x.shape[0])[self.unknowns_TGV:]:
-            self._ratio[j] = scale[j] * self._weights[j]
-        # print("Ratio: ", self._ratio)
         x = clarray.to_device(self.queue, x)
         grad = clarray.to_device(
             self.queue, np.zeros(x.shape + (4,),
