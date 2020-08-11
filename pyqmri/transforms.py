@@ -7,7 +7,7 @@ import pyopencl as cl
 import pyopencl.array as clarray
 from gpyfft.fft import FFT
 from pkg_resources import resource_filename
-from pyqmri._helper_fun._calckbkernel import calckbkernel
+from pyqmri._helper_fun._calckbkernel import calculate_keiser_bessel_kernel
 from pyqmri._helper_fun import CLProgram as Program
 
 
@@ -307,7 +307,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
         self.fft_scale = DTYPE_real(
             np.sqrt(np.prod(self.fft_shape[fft_dim[0]:])))
 
-        (kerneltable, kerneltable_FT, u) = calckbkernel(
+        (kerneltable, kerneltable_FT, u) = calculate_keiser_bessel_kernel(
             kwidth, self.ogf, par["N"], klength)
 
         deapo = 1 / kerneltable_FT.astype(DTYPE_real)
@@ -321,7 +321,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
             cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
             hostbuf=deapo.data)
         self.dcf = clarray.to_device(self.queue, par["dcf"])
-        self.traj = clarray.to_device(self.queue, par["traj"])
+        self.traj = clarray.to_device(self.queue, par["traj"]*self.ogf)
         self._tmp_fft_array = (
             clarray.empty(
                 self.queue,
@@ -388,7 +388,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
                 s.data,
                 self.traj.data,
                 np.int32(self._gridsize),
-                self.DTYPE_real(self._kwidth / self._gridsize),
+                self.DTYPE_real(self._kwidth),
                 self.dcf.data,
                 self.cl_kerneltable,
                 np.int32(self._kernelpoints),
@@ -512,7 +512,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
             self._tmp_fft_array.data,
             self.traj.data,
             np.int32(self._gridsize),
-            self.DTYPE_real(self._kwidth / self._gridsize),
+            self.DTYPE_real(self._kwidth),
             self.dcf.data,
             self.cl_kerneltable,
             np.int32(self._kernelpoints),
@@ -1348,7 +1348,7 @@ class PyOpenCLRadialNUFFTStreamed(PyOpenCLnuFFT):
                            par["overlap"]),
                           int(par["dimY"]*self.ogf),
                           int(par["dimX"]*self.ogf))
-        (kerneltable, kerneltable_FT, u) = calckbkernel(
+        (kerneltable, kerneltable_FT, u) = calculate_keiser_bessel_kernel(
             kwidth, self.ogf, par["N"], klength)
         self._kernelpoints = kerneltable.size
 
@@ -1364,7 +1364,7 @@ class PyOpenCLRadialNUFFTStreamed(PyOpenCLnuFFT):
             cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
             hostbuf=self.deapo.data)
         self.dcf = clarray.to_device(self.queue, par["dcf"])
-        self.traj = clarray.to_device(self.queue, par["traj"])
+        self.traj = clarray.to_device(self.queue, par["traj"]*self.ogf)
         self._tmp_fft_array = (
             clarray.empty(
                 self.queue,
@@ -1430,7 +1430,7 @@ class PyOpenCLRadialNUFFTStreamed(PyOpenCLnuFFT):
                 self.traj.data,
                 np.int32(self._gridsize),
                 np.int32(sg.shape[2]),
-                self.DTYPE_real(self._kwidth / self._gridsize),
+                self.DTYPE_real(self._kwidth),
                 self.dcf.data,
                 self.cl_kerneltable,
                 np.int32(self._kernelpoints),
@@ -1556,7 +1556,7 @@ class PyOpenCLRadialNUFFTStreamed(PyOpenCLnuFFT):
             self.traj.data,
             np.int32(self._gridsize),
             np.int32(s.shape[2]),
-            self.DTYPE_real(self._kwidth / self._gridsize),
+            self.DTYPE_real(self._kwidth),
             self.dcf.data,
             self.cl_kerneltable,
             np.int32(self._kernelpoints),

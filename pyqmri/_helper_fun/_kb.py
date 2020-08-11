@@ -6,6 +6,7 @@ Created on Tue Jul 17 11:56:16 2018
 @author: omaier
 """
 import numpy as np
+from scipy.special import i0 as i0
 #
 # function y = kb(u,w,beta)
 #
@@ -29,16 +30,30 @@ import numpy as np
 # Adapted for Python by O. Maier
 
 
-def kb(u, w, beta, G):
-    if (np.size(w) > 1):
-        raise('w should be a single scalar value.')
+def kaiser_bessel(u, width, beta):
+    """
+    Kaiser-Bessel window precomputation.
 
-    y = 0 * u  # Allocate space.
-    uz = np.where(np.abs(u) <= w / (2 * G))			# Indices where u<w/2.
+    Args
+    ----
+      u (numpy.array):
+        Kernel Radii
+      width (int):
+        Kernel width
+      beta (float):
+        Scale for the argument of the modified bessel function of oder 0,
+        see Jackson '91 and Beatty et al.
 
-    if (np.size(uz) > 0):			# Calculate y at indices uz.
-        # Argument - see Jackson '91.
-        x = beta * np.sqrt(1 - (2 * u[uz] * G / w)**2)
-        y[uz] = G * np.i0(x) / w
+    Returns
+    -------
+      numpy.array
+        The Kaiser-Bessel window
+    """
+    assert np.size(width) == 1, 'width should be a single scalar value.'
 
-    return (y)
+    # if np.size(uz) > 0:  # Calculate y at indices uz.
+    x = beta * np.sqrt(1 - (2 * u / width) ** 2)
+    # Argument - see Jackson '91.
+    y = i0(x) / width
+
+    return y

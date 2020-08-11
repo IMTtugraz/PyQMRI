@@ -403,8 +403,13 @@ def _start_recon(myargs):
 
     dimreduction = 0
     if myargs.trafo:
-        par["traj"] = par["file"]['real_traj'][()].astype(DTYPE) + \
-                      1j*par["file"]['imag_traj'][()].astype(DTYPE)
+        par["traj"] = np.zeros((par["file"]['real_traj'].shape+(4,)),
+                               dtype=DTYPE_real)
+        par["traj"][..., 0] = par["file"]['real_traj'][()]
+        par["traj"][..., 1] = par["file"]['imag_traj'][()]
+
+        if np.max(np.linalg.norm(par["traj"], axis=-1)) <= 0.5:
+            par["traj"] *= np.maximum(dimX, dimY)
 
         par["dcf"] = np.sqrt(np.array(goldcomp.cmp(
                          par["traj"]), dtype=DTYPE_real)).astype(DTYPE_real)
