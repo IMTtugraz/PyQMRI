@@ -57,10 +57,12 @@ def _choosePlatform(myargs, par):
 
 
 def _precoompFFT(data, par):
-    full_dimY = (np.all(np.abs(data[0, 0, 0, :, 0])) or
-                 np.all(np.abs(data[0, 0, 0, :, 1])))
-    full_dimX = (np.all(np.abs(data[0, 0, 0, 0, :])) or
-                 np.all(np.abs(data[0, 0, 0, 1, :])))
+    full_dimY = False
+    full_dimX = False
+    for j in range(data.shape[-1]):
+        full_dimY = full_dimY or np.all(np.abs(data[0, 0, 0, :, j]))
+    for j in range(data.shape[-2]):
+        full_dimX = full_dimX or np.all(np.abs(data[0, 0, 0, j, :]))
 
     if full_dimY and not full_dimX:
         print("Image Dimensions Y seems fully sampled. "
@@ -291,7 +293,7 @@ def _estScaleNorm(myargs, par, images, data):
     par["SNR_est"] = SNR_est
     print("Estimated SNR from kspace", SNR_est)
 
-    dscale = DTYPE_real(1 / np.linalg.norm(np.abs(data)))
+    dscale = DTYPE_real(np.sqrt(par["NSlice"]) / np.linalg.norm(np.abs(data)))
     print("Dscale: ", dscale)
     par["dscale"] = dscale
     images = images*dscale
@@ -622,7 +624,8 @@ def _start_recon(myargs):
 # Scale data norm  ############################################################
 ###############################################################################
     data, images = _estScaleNorm(myargs, par, images, data)
-
+    # import ipdb
+    # ipdb.set_trace()
     if myargs.weights is None:
         par["weights"] = np.ones((par["unknowns"]), dtype=np.float32)
     else:

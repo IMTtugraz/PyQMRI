@@ -135,7 +135,7 @@ class Model(BaseModel):
 
         T1prinv = _T1pr(self.T1, x[0], self.uk_scale[0], self.lambd)
         expAtt = _expAttT1b(x[1], self.uk_scale[1], self.T1b)
-        for j in range((self.t).size):
+        for j in range((self.t).shape[0]):
             ind_low = self.t[j] >= del_t
             ind_high = self.t[j] < (del_t+self.tau[j])
             ind = ind_low & ind_high
@@ -163,7 +163,7 @@ class Model(BaseModel):
         t = self.t
         T1prinv = _T1pr(self.T1, x[0], self.uk_scale[0], self.lambd)
         expAtt = _expAttT1b(x[1], self.uk_scale[1], self.T1b)
-        for j in range((self.t).size):
+        for j in range((self.t).shape[0]):
             ind_low = self.t[j] >= del_t
             ind_high = self.t[j] < (del_t+self.tau[j])
             ind = ind_low & ind_high
