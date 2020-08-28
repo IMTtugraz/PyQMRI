@@ -15,7 +15,6 @@ from pyqmri._helper_fun import CLProgram as Program
 from pyqmri._helper_fun import _goldcomp as goldcomp
 from pkg_resources import resource_filename
 import pyopencl.array as clarray
-import pyopencl as cl
 import numpy as np
 import h5py
 
@@ -73,10 +72,10 @@ class OperatorKspaceRadial(unittest.TestCase):
 
         prg = []
         for j in range(len(par["ctx"])):
-          with open(file) as myfile:
-            prg.append(Program(
-                par["ctx"][j],
-                myfile.read()))
+            with open(file) as myfile:
+                prg.append(Program(
+                    par["ctx"][j],
+                    myfile.read()))
         prg = prg[0]
 
         self.op = pyqmri.operator.OperatorKspace(
@@ -173,10 +172,10 @@ class OperatorKspaceCartesian(unittest.TestCase):
 
         prg = []
         for j in range(len(par["ctx"])):
-          with open(file) as myfile:
-            prg.append(Program(
-                par["ctx"][j],
-                myfile.read()))
+            with open(file) as myfile:
+                prg.append(Program(
+                    par["ctx"][j],
+                    myfile.read()))
         prg = prg[0]
 
         par["mask"] = np.ones((par["dimY"], par["dimX"]),
@@ -267,7 +266,7 @@ class OperatorKspaceSMSCartesian(unittest.TestCase):
         par = {}
         par["packs"] = 6
         par["MB"] = 2
-        par["shift"] = np.array([0, 64])
+        par["shift"] = np.array([0, 64]).astype(DTYPE_real)
         par["numofpacks"] = 1
         pyqmri.pyqmri._setupOCL(parser, par)
 
@@ -281,10 +280,10 @@ class OperatorKspaceSMSCartesian(unittest.TestCase):
 
         prg = []
         for j in range(len(par["ctx"])):
-          with open(file) as myfile:
-            prg.append(Program(
-                par["ctx"][j],
-                myfile.read()))
+            with open(file) as myfile:
+                prg.append(Program(
+                    par["ctx"][j],
+                    myfile.read()))
         prg = prg[0]
 
         par["mask"] = np.ones((par["dimY"], par["dimX"]),
@@ -293,7 +292,7 @@ class OperatorKspaceSMSCartesian(unittest.TestCase):
         self.op = pyqmri.operator.OperatorKspaceSMS(
             par, prg,
             DTYPE=DTYPE,
-            DTYPE_real=DTYPE_real, trafo=False)
+            DTYPE_real=DTYPE_real)
 
         self.opinfwd = np.random.randn(par["unknowns"], par["NSlice"],
                                        par["dimY"], par["dimX"]) +\
@@ -384,10 +383,10 @@ class OperatorImageSpace(unittest.TestCase):
 
         prg = []
         for j in range(len(par["ctx"])):
-          with open(file) as myfile:
-            prg.append(Program(
-                par["ctx"][j],
-                myfile.read()))
+            with open(file) as myfile:
+                prg.append(Program(
+                    par["ctx"][j],
+                    myfile.read()))
         prg = prg[0]
 
         self.op = pyqmri.operator.OperatorImagespace(
@@ -414,7 +413,6 @@ class OperatorImageSpace(unittest.TestCase):
         self.opinadj = self.opinadj.astype(DTYPE)
         self.queue = par["queue"][0]
         self.grad_buf = clarray.to_device(self.queue, self.model_gradient)
-
 
     def test_adj_outofplace(self):
         inpfwd = clarray.to_device(self.queue, self.opinfwd)
@@ -477,10 +475,10 @@ class OperatorImageSpaceStreamed(unittest.TestCase):
 
         prg = []
         for j in range(len(par["ctx"])):
-          with open(file) as myfile:
-            prg.append(Program(
-                par["ctx"][j],
-                myfile.read()))
+            with open(file) as myfile:
+                prg.append(Program(
+                    par["ctx"][j],
+                    myfile.read()))
 
         par["par_slices"] = 1
 
@@ -558,10 +556,10 @@ class OperatorCartesianKSpaceStreamed(unittest.TestCase):
 
         prg = []
         for j in range(len(par["ctx"])):
-          with open(file) as myfile:
-            prg.append(Program(
-                par["ctx"][j],
-                myfile.read()))
+            with open(file) as myfile:
+                prg.append(Program(
+                    par["ctx"][j],
+                    myfile.read()))
 
         par["par_slices"] = 1
         par["mask"] = np.ones((par["dimY"], par["dimX"]),
@@ -652,10 +650,10 @@ class OperatorKspaceSMSCartesianStreamed(unittest.TestCase):
 
         prg = []
         for j in range(len(par["ctx"])):
-          with open(file) as myfile:
-            prg.append(Program(
-                par["ctx"][j],
-                myfile.read()))
+            with open(file) as myfile:
+                prg.append(Program(
+                    par["ctx"][j],
+                    myfile.read()))
 
         par["par_slices"] = 1
         par["mask"] = np.ones((par["dimY"], par["dimX"]),
@@ -664,7 +662,7 @@ class OperatorKspaceSMSCartesianStreamed(unittest.TestCase):
         self.op = pyqmri.operator.OperatorKspaceSMSStreamed(
             par, prg,
             DTYPE=DTYPE,
-            DTYPE_real=DTYPE_real, trafo=False)
+            DTYPE_real=DTYPE_real)
 
         self.opinfwd = np.random.randn(par["NSlice"], par["unknowns"],
                                        par["dimY"], par["dimX"]) +\
@@ -741,10 +739,10 @@ class OperatorRadialKSpaceStreamed(unittest.TestCase):
 
         prg = []
         for j in range(len(par["ctx"])):
-          with open(file) as myfile:
-            prg.append(Program(
-                par["ctx"][j],
-                myfile.read()))
+            with open(file) as myfile:
+                prg.append(Program(
+                    par["ctx"][j],
+                    myfile.read()))
 
         par["par_slices"] = 1
         par["mask"] = np.ones((par["dimY"], par["dimX"]),
@@ -809,7 +807,3 @@ class OperatorRadialKSpaceStreamed(unittest.TestCase):
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
         self.assertAlmostEqual(a, b, places=12)
-
-
-#if __name__ == '__main__':
-#    unittest.main()

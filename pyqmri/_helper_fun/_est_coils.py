@@ -1,23 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Wed Jan 30 10:28:16 2019
+"""Estimated complex coil sensitivity information.
 
-@author: omaier
-
-Copyright 2019 Oliver Maier
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+Estimates sensitivities and complex image.
+(see Martin Uecker: Image reconstruction by regularized nonlinear
+inversion joint estimation of coil sensitivities and image content)
 
 """
 import numpy as np
@@ -28,9 +15,6 @@ from pyqmri._helper_fun import _nlinvns as nlinvns
 from pyqmri._helper_fun import _goldcomp as goldcomp
 from pyqmri._helper_fun import _utils as utils
 
-# % Estimates sensitivities and complex image.
-# %(see Martin Uecker: Image reconstruction by regularized nonlinear
-# %inversion joint estimation of coil sensitivities and image content)
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
@@ -124,12 +108,6 @@ def est_coils(data, par, file, args, off):
                     dtype=DTYPE,
                     requirements='C')
 
-#                    result = nlinvns.nlinvns(
-#                            combinedData,
-#                            nlinvNewtonSteps,
-#                            True,
-#                            nlinvRealConstr)
-
                 dview = c[int(np.floor(i * len(c) / par["NSlice"]))]
                 result.append(
                     dview.apply_async(
@@ -153,7 +131,7 @@ def est_coils(data, par, file, args, off):
                     (par["C"] *
                      np.conj(
                         par["C"])),
-                    0))  # 4, 9, 128, 128
+                    0))
             par["InScale"] = sumSqrC
             if par["NC"] == 1:
                 par["C"] = sumSqrC
@@ -185,20 +163,6 @@ def est_coils(data, par, file, args, off):
                     (i))
                 sys.stdout.flush()
 
-                # RADIAL PART
-#                    result = nlinvns.nlinvns(
-#                            combinedData[:, i, ...],
-#                            nlinvNewtonSteps,
-#                            True,
-#                            nlinvRealConstr)
-#
-#                    par["C"][:, i, :, :] = result[2:, -1, :, :]
-#                    sys.stdout.write("slice %i done \r"
-#                                     % (i))
-#                    sys.stdout.flush()
-#                    if not nlinvRealConstr:
-#                        par["phase"][i, :, :] = np.exp(
-#                            1j * np.angle(result[0, -1, :, :]))
                 tmp = combinedData[:, i, ...]
                 dview = c[int(np.floor(i * len(c) / par["NSlice"]))]
                 result.append(
@@ -224,7 +188,7 @@ def est_coils(data, par, file, args, off):
                     (par["C"] *
                      np.conj(
                         par["C"])),
-                    0))  # 4, 9, 128, 128
+                    0))
             par["InScale"] = sumSqrC
             if par["NC"] == 1:
                 par["C"] = sumSqrC
@@ -317,20 +281,6 @@ def est_coils(data, par, file, args, off):
                     dtype=DTYPE,
                     requirements='C')
 
-#                result = nlinvns.nlinvns(
-#                            combinedData,
-#                            nlinvNewtonSteps,
-#                            True,
-#                            nlinvRealConstr)
-#
-#                par["C"][:, i, :, :] = result[2:, -1, :, :]
-#                sys.stdout.write("slice %i done \r"
-#                                 % (i))
-#                sys.stdout.flush()
-#                if not nlinvRealConstr:
-#                    par["phase"][i, :, :] = np.exp(
-#                        1j * np.angle(result[0, -1, :, :]))
-
                 dview = c[int(np.floor(i * len(c) / par["NSlice"]))]
                 result.append(
                     dview.apply_async(
@@ -355,7 +305,7 @@ def est_coils(data, par, file, args, off):
                     (par["C"] *
                      np.conj(
                         par["C"])),
-                    0))  # 4, 9, 128, 128
+                    0))
             par["InScale"] = sumSqrC
             if par["NC"] == 1:
                 par["C"] = sumSqrC
@@ -380,20 +330,6 @@ def est_coils(data, par, file, args, off):
                     "Computing coil sensitivity map of slice %i \r" %
                     (i))
                 sys.stdout.flush()
-
-#                result = nlinvns.nlinvns(
-#                            combinedData[:, i, ...],
-#                            nlinvNewtonSteps,
-#                            True,
-#                            nlinvRealConstr)
-#
-#                par["C"][:, i, :, :] = result[2:, -1, :, :]
-#                sys.stdout.write("slice %i done \r"
-#                                 % (i))
-#                sys.stdout.flush()
-#                if not nlinvRealConstr:
-#                    par["phase"][i, :, :] = np.exp(
-#                        1j * np.angle(result[0, -1, :, :]))
 
                 # RADIAL PART
                 tmp = combinedData[:, i, ...]
@@ -420,10 +356,10 @@ def est_coils(data, par, file, args, off):
                     (par["C"] *
                      np.conj(
                         par["C"])),
-                    0))  # 4, 9, 128, 128
+                    0))
             par["InScale"] = sumSqrC
             if par["NC"] == 1:
-                par["C"] = sumSqrC[None,...]
+                par["C"] = sumSqrC[None, ...]
             else:
                 par["C"] = par["C"] / np.tile(sumSqrC, (par["NC"], 1, 1, 1))
         file.create_dataset(
@@ -431,9 +367,4 @@ def est_coils(data, par, file, args, off):
             par["C"].shape,
             dtype=par["C"].dtype,
             data=par["C"])
-#        file.create_dataset(
-#            "InScale",
-#            par["InScale"].shape,
-#            dtype=par["InScale"].dtype,
-#            data=par["InScale"])
         file.flush()

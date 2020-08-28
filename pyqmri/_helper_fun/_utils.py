@@ -32,10 +32,6 @@ def NUFFT(par, trafo=True, SMS=False):
     NScan = par["NScan"]
     par["NC"] = 1
     par["NScan"] = 1
-#    if SMS:
-#        packs = par["packs"]
-#        par["packs"] = 1
-#        par["NSlice"] = 2
 
     FFT = (PyOpenCLnuFFT.create(
         par["ctx"][0], par["queue"][0], par,
@@ -43,8 +39,6 @@ def NUFFT(par, trafo=True, SMS=False):
     par["NC"] = NC
     par["NScan"] = NScan
 
-#    if SMS:
-#        par["packs"] = packs
     return FFT
 
 
@@ -114,6 +108,7 @@ def read_config(conf_file, reg_type="DEFAULT"):
                 params[key] = float(config[reg_type][key])
         return params
 
+
 def save_config(conf, path, reg_type="DEFAULT"):
     tmp_dict = {}
     tmp_dict[reg_type] = conf
@@ -121,3 +116,19 @@ def save_config(conf, path, reg_type="DEFAULT"):
     config.read_dict(tmp_dict)
     with open(path+os.sep+'config.ini', 'w') as configfile:
         config.write(configfile)
+
+def fibonacci(num):
+    if num < 3:
+        if num < 2:
+            fib = 1
+        else:
+            np.zeros((2))
+            fib[0] = 1
+            fib[1] = 1
+    else:
+        fib = np.zeros(num)
+        fib[0] = 1
+        fib[1] = 1
+        for ii in range(2, num):
+            fib[ii] = fib[ii - 2] + fib[ii - 1]
+    return fib

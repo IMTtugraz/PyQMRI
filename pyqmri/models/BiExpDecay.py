@@ -1,181 +1,94 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""Module holding the bi-exponential model for fitting."""
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
+from pyqmri.models.template import BaseModel, constraints, DTYPE
 plt.ion()
-DTYPE = np.complex64
 
 
-class constraint:
-    def __init__(self, min_val=-np.inf, max_val=np.inf, real_const=False):
-        self.min = min_val
-        self.max = max_val
-        self.real = real_const
+class Model(BaseModel):
+    """Bi-exponential model for MRI parameter quantification.
 
-    def update(self, scale):
-        self.min = self.min / scale
-        self.max = self.max / scale
+    This class holds a bi-exponential model for fitting complex MRI data.
+    It realizes a forward application of the analytical signal expression
+    and the partial derivatives with respesct to each parameter of interest,
+    as required by the abstract methods in the BaseModel.
 
+    Parameters
+    ----------
+      par : dict
+        A python dict containing the necessary information to
+        setup the object. Needs to contain the sequence related parametrs,
+        e.g. TR, TE, TI, to fully describe the acquisitio process
 
-class Model:
-    def __init__(self, par, images):
-        self.constraints = []
+    Attributes
+    ----------
+      TE : float
+        Echo time (or any other timing valid in a bi-exponential fit).
+      uk_scale : list of float
+        Scaling factors for each unknown to balance the partial derivatives.
+      guess : numpy.array
+        The initial guess. Needs to be set using "computeInitialGuess"
+        prior to fitting.
+    """
 
-        self.images = images
-        self.NSlice = par['NSlice']
-        self.figure = None
+    def __init__(self, par):
+        self.TE = np.ones((self.NScan, 1, 1, 1))
 
-        (NScan, Nislice, dimX, dimY) = images.shape
-        self.TE = np.ones((NScan, 1, 1, 1))
-        try:
-            self.NScan = par["T2PREP"].size
-            for i in range(self.NScan):
-                self.TE[i, ...] = par["T2PREP"][i] * np.ones((1, 1, 1))
-        except BaseException:
-            self.NScan = par["TE"].size
-            for i in range(self.NScan):
-                self.TE[i, ...] = par["TE"][i] * np.ones((1, 1, 1))
-        self.uk_scale = []
-        self.uk_scale.append(1)
-        self.uk_scale.append(1)
-        self.uk_scale.append(1)
-        self.uk_scale.append(1)
-        self.uk_scale.append(1)
+        for i in range(self.NScan):
+            self.TE[i, ...] = par["TE"][i] * np.ones((1, 1, 1))
 
-        test_M0 = 1 * np.sqrt((dimX * np.pi / 2) / par['Nproj'])
-        T21 = 1 / np.reshape(np.linspace(1e-4, 150, dimX *
-                                         dimY * Nislice),
-                             (Nislice, dimX, dimY))
-        test_M01 = 1
-        T21 = 1 / self.uk_scale[2] * T21 * \
-            np.ones((Nislice, dimY, dimX), dtype=DTYPE)
-        T22 = 1 / np.reshape(np.linspace(150, 1500, dimX *
-                                         dimY * Nislice),
-                             (Nislice, dimX, dimY))
-        test_M02 = 1
-        T22 = 1 / self.uk_scale[4] * T22 * \
-            np.ones((Nislice, dimY, dimX), dtype=DTYPE)
-#
-        G_x = self.execute_forward_3D(
-            np.array(
-                [
-                    test_M0 /
-                    self.uk_scale[0] *
-                    np.ones(
-                        (Nislice,
-                         dimY,
-                         dimX),
-                        dtype=DTYPE),
-                    test_M01 /
-                    self.uk_scale[1] *
-                    np.ones(
-                        (Nislice,
-                         dimY,
-                         dimX),
-                        dtype=DTYPE),
-                    T21,
-                    test_M02 /
-                    self.uk_scale[3] *
-                    np.ones(
-                        (Nislice,
-                         dimY,
-                         dimX),
-                        dtype=DTYPE),
-                    T22],
-                dtype=DTYPE))
-        self.uk_scale[0] = self.uk_scale[0] * \
-            np.max(np.abs(images)) / np.median(np.abs(G_x))
+        par["unknowns_TGV"] = 5
+        par["unknowns_H1"] = 0
+        par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
 
-        DG_x = self.execute_gradient_3D(
-            np.array(
-                [
-                    test_M0 /
-                    self.uk_scale[0] *
-                    np.ones(
-                        (Nislice,
-                         dimY,
-                         dimX),
-                        dtype=DTYPE),
-                    test_M01 /
-                    self.uk_scale[1] *
-                    np.ones(
-                        (Nislice,
-                         dimY,
-                         dimX),
-                        dtype=DTYPE),
-                    T21,
-                    test_M02 /
-                    self.uk_scale[3] *
-                    np.ones(
-                        (Nislice,
-                         dimY,
-                         dimX),
-                        dtype=DTYPE),
-                    T22],
-                dtype=DTYPE))
-        self.uk_scale[1] = self.uk_scale[1] * np.linalg.norm(
-            np.abs(DG_x[0, ...])) / np.linalg.norm(np.abs(DG_x[1, ...]))
-        self.uk_scale[2] = self.uk_scale[2] * np.linalg.norm(
-            np.abs(DG_x[0, ...])) / np.linalg.norm(np.abs(DG_x[2, ...]))
-        self.uk_scale[3] = self.uk_scale[3] * np.linalg.norm(
-            np.abs(DG_x[0, ...])) / np.linalg.norm(np.abs(DG_x[3, ...]))
-        self.uk_scale[4] = self.uk_scale[4] * np.linalg.norm(
-            np.abs(DG_x[0, ...])) / np.linalg.norm(np.abs(DG_x[4, ...]))
-
-        DG_x = self.execute_gradient_3D(
-            np.array([test_M0 /
-                      self.uk_scale[0] *
-                      np.ones((Nislice, dimY, dimX), dtype=DTYPE), test_M01 /
-                      self.uk_scale[1] *
-                      np.ones((Nislice, dimY, dimX), dtype=DTYPE), T21 /
-                      self.uk_scale[2], test_M02 /
-                      self.uk_scale[3] *
-                      np.ones((Nislice, dimY, dimX), dtype=DTYPE), T22 /
-                      self.uk_scale[4]], dtype=DTYPE))
-
-        result = np.array(
-            [0.1 /
-             self.uk_scale[0] *
-             np.ones((Nislice, dimY, dimX), dtype=DTYPE), 0.5 /
-             self.uk_scale[1] *
-             np.ones((Nislice, dimY, dimX), dtype=DTYPE), (
-                 (1 /
-                  10) /
-                 self.uk_scale[2] *
-                 np.ones((Nislice, dimY, dimX), dtype=DTYPE)), 0.5 /
-             self.uk_scale[3] *
-             np.ones((Nislice, dimY, dimX), dtype=DTYPE), (
-                 (1 /
-                  150) /
-                 self.uk_scale[4] *
-                 np.ones((Nislice, dimY, dimX), dtype=DTYPE))], dtype=DTYPE)
-        self.guess = result
+        for j in range(par["unknowns"]):
+            self.uk_scale.append(1)
 
         self.constraints.append(
-            constraint(-100 / self.uk_scale[0], 100 / self.uk_scale[0], False))
+            constraints(
+                -100 / self.uk_scale[0],
+                100 / self.uk_scale[0], False))
         self.constraints.append(
-            constraint(
+            constraints(
                 0 / self.uk_scale[1],
                 1 / self.uk_scale[1],
                 True))
         self.constraints.append(
-            constraint(
+            constraints(
                 ((1 / 150) / self.uk_scale[2]),
                 ((1 / 1e-4) / self.uk_scale[2]),
                 True))
         self.constraints.append(
-            constraint(
+            constraints(
                 0 / self.uk_scale[3],
                 1 / self.uk_scale[3],
                 True))
         self.constraints.append(
-            constraint(
+            constraints(
                 ((1 / 1500) / self.uk_scale[4]),
                 ((1 / 150) / self.uk_scale[4]),
                 True))
 
     def rescale(self, x):
+        """Rescale the unknowns with the scaling factors.
+
+        Rescales each unknown with the corresponding scaling factor and
+        applies a 1/x transformation for the time constants of the
+        exponentials, yielding a result in milliseconds.
+
+        Parameters
+        ----------
+          x : numpy.array
+            The array of unknowns to be rescaled
+
+        Returns
+        -------
+          numpy.array:
+            The rescaled unknowns
+        """
         M0 = x[0, ...] * self.uk_scale[0]
         M01 = x[1, ...] * self.uk_scale[1]
         T21 = 1 / (x[2, ...] * self.uk_scale[2])
@@ -183,7 +96,7 @@ class Model:
         T22 = 1 / (x[4, ...] * self.uk_scale[4])
         return np.array((M0, M01, T21, M02, T22))
 
-    def execute_forward_2D(self, x, islice):
+    def _execute_forward_2D(self, x, islice):
         M0 = x[0, ...] * self.uk_scale[0]
         M01 = x[1, ...] * self.uk_scale[1]
         T21 = x[2, ...] * self.uk_scale[2]
@@ -195,7 +108,7 @@ class Model:
         S = np.array(S, dtype=DTYPE)
         return S
 
-    def execute_gradient_2D(self, x, islice):
+    def _execute_gradient_2D(self, x, islice):
         M0 = x[0, ...]
         M01 = x[1, ...]
         T21 = x[2, ...]
@@ -221,7 +134,7 @@ class Model:
         grad[~np.isfinite(grad)] = 1e-20
         return grad
 
-    def execute_forward_3D(self, x):
+    def _execute_forward_3D(self, x):
         M0 = x[0, ...] * self.uk_scale[0]
         M01 = x[1, ...] * self.uk_scale[1]
         T21 = x[2, ...] * self.uk_scale[2]
@@ -233,7 +146,7 @@ class Model:
         S = np.array(S, dtype=DTYPE)
         return S
 
-    def execute_gradient_3D(self, x):
+    def _execute_gradient_3D(self, x):
         M0 = x[0, ...]
         M01 = x[1, ...]
         T21 = x[2, ...]
@@ -260,6 +173,18 @@ class Model:
         return grad
 
     def plot_unknowns(self, x, dim_2D=False):
+        """Plot the unkowns in an interactive figure.
+
+        This function can be used to plot intermediate results during the
+        optimization process.
+
+        Parameters
+        ----------
+          x : numpy.array
+            The array of unknowns to be displayed
+          dim_2D : bool, false
+            Currently unused.
+        """
         M0 = np.abs(x[0, ...]) * self.uk_scale[0]
         M0_min = M0.min()
         M0_max = M0.max()
@@ -440,3 +365,31 @@ class Model:
             self.T22_plot_cor.set_clim([T22_min, T22_max])
             plt.draw()
             plt.pause(1e-10)
+
+    def computeInitialGuess(self, *args):
+        """Initialize unknown array for the fitting.
+
+        This function provides an initial guess for the fitting.
+
+        Parameters
+        ----------
+          args : list of objects
+            Serves as universal interface. No objects need to be passed
+            here.
+        """
+        test_M0 = 0.1 * np.ones(
+            (self.NSlice, self.dimY, self.dimX),
+            dtype=DTYPE)
+        test_M01 = 0.5 * np.ones(
+            (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+        test_T11 = 1/10 * np.ones(
+            (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+        test_T12 = 1/150 * np.ones(
+            (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+
+        self.guess = np.array([
+            test_M0,
+            test_M01,
+            test_T11,
+            test_M01,
+            test_T12], dtype=DTYPE)

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""Module handling the start up of the fitting procedure."""
 import pyopencl as cl
 import argparse
 import os
@@ -340,17 +341,6 @@ def _readInput(myargs, par):
 
 
 def _start_recon(myargs):
-    """
-    Model based reconstruction main function.
-
-    Reads in the data and starts the model based reconstruction.
-
-    Args
-    ----
-      myargs:
-        Arguments from pythons argparse to modify the behaviour of the
-        reconstruction procedure.
-    """
     sig_model_path = os.path.normpath(myargs.sig_model)
     if len(sig_model_path.split(os.sep)) > 1:
         if os.path.splitext(sig_model_path)[-1] == '':
@@ -371,7 +361,7 @@ def _start_recon(myargs):
             "pyqmri.models."+str(sig_model_path))
     np.seterr(divide='ignore', invalid='ignore')
 
-# Create par struct to store everyting
+# Create par struct to store relevant parameteres for reconstruction/fitting
     par = {}
 ###############################################################################
 # Select input file ############################################0##############
@@ -438,7 +428,7 @@ def _start_recon(myargs):
                               requirements='C')
 
 ###############################################################################
-# FA correction ###############################################################
+# Flip angle correction #######################################################
 ###############################################################################
     if "fa_corr" in list(par["file"].keys()):
         print("Using provied flip angle correction.")
@@ -458,7 +448,6 @@ def _start_recon(myargs):
            ...,
            int(dimreduction/2):par["fa_corr"].shape[-2]-int(dimreduction/2),
            int(dimreduction/2):par["fa_corr"].shape[-1]-int(dimreduction/2)]
-        # Recheck if shifted/transposed correctly
         par["fa_corr"] = np.require((np.transpose(par["fa_corr"], (0, 2, 1))),
                                     requirements='C')
     elif "interpol_fa" in list(par["file"].keys()):
@@ -480,7 +469,6 @@ def _start_recon(myargs):
            ...,
            int(dimreduction/2):par["fa_corr"].shape[-2]-int(dimreduction/2),
            int(dimreduction/2):par["fa_corr"].shape[-1]-int(dimreduction/2)]
-        # Recheck if shifted/transposed correctly
         par["fa_corr"] = np.require((np.transpose(par["fa_corr"], (0, 2, 1))),
                                     requirements='C')
     else:
@@ -489,10 +477,10 @@ def _start_recon(myargs):
     if data.ndim == 5:
         [NScan, NC, reco_Slices, Nproj, N] = data.shape
     elif data.ndim == 4 and "IRLL" in myargs.sig_model:
+        Nproj_new = 13
         print("4D Data passed and IRLL model used. Reordering Projections "
-              "into 8 Spokes/Frame")
+              "into "+str(Nproj_new)+" Spokes/Frame")
         [NC, reco_Slices, Nproj, N] = data.shape
-        Nproj_new = 5
         NScan = np.floor_divide(Nproj, Nproj_new)
         par["Nproj_measured"] = Nproj
         Nproj = Nproj_new
@@ -566,21 +554,6 @@ def _start_recon(myargs):
 ###############################################################################
     est_coils(data, par, par["file"], myargs, off)
 ###############################################################################
-# phase correction ############################################################
-###############################################################################
-    # if "phase_map" in par["file"].keys():
-    #     full_slices = par["file"]["phase_map"].shape[1]
-    #     if myargs.sms:
-    #         reco_Slices = full_slices
-    #     sliceind = slice(int(full_slices / 2) -
-    #                      int(np.floor((reco_Slices) / 2)),
-    #                      int(full_slices / 2) +
-    #                      int(np.ceil(reco_Slices / 2)))
-    #     par["phase_map"] = par["file"]["phase_map"][
-    #         :,
-    #         sliceind].astype(DTYPE)
-    #     data = np.fft.ifft(data, axis=-1, norm='ortho')
-###############################################################################
 # Standardize data ############################################################
 ###############################################################################
     [NScan, NC, NSlice, Nproj, N] = data.shape
@@ -615,7 +588,6 @@ def _start_recon(myargs):
         par["weights"] = np.ones((par["unknowns"]), dtype=np.float32)
     else:
         par["weights"] = np.array(myargs.weights, dtype=np.float32)
-    # par["weights"] *= par["unknowns"]/np.sum(par["weights"])
 ###############################################################################
 # Compute initial guess #######################################################
 ###############################################################################
@@ -624,27 +596,25 @@ def _start_recon(myargs):
 # initialize operator  ########################################################
 ###############################################################################
     opt = IRGNOptimizer(par,
-                        myargs.trafo,
+                        model,
+                        trafo=myargs.trafo,
                         imagespace=myargs.imagespace,
                         SMS=myargs.sms,
                         config=myargs.config,
-                        model=model,
                         streamed=myargs.streamed,
                         reg_type=myargs.reg)
-    if myargs.imagespace is True:
-        opt.data = images
-    else:
-        opt.data = data
     f = h5py.File(par["outdir"]+"output_" + par["fname"], "a")
     f.create_dataset("images_ifft", data=images)
     f.attrs['data_norm'] = par["dscale"]
     f.close()
     par["file"].close()
-
 ###############################################################################
 # Start Reco ##################################################################
 ###############################################################################
-    opt.execute()
+    if myargs.imagespace is True:
+        opt.execute(images)
+    else:
+        opt.execute(data)
     plt.close('all')
 
 
@@ -665,64 +635,69 @@ def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
         imagespace=False,
         OCL_GPU=True, sms=False, devices=0, dz=1, weights=None,
         out='',
-        modelfile="models.ini", modelname="VFA-E1",
-        fft_dim=-1):
+        modelfile="models.ini", modelname="VFA-E1"):
     """
     Start a 3D model based reconstruction.
 
-    Start a 3D model based reconstruction. Data can be selected at start up.
+    Start a 3D model based reconstruction.
+    If no data path is given, a file dialog can be used to select data
+    at start up. If no other parameters are passed, T1 from a single slice
+    of radially acquired variable flip angle data will be quantified.
 
-    Args
-    ----
-      recon_type (str):
+    If no config file is passed, a default one will be generated in the
+    current folder, the script is run in.
+
+    Parameters
+    ----------
+      recon_type : str
         3D (2D currently not supported but 3D works on one slice also)
-      reg_type (str):
+      reg_type : str
         TGV or TV, defaults to TGV
-      slices (int):
+      slices : int
         The number of slices to reconsturct. Slices are picked symmetrically
         from the volume center. Pass -1 to select all slices available.
         Defaults to 1
-      trafo (bool):
+      trafo : bool
         Choos between Radial (1) or Cartesian (0) FFT
-      streamed (bool):
+      streamed : bool
         Toggle between streaming slices to the GPU (1) or computing
         everything with a single memory transfer (0). Defaults to 0
-      par_slices (int):
+      par_slices : int
         Number of slices per streamed package. Volume devided by GPU's and
         par_slices must be an even number! Defaults to 1
-      data (str):
+      data : str
         The path to the .h5 file containing the data to reconstruct.
         If left empty, a GUI will open and asks for data file selection. This
         is also the default behaviour.
-      model (str):
+      model : str
         The name of the model which should be used to fit the data. Defaults to
         'VFA'. A path to your own model file can be passed. See the Model Class
         for further information on how to setup your own model.
-      config (str):
+      config : str
         The path to the confi gfile used for the IRGN reconstruction. If
         not specified the default config file will be used. If no default
         config file is present in the current working directory one will be
         generated.
-      imagespace (bool):
+      imagespace : bool
         Select between fitting in imagespace (1) or in k-space (0).
         Defaults to 0
-      OCL_GPU (bool):
+      OCL_GPU : bool
         Select between GPU (1) or CPU (0) OpenCL devices. Defaults to GPU
         CAVE: CPU FFT not working.
-      sms (bool):
+      sms : bool
         use Simultaneous Multi Slice Recon (1) or normal reconstruction (0).
         Defaults to 0
-      devices (list of ints):
+      devices : list of int
         The device ID of device(s) to use for streaming/reconstruction
-      dz (float):
+      dz : float
         Ratio of physical Z to X/Y dimension. X/Y is assumed to be isotropic.
-      useCGguess (bool):
+      useCGguess : bool
         Switch between CG sense and simple FFT as initial guess for the images.
-      out (str):
+      out : str
         Output directory. Defaults to the location of the input file.
-      modelpath (str):
+      modelpath : str
         Path to the .mod file for the generative model.
-      modelname (str):
+      modelname : str
         Name of the model in the .mod file to use.
     """
     argparrun = argparse.ArgumentParser(

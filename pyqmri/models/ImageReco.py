@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""Module holding the simple image model for image reconstruction."""
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -9,15 +10,26 @@ plt.ion()
 
 
 class Model(BaseModel):
+    """Image reconstruction model for MRI.
+
+    A simple linear image model to perform image reconstruction with
+    joint regularization on all Scans.
+
+    Parameters
+    ----------
+      par : dict
+        A python dict containing the necessary information to
+        setup the object. Needs to contain the sequence related parametrs,
+        e.g. TR, TE, TI, to fully describe the acquisitio process
+
+    """
+
     def __init__(self, par):
         super().__init__(par)
-        self.constraints = []
-        self.figure_img = []
 
-        par["unknowns_TGV"] = 1
+        par["unknowns_TGV"] = self.NScan
         par["unknowns_H1"] = 0
         par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
-        self.unknowns = par["unknowns"]
 
         for j in range(par["unknowns"]):
             self.uk_scale.append(1)
@@ -29,28 +41,53 @@ class Model(BaseModel):
                             False))
 
 
-
     def rescale(self, x):
+        """Rescale the unknowns with the scaling factors.
+
+        Rescales each unknown with the corresponding scaling.
+
+        Parameters
+        ----------
+          x : numpy.array
+            The array of unknowns to be rescaled
+
+        Returns
+        -------
+          numpy.array:
+            The rescaled unknowns
+        """
         tmp_x = np.copy(x)
-        for j in range(x.shape[0]):
+        for j in range(self.NScan):
             tmp_x[j] *= self.uk_scale[j]
         return tmp_x
 
     def _execute_forward_3D(self, x):
         S = np.zeros_like(x)
-        for j in range(S.shape[0]):
+        for j in range(self.NScan):
             S[j, ...] = x[j, ...] * self.uk_scale[j]
         S[~np.isfinite(S)] = 1e-20
         return S
 
     def _execute_gradient_3D(self, x):
-        grad_M0 = np.zeros(((self.unknowns, )+x.shape), dtype=DTYPE)
-        for j in range(x.shape[0]):
+        grad_M0 = np.zeros(((self.NScan, )+x.shape), dtype=DTYPE)
+        for j in range(self.NScan):
             grad_M0[j, ...] = self.uk_scale[j]*np.ones_like(x)
         grad_M0[~np.isfinite(grad_M0)] = 1e-20
         return grad_M0
 
     def plot_unknowns(self, x, dim_2D=False):
+        """Plot the unkowns in an interactive figure.
+
+        This function can be used to plot intermediate results during the
+        optimization process.
+
+        Parameters
+        ----------
+          x : numpy.array
+            The array of unknowns to be displayed
+          dim_2D : bool, false
+            Currently unused.
+        """
         M0 = np.zeros_like(x)
         M0_min = []
         M0_max = []
@@ -59,23 +96,22 @@ class Model(BaseModel):
             M0[j, ...] = np.abs(x[j, ...] * self.uk_scale[j])
             M0_min.append(M0[j].min())
             M0_max.append(M0[j].max())
-#        M0 = np.transpose(M0, [0, 2, 1, 3])
         if dim_2D:
             raise NotImplementedError("2D Not Implemented")
         else:
             [z, y, x] = M0.shape[1:]
-            if not self.figure_img:
+            if not self.figure:
                 plt.ion()
                 self.ax_img = []
                 plot_dim = int(np.ceil(np.sqrt(M0.shape[0])))
-                self.figure_img = plt.figure(figsize=(12, 6))
-                self.figure_img.subplots_adjust(hspace=0.3, wspace=0)
+                self.figure = plt.figure(figsize=(12, 6))
+                self.figure.subplots_adjust(hspace=0.3, wspace=0)
                 wd_ratio = np.tile([1, 1 / 20, 1 / (5)], plot_dim)
                 self.gs_kurt = gridspec.GridSpec(
                     plot_dim, 3 * plot_dim,
                     width_ratios=wd_ratio, hspace=0.3, wspace=0)
-                self.figure_img.tight_layout()
-                self.figure_img.patch.set_facecolor('black')
+                self.figure.tight_layout()
+                self.figure.patch.set_facecolor('black')
                 for grid in self.gs_kurt:
                     self.ax_img.append(plt.subplot(grid))
                     self.ax_img[-1].axis('off')
@@ -90,7 +126,7 @@ class Model(BaseModel):
                                 j].set_title('Image: ' +
                                              str(j), color='white')
                     self.ax_img[3 * j + 1].axis('on')
-                    cbar = self.figure_img.colorbar(
+                    cbar = self.figure.colorbar(
                         self.image_plot[j], cax=self.ax_img[3 * j + 1])
                     cbar.ax.tick_params(labelsize=12, colors='white')
                     for spine in cbar.ax.spines:
@@ -103,9 +139,19 @@ class Model(BaseModel):
                     self.image_plot[j].set_clim([M0_min[j],
                                                  M0_max[j]])
 
-                self.figure_img.canvas.draw_idle()
+                self.figure.canvas.draw_idle()
                 plt.draw()
                 plt.pause(1e-10)
 
     def computeInitialGuess(self, *args):
+        """Initialize unknown array for the fitting.
+
+        This function provides an initial guess for the fitting.
+
+        Parameters
+        ----------
+          args : list of objects
+            Assumes the images series at position 0 and uses it as initial
+            guess.
+        """
         self.guess = ((args[0]).astype(DTYPE))

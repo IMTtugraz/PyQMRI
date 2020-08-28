@@ -1,40 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Tue Jul 17 12:05:45 2018
+"""Compute Kaiser-Bessel gridding kernel.
 
-@author: omaier
+Original Skript by B. Hargreaves
+Adapted for Python by O. Maier
 
-Copyright 2019 Oliver Maier
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
+function [kern,kbu] = calckbkernel(kwidth,overgridfactor,klength)
+Function calculates the appropriate Kaiser-Bessel kernel
+for gridding, using the approach of Jackson et al.
+INPUT:
+  width = kernel width in grid samples.
+  overgridfactor = over-gridding factor.
+  klength = kernel look-up-table length.
+OUTPUT:
+  kern = kernel values for klength values
+  of u, uniformly spaced from 0 to kwidth/2.
+  kbu = u values.
 """
 import numpy as np
-from pyqmri._helper_fun._kb import kb
-# function [kern,kbu] = calckbkernel(kwidth,overgridfactor,klength)
-# Function calculates the appropriate Kaiser-Bessel kernel
-# for gridding, using the approach of Jackson et al.
-# INPUT:
-#  width = kernel width in grid samples.
-#  overgridfactor = over-gridding factor.
-#  klength = kernel look-up-table length.
-# OUTPUT:
-#  kern = kernel values for klength values
-#  of u, uniformly spaced from 0 to kwidth/2.
-#  kbu = u values.
-# Original Skript by B. Hargreaves
-# Adapted for Python by O. Maier
 
 
 def calckbkernel(kwidth, overgridfactor, G, klength=32):
@@ -47,11 +30,11 @@ def calckbkernel(kwidth, overgridfactor, G, klength=32):
     # From Beatty et al.
     beta = np.pi * np.sqrt(w**2 / a**2 * (a - 0.5)**2 - 0.8)
 
-# Kernel radii - grid samples.
+    # Kernel radii - grid samples.
     u = np.linspace(0, np.floor(klength * w / 2), int(np.ceil(klength * w / 2))
                     ) / (np.floor(klength * w / 2)) * w / 2 / G
 
-    kern = kb(u, kwidth, beta, G)
+    kern = _kb(u, kwidth, beta, G)
     kern = kern / kern[u == 0]  # Normalize.
 
     ft_y = np.flip(kern)
@@ -68,3 +51,18 @@ def calckbkernel(kwidth, overgridfactor, G, klength=32):
     kern_ft = (kern_ft / np.max((kern_ft)))
 
     return (kern, kern_ft, u)
+
+
+def _kb(u, w, beta, G):
+    if (np.size(w) > 1):
+        raise('w should be a single scalar value.')
+
+    y = 0 * u  # Allocate space.
+    uz = np.where(np.abs(u) <= w / (2 * G))			# Indices where u<w/2.
+
+    if (np.size(uz) > 0):			# Calculate y at indices uz.
+        # Argument - see Jackson '91.
+        x = beta * np.sqrt(1 - (2 * u[uz] * G / w)**2)
+        y[uz] = G * np.i0(x) / w
+
+    return (y)

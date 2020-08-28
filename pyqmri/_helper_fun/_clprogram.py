@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Tue Jul 30 10:20:02 2019
+Created on Thu Aug 27 16:09:12 2020
 
 @author: omaier
 """
-
 import pyopencl as cl
 
 
