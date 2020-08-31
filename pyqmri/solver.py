@@ -662,19 +662,49 @@ class PDBaseSolver:
 
         return primal_vars
 
-    def _updateInitial(self):
+    def _updateInitial(
+            self,
+            out_fwd,
+            out_adj,
+            in_primal,
+            in_dual):
         pass
 
-    def _updatePrimal(self):
+    def _updatePrimal(
+            self,
+            out_primal,
+            out_fwd,
+            in_primal,
+            in_precomp_adj,
+            tau):
         pass
 
-    def _updateDual(self):
+    def _updateDual(self,
+                    out_dual,
+                    out_adj,
+                    in_primal,
+                    in_primal_new,
+                    in_dual,
+                    in_precomp_fwd,
+                    in_precomp_fwd_new,
+                    in_precomp_adj,
+                    data,
+                    beta,
+                    tau,
+                    theta
+                    ):
         pass
 
-    def _calcResidual(self):
+    def _calcResidual(
+                    self,
+                    in_primal,
+                    in_dual,
+                    in_precomp_fwd,
+                    in_precomp_adj,
+                    data):
         pass
 
-    def _setupVariables(self):
+    def _setupVariables(self, inp, data):
         pass
 
     def _updateConstraints(self):
