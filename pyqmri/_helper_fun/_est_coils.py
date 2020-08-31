@@ -7,8 +7,8 @@ Estimates sensitivities and complex image.
 inversion joint estimation of coil sensitivities and image content)
 
 """
-import numpy as np
 import sys
+import numpy as np
 import ipyparallel as ipp
 import pyopencl.array as clarray
 from pyqmri._helper_fun import _nlinvns as nlinvns

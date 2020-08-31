@@ -5,9 +5,9 @@ Created on Wed Jan 30 11:10:07 2019
 
 @author: omaier
 """
-import numpy as np
 import configparser
 import os
+import numpy as np
 from pyqmri.transforms import PyOpenCLnuFFT
 DTYPE = np.complex64
 DTYPE_real = np.float32

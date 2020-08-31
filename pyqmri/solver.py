@@ -674,7 +674,7 @@ class PDBaseSolver:
             out_adj,
             in_primal,
             in_dual):
-        return ()
+        pass
 
     def _updatePrimal(
             self,
@@ -683,7 +683,7 @@ class PDBaseSolver:
             in_primal,
             in_precomp_adj,
             tau):
-        return ()
+        pass
 
     def _updateDual(self,
                     out_dual,
@@ -699,7 +699,7 @@ class PDBaseSolver:
                     tau,
                     theta
                     ):
-        return ()
+        return (None, None)
 
     def _calcResidual(
                     self,
@@ -708,10 +708,10 @@ class PDBaseSolver:
                     in_precomp_fwd,
                     in_precomp_adj,
                     data):
-        return ()
+        return (None, None, None)
 
     def _setupVariables(self, inp, data):
-        return ()
+        return (None, None, None, None, None, None, None, None, None)
 
     def _updateConstraints(self):
         num_const = (len(self.model.constraints))

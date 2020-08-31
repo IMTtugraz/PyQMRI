@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Module holding the general model for fitting."""
-import numpy as np
 import configparser
+import numpy as np
 import sympy
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -12,12 +12,11 @@ from pyqmri.models.template import BaseModel, constraints, DTYPE
 def _str2bool(v):
     if isinstance(v, bool):
         return v
-    elif v.lower() in ('yes', 'true', 't', 'y', '1'):
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
         return True
-    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+    if v.lower() in ('no', 'false', 'f', 'n', '0'):
         return False
-    else:
-        raise ValueError('Boolean value expected.')
+    raise ValueError('Boolean value expected.')
 
 
 class Model(BaseModel):

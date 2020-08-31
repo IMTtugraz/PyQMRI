@@ -65,13 +65,13 @@ def imshow(volume, vmin=None, vmax=None):
 def _process_scroll(event):
     fig = event.canvas.figure
     ax = fig.axes
-    for i in range(len(ax)):
-        if ax[i].index is not None:
-            volume = ax[i].volume
-            if (int((ax[i].index - event.step) >= volume.shape[0]) or
-                    int((ax[i].index - event.step) < 0)):
+    for i, axes in enumerate(ax):
+        if axes.index is not None:
+            volume = axes.volume
+            if (int((axes.index - event.step) >= volume.shape[0]) or
+                    int((axes.index - event.step) < 0)):
                 pass
             else:
-                ax[i].index = int((ax[i].index - event.step) % volume.shape[0])
+                ax[i].index = int((axes.index - event.step) % volume.shape[0])
                 ax[i].images[0].set_array(volume[ax[i].index])
                 fig.canvas.draw()

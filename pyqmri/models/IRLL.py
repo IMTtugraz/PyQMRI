@@ -97,11 +97,11 @@ class Model(BaseModel):
 
         self._M0_plot = None
         self._M0_plot_cor = None
-        self._M0_sag = None
+        self._M0_plot_sag = None
 
         self._T1_plot = None
         self._T1_plot_cor = None
-        self._T1_sag = None
+        self._T1_plot_sag = None
 
     def rescale(self, x):
         """Rescale the unknowns with the scaling factors.

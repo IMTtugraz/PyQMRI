@@ -18,8 +18,8 @@ nlinvns
  Max-Planck-Institut fuer biophysikalische Chemie
 Adapted for Python by O. Maier
 """
-import numpy as np
 import time
+import numpy as np
 import pyfftw
 
 
@@ -102,7 +102,7 @@ def nlinvns(Y, n, *arg):
 
             d = d * ((dnew / dold)) + r
             np.nan_to_num(d)
-            if (np.sqrt(dnew) < (1e-2 * dnot)):
+            if np.sqrt(dnew) < (1e-2 * dnot):
                 break
 
         print('(', j, ')')

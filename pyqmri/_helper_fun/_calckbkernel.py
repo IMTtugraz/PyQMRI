@@ -21,7 +21,7 @@ import numpy as np
 
 
 def calckbkernel(kwidth, overgridfactor, G, klength=32):
-    if (klength < 2):
+    if klength < 2:
         klength = 2
         print('Warning:  klength must be 2 or more - using 2.')
 
@@ -54,15 +54,15 @@ def calckbkernel(kwidth, overgridfactor, G, klength=32):
 
 
 def _kb(u, w, beta, G):
-    if (np.size(w) > 1):
-        raise('w should be a single scalar value.')
+    if np.size(w) > 1:
+        raise TypeError('w should be a single scalar value.')
 
     y = 0 * u  # Allocate space.
     uz = np.where(np.abs(u) <= w / (2 * G))			# Indices where u<w/2.
 
-    if (np.size(uz) > 0):			# Calculate y at indices uz.
+    if np.size(uz) > 0:			# Calculate y at indices uz.
         # Argument - see Jackson '91.
         x = beta * np.sqrt(1 - (2 * u[uz] * G / w)**2)
         y[uz] = G * np.i0(x) / w
 
-    return (y)
+    return y

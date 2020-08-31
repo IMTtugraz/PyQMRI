@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Module handling the start up of the fitting procedure."""
+import sys
 import argparse
 import os
-import h5py
-import sys
 import time
 import importlib
 
@@ -14,6 +13,7 @@ from tkinter import Tk
 
 import matplotlib.pyplot as plt
 
+import h5py
 import pyopencl as cl
 import pyopencl.array as clarray
 
@@ -622,12 +622,11 @@ def _start_recon(myargs):
 def _str2bool(v):
     if isinstance(v, bool):
         return v
-    elif v.lower() in ('yes', 'true', 't', 'y', '1'):
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
         return True
-    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+    if v.lower() in ('no', 'false', 'f', 'n', '0'):
         return False
-    else:
-        raise argparse.ArgumentTypeError('Boolean value expected.')
+    raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
 def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
