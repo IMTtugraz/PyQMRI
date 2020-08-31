@@ -29,7 +29,7 @@ class Model(BaseModel):
         Echo time (or any other timing valid in a bi-exponential fit).
       uk_scale : list of float
         Scaling factors for each unknown to balance the partial derivatives.
-      guess : numpy.array
+      guess : numpy.array, None
         The initial guess. Needs to be set using "computeInitialGuess"
         prior to fitting.
     """
@@ -72,6 +72,31 @@ class Model(BaseModel):
                 ((1 / 1500) / self.uk_scale[4]),
                 ((1 / 150) / self.uk_scale[4]),
                 True))
+        self.guess = None
+        self._setup_plot_vars()
+
+    def _setup_plot_vars(self):
+        self._ax = None
+        self._M0_plot = None
+        self._M0_plot_cor = None
+        self._M0_plot_sag = None
+
+        self._M01_plot = None
+        self._M01_plot_cor = None
+        self._M01_plot_sag = None
+
+        self._M02_plot = None
+        self._M02_plot_cor = None
+        self._M02_plot_sag = None
+
+        self._T21_plot = None
+        self._T21_plot_cor = None
+        self._T21_plot_sag = None
+
+        self._T22_plot = None
+        self._T22_plot_cor = None
+        self._T22_plot_sag = None
+
 
     def rescale(self, x):
         """Rescale the unknowns with the scaling factors.
@@ -172,7 +197,7 @@ class Model(BaseModel):
             plt.ion()
             self.figure = plt.figure(figsize=(12, 6))
             self.figure.subplots_adjust(hspace=0, wspace=0)
-            self.gs = gridspec.GridSpec(2,
+            gs = gridspec.GridSpec(2,
                                         17,
                                         width_ratios=[x / z,
                                                       1,
@@ -195,7 +220,7 @@ class Model(BaseModel):
                                                        1])
             self.figure.tight_layout()
             self.figure.patch.set_facecolor(plt.cm.viridis.colors[0])
-            for grid in self.gs:
+            for grid in gs:
                 self._ax.append(plt.subplot(grid))
                 self._ax[-1].axis('off')
 
@@ -209,7 +234,7 @@ class Model(BaseModel):
             self._ax[0].set_anchor('SE')
             self._ax[1].set_anchor('SW')
             self._ax[17].set_anchor('NW')
-            cax = plt.subplot(self.gs[:, 2])
+            cax = plt.subplot(gs[:, 2])
             cbar = self.figure.colorbar(self._M0_plot, cax=cax)
             cbar.ax.tick_params(labelsize=12, colors='white')
 #           cax.yaxis.set_ticks_position('left')
@@ -226,7 +251,7 @@ class Model(BaseModel):
             self._ax[5].set_anchor('SE')
             self._ax[6].set_anchor('SW')
             self._ax[22].set_anchor('NW')
-            cax = plt.subplot(self.gs[:, 4])
+            cax = plt.subplot(gs[:, 4])
             cbar = self.figure.colorbar(self._M01_plot, cax=cax)
             cbar.ax.tick_params(labelsize=12, colors='white')
             cax.yaxis.set_ticks_position('left')
@@ -243,7 +268,7 @@ class Model(BaseModel):
             self._ax[12].set_anchor('SE')
             self._ax[13].set_anchor('SW')
             self._ax[29].set_anchor('NW')
-            cax = plt.subplot(self.gs[:, 11])
+            cax = plt.subplot(gs[:, 11])
             cbar = self.figure.colorbar(self._M02_plot, cax=cax)
             cbar.ax.tick_params(labelsize=12, colors='white')
             cax.yaxis.set_ticks_position('left')
@@ -260,7 +285,7 @@ class Model(BaseModel):
             self._ax[7].set_anchor('SE')
             self._ax[8].set_anchor('SW')
             self._ax[24].set_anchor('NW')
-            cax = plt.subplot(self.gs[:, 9])
+            cax = plt.subplot(gs[:, 9])
             cbar = self.figure.colorbar(self._T21_plot, cax=cax)
             cbar.ax.tick_params(labelsize=12, colors='white')
             for spine in cbar.ax.spines:
@@ -276,7 +301,7 @@ class Model(BaseModel):
             self._ax[14].set_anchor('SE')
             self._ax[15].set_anchor('SW')
             self._ax[31].set_anchor('NW')
-            cax = plt.subplot(self.gs[:, 16])
+            cax = plt.subplot(gs[:, 16])
             cbar = self.figure.colorbar(self._T22_plot, cax=cax)
             cbar.ax.tick_params(labelsize=12, colors='white')
             for spine in cbar.ax.spines:

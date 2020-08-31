@@ -90,6 +90,7 @@ class CGSolver:
              self._NSlice, self._dimY, self._dimX),
             DTYPE, "C")
         par["NScan"] = NScan_save
+        self._scan_offset = 0
 
     def __del__(self):
         """Destructor.
@@ -129,7 +130,7 @@ class CGSolver:
           numpy.Array:
               The result of the image reconstruction.
         """
-        self.scan_offset = scan_offset
+        self._scan_offset = scan_offset
         if guess is not None:
             x = clarray.to_device(self._queue, guess)
         else:
@@ -224,7 +225,7 @@ class CGSolver:
         self._tmp_result.add_event(self.eval_fwd_kspace_cg(
             self._tmp_result, x, wait_for=self._tmp_result.events+x.events))
         self._tmp_sino.add_event(self._FT(
-            self._tmp_sino, self._tmp_result, scan_offset=self.scan_offset))
+            self._tmp_sino, self._tmp_result, scan_offset=self._scan_offset))
         return self._operator_rhs(out, self._tmp_sino)
 
     def _operator_rhs(self, out, x, wait_for=None):
@@ -248,7 +249,7 @@ class CGSolver:
             wait_for = []
         self._tmp_result.add_event(self._FTH(
             self._tmp_result, x, wait_for=wait_for+x.events,
-            scan_offset=self.scan_offset))
+            scan_offset=self._scan_offset))
         return self._prg.operator_ad_cg(self._queue,
                                         (self._NSlice, self._dimY,
                                          self._dimX),
@@ -1014,6 +1015,16 @@ class PDBaseSolver:
             np.float32(1/(1+par[0]/par[2])),
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
+
+    def setFvalInit(self, fval):
+        """Set the initial value of the cost function.
+
+        Parameters
+        ----------
+          fval : float
+            The initial cost of the optimization problem
+        """
+        self._fval_init = fval
 
 
 class PDSolverTV(PDBaseSolver):

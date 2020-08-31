@@ -1,13 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Module holding the classes for IRGN Optimization without streaming.
-
-Attribues:
-  DTYPE (complex64):
-    Complex working precission. Currently single precission only.
-  DTYPE_real (float32):
-    Real working precission. Currently single precission only.
-"""
+"""Module holding the classes for IRGN Optimization without streaming."""
 from __future__ import division
 import time
 import numpy as np
@@ -20,9 +13,6 @@ import pyqmri.operator as operator
 import pyqmri.solver as optimizer
 from pyqmri._helper_fun import CLProgram as Program
 from pyqmri._helper_fun import _utils as utils
-
-DTYPE = np.complex64
-DTYPE_real = np.float32
 
 
 class IRGNOptimizer:
@@ -58,6 +48,10 @@ class IRGNOptimizer:
         Select between standard reconstruction (false)
         or streamed reconstruction (true) for large volumetric data which
         does not fit on the GPU memory at once.
+      DTYPE : numpy.dtype, numpy.complex64
+        Complex working precission.
+      DTYPE_real : numpy.dtype, numpy.float32
+        Real working precission.
 
     Attributes
     ----------
@@ -78,7 +72,8 @@ class IRGNOptimizer:
     """
 
     def __init__(self, par, model, trafo=1, imagespace=False, SMS=0,
-                 reg_type='TGV', config='', streamed=False):
+                 reg_type='TGV', config='', streamed=False,
+                 DTYPE=np.complex64, DTYPE_real=np.float32):
         self.par = par
         self.gn_res = []
         self.irgn_par = utils.read_config(config, reg_type)
@@ -92,6 +87,9 @@ class IRGNOptimizer:
         self._model = model
         self._reg_type = reg_type
         self._prg = []
+
+        self._DTYPE = DTYPE
+        self._DTYPE_real = DTYPE_real
 
         self._streamed = streamed
         self._imagespace = imagespace
@@ -218,6 +216,13 @@ class IRGNOptimizer:
                 v = np.require(np.swapaxes(v, 0, 1), requirements='C')
         return grad_op, symgrad_op, v
 
+    def _setupPrivateAttributes(self):
+        self._gamma = None
+        self._delta = None
+        self._omega = None
+        self._step_val = None
+        self._modelgrad = None
+
     def execute(self, data):
         """Start the IRGN optimization.
 
@@ -254,7 +259,7 @@ class IRGNOptimizer:
 
         for ign in range(self.irgn_par["max_gn_it"]):
             start = time.time()
-            self.modelgrad = np.nan_to_num(
+            self._modelgrad = np.nan_to_num(
                 self._model.execute_gradient(result))
 
             self._balanceModelGradients(result)
@@ -264,27 +269,28 @@ class IRGNOptimizer:
                 if self._SMS is False:
                     self._step_val = np.require(
                         np.swapaxes(self._step_val, 0, 1), requirements='C')
-                self.modelgrad = np.require(
-                    np.transpose(self.modelgrad, self._data_trans_axes),
+                self._modelgrad = np.require(
+                    np.transpose(self._modelgrad, self._data_trans_axes),
                     requirements='C')
                 self._pdop.model = self._model
-                self._pdop.modelgrad = self.modelgrad
+                self._pdop.modelgrad = self._modelgrad
                 self._pdop.jacobi = np.sum(
-                    np.abs(self.modelgrad)**2, 2).astype(DTYPE_real)
+                    np.abs(self._modelgrad)**2, 2).astype(self._DTYPE_real)
                 self._pdop.jacobi[self._pdop.jacobi == 0] = 1e-8
             else:
-                self.jacobi = np.sum(
-                    np.abs(self.modelgrad)**2, 1).astype(DTYPE_real)
-                self.jacobi[self.jacobi == 0] = 1e-8
-                self.modelgrad = clarray.to_device(
+                _jacobi = np.sum(
+                    np.abs(
+                        self._modelgrad)**2, 1).astype(self._self._DTYPE_real)
+                _jacobi[_jacobi == 0] = 1e-8
+                self._modelgrad = clarray.to_device(
                     self._queue[0],
-                    self.modelgrad)
+                    self._modelgrad)
                 self._pdop.model = self._model
-                self._pdop.modelgrad = self.modelgrad
+                self._pdop.modelgrad = self._modelgrad
                 self._pdop.jacobi = clarray.to_device(
                     self._queue[0],
-                    self.jacobi)
-            self._updateIRGNRegPar(result, ign)
+                    _jacobi)
+            self._updateIRGNRegPar(ign)
             self._pdop.updateRegPar(self.irgn_par)
 
             result = self._irgnSolve3D(result, iters, data, ign)
@@ -300,7 +306,7 @@ class IRGNOptimizer:
             self._saveToFile(ign, self._model.rescale(result))
         self._calcResidual(result, data, ign+1)
 
-    def _updateIRGNRegPar(self, result, ign):
+    def _updateIRGNRegPar(self, ign):
         self.irgn_par["delta"] = np.minimum(
             self._delta
             * self.irgn_par["delta_inc"]**ign,
@@ -314,7 +320,7 @@ class IRGNOptimizer:
 
     def _balanceModelGradients(self, result):
         scale = np.reshape(
-            self.modelgrad,
+            self._modelgrad,
             (self.par["unknowns"],
              self.par["NScan"] * self.par["NSlice"] *
              self.par["dimY"] * self.par["dimX"]))
@@ -327,12 +333,12 @@ class IRGNOptimizer:
         for uk in range(self.par["unknowns"]):
             self._model.constraints[uk].update(scale[uk])
             result[uk, ...] *= self._model.uk_scale[uk]
-            self.modelgrad[uk] /= self._model.uk_scale[uk]
+            self._modelgrad[uk] /= self._model.uk_scale[uk]
             self._model.uk_scale[uk] *= scale[uk]
             result[uk, ...] /= self._model.uk_scale[uk]
-            self.modelgrad[uk] *= self._model.uk_scale[uk]
+            self._modelgrad[uk] *= self._model.uk_scale[uk]
         scale = np.reshape(
-            self.modelgrad,
+            self._modelgrad,
             (self.par["unknowns"],
              self.par["NScan"] * self.par["NSlice"] *
              self.par["dimY"] * self.par["dimX"]))
@@ -347,11 +353,11 @@ class IRGNOptimizer:
         f = h5py.File(self.par["outdir"]+"output_" + self.par["fname"], "a")
         if self._reg_type == 'TGV':
             f.create_dataset("tgv_result_iter_"+str(myit), result.shape,
-                             dtype=DTYPE, data=result)
+                             dtype=self._DTYPE, data=result)
             f.attrs['res_tgv_iter_'+str(myit)] = self._fval
         else:
             f.create_dataset("tv_result_"+str(myit), result.shape,
-                             dtype=DTYPE, data=result)
+                             dtype=self._DTYPE, data=result)
             f.attrs['res_tv_iter_'+str(myit)] = self._fval
         f.close()
 
@@ -370,11 +376,11 @@ class IRGNOptimizer:
         if self._streamed:
             x = np.require(np.swapaxes(x, 0, 1), requirements='C')
             res = data - b + self._MRI_operator.fwdoop(
-                [[x, self._coils, self.modelgrad]])
+                [[x, self._coils, self._modelgrad]])
         else:
             tmpx = clarray.to_device(self._queue[0], x)
             res = data - b + self._MRI_operator.fwdoop(
-                [tmpx, self._coils, self.modelgrad]).get()
+                [tmpx, self._coils, self._modelgrad]).get()
             del tmpx
 
         tmpres = self._pdop.run(x, res, iters)
@@ -426,7 +432,7 @@ class IRGNOptimizer:
 
         if GN_it == 0:
             self._fval_init = self._fval
-            self._pdop._fval_init = self._fval
+            self._pdop.setFvalInit(self._fval)
 
         print("-" * 75)
         print("Initial Cost: %f" % (self._fval_init))
@@ -441,7 +447,9 @@ class IRGNOptimizer:
 
     def _calcFwdGNPartLinear(self, x):
         if self._imagespace is False:
-            b = clarray.empty(self._queue[0], self._data_shape, dtype=DTYPE)
+            b = clarray.empty(self._queue[0],
+                              self._data_shape,
+                              dtype=self._DTYPE)
             self._FT.FFT(b, clarray.to_device(
                 self._queue[0],
                 (self._step_val[:, None, ...] *
@@ -452,7 +460,7 @@ class IRGNOptimizer:
 
         x = clarray.to_device(self._queue[0], np.require(x, requirements="C"))
         grad = clarray.to_device(self._queue[0],
-                                 np.zeros(x.shape+(4,), dtype=DTYPE))
+                                 np.zeros(x.shape+(4,), dtype=self._DTYPE))
         grad.add_event(
             self._grad_op.fwd(
                 grad,
@@ -465,7 +473,8 @@ class IRGNOptimizer:
         if self._reg_type == 'TGV':
             v = clarray.to_device(self._queue[0], self._v)
             sym_grad = clarray.to_device(self._queue[0],
-                                         np.zeros(x.shape+(8,), dtype=DTYPE))
+                                         np.zeros(x.shape+(8,),
+                                                  dtype=self._DTYPE))
             sym_grad.add_event(
                 self._symgrad_op.fwd(
                     sym_grad,
@@ -479,7 +488,7 @@ class IRGNOptimizer:
     def _calcFwdGNPartStreamed(self, x):
         x = np.require(np.swapaxes(x, 0, 1), requirements='C')
         if self._imagespace is False:
-            b = np.zeros(self._data_shape_T, dtype=DTYPE)
+            b = np.zeros(self._data_shape_T, dtype=self._DTYPE)
             if self._SMS is True:
                 self._MRI_operator.FTstr.eval(
                     [b],
@@ -497,12 +506,12 @@ class IRGNOptimizer:
                       np.expand_dims(self._coils, self._expdim_C)]])
         else:
             b = self._step_val
-        grad = np.zeros(x.shape+(4,), dtype=DTYPE)
+        grad = np.zeros(x.shape+(4,), dtype=self._DTYPE)
         self._grad_op.fwd([grad], [[x]])
 
         sym_grad = None
         if self._reg_type == 'TGV':
-            sym_grad = np.zeros(x.shape+(8,), dtype=DTYPE)
+            sym_grad = np.zeros(x.shape+(8,), dtype=self._DTYPE)
             self._symgrad_op.fwd([sym_grad], [[self._v]])
 
         return b, grad, sym_grad

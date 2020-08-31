@@ -38,6 +38,10 @@ class Model(BaseModel):
       guess : numpy.array
         The initial guess. Needs to be set using "computeInitialGuess"
         prior to fitting.
+      phase : numpy.array
+        The phase of each diffusion direction relative to the b0 image.
+        Estimated during the initial guess using the image series of all
+        directions/bvalue pairs.
       b0 : numpy.array
         The b0 image if present in the data file. None else.
     """
@@ -102,6 +106,41 @@ class Model(BaseModel):
                 (-10e0 / self.uk_scale[6]),
                 (10e0 / self.uk_scale[6]),
                 True))
+
+        self.guess = None
+        self.phase = None
+        self._setup_plot_vars()
+
+    def _setup_plot_vars(self):
+        self._ax = None
+
+        self._M0_plot = None
+        self._M0_plot_cor = None
+        self._M0_sag = None
+
+        self._ADC_x_plot = None
+        self._ADC_x_plot_cor = None
+        self._ADC_x_plot_sag = None
+
+        self._ADC_y_plot = None
+        self._ADC_y_plot_cor = None
+        self._ADC_y_plot_sag = None
+
+        self._ADC_z_plot = None
+        self._ADC_z_plot_cor = None
+        self._ADC_z_plot_sag = None
+
+        self._ADC_xy_plot = None
+        self._ADC_xy_plot_cor = None
+        self._ADC_xy_plot_sag = None
+
+        self._ADC_xz_plot = None
+        self._ADC_xz_plot_cor = None
+        self._ADC_xz_plot_sag = None
+
+        self._ADC_yz_plot = None
+        self._ADC_yz_plot_cor = None
+        self._ADC_yz_plot_sag = None
 
     def rescale(self, x):
         """Rescale the unknowns with the scaling factors.
@@ -302,35 +341,34 @@ class Model(BaseModel):
         else:
             [z, y, x] = M0.shape
             self._ax = []
-            self._ax_phase = []
-            self._ax_kurt = []
+
             if not self.figure:
                 plt.ion()
                 self.figure = plt.figure(figsize=(12, 6))
                 self.figure.subplots_adjust(hspace=0, wspace=0)
-                self._gs = gridspec.GridSpec(8,
-                                            10,
-                                            width_ratios=[x / (20 * z),
-                                                          x / z,
-                                                          1,
-                                                          x / z,
-                                                          1,
-                                                          x / (20 * z),
-                                                          x / (2 * z),
-                                                          x / z,
-                                                          1,
-                                                          x / (20 * z)],
-                                            height_ratios=[x / z,
-                                                           1,
-                                                           x / z,
-                                                           1,
-                                                           x / z,
-                                                           1,
-                                                           x / z,
-                                                           1])
+                gs = gridspec.GridSpec(8,
+                                       10,
+                                       width_ratios=[x / (20 * z),
+                                                     x / z,
+                                                     1,
+                                                     x / z,
+                                                     1,
+                                                     x / (20 * z),
+                                                     x / (2 * z),
+                                                     x / z,
+                                                     1,
+                                                     x / (20 * z)],
+                                       height_ratios=[x / z,
+                                                      1,
+                                                      x / z,
+                                                      1,
+                                                      x / z,
+                                                      1,
+                                                      x / z,
+                                                      1])
                 self.figure.tight_layout()
                 self.figure.patch.set_facecolor(plt.cm.viridis.colors[0])
-                for grid in self._gs:
+                for grid in gs:
                     self._ax.append(plt.subplot(grid))
                     self._ax[-1].axis('off')
 
@@ -344,7 +382,7 @@ class Model(BaseModel):
                 self._ax[1].set_anchor('SE')
                 self._ax[2].set_anchor('SW')
                 self._ax[11].set_anchor('NE')
-                cax = plt.subplot(self._gs[:2, 0])
+                cax = plt.subplot(gs[:2, 0])
                 cbar = self.figure.colorbar(self._M0_plot, cax=cax)
                 cbar.ax.tick_params(labelsize=12, colors='white')
                 cax.yaxis.set_ticks_position('left')
@@ -361,7 +399,7 @@ class Model(BaseModel):
                 self._ax[3].set_anchor('SE')
                 self._ax[4].set_anchor('SW')
                 self._ax[13].set_anchor('NE')
-                cax = plt.subplot(self._gs[:2, 5])
+                cax = plt.subplot(gs[:2, 5])
                 cbar = self.figure.colorbar(self._ADC_x_plot, cax=cax)
                 cbar.ax.tick_params(labelsize=12, colors='white')
                 for spine in cbar.ax.spines:
@@ -377,7 +415,7 @@ class Model(BaseModel):
                 self._ax[7].set_anchor('SE')
                 self._ax[8].set_anchor('SW')
                 self._ax[17].set_anchor('NE')
-                cax = plt.subplot(self._gs[:2, 9])
+                cax = plt.subplot(gs[:2, 9])
                 cbar = self.figure.colorbar(self._ADC_xy_plot, cax=cax)
                 cbar.ax.tick_params(labelsize=12, colors='white')
                 for spine in cbar.ax.spines:
@@ -393,7 +431,7 @@ class Model(BaseModel):
                 self._ax[23].set_anchor('SE')
                 self._ax[24].set_anchor('SW')
                 self._ax[33].set_anchor('NE')
-                cax = plt.subplot(self._gs[2:4, 5])
+                cax = plt.subplot(gs[2:4, 5])
                 cbar = self.figure.colorbar(self.ADC_y_plot, cax=cax)
                 cbar.ax.tick_params(labelsize=12, colors='white')
                 for spine in cbar.ax.spines:
@@ -409,7 +447,7 @@ class Model(BaseModel):
                 self._ax[27].set_anchor('SE')
                 self._ax[28].set_anchor('SW')
                 self._ax[37].set_anchor('NE')
-                cax = plt.subplot(self._gs[2:4, 9])
+                cax = plt.subplot(gs[2:4, 9])
                 cbar = self.figure.colorbar(self._ADC_xz_plot, cax=cax)
                 cbar.ax.tick_params(labelsize=12, colors='white')
                 for spine in cbar.ax.spines:
@@ -425,7 +463,7 @@ class Model(BaseModel):
                 self._ax[43].set_anchor('SE')
                 self._ax[44].set_anchor('SW')
                 self._ax[53].set_anchor('NE')
-                cax = plt.subplot(self._gs[4:6, 5])
+                cax = plt.subplot(gs[4:6, 5])
                 cbar = self.figure.colorbar(self._ADC_z_plot, cax=cax)
                 cbar.ax.tick_params(labelsize=12, colors='white')
                 for spine in cbar.ax.spines:
@@ -441,7 +479,7 @@ class Model(BaseModel):
                 self._ax[47].set_anchor('SE')
                 self._ax[48].set_anchor('SW')
                 self._ax[57].set_anchor('NE')
-                cax = plt.subplot(self._gs[4:6, 9])
+                cax = plt.subplot(gs[4:6, 9])
                 cbar = self.figure.colorbar(self._ADC_yz_plot, cax=cax)
                 cbar.ax.tick_params(labelsize=12, colors='white')
                 for spine in cbar.ax.spines:

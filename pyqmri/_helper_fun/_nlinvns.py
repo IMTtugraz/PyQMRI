@@ -123,7 +123,6 @@ def nlinvns(Y, n, *arg):
         R[0, i, :, :] = (XN[0, :, :] * np.sqrt(C) / yscale)
         R[1, i, :, :] = np.copy(XN[0, :, :])
 
-    R = (R)
     end = time.clock()
     print('done in', round((end - start)), 's')
     return R
@@ -187,13 +186,14 @@ def _nsIfft(M):
     return K  # .T
 
 
-def _weights(x, y):
-    W = np.zeros([x, y])
-    for i in range(0, x):
-        for j in range(0, y):
-            d = ((i) / x - 0.5)**2 + ((j) / y - 0.5)**2
+def _weights(y, x):
+    W = np.zeros([y, x])
+    for i in range(0, y):
+        for j in range(0, x):
+            d = ((i) / y - 0.5)**2 + ((j) / x - 0.5)**2
             W[i, j] = 1 / (1 + 220 * d)**16
     return W
+
 
 def _fftshift2(I):
     if I.ndim >= 3:

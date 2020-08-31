@@ -77,9 +77,18 @@ class Model(BaseModel):
                         np.exp(-self.TR / (5500)),
                         True))
         self.guess = None
+        self._setup_plot_vars()
+
+    def _setup_plot_vars(self):
         self._ax = None
+
         self._M0_plot = None
+        self._M0_plot_cor = None
+        self._M0_sag = None
+
         self._T1_plot = None
+        self._T1_plot_cor = None
+        self._T1_sag = None
 
     def rescale(self, x):
         """Rescale the unknowns with the scaling factors.
@@ -200,14 +209,14 @@ class Model(BaseModel):
                 plt.ion()
                 self.figure = plt.figure(figsize=(12, 6))
                 self.figure.subplots_adjust(hspace=0, wspace=0)
-                self.gs = gridspec.GridSpec(
+                gs = gridspec.GridSpec(
                     2, 6,
                     width_ratios=[
                         x / (20 * z), x / z, 1, x / z, 1, x / (20 * z)],
                     height_ratios=[x / z, 1])
                 self.figure.tight_layout()
                 self.figure.patch.set_facecolor(plt.cm.viridis.colors[0])
-                for grid in self.gs:
+                for grid in gs:
                     self._ax.append(plt.subplot(grid))
                     self._ax[-1].axis('off')
 
@@ -221,7 +230,7 @@ class Model(BaseModel):
                 self._ax[1].set_anchor('SE')
                 self._ax[2].set_anchor('SW')
                 self._ax[7].set_anchor('NW')
-                cax = plt.subplot(self.gs[:, 0])
+                cax = plt.subplot(gs[:, 0])
                 cbar = self.figure.colorbar(self._M0_plot, cax=cax)
                 cbar.ax.tick_params(labelsize=12, colors='white')
                 cax.yaxis.set_ticks_position('left')
@@ -240,7 +249,7 @@ class Model(BaseModel):
                 self._ax[3].set_anchor('SE')
                 self._ax[4].set_anchor('SW')
                 self._ax[9].set_anchor('NW')
-                cax = plt.subplot(self.gs[:, 5])
+                cax = plt.subplot(gs[:, 5])
                 cbar = self.figure.colorbar(self._T1_plot, cax=cax)
                 cbar.ax.tick_params(labelsize=12, colors='white')
                 for spine in cbar.ax.spines:

@@ -165,7 +165,6 @@ def _genImages(myargs, par, data, off):
             tmp_result = clarray.empty(fft.queue,
                                        (1, 1, par["NSlice"],
                                         par["dimY"], par["dimX"]), dtype=DTYPE)
-            import time
             start = time.time()
             for j in range(siz[0]):
                 for k in range(siz[1]):
@@ -631,7 +630,7 @@ def _str2bool(v):
 
 def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
         streamed=False,
-        par_slices=1, data='', model='VFA', config='default',
+        par_slices=1, data='', model='GeneralModel', config='default',
         imagespace=False,
         OCL_GPU=True, sms=False, devices=0, dz=1, weights=None,
         out='',
@@ -764,12 +763,12 @@ def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
     argparrun.add_argument('--out', default=out, dest='outdir', type=str,
                            help="Set output directory. Defaults to the input "
                                 "file directory")
-    group = argparrun.add_mutually_exclusive_group()
-    group.add_argument(
-      '--model', default='GeneralModel', dest='sig_model',
+    group_console = argparrun.add_mutually_exclusive_group()
+    group_console.add_argument(
+      '--model', default=model, dest='sig_model',
       help='Name of the signal model to use. Defaults to VFA. \
  Please put your signal model file in the Model subfolder.')
-    group.add_argument(
+    group_console.add_argument(
       '--modelfile', default=modelfile, dest='modelfile', type=str,
       help="Path to the model file.")
     argparrun.add_argument(

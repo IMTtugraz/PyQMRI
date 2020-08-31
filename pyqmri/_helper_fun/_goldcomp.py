@@ -8,11 +8,11 @@ Created on Thu Jan 18 12:05:59 2018
 import numpy as np
 
 
-def cmp(k, cmp_type=None):
+def cmp(k):
     if len(np.shape(k)) == 2:
         nspokes, N = np.shape(k)
     elif len(np.shape(k)) == 3:
-        NScan, nspokes, N = np.shape(k)
+        _, nspokes, N = np.shape(k)
     else:
         return -5
 

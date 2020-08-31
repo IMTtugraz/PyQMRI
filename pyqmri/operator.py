@@ -2698,4 +2698,4 @@ class OperatorFiniteSymGradientStreamed(Operator):
               A PyQMRI streaming object for the symmetrized gradient
               computation.
         """
-        return self._stream_grad
+        return self._stream_symgrad
