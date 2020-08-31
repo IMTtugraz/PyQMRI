@@ -73,9 +73,7 @@ class Model(BaseModel):
                 ((1 / 150) / self.uk_scale[4]),
                 True))
         self.guess = None
-        self._setup_plot_vars()
 
-    def _setup_plot_vars(self):
         self._ax = None
         self._M0_plot = None
         self._M0_plot_cor = None
@@ -96,7 +94,6 @@ class Model(BaseModel):
         self._T22_plot = None
         self._T22_plot_cor = None
         self._T22_plot_sag = None
-
 
     def rescale(self, x):
         """Rescale the unknowns with the scaling factors.
@@ -192,32 +189,32 @@ class Model(BaseModel):
         T22_max = T22.max()
 
         [z, y, x] = M01.shape
-        self._ax = []
+
         if not self.figure:
             plt.ion()
             self.figure = plt.figure(figsize=(12, 6))
             self.figure.subplots_adjust(hspace=0, wspace=0)
             gs = gridspec.GridSpec(2,
-                                        17,
-                                        width_ratios=[x / z,
-                                                      1,
-                                                      x / (20 * z),
-                                                      x / z * 0.25,
-                                                      x / (20 * z),
-                                                      x / z,
-                                                      1,
-                                                      x / z,
-                                                      1,
-                                                      x / (20 * z),
-                                                      x / z * 0.25,
-                                                      x / (20 * z),
-                                                      x / z,
-                                                      1,
-                                                      x / z,
-                                                      1,
-                                                      x / (20 * z)],
-                                        height_ratios=[x / z,
-                                                       1])
+                                   17,
+                                   width_ratios=[x / z,
+                                                 1,
+                                                 x / (20 * z),
+                                                 x / z * 0.25,
+                                                 x / (20 * z),
+                                                 x / z,
+                                                 1,
+                                                 x / z,
+                                                 1,
+                                                 x / (20 * z),
+                                                 x / z * 0.25,
+                                                 x / (20 * z),
+                                                 x / z,
+                                                 1,
+                                                 x / z,
+                                                 1,
+                                                 x / (20 * z)],
+                                   height_ratios=[x / z,
+                                                  1])
             self.figure.tight_layout()
             self.figure.patch.set_facecolor(plt.cm.viridis.colors[0])
             for grid in gs:

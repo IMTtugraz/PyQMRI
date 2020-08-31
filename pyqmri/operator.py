@@ -460,12 +460,16 @@ class OperatorImagespace(Operator):
           PyOpenCL.Event
             A PyOpenCL event to wait for.
         """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
         return self.prg.operator_fwd_imagespace(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data, inp[0].data, inp[2].data,
             np.int32(self.NScan),
             np.int32(self.unknowns),
-            wait_for=inp[0].events + out.events + kwargs["wait_for"])
+            wait_for=inp[0].events + out.events + wait_for)
 
     def fwdoop(self, inp, **kwargs):
         """Forward operator application out-of-place.
@@ -488,6 +492,10 @@ class OperatorImagespace(Operator):
           PyOpenCL.Array: A PyOpenCL array containing the result of the
           computation.
         """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
         tmp_result = clarray.empty(
             self.queue, (self.NScan, self.NSlice, self.dimY, self.dimX),
             self.DTYPE, "C")
@@ -496,7 +504,7 @@ class OperatorImagespace(Operator):
             tmp_result.data, inp[0].data, inp[2].data,
             np.int32(self.NScan),
             np.int32(self.unknowns),
-            wait_for=inp[0].events + kwargs["wait_for"]))
+            wait_for=inp[0].events + wait_for))
         return tmp_result
 
     def adj(self, out, inp, **kwargs):
@@ -520,12 +528,16 @@ class OperatorImagespace(Operator):
         -------
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
         return self.prg.operator_ad_imagespace(
             out.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data, inp[0].data, inp[2].data,
             np.int32(self.NScan),
             np.int32(self.unknowns),
-            wait_for=kwargs["wait_for"] + inp[0].events + out.events)
+            wait_for=wait_for + inp[0].events + out.events)
 
     def adjoop(self, inp, **kwargs):
         """Adjoint operator application out-of-place.
@@ -548,6 +560,10 @@ class OperatorImagespace(Operator):
           PyOpenCL.Array: A PyOpenCL array containing the result of the
           computation.
         """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
         out = clarray.empty(
             self.queue, (self.unknowns, self.NSlice, self.dimY, self.dimX),
             dtype=self.DTYPE)
@@ -556,7 +572,7 @@ class OperatorImagespace(Operator):
             out.data, inp[0].data, inp[2].data,
             np.int32(self.NScan),
             np.int32(self.unknowns),
-            wait_for=kwargs["wait_for"] + inp[0].events + out.events).wait()
+            wait_for=wait_for + inp[0].events + out.events).wait()
         return out
 
     def adjKyk1(self, out, inp, **kwargs):
@@ -579,6 +595,10 @@ class OperatorImagespace(Operator):
         -------
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
         return self.prg.update_Kyk1_imagespace(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data, inp[0].data, inp[3].data, inp[1].data,
@@ -587,7 +607,7 @@ class OperatorImagespace(Operator):
             np.int32(self.unknowns),
             self.DTYPE_real(self._dz),
             wait_for=(inp[0].events + out.events
-                      + inp[1].events + kwargs["wait_for"]))
+                      + inp[1].events + wait_for))
 
 
 class OperatorKspace(Operator):
@@ -668,6 +688,10 @@ class OperatorKspace(Operator):
           PyOpenCL.Event
             A PyOpenCL event to wait for.
         """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
         self._tmp_result.add_event(
             self.prg.operator_fwd(
                 self.queue,
@@ -679,11 +703,11 @@ class OperatorKspace(Operator):
                 np.int32(self.NScan),
                 np.int32(self.unknowns),
                 wait_for=(self._tmp_result.events + inp[0].events
-                          + kwargs["wait_for"])))
+                          + wait_for)))
         return self.NUFFT.FFT(
             out,
             self._tmp_result,
-            wait_for=kwargs["wait_for"] +
+            wait_for=wait_for +
             self._tmp_result.events)
 
     def fwdoop(self, inp, **kwargs):
@@ -707,6 +731,10 @@ class OperatorKspace(Operator):
           PyOpenCL.Array: A PyOpenCL array containing the result of the
           computation.
         """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
         self._tmp_result.add_event(
             self.prg.operator_fwd(
                 self.queue,
@@ -718,7 +746,7 @@ class OperatorKspace(Operator):
                 np.int32(self.NScan),
                 np.int32(self.unknowns),
                 wait_for=(self._tmp_result.events + inp[0].events
-                          + kwargs["wait_for"])))
+                          + wait_for)))
         tmp_sino = clarray.empty(
             self.queue,
             (self.NScan, self.NC, self.NSlice, self.Nproj, self.N),
@@ -748,9 +776,13 @@ class OperatorKspace(Operator):
         -------
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
         self._tmp_result.add_event(
             self.NUFFT.FFTH(
-                self._tmp_result, inp[0], wait_for=(kwargs["wait_for"]
+                self._tmp_result, inp[0], wait_for=(wait_for
                                                     + inp[0].events)))
         return self.prg.operator_ad(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
@@ -758,7 +790,7 @@ class OperatorKspace(Operator):
             inp[2].data, np.int32(self.NC),
             np.int32(self.NScan),
             np.int32(self.unknowns),
-            wait_for=kwargs["wait_for"] + self._tmp_result.events + out.events)
+            wait_for=self._tmp_result.events + out.events)
 
     def adjoop(self, inp, **kwargs):
         """Adjoint operator application out-of-place.
@@ -781,9 +813,13 @@ class OperatorKspace(Operator):
           PyOpenCL.Array: A PyOpenCL array containing the result of the
           computation.
         """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
         self._tmp_result.add_event(
             self.NUFFT.FFTH(
-                self._tmp_result, inp[0], wait_for=(kwargs["wait_for"]
+                self._tmp_result, inp[0], wait_for=(wait_for
                                                     + inp[0].events)))
         out = clarray.empty(
             self.queue, (self.unknowns, self.NSlice, self.dimY, self.dimX),
@@ -794,7 +830,7 @@ class OperatorKspace(Operator):
             inp[2].data, np.int32(self.NC),
             np.int32(self.NScan),
             np.int32(self.unknowns),
-            wait_for=(kwargs["wait_for"] + self._tmp_result.events
+            wait_for=(self._tmp_result.events
                       + out.events)).wait()
         return out
 
@@ -817,9 +853,13 @@ class OperatorKspace(Operator):
         -------
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
         self._tmp_result.add_event(
             self.NUFFT.FFTH(
-                self._tmp_result, inp[0], wait_for=(kwargs["wait_for"]
+                self._tmp_result, inp[0], wait_for=(wait_for
                                                     + inp[0].events)))
         return self.prg.update_Kyk1(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
@@ -829,7 +869,7 @@ class OperatorKspace(Operator):
             inp[4].data,
             np.int32(self.unknowns), self.DTYPE_real(self._dz),
             wait_for=(self._tmp_result.events +
-                      out.events + inp[1].events + kwargs["wait_for"]))
+                      out.events + inp[1].events))
 
 
 class OperatorKspaceSMS(Operator):
@@ -913,6 +953,10 @@ class OperatorKspaceSMS(Operator):
           PyOpenCL.Event
             A PyOpenCL event to wait for.
         """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
         self._tmp_result.add_event(
             self.prg.operator_fwd(
                 self.queue,
@@ -924,7 +968,7 @@ class OperatorKspaceSMS(Operator):
                 np.int32(self.NScan),
                 np.int32(self.unknowns),
                 wait_for=(self._tmp_result.events + inp[0].events
-                          + kwargs["wait_for"])))
+                          + wait_for)))
         return self.NUFFT.FFT(
             out,
             self._tmp_result,
@@ -951,6 +995,10 @@ class OperatorKspaceSMS(Operator):
           PyOpenCL.Array: A PyOpenCL array containing the result of the
           computation.
         """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
         self._tmp_result.add_event(
             self.prg.operator_fwd(
                 self.queue,
@@ -962,7 +1010,7 @@ class OperatorKspaceSMS(Operator):
                 np.int32(self.NScan),
                 np.int32(self.unknowns),
                 wait_for=(self._tmp_result.events + inp[0].events
-                          + kwargs["wait_for"])))
+                          + wait_for)))
         tmp_sino = clarray.empty(
             self.queue,
             (self.NScan, self.NC, self.packs, self.Nproj, self.N),
@@ -992,9 +1040,13 @@ class OperatorKspaceSMS(Operator):
         -------
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
         self._tmp_result.add_event(
             self.NUFFT.FFTH(
-                self._tmp_result, inp[0], wait_for=(kwargs["wait_for"]
+                self._tmp_result, inp[0], wait_for=(wait_for
                                                     + inp[0].events)))
         return self.prg.operator_ad(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
@@ -1025,9 +1077,13 @@ class OperatorKspaceSMS(Operator):
           PyOpenCL.Array: A PyOpenCL array containing the result of the
           computation.
         """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
         self._tmp_result.add_event(
             self.NUFFT.FFTH(
-                self._tmp_result, inp[0], wait_for=(kwargs["wait_for"]
+                self._tmp_result, inp[0], wait_for=(wait_for
                                                     + inp[0].events)))
         out = clarray.empty(
             self.queue, (self.unknowns, self.NSlice, self.dimY, self.dimX),
@@ -1060,9 +1116,13 @@ class OperatorKspaceSMS(Operator):
         -------
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
         self._tmp_result.add_event(
             self.NUFFT.FFTH(
-                self._tmp_result, inp[0], wait_for=(kwargs["wait_for"]
+                self._tmp_result, inp[0], wait_for=(wait_for
                                                     + inp[0].events)))
         return self.prg.update_Kyk1(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
@@ -2059,11 +2119,15 @@ class OperatorFiniteGradient(Operator):
           PyOpenCL.Event
             A PyOpenCL event to wait for.
         """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
         return self.prg.gradient(
             self.queue, inp.shape[1:], None, out.data, inp.data,
             np.int32(self.unknowns),
             self.ratio.data, self.DTYPE_real(self._dz),
-            wait_for=out.events + inp.events + kwargs["wait_for"])
+            wait_for=out.events + inp.events + wait_for)
 
     def fwdoop(self, inp, **kwargs):
         """Forward operator application out-of-place.
@@ -2086,6 +2150,10 @@ class OperatorFiniteGradient(Operator):
           PyOpenCL.Array: A PyOpenCL array containing the result of the
           computation.
         """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
         tmp_result = clarray.empty(
             self.queue, (self.unknowns,
                          self.NSlice, self.dimY, self.dimX, 4),
@@ -2094,7 +2162,7 @@ class OperatorFiniteGradient(Operator):
             self.queue, inp.shape[1:], None, tmp_result.data, inp.data,
             np.int32(self.unknowns),
             self.ratio.data, self.DTYPE_real(self._dz),
-            wait_for=tmp_result.events + inp.events + kwargs["wait_for"]))
+            wait_for=tmp_result.events + inp.events + wait_for))
         return tmp_result
 
     def adj(self, out, inp, **kwargs):
@@ -2118,11 +2186,15 @@ class OperatorFiniteGradient(Operator):
         -------
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
         return self.prg.divergence(
             self.queue, inp.shape[1:-1], None, out.data, inp.data,
             np.int32(self.unknowns), self.ratio.data,
             self.DTYPE_real(self._dz),
-            wait_for=out.events + inp.events + kwargs["wait_for"])
+            wait_for=out.events + inp.events + wait_for)
 
     def adjoop(self, inp, **kwargs):
         """Adjoint operator application out-of-place.
@@ -2145,6 +2217,10 @@ class OperatorFiniteGradient(Operator):
           PyOpenCL.Array: A PyOpenCL array containing the result of the
           computation.
         """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
         tmp_result = clarray.empty(
             self.queue, (self.unknowns, self.NSlice, self.dimY, self.dimX),
             self.DTYPE, "C")
@@ -2152,7 +2228,7 @@ class OperatorFiniteGradient(Operator):
             self.queue, inp.shape[1:-1], None, tmp_result.data, inp.data,
             np.int32(self.unknowns), self.ratio.data,
             self.DTYPE_real(self._dz),
-            wait_for=tmp_result.events + inp.events + kwargs["wait_for"]))
+            wait_for=tmp_result.events + inp.events + wait_for))
         return tmp_result
 
 
@@ -2220,12 +2296,16 @@ class OperatorFiniteSymGradient(Operator):
           PyOpenCL.Event
             A PyOpenCL event to wait for.
         """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
         return self.prg.sym_grad(
             self.queue, inp.shape[1:-1], None, out.data, inp.data,
             np.int32(self.unknowns_TGV),
             self.ratio.data,
             self.DTYPE_real(self._dz),
-            wait_for=out.events + inp.events + kwargs["wait_for"])
+            wait_for=out.events + inp.events + wait_for)
 
     def fwdoop(self, inp, **kwargs):
         """Forward operator application out-of-place.
@@ -2248,6 +2328,10 @@ class OperatorFiniteSymGradient(Operator):
           PyOpenCL.Array: A PyOpenCL array containing the result of the
           computation.
         """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
         tmp_result = clarray.empty(
             self.queue, (self.unknowns,
                          self.NSlice, self.dimY, self.dimX, 8),
@@ -2257,7 +2341,7 @@ class OperatorFiniteSymGradient(Operator):
             np.int32(self.unknowns_TGV),
             self.ratio.data,
             self.DTYPE_real(self._dz),
-            wait_for=tmp_result.events + inp.events + kwargs["wait_for"]))
+            wait_for=tmp_result.events + inp.events + wait_for))
         return tmp_result
 
     def adj(self, out, inp, **kwargs):
@@ -2281,12 +2365,16 @@ class OperatorFiniteSymGradient(Operator):
         -------
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
         return self.prg.sym_divergence(
             self.queue, inp.shape[1:-1], None, out.data, inp.data,
             np.int32(self.unknowns_TGV),
             self.ratio.data,
             self.DTYPE_real(self._dz),
-            wait_for=out.events + inp.events + kwargs["wait_for"])
+            wait_for=out.events + inp.events + wait_for)
 
     def adjoop(self, inp, **kwargs):
         """Adjoint operator application out-of-place.
@@ -2309,6 +2397,10 @@ class OperatorFiniteSymGradient(Operator):
           PyOpenCL.Array: A PyOpenCL array containing the result of the
           computation.
         """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
         tmp_result = clarray.empty(
             self.queue, (self.unknowns,
                          self.NSlice, self.dimY, self.dimX, 4),
@@ -2318,7 +2410,7 @@ class OperatorFiniteSymGradient(Operator):
             np.int32(self.unknowns_TGV),
             self.ratio.data,
             self.DTYPE_real(self._dz),
-            wait_for=tmp_result.events + inp.events + kwargs["wait_for"]))
+            wait_for=tmp_result.events + inp.events + wait_for))
         return tmp_result
 
 

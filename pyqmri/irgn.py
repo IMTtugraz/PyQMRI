@@ -68,7 +68,6 @@ class IRGNOptimizer:
       irgn_par : dict
         The parameters read from the config file to guide the IRGN
         optimization process
-
     """
 
     def __init__(self, par, model, trafo=1, imagespace=False, SMS=0,
@@ -280,7 +279,7 @@ class IRGNOptimizer:
             else:
                 _jacobi = np.sum(
                     np.abs(
-                        self._modelgrad)**2, 1).astype(self._self._DTYPE_real)
+                        self._modelgrad)**2, 1).astype(self._DTYPE_real)
                 _jacobi[_jacobi == 0] = 1e-8
                 self._modelgrad = clarray.to_device(
                     self._queue[0],

@@ -92,9 +92,7 @@ class Model(BaseModel):
             np.exp(-self.scale / 5500) / self.uk_scale[1], True))
 
         self.guess = None
-        self._setup_plot_vars()
 
-    def _setup_plot_vars(self):
         self._ax = None
 
         self._M0_plot = None

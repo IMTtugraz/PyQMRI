@@ -109,9 +109,7 @@ class Model(BaseModel):
 
         self.guess = None
         self.phase = None
-        self._setup_plot_vars()
 
-    def _setup_plot_vars(self):
         self._ax = None
 
         self._M0_plot = None

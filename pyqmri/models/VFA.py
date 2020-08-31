@@ -77,9 +77,7 @@ class Model(BaseModel):
                         np.exp(-self.TR / (5500)),
                         True))
         self.guess = None
-        self._setup_plot_vars()
 
-    def _setup_plot_vars(self):
         self._ax = None
 
         self._M0_plot = None
