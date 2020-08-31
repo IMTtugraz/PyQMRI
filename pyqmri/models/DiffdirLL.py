@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Module holding the diffusion tensor model for fitting."""
-from pyqmri.models.template import BaseModel, constraints, DTYPE
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
+from pyqmri.models.template import BaseModel, constraints, DTYPE
 plt.ion()
 
 
@@ -138,14 +138,6 @@ class Model(BaseModel):
                           x[3, ...] * self.uk_scale[3]))
 
         return np.array((M0, ADC_x, ADC_xy, ADC_y, ADC_xz, ADC_z, ADC_yz))
-
-    def _execute_forward_2D(self, x, islice):
-        print("2D Functions not implemented")
-        raise NotImplementedError
-
-    def _execute_gradient_2D(self, x, islice):
-        print("2D Functions not implemented")
-        raise NotImplementedError
 
     def _execute_forward_3D(self, x):
         ADC = x[1, ...]**2 * self.uk_scale[1]**2 * self.dir[..., 0]**2 + \
@@ -288,35 +280,35 @@ class Model(BaseModel):
         if dim_2D:
             if not self.figure:
                 plt.ion()
-                self.figure, self.ax = plt.subplots(1, 2, figsize=(12, 5))
-                self.M0_plot = self.ax[0].imshow((M0))
-                self.ax[0].set_title('Proton Density in a.u.')
-                self.ax[0].axis('off')
-                self.figure.colorbar(self.M0_plot, ax=self.ax[0])
-                self.ADC_x_plot = self.ax[1].imshow((ADC_x))
-                self.ax[1].set_title('ADC_x in  ms')
-                self.ax[1].axis('off')
-                self.figure.colorbar(self.ADC_x_plot, ax=self.ax[1])
+                self.figure, self._ax = plt.subplots(1, 2, figsize=(12, 5))
+                self._M0_plot = self._ax[0].imshow((M0))
+                self._ax[0].set_title('Proton Density in a.u.')
+                self._ax[0].axis('off')
+                self.figure.colorbar(self._M0_plot, ax=self._ax[0])
+                self._ADC_x_plot = self._ax[1].imshow((ADC_x))
+                self._ax[1].set_title('ADC_x in  ms')
+                self._ax[1].axis('off')
+                self.figure.colorbar(self._ADC_x_plot, ax=self._ax[1])
                 self.figure.tight_layout()
                 plt.draw()
                 plt.pause(1e-10)
             else:
-                self.M0_plot.set_data((M0))
-                self.M0_plot.set_clim([M0_min, M0_max])
-                self.ADC_x_plot.set_data((ADC_x))
-                self.ADC_x_plot.set_clim([ADC_x_min, ADC_x_max])
+                self._M0_plot.set_data((M0))
+                self._M0_plot.set_clim([M0_min, M0_max])
+                self._ADC_x_plot.set_data((ADC_x))
+                self._ADC_x_plot.set_clim([ADC_x_min, ADC_x_max])
                 plt.draw()
                 plt.pause(1e-10)
         else:
             [z, y, x] = M0.shape
-            self.ax = []
-            self.ax_phase = []
-            self.ax_kurt = []
+            self._ax = []
+            self._ax_phase = []
+            self._ax_kurt = []
             if not self.figure:
                 plt.ion()
                 self.figure = plt.figure(figsize=(12, 6))
                 self.figure.subplots_adjust(hspace=0, wspace=0)
-                self.gs = gridspec.GridSpec(8,
+                self._gs = gridspec.GridSpec(8,
                                             10,
                                             width_ratios=[x / (20 * z),
                                                           x / z,
@@ -338,119 +330,119 @@ class Model(BaseModel):
                                                            1])
                 self.figure.tight_layout()
                 self.figure.patch.set_facecolor(plt.cm.viridis.colors[0])
-                for grid in self.gs:
-                    self.ax.append(plt.subplot(grid))
-                    self.ax[-1].axis('off')
+                for grid in self._gs:
+                    self._ax.append(plt.subplot(grid))
+                    self._ax[-1].axis('off')
 
-                self.M0_plot = self.ax[1].imshow(
+                self._M0_plot = self._ax[1].imshow(
                     (M0[int(self.NSlice / 2), ...]))
-                self.M0_plot_cor = self.ax[11].imshow(
+                self._M0_plot_cor = self._ax[11].imshow(
                     (M0[:, int(M0.shape[1] / 2), ...]))
-                self.M0_plot_sag = self.ax[2].imshow(
+                self._M0_plot_sag = self._ax[2].imshow(
                     np.flip((M0[:, :, int(M0.shape[-1] / 2)]).T, 1))
-                self.ax[1].set_title('Proton Density in a.u.', color='white')
-                self.ax[1].set_anchor('SE')
-                self.ax[2].set_anchor('SW')
-                self.ax[11].set_anchor('NE')
-                cax = plt.subplot(self.gs[:2, 0])
-                cbar = self.figure.colorbar(self.M0_plot, cax=cax)
+                self._ax[1].set_title('Proton Density in a.u.', color='white')
+                self._ax[1].set_anchor('SE')
+                self._ax[2].set_anchor('SW')
+                self._ax[11].set_anchor('NE')
+                cax = plt.subplot(self._gs[:2, 0])
+                cbar = self.figure.colorbar(self._M0_plot, cax=cax)
                 cbar.ax.tick_params(labelsize=12, colors='white')
                 cax.yaxis.set_ticks_position('left')
                 for spine in cbar.ax.spines:
                     cbar.ax.spines[spine].set_color('white')
 
-                self.ADC_x_plot = self.ax[3].imshow(
+                self._ADC_x_plot = self._ax[3].imshow(
                     (ADC_x[int(self.NSlice / 2), ...]))
-                self.ADC_x_plot_cor = self.ax[13].imshow(
+                self._ADC_x_plot_cor = self._ax[13].imshow(
                     (ADC_x[:, int(ADC_x.shape[1] / 2), ...]))
-                self.ADC_x_plot_sag = self.ax[4].imshow(
+                self._ADC_x_plot_sag = self._ax[4].imshow(
                     np.flip((ADC_x[:, :, int(ADC_x.shape[-1] / 2)]).T, 1))
-                self.ax[3].set_title('ADC_x', color='white')
-                self.ax[3].set_anchor('SE')
-                self.ax[4].set_anchor('SW')
-                self.ax[13].set_anchor('NE')
-                cax = plt.subplot(self.gs[:2, 5])
-                cbar = self.figure.colorbar(self.ADC_x_plot, cax=cax)
+                self._ax[3].set_title('ADC_x', color='white')
+                self._ax[3].set_anchor('SE')
+                self._ax[4].set_anchor('SW')
+                self._ax[13].set_anchor('NE')
+                cax = plt.subplot(self._gs[:2, 5])
+                cbar = self.figure.colorbar(self._ADC_x_plot, cax=cax)
                 cbar.ax.tick_params(labelsize=12, colors='white')
                 for spine in cbar.ax.spines:
                     cbar.ax.spines[spine].set_color('white')
 
-                self.ADC_xy_plot = self.ax[7].imshow(
+                self._ADC_xy_plot = self._ax[7].imshow(
                     (ADC_xy[int(self.NSlice / 2), ...]))
-                self.ADC_xy_plot_cor = self.ax[17].imshow(
+                self._ADC_xy_plot_cor = self._ax[17].imshow(
                     (ADC_xy[:, int(ADC_x.shape[1] / 2), ...]))
-                self.ADC_xy_plot_sag = self.ax[8].imshow(
+                self._ADC_xy_plot_sag = self._ax[8].imshow(
                     np.flip((ADC_xy[:, :, int(ADC_x.shape[-1] / 2)]).T, 1))
-                self.ax[7].set_title('ADC_xy', color='white')
-                self.ax[7].set_anchor('SE')
-                self.ax[8].set_anchor('SW')
-                self.ax[17].set_anchor('NE')
-                cax = plt.subplot(self.gs[:2, 9])
-                cbar = self.figure.colorbar(self.ADC_xy_plot, cax=cax)
+                self._ax[7].set_title('ADC_xy', color='white')
+                self._ax[7].set_anchor('SE')
+                self._ax[8].set_anchor('SW')
+                self._ax[17].set_anchor('NE')
+                cax = plt.subplot(self._gs[:2, 9])
+                cbar = self.figure.colorbar(self._ADC_xy_plot, cax=cax)
                 cbar.ax.tick_params(labelsize=12, colors='white')
                 for spine in cbar.ax.spines:
                     cbar.ax.spines[spine].set_color('white')
 
-                self.ADC_y_plot = self.ax[23].imshow(
+                self.ADC_y_plot = self._ax[23].imshow(
                     (ADC_y[int(self.NSlice / 2), ...]))
-                self.ADC_y_plot_cor = self.ax[33].imshow(
+                self.ADC_y_plot_cor = self._ax[33].imshow(
                     (ADC_y[:, int(ADC_y.shape[1] / 2), ...]))
-                self.ADC_y_plot_sag = self.ax[24].imshow(
+                self.ADC_y_plot_sag = self._ax[24].imshow(
                     np.flip((ADC_y[:, :, int(ADC_y.shape[-1] / 2)]).T, 1))
-                self.ax[23].set_title('ADC_y', color='white')
-                self.ax[23].set_anchor('SE')
-                self.ax[24].set_anchor('SW')
-                self.ax[33].set_anchor('NE')
-                cax = plt.subplot(self.gs[2:4, 5])
+                self._ax[23].set_title('ADC_y', color='white')
+                self._ax[23].set_anchor('SE')
+                self._ax[24].set_anchor('SW')
+                self._ax[33].set_anchor('NE')
+                cax = plt.subplot(self._gs[2:4, 5])
                 cbar = self.figure.colorbar(self.ADC_y_plot, cax=cax)
                 cbar.ax.tick_params(labelsize=12, colors='white')
                 for spine in cbar.ax.spines:
                     cbar.ax.spines[spine].set_color('white')
 
-                self.ADC_xz_plot = self.ax[27].imshow(
+                self._ADC_xz_plot = self._ax[27].imshow(
                     (ADC_xz[int(self.NSlice / 2), ...]))
-                self.ADC_xz_plot_cor = self.ax[37].imshow(
+                self._ADC_xz_plot_cor = self._ax[37].imshow(
                     (ADC_xz[:, int(ADC_y.shape[1] / 2), ...]))
-                self.ADC_xz_plot_sag = self.ax[28].imshow(
+                self._ADC_xz_plot_sag = self._ax[28].imshow(
                     np.flip((ADC_xz[:, :, int(ADC_y.shape[-1] / 2)]).T, 1))
-                self.ax[27].set_title('ADC_xz', color='white')
-                self.ax[27].set_anchor('SE')
-                self.ax[28].set_anchor('SW')
-                self.ax[37].set_anchor('NE')
-                cax = plt.subplot(self.gs[2:4, 9])
-                cbar = self.figure.colorbar(self.ADC_xz_plot, cax=cax)
+                self._ax[27].set_title('ADC_xz', color='white')
+                self._ax[27].set_anchor('SE')
+                self._ax[28].set_anchor('SW')
+                self._ax[37].set_anchor('NE')
+                cax = plt.subplot(self._gs[2:4, 9])
+                cbar = self.figure.colorbar(self._ADC_xz_plot, cax=cax)
                 cbar.ax.tick_params(labelsize=12, colors='white')
                 for spine in cbar.ax.spines:
                     cbar.ax.spines[spine].set_color('white')
 
-                self.ADC_z_plot = self.ax[43].imshow(
+                self._ADC_z_plot = self._ax[43].imshow(
                     (ADC_z[int(self.NSlice / 2), ...]))
-                self.ADC_z_plot_cor = self.ax[53].imshow(
+                self._ADC_z_plot_cor = self._ax[53].imshow(
                     (ADC_z[:, int(ADC_z.shape[1] / 2), ...]))
-                self.ADC_z_plot_sag = self.ax[44].imshow(
+                self._ADC_z_plot_sag = self._ax[44].imshow(
                     np.flip((ADC_z[:, :, int(ADC_z.shape[-1] / 2)]).T, 1))
-                self.ax[43].set_title('ADC_z', color='white')
-                self.ax[43].set_anchor('SE')
-                self.ax[44].set_anchor('SW')
-                self.ax[53].set_anchor('NE')
-                cax = plt.subplot(self.gs[4:6, 5])
-                cbar = self.figure.colorbar(self.ADC_z_plot, cax=cax)
+                self._ax[43].set_title('ADC_z', color='white')
+                self._ax[43].set_anchor('SE')
+                self._ax[44].set_anchor('SW')
+                self._ax[53].set_anchor('NE')
+                cax = plt.subplot(self._gs[4:6, 5])
+                cbar = self.figure.colorbar(self._ADC_z_plot, cax=cax)
                 cbar.ax.tick_params(labelsize=12, colors='white')
                 for spine in cbar.ax.spines:
                     cbar.ax.spines[spine].set_color('white')
 
-                self.ADC_yz_plot = self.ax[47].imshow(
+                self._ADC_yz_plot = self._ax[47].imshow(
                     (ADC_yz[int(self.NSlice / 2), ...]))
-                self.ADC_yz_plot_cor = self.ax[57].imshow(
+                self._ADC_yz_plot_cor = self._ax[57].imshow(
                     (ADC_yz[:, int(ADC_z.shape[1] / 2), ...]))
-                self.ADC_yz_plot_sag = self.ax[48].imshow(
+                self._ADC_yz_plot_sag = self._ax[48].imshow(
                     np.flip((ADC_yz[:, :, int(ADC_z.shape[-1] / 2)]).T, 1))
-                self.ax[47].set_title('ADC_yz', color='white')
-                self.ax[47].set_anchor('SE')
-                self.ax[48].set_anchor('SW')
-                self.ax[57].set_anchor('NE')
-                cax = plt.subplot(self.gs[4:6, 9])
-                cbar = self.figure.colorbar(self.ADC_yz_plot, cax=cax)
+                self._ax[47].set_title('ADC_yz', color='white')
+                self._ax[47].set_anchor('SE')
+                self._ax[48].set_anchor('SW')
+                self._ax[57].set_anchor('NE')
+                cax = plt.subplot(self._gs[4:6, 9])
+                cbar = self.figure.colorbar(self._ADC_yz_plot, cax=cax)
                 cbar.ax.tick_params(labelsize=12, colors='white')
                 for spine in cbar.ax.spines:
                     cbar.ax.spines[spine].set_color('white')
@@ -463,31 +455,31 @@ class Model(BaseModel):
                 plt.pause(1e-10)
 
             else:
-                self.M0_plot.set_data((M0[int(self.NSlice / 2), ...]))
-                self.M0_plot_cor.set_data((M0[:, int(M0.shape[1] / 2), ...]))
-                self.M0_plot_sag.set_data(
+                self._M0_plot.set_data((M0[int(self.NSlice / 2), ...]))
+                self._M0_plot_cor.set_data((M0[:, int(M0.shape[1] / 2), ...]))
+                self._M0_plot_sag.set_data(
                     np.flip((M0[:, :, int(M0.shape[-1] / 2)]).T, 1))
-                self.M0_plot.set_clim([M0_min, M0_max])
-                self.M0_plot_cor.set_clim([M0_min, M0_max])
-                self.M0_plot_sag.set_clim([M0_min, M0_max])
+                self._M0_plot.set_clim([M0_min, M0_max])
+                self._M0_plot_cor.set_clim([M0_min, M0_max])
+                self._M0_plot_sag.set_clim([M0_min, M0_max])
 
-                self.ADC_x_plot.set_data((ADC_x[int(self.NSlice / 2), ...]))
-                self.ADC_x_plot_cor.set_data(
+                self._ADC_x_plot.set_data((ADC_x[int(self.NSlice / 2), ...]))
+                self._ADC_x_plot_cor.set_data(
                     (ADC_x[:, int(ADC_x.shape[1] / 2), ...]))
-                self.ADC_x_plot_sag.set_data(
+                self._ADC_x_plot_sag.set_data(
                     np.flip((ADC_x[:, :, int(ADC_x.shape[-1] / 2)]).T, 1))
-                self.ADC_x_plot.set_clim([ADC_x_min, ADC_x_max])
-                self.ADC_x_plot_sag.set_clim([ADC_x_min, ADC_x_max])
-                self.ADC_x_plot_cor.set_clim([ADC_x_min, ADC_x_max])
+                self._ADC_x_plot.set_clim([ADC_x_min, ADC_x_max])
+                self._ADC_x_plot_sag.set_clim([ADC_x_min, ADC_x_max])
+                self._ADC_x_plot_cor.set_clim([ADC_x_min, ADC_x_max])
 
-                self.ADC_xy_plot.set_data((ADC_xy[int(self.NSlice / 2), ...]))
-                self.ADC_xy_plot_cor.set_data(
+                self._ADC_xy_plot.set_data((ADC_xy[int(self.NSlice / 2), ...]))
+                self._ADC_xy_plot_cor.set_data(
                     (ADC_xy[:, int(ADC_xy.shape[1] / 2), ...]))
-                self.ADC_xy_plot_sag.set_data(
+                self._ADC_xy_plot_sag.set_data(
                     np.flip((ADC_xy[:, :, int(ADC_xy.shape[-1] / 2)]).T, 1))
-                self.ADC_xy_plot.set_clim([ADC_xy_min, ADC_xy_max])
-                self.ADC_xy_plot_sag.set_clim([ADC_xy_min, ADC_xy_max])
-                self.ADC_xy_plot_cor.set_clim([ADC_xy_min, ADC_xy_max])
+                self._ADC_xy_plot.set_clim([ADC_xy_min, ADC_xy_max])
+                self._ADC_xy_plot_sag.set_clim([ADC_xy_min, ADC_xy_max])
+                self._ADC_xy_plot_cor.set_clim([ADC_xy_min, ADC_xy_max])
 
                 self.ADC_y_plot.set_data((ADC_y[int(self.NSlice / 2), ...]))
                 self.ADC_y_plot_cor.set_data(
@@ -498,32 +490,32 @@ class Model(BaseModel):
                 self.ADC_y_plot_sag.set_clim([ADC_y_min, ADC_y_max])
                 self.ADC_y_plot_cor.set_clim([ADC_y_min, ADC_y_max])
 
-                self.ADC_xz_plot.set_data((ADC_xz[int(self.NSlice / 2), ...]))
-                self.ADC_xz_plot_cor.set_data(
+                self._ADC_xz_plot.set_data((ADC_xz[int(self.NSlice / 2), ...]))
+                self._ADC_xz_plot_cor.set_data(
                     (ADC_xz[:, int(ADC_xz.shape[1] / 2), ...]))
-                self.ADC_xz_plot_sag.set_data(
+                self._ADC_xz_plot_sag.set_data(
                     np.flip((ADC_xz[:, :, int(ADC_xz.shape[-1] / 2)]).T, 1))
-                self.ADC_xz_plot.set_clim([ADC_xz_min, ADC_xz_max])
-                self.ADC_xz_plot_sag.set_clim([ADC_xz_min, ADC_xz_max])
-                self.ADC_xz_plot_cor.set_clim([ADC_xz_min, ADC_xz_max])
+                self._ADC_xz_plot.set_clim([ADC_xz_min, ADC_xz_max])
+                self._ADC_xz_plot_sag.set_clim([ADC_xz_min, ADC_xz_max])
+                self._ADC_xz_plot_cor.set_clim([ADC_xz_min, ADC_xz_max])
 
-                self.ADC_z_plot.set_data((ADC_z[int(self.NSlice / 2), ...]))
-                self.ADC_z_plot_cor.set_data(
+                self._ADC_z_plot.set_data((ADC_z[int(self.NSlice / 2), ...]))
+                self._ADC_z_plot_cor.set_data(
                     (ADC_z[:, int(ADC_z.shape[1] / 2), ...]))
-                self.ADC_z_plot_sag.set_data(
+                self._ADC_z_plot_sag.set_data(
                     np.flip((ADC_z[:, :, int(ADC_z.shape[-1] / 2)]).T, 1))
-                self.ADC_z_plot.set_clim([ADC_z_min, ADC_z_max])
-                self.ADC_z_plot_sag.set_clim([ADC_z_min, ADC_z_max])
-                self.ADC_z_plot_cor.set_clim([ADC_z_min, ADC_z_max])
+                self._ADC_z_plot.set_clim([ADC_z_min, ADC_z_max])
+                self._ADC_z_plot_sag.set_clim([ADC_z_min, ADC_z_max])
+                self._ADC_z_plot_cor.set_clim([ADC_z_min, ADC_z_max])
 
-                self.ADC_yz_plot.set_data((ADC_yz[int(self.NSlice / 2), ...]))
-                self.ADC_yz_plot_cor.set_data(
+                self._ADC_yz_plot.set_data((ADC_yz[int(self.NSlice / 2), ...]))
+                self._ADC_yz_plot_cor.set_data(
                     (ADC_yz[:, int(ADC_yz.shape[1] / 2), ...]))
-                self.ADC_yz_plot_sag.set_data(
+                self._ADC_yz_plot_sag.set_data(
                     np.flip((ADC_yz[:, :, int(ADC_yz.shape[-1] / 2)]).T, 1))
-                self.ADC_yz_plot.set_clim([ADC_yz_min, ADC_yz_max])
-                self.ADC_yz_plot_sag.set_clim([ADC_yz_min, ADC_yz_max])
-                self.ADC_yz_plot_cor.set_clim([ADC_yz_min, ADC_yz_max])
+                self._ADC_yz_plot.set_clim([ADC_yz_min, ADC_yz_max])
+                self._ADC_yz_plot_sag.set_clim([ADC_yz_min, ADC_yz_max])
+                self._ADC_yz_plot_cor.set_clim([ADC_yz_min, ADC_yz_max])
 
                 self.figure.canvas.draw_idle()
 
@@ -554,13 +546,13 @@ class Model(BaseModel):
         ADC = 1 * np.ones(args[0].shape[-3:], dtype=DTYPE)
 
         x = np.array(
-                [
-                    test_M0 / self.uk_scale[0],
-                    ADC,
-                    0 * ADC,
-                    ADC,
-                    0 * ADC,
-                    ADC,
-                    0 * ADC],
-                dtype=DTYPE)
+            [
+                test_M0 / self.uk_scale[0],
+                ADC,
+                0 * ADC,
+                ADC,
+                0 * ADC,
+                ADC,
+                0 * ADC],
+            dtype=DTYPE)
         self.guess = x

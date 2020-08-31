@@ -2,17 +2,17 @@
 # -*- coding: utf-8 -*-
 """Module holding the general model for fitting."""
 import numpy as np
-from pyqmri.models.template import BaseModel, constraints, DTYPE
 import configparser
 import sympy
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+from pyqmri.models.template import BaseModel, constraints, DTYPE
 
 
 def _str2bool(v):
     if isinstance(v, bool):
         return v
-    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+    elif v.lower() in ('yes', 'true', 't', 'y', '1'):
         return True
     elif v.lower() in ('no', 'false', 'f', 'n', '0'):
         return False
@@ -56,7 +56,7 @@ class Model(BaseModel):
                 config.read_file(f)
         except BaseException:
             print("Model file not readable or not found")
-            raise(BaseException)
+            raise BaseException
         finally:
             params = {}
             for key in config[par["modelname"]]:
@@ -127,6 +127,10 @@ class Model(BaseModel):
 
         self.init_values = params["guess"].split(",")
 
+        self._plot = []
+        self._phase = None
+        self.guess = None
+
     def rescale(self, x):
         """Rescale the unknowns with the scaling factors.
 
@@ -154,7 +158,7 @@ class Model(BaseModel):
         while len(S.shape) >= 5:
             S = np.squeeze(S, axis=0)
         if self.indphase is True:
-            S *= self.phase
+            S *= self._phase
         S[~np.isfinite(S)] = 1e-20
         S = S.astype(dtype=DTYPE)
         return S
@@ -164,11 +168,11 @@ class Model(BaseModel):
         if self.indphase is True:
             for ukgrad in self.grad:
                 modelgradient.append(
-                        ukgrad(self.modelparams, x, self.uk_scale)*self.phase)
+                    ukgrad(self.modelparams, x, self.uk_scale)*self._phase)
         else:
             for ukgrad in self.grad:
                 modelgradient.append(
-                        ukgrad(self.modelparams, x, self.uk_scale))
+                    ukgrad(self.modelparams, x, self.uk_scale))
         modelgradient = np.array(modelgradient, dtype=DTYPE)
         while len(modelgradient.shape) >= 6:
             modelgradient = np.squeeze(modelgradient, axis=1)
@@ -195,32 +199,31 @@ class Model(BaseModel):
         if dim_2D:
             pass
         else:
-            self.ax = []
+            ax = []
             if not self.figure:
                 plot_dim = int(np.ceil(np.sqrt(len(self.uk_scale))))
                 plt.ion()
                 self.figure = plt.figure(figsize=(12, 6))
                 self.figure.subplots_adjust(hspace=0.3, wspace=0)
                 wd_ratio = np.tile([1, 1 / 20, 1 / (5)], plot_dim)
-                self.gs = gridspec.GridSpec(
+                gs = gridspec.GridSpec(
                     plot_dim, 3 * plot_dim,
                     width_ratios=wd_ratio, hspace=0.3, wspace=0)
                 self.figure.tight_layout()
                 self.figure.patch.set_facecolor(plt.cm.viridis.colors[0])
-                for grid in self.gs:
-                    self.ax.append(plt.subplot(grid))
-                    self.ax[-1].axis('off')
-                self._plot = []
+                for grid in gs:
+                    ax.append(plt.subplot(grid))
+                    ax[-1].axis('off')
                 for j in range(len(self.uk_scale)):
                     self._plot.append(
-                        self.ax[3 * j].imshow(
+                        ax[3 * j].imshow(
                             tmp_x[j, int(self.NSlice / 2), ...]))
-                    self.ax[3 *
-                            j].set_title('UK : ' +
-                                         str(j), color='white')
-                    self.ax[3 * j + 1].axis('on')
+                    ax[3 *
+                       j].set_title('UK : ' +
+                                    str(j), color='white')
+                    ax[3 * j + 1].axis('on')
                     cbar = self.figure.colorbar(
-                        self._plot[j], cax=self.ax[3 * j + 1])
+                        self._plot[j], cax=ax[3 * j + 1])
                     cbar.ax.tick_params(labelsize=12, colors='white')
                     for spine in cbar.ax.spines:
                         cbar.ax.spines[spine].set_color('white')
@@ -232,7 +235,6 @@ class Model(BaseModel):
                 for j in range(len(self.uk_scale)):
                     self._plot[j].set_data(tmp_x[j, int(self.NSlice / 2), ...])
                     self._plot[j].set_clim([tmp_x[j].min(), tmp_x[j].max()])
-
                 plt.draw()
                 plt.pause(1e-10)
 
@@ -250,7 +252,7 @@ class Model(BaseModel):
             the first image in the series. (Scan i minus Scan 0)
         """
         if self.indphase is True:
-            self.phase = np.exp(1j*(np.angle(args[0])-np.angle(args[0][0])))
+            self._phase = np.exp(1j*(np.angle(args[0])-np.angle(args[0][0])))
         x = np.ones((len(self.init_values),
                      self.NSlice, self.dimY, self.dimX), DTYPE)
         for j in range(len(self.init_values)):

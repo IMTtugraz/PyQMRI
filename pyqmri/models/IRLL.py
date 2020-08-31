@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Module holding the inversion recovers Look-Locker quantification model."""
-from pyqmri.models.template import BaseModel, constraints, DTYPE
 import numexpr as ne
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
+from pyqmri.models.template import BaseModel, constraints, DTYPE
 plt.ion()
 
 
@@ -49,7 +49,7 @@ class Model(BaseModel):
         Total number of projections measured
       uk_scale : list of float
         Scaling factors for each unknown to balance the partial derivatives.
-      guess : numpy.array
+      guess : numpy.array, None
         The initial guess. Needs to be set using "computeInitialGuess"
         prior to fitting.
       scale : float
@@ -90,6 +90,10 @@ class Model(BaseModel):
         self.constraints.append(constraints(
             np.exp(-self.scale / 10) / self.uk_scale[1],
             np.exp(-self.scale / 5500) / self.uk_scale[1], True))
+        self.guess = None
+        self._ax = None
+        self._M0_plot = None
+        self._T1_plot = None
 
     def rescale(self, x):
         """Rescale the unknowns with the scaling factors.
@@ -135,54 +139,56 @@ class Model(BaseModel):
         if dim_2D:
             if not self.figure:
                 plt.ion()
-                self.figure, self.ax = plt.subplots(1, 2, figsize=(12, 5))
-                self.M0_plot = self.ax[0].imshow((M0))
-                self.ax[0].set_title('Proton Density in a.u.')
-                self.ax[0].axis('off')
-                self.figure.colorbar(self.M0_plot, ax=self.ax[0])
-                self.T1_plot = self.ax[1].imshow((T1))
-                self.ax[1].set_title('T1 in  ms')
-                self.ax[1].axis('off')
-                self.figure.colorbar(self.T1_plot, ax=self.ax[1])
+                self.figure, self._ax = plt.subplots(1, 2, figsize=(12, 5))
+                self._M0_plot = self._ax[0].imshow((M0))
+                self._ax[0].set_title('Proton Density in a.u.')
+                self._ax[0].axis('off')
+                self.figure.colorbar(self._M0_plot, ax=self._ax[0])
+                self._T1_plot = self._ax[1].imshow((T1))
+                self._ax[1].set_title('T1 in  ms')
+                self._ax[1].axis('off')
+                self.figure.colorbar(self._T1_plot, ax=self._ax[1])
                 self.figure.tight_layout()
                 plt.draw()
                 plt.pause(1e-10)
             else:
-                self.M0_plot.set_data((M0))
-                self.M0_plot.set_clim([M0_min, M0_max])
-                self.T1_plot.set_data((T1))
-                self.T1_plot.set_clim([T1_min, T1_max])
+                self._M0_plot.set_data((M0))
+                self._M0_plot.set_clim([M0_min, M0_max])
+                self._T1_plot.set_data((T1))
+                self._T1_plot.set_clim([T1_min, T1_max])
                 plt.draw()
                 plt.pause(1e-10)
         else:
             [z, y, x] = M0.shape
-            self.ax = []
+            self._ax = []
             if not self.figure:
                 plt.ion()
                 self.figure = plt.figure(figsize=(12, 6))
                 self.figure.subplots_adjust(hspace=0, wspace=0)
-                self.gs = gridspec.GridSpec(2, 6, width_ratios=[
-                                            x / (20 * z), x / z, 1,
-                                            x / z, 1, x / (20 * z)],
-                                            height_ratios=[x / z, 1])
+                self.gs = gridspec.GridSpec(
+                    2, 6, width_ratios=[
+                        x / (20 * z), x / z, 1,
+                        x / z, 1, x / (20 * z)],
+                    height_ratios=[x / z, 1]
+                    )
                 self.figure.tight_layout()
                 self.figure.patch.set_facecolor(plt.cm.viridis.colors[0])
                 for grid in self.gs:
-                    self.ax.append(plt.subplot(grid))
-                    self.ax[-1].axis('off')
+                    self._ax.append(plt.subplot(grid))
+                    self._ax[-1].axis('off')
 
-                self.M0_plot = self.ax[1].imshow(
+                self._M0_plot = self._ax[1].imshow(
                     (M0[int(self.NSlice / 2), ...]))
-                self.M0_plot_cor = self.ax[7].imshow(
+                self._M0_plot_cor = self._ax[7].imshow(
                     (M0[:, int(M0.shape[1] / 2), ...]))
-                self.M0_plot_sag = self.ax[2].imshow(
+                self._M0_plot_sag = self._ax[2].imshow(
                     np.flip((M0[:, :, int(M0.shape[-1] / 2)]).T, 1))
-                self.ax[1].set_title('Proton Density in a.u.', color='white')
-                self.ax[1].set_anchor('SE')
-                self.ax[2].set_anchor('SW')
-                self.ax[7].set_anchor('NW')
+                self._ax[1].set_title('Proton Density in a.u.', color='white')
+                self._ax[1].set_anchor('SE')
+                self._ax[2].set_anchor('SW')
+                self._ax[7].set_anchor('NW')
                 cax = plt.subplot(self.gs[:, 0])
-                cbar = self.figure.colorbar(self.M0_plot, cax=cax)
+                cbar = self.figure.colorbar(self._M0_plot, cax=cax)
                 cbar.ax.tick_params(labelsize=12, colors='white')
                 cax.yaxis.set_ticks_position('left')
                 for spine in cbar.ax.spines:
@@ -190,159 +196,40 @@ class Model(BaseModel):
                 plt.draw()
                 plt.pause(1e-10)
 
-                self.T1_plot = self.ax[3].imshow(
+                self._T1_plot = self._ax[3].imshow(
                     (T1[int(self.NSlice / 2), ...]))
-                self.T1_plot_cor = self.ax[9].imshow(
+                self._T1_plot_cor = self._ax[9].imshow(
                     (T1[:, int(T1.shape[1] / 2), ...]))
-                self.T1_plot_sag = self.ax[4].imshow(
+                self._T1_plot_sag = self._ax[4].imshow(
                     np.flip((T1[:, :, int(T1.shape[-1] / 2)]).T, 1))
-                self.ax[3].set_title('T1 in  ms', color='white')
-                self.ax[3].set_anchor('SE')
-                self.ax[4].set_anchor('SW')
-                self.ax[9].set_anchor('NW')
+                self._ax[3].set_title('T1 in  ms', color='white')
+                self._ax[3].set_anchor('SE')
+                self._ax[4].set_anchor('SW')
+                self._ax[9].set_anchor('NW')
                 cax = plt.subplot(self.gs[:, 5])
-                cbar = self.figure.colorbar(self.T1_plot, cax=cax)
+                cbar = self.figure.colorbar(self._T1_plot, cax=cax)
                 cbar.ax.tick_params(labelsize=12, colors='white')
                 for spine in cbar.ax.spines:
                     cbar.ax.spines[spine].set_color('white')
                 plt.draw()
                 plt.pause(1e-10)
             else:
-                self.M0_plot.set_data((M0[int(self.NSlice / 2), ...]))
-                self.M0_plot_cor.set_data((M0[:, int(M0.shape[1] / 2), ...]))
-                self.M0_plot_sag.set_data(
+                self._M0_plot.set_data((M0[int(self.NSlice / 2), ...]))
+                self._M0_plot_cor.set_data((M0[:, int(M0.shape[1] / 2), ...]))
+                self._M0_plot_sag.set_data(
                     np.flip((M0[:, :, int(M0.shape[-1] / 2)]).T, 1))
-                self.M0_plot.set_clim([M0_min, M0_max])
-                self.M0_plot_cor.set_clim([M0_min, M0_max])
-                self.M0_plot_sag.set_clim([M0_min, M0_max])
-                self.T1_plot.set_data((T1[int(self.NSlice / 2), ...]))
-                self.T1_plot_cor.set_data((T1[:, int(T1.shape[1] / 2), ...]))
-                self.T1_plot_sag.set_data(
+                self._M0_plot.set_clim([M0_min, M0_max])
+                self._M0_plot_cor.set_clim([M0_min, M0_max])
+                self._M0_plot_sag.set_clim([M0_min, M0_max])
+                self._T1_plot.set_data((T1[int(self.NSlice / 2), ...]))
+                self._T1_plot_cor.set_data((T1[:, int(T1.shape[1] / 2), ...]))
+                self._T1_plot_sag.set_data(
                     np.flip((T1[:, :, int(T1.shape[-1] / 2)]).T, 1))
-                self.T1_plot.set_clim([T1_min, T1_max])
-                self.T1_plot_sag.set_clim([T1_min, T1_max])
-                self.T1_plot_cor.set_clim([T1_min, T1_max])
+                self._T1_plot.set_clim([T1_min, T1_max])
+                self._T1_plot_sag.set_clim([T1_min, T1_max])
+                self._T1_plot_cor.set_clim([T1_min, T1_max])
                 plt.draw()
                 plt.pause(1e-10)
-
-    def _execute_forward_2D(self, x, islice):
-        S = np.zeros((self.NScan, self.Nproj, self.dimY, self.dimX),
-                     dtype=DTYPE)
-        M0_sc = self.uk_scale[0]
-        TR = self.TR
-        tau = self.tau
-        td = self.td
-        sin_phi = self._sin_phi[islice, ...]
-        cos_phi = self._cos_phi[islice, ...]
-        N = self.Nproj_measured
-        scale = self.scale
-        Efit = x[1, ...] * self.uk_scale[1]
-        Etau = Efit**(tau / scale)
-        Etr = Efit**(TR / scale)
-        Etd = Efit**(td / scale)
-        M0 = x[0, ...]
-        M0_sc = self.uk_scale[0]
-        F = (1 - Etau) / (1 - Etau * cos_phi)
-        Q = (-Etr * Etd * F * (-(Etau * cos_phi)**(N - 1) + 1) *
-             cos_phi + Etr *
-             Etd - 2 * Etd + 1) / (Etr * Etd * (Etau * cos_phi)**(N - 1) *
-                                   cos_phi + 1)
-        Q_F = Q - F
-
-        for i in range(self.NScan):
-            for j in range(self.Nproj):
-                n = i * self.Nproj + j + 1
-                S[i, j, ...] = M0 * M0_sc * \
-                    ((Etau * cos_phi)**(n - 1) * Q_F + F) * sin_phi
-
-        return np.array(np.mean(S, axis=1, dtype=DTYPE), dtype=DTYPE)
-
-    def _execute_gradient_2D(self, x, islice):
-        grad = np.zeros(
-            (2,
-             self.NScan,
-             self.Nproj,
-             self.dimY,
-             self.dimX),
-            dtype=DTYPE)
-        M0_sc = self.uk_scale[0]
-        TR = self.TR
-        tau = self.tau
-        td = self.td
-        sin_phi = self._sin_phi[islice, ...]
-        cos_phi = self._cos_phi[islice, ...]
-        N = self.Nproj_measured
-        scale = self.scale
-        Efit = x[1, ...] * self.uk_scale[1]
-        Etau = Efit**(tau / scale)
-        Etr = Efit**(TR / scale)
-        Etd = Efit**(td / scale)
-
-        M0 = x[0, ...]
-        M0_sc = self.uk_scale[0]
-
-        F = (1 - Etau) / (1 - Etau * cos_phi)
-        Q = (-Etr * Etd * (-Etau + 1) * (-(Etau * cos_phi)**(N - 1) + 1) *
-             cos_phi / (-Etau * cos_phi + 1) + Etr * Etd - 2 * Etd + 1) / \
-            (Etr * Etd * (Etau * cos_phi)**(N - 1) * cos_phi + 1)
-        Q_F = Q - F
-        tmp1 = ((-TR * Etr * Etd * (-Etau + 1) *
-                 (-(Etau * cos_phi)**(N - 1) + 1)
-                 * cos_phi / (x[1, ...] * scale * (-Etau * cos_phi + 1)) +
-                 TR * Etr * Etd / (x[1, ...] * scale) - tau * Etr * Etau *
-                 Etd * (-Etau + 1) *
-                 (-(Etau * cos_phi)**(N - 1) + 1) * cos_phi**2 / (x[1, ...] *
-                 scale * (-Etau * cos_phi + 1)**2) +
-                 tau * Etr * Etau * Etd * (-(Etau * cos_phi)**(N - 1) + 1) *
-                 cos_phi / (x[1, ...] * scale * (-Etau * cos_phi + 1)) +
-                 tau * Etr * Etd * (Etau * cos_phi)**(N - 1) *
-                 (N - 1) * (-Etau + 1) * cos_phi / (x[1, ...] * scale *
-                 (-Etau * cos_phi + 1)) -
-                 td * Etr * Etd * (-Etau + 1) *
-                 (-(Etau * cos_phi)**(N - 1) + 1) * cos_phi / (x[1, ...] *
-                 scale * (-Etau * cos_phi + 1)) +
-                 td * Etr * Etd / (x[1, ...] * scale) - 2 *
-                 td * Etd / (x[1, ...] * scale)) /
-                (Etr * Etd * (Etau * cos_phi)**(N - 1) * cos_phi + 1) +
-                (-TR * Etr * Etd * (Etau * cos_phi)**(N - 1) * cos_phi /
-                 (x[1, ...] * scale) - tau * Etr * Etd *
-                 (Etau * cos_phi)**(N - 1) * (N - 1) *
-                 cos_phi / (x[1, ...] * scale) - td * Etr * Etd *
-                 (Etau * cos_phi)**(N - 1) * cos_phi / (x[1, ...] *
-                 scale)) * (-Etr * Etd * (-Etau + 1) *
-                (-(Etau * cos_phi)**(N - 1) + 1) * cos_phi /
-                 (-Etau * cos_phi + 1) + Etr * Etd - 2 * Etd + 1) /
-                (Etr * Etd * (Etau * cos_phi)**(N - 1) * cos_phi + 1)**2 -
-                tau * Etau * (-Etau + 1) * cos_phi / (x[1, ...] * scale *
-                (-Etau * cos_phi + 1)**2)
-                + tau * Etau / (x[1, ...] * scale * (-Etau * cos_phi + 1)))
-
-        tmp2 = tau * Etau * (-Etau + 1) * cos_phi / (x[1, ...] * scale * (
-            -Etau * cos_phi + 1)**2) - tau * Etau / (x[1, ...] * scale * (
-                -Etau * cos_phi + 1))
-
-        tmp3 = (-(-Etau + 1) / (-Etau * cos_phi + 1) + (-Etr * Etd *
-                (-Etau + 1) * (-(Etau * cos_phi)**(N - 1) + 1) * cos_phi /
-                (-Etau * cos_phi + 1) + Etr * Etd - 2 * Etd + 1) / (
-                    Etr * Etd * (Etau * cos_phi)**(N - 1) * cos_phi +
-                    1)) / (x[1, ...] * scale)
-        for i in range(self.NScan):
-            for j in range(self.Nproj):
-                n = i * self.Nproj + j + 1
-
-                grad[0, i, j, ...] = M0_sc * \
-                    ((Etau * cos_phi)**(n - 1) * Q_F + F) * sin_phi
-
-                grad[1, i, j, ...] = M0 * M0_sc * ((Etau * cos_phi)**(
-                    n - 1) * tmp1 + tmp2 + tau * (Etau * cos_phi)**(n - 1) *
-                                     (n - 1) * tmp3) * sin_phi
-
-        return np.array(
-            np.mean(
-                grad,
-                axis=2,
-                dtype=DTYPE),
-            dtype=DTYPE)
 
     def _execute_forward_3D(self, x):
         S = np.zeros(
@@ -414,46 +301,61 @@ class Model(BaseModel):
              cos_phi / (-Etau * cos_phi + 1) + Etr * Etd - 2 * Etd + 1) / \
             (Etr * Etd * (Etau * cos_phi)**(N - 1) * cos_phi + 1)
         Q_F = Q - F
-        tmp1 = ((-TR * Etr * Etd * (-Etau + 1) *
-                 (-(Etau * cos_phi)**(N - 1) + 1)
-                 * cos_phi / (x[1, ...] * scale * (-Etau * cos_phi + 1)) +
-                 TR * Etr * Etd / (x[1, ...] * scale) - tau * Etr * Etau *
-                 Etd * (-Etau + 1) *
-                 (-(Etau * cos_phi)**(N - 1) + 1) * cos_phi**2 / (x[1, ...] *
-                 scale * (-Etau * cos_phi + 1)**2) +
-                 tau * Etr * Etau * Etd * (-(Etau * cos_phi)**(N - 1) + 1) *
-                 cos_phi / (x[1, ...] * scale * (-Etau * cos_phi + 1)) +
-                 tau * Etr * Etd * (Etau * cos_phi)**(N - 1) *
-                 (N - 1) * (-Etau + 1) * cos_phi / (x[1, ...] * scale *
-                 (-Etau * cos_phi + 1)) -
-                 td * Etr * Etd * (-Etau + 1) *
-                 (-(Etau * cos_phi)**(N - 1) + 1) * cos_phi / (x[1, ...] *
-                 scale * (-Etau * cos_phi + 1)) +
-                 td * Etr * Etd / (x[1, ...] * scale) - 2 *
-                 td * Etd / (x[1, ...] * scale)) /
-                (Etr * Etd * (Etau * cos_phi)**(N - 1) * cos_phi + 1) +
-                (-TR * Etr * Etd * (Etau * cos_phi)**(N - 1) * cos_phi /
-                 (x[1, ...] * scale) - tau * Etr * Etd *
-                 (Etau * cos_phi)**(N - 1) * (N - 1) *
-                 cos_phi / (x[1, ...] * scale) - td * Etr * Etd *
-                 (Etau * cos_phi)**(N - 1) * cos_phi / (x[1, ...] *
-                 scale)) * (-Etr * Etd * (-Etau + 1) *
-                (-(Etau * cos_phi)**(N - 1) + 1) * cos_phi /
-                 (-Etau * cos_phi + 1) + Etr * Etd - 2 * Etd + 1) /
-                (Etr * Etd * (Etau * cos_phi)**(N - 1) * cos_phi + 1)**2 -
-                tau * Etau * (-Etau + 1) * cos_phi / (x[1, ...] * scale *
-                (-Etau * cos_phi + 1)**2)
-                + tau * Etau / (x[1, ...] * scale * (-Etau * cos_phi + 1)))
+        tmp1 = (
+            (
+                - TR * Etr * Etd * (-Etau + 1)
+                * (-(Etau * cos_phi)**(N - 1) + 1)
+                * cos_phi / (x[1, ...] * scale * (-Etau * cos_phi + 1))
+                + TR * Etr * Etd / (x[1, ...] * scale) - tau * Etr * Etau
+                * Etd * (-Etau + 1)
+                * (-(Etau * cos_phi)**(N - 1) + 1) * cos_phi**2
+                / (x[1, ...] * scale * (-Etau * cos_phi + 1)**2)
+                + tau * Etr * Etau * Etd * (-(Etau * cos_phi)**(N - 1) + 1)
+                * cos_phi / (x[1, ...] * scale * (-Etau * cos_phi + 1))
+                + tau * Etr * Etd * (Etau * cos_phi)**(N - 1)
+                * (N - 1) * (-Etau + 1) * cos_phi
+                / (x[1, ...] * scale * (-Etau * cos_phi + 1))
+                - td * Etr * Etd * (-Etau + 1)
+                * (-(Etau * cos_phi)**(N - 1) + 1) * cos_phi
+                / (x[1, ...] * scale * (-Etau * cos_phi + 1))
+                + td * Etr * Etd / (x[1, ...] * scale) - 2 *
+                td * Etd / (x[1, ...] * scale)
+            ) / (Etr * Etd * (Etau * cos_phi)**(N - 1) * cos_phi + 1)
+            + (
+                -TR * Etr * Etd * (Etau * cos_phi)**(N - 1) * cos_phi
+                / (x[1, ...] * scale) - tau * Etr * Etd
+                * (Etau * cos_phi)**(N - 1) * (N - 1)
+                * cos_phi / (x[1, ...] * scale) - td * Etr * Etd
+                * (Etau * cos_phi)**(N - 1) * cos_phi
+                / (x[1, ...] * scale)
+            ) * (
+                -Etr * Etd * (-Etau + 1)
+                * (-(Etau * cos_phi)**(N - 1) + 1) * cos_phi
+                / (-Etau * cos_phi + 1) + Etr * Etd - 2 * Etd + 1
+            ) / (
+                Etr * Etd * (Etau * cos_phi)**(N - 1) * cos_phi + 1
+            )**2 -
+            tau * Etau * (-Etau + 1) * cos_phi
+            / (x[1, ...] * scale * (-Etau * cos_phi + 1)**2)
+            + tau * Etau / (x[1, ...] * scale * (-Etau * cos_phi + 1))
+            )
 
-        tmp2 = tau * Etau * (-Etau + 1) * cos_phi / (x[1, ...] * scale * (
-            -Etau * cos_phi + 1)**2) - tau * Etau / (x[1, ...] * scale * (
-                -Etau * cos_phi + 1))
+        tmp2 = (
+            tau * Etau * (-Etau + 1) * cos_phi
+            / (x[1, ...] * scale * (-Etau * cos_phi + 1)**2)
+            - tau * Etau / (x[1, ...] * scale * (-Etau * cos_phi + 1))
+            )
 
-        tmp3 = (-(-Etau + 1) / (-Etau * cos_phi + 1) + (-Etr * Etd *
-                (-Etau + 1) * (-(Etau * cos_phi)**(N - 1) + 1) * cos_phi /
-                (-Etau * cos_phi + 1) + Etr * Etd - 2 * Etd + 1) / (
+        tmp3 = (
+            -(-Etau + 1) / (-Etau * cos_phi + 1)
+            + (
+                - Etr * Etd * (-Etau + 1) * (-(Etau * cos_phi)**(N - 1) + 1)
+                * cos_phi / (-Etau * cos_phi + 1) + Etr * Etd - 2 * Etd + 1
+                ) / (
                     Etr * Etd * (Etau * cos_phi)**(N - 1) * cos_phi +
-                    1)) / (x[1, ...] * scale)
+                    1
+                    )
+            ) / (x[1, ...] * scale)
 
         def numexpeval_M0(M0_sc, sin_phi, cos_phi, n, Q_F, F, Etau):
             return ne.evaluate(

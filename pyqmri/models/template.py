@@ -173,7 +173,7 @@ class BaseModel(ABC):
         ...
 
     @abstractmethod
-    def computeInitialGuess(self):
+    def computeInitialGuess(self, *args):
         """Initialize unknown array for the fitting.
 
         This function provides an initial guess for the fitting.

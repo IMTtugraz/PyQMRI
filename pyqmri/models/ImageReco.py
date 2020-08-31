@@ -8,7 +8,6 @@ from pyqmri.models.template import BaseModel, constraints, DTYPE
 plt.ion()
 
 
-
 class Model(BaseModel):
     """Image reconstruction model for MRI.
 
@@ -21,7 +20,11 @@ class Model(BaseModel):
         A python dict containing the necessary information to
         setup the object. Needs to contain the sequence related parametrs,
         e.g. TR, TE, TI, to fully describe the acquisitio process
-
+    Attributes
+    ----------
+      guess : numpy.array, None
+        Initial guess for the images. Set after object creation using
+        "computeInitialGuess"
     """
 
     def __init__(self, par):
@@ -39,7 +42,8 @@ class Model(BaseModel):
                 constraints(-100 / self.uk_scale[j],
                             100 / self.uk_scale[j],
                             False))
-
+        self._image_plot = []
+        self.guess = None
 
     def rescale(self, x):
         """Rescale the unknowns with the scaling factors.
@@ -98,50 +102,49 @@ class Model(BaseModel):
             M0_max.append(M0[j].max())
         if dim_2D:
             raise NotImplementedError("2D Not Implemented")
-        else:
-            [z, y, x] = M0.shape[1:]
-            if not self.figure:
-                plt.ion()
-                self.ax_img = []
-                plot_dim = int(np.ceil(np.sqrt(M0.shape[0])))
-                self.figure = plt.figure(figsize=(12, 6))
-                self.figure.subplots_adjust(hspace=0.3, wspace=0)
-                wd_ratio = np.tile([1, 1 / 20, 1 / (5)], plot_dim)
-                self.gs_kurt = gridspec.GridSpec(
-                    plot_dim, 3 * plot_dim,
-                    width_ratios=wd_ratio, hspace=0.3, wspace=0)
-                self.figure.tight_layout()
-                self.figure.patch.set_facecolor('black')
-                for grid in self.gs_kurt:
-                    self.ax_img.append(plt.subplot(grid))
-                    self.ax_img[-1].axis('off')
-                self.image_plot = []
-                for j in range(M0.shape[0]):
-                    self.image_plot.append(
-                        self.ax_img[3 * j].imshow(
-                            (M0[j, int(z/2)]),
-                            vmin=M0_min[j],
-                            vmax=M0_max[j], cmap='gray'))
-                    self.ax_img[3 *
-                                j].set_title('Image: ' +
-                                             str(j), color='white')
-                    self.ax_img[3 * j + 1].axis('on')
-                    cbar = self.figure.colorbar(
-                        self.image_plot[j], cax=self.ax_img[3 * j + 1])
-                    cbar.ax.tick_params(labelsize=12, colors='white')
-                    for spine in cbar.ax.spines:
-                        cbar.ax.spines[spine].set_color('white')
-                    plt.draw()
-                    plt.pause(1e-10)
-            else:
-                for j in range(M0.shape[0]):
-                    self.image_plot[j].set_data((M0[j, int(z/2)]))
-                    self.image_plot[j].set_clim([M0_min[j],
-                                                 M0_max[j]])
 
-                self.figure.canvas.draw_idle()
+        [z, y, x] = M0.shape[1:]
+        if not self.figure:
+            plt.ion()
+            ax = []
+            plot_dim = int(np.ceil(np.sqrt(M0.shape[0])))
+            self.figure = plt.figure(figsize=(12, 6))
+            self.figure.subplots_adjust(hspace=0.3, wspace=0)
+            wd_ratio = np.tile([1, 1 / 20, 1 / (5)], plot_dim)
+            gs = gridspec.GridSpec(
+                plot_dim, 3 * plot_dim,
+                width_ratios=wd_ratio, hspace=0.3, wspace=0)
+            self.figure.tight_layout()
+            self.figure.patch.set_facecolor('black')
+            for grid in gs:
+                ax.append(plt.subplot(grid))
+                ax[-1].axis('off')
+            for j in range(M0.shape[0]):
+                self._image_plot.append(
+                    ax[3 * j].imshow(
+                        (M0[j, int(z/2)]),
+                        vmin=M0_min[j],
+                        vmax=M0_max[j], cmap='gray'))
+                ax[3 *
+                   j].set_title('Image: ' +
+                                str(j), color='white')
+                ax[3 * j + 1].axis('on')
+                cbar = self.figure.colorbar(
+                    self._image_plot[j], cax=ax[3 * j + 1])
+                cbar.ax.tick_params(labelsize=12, colors='white')
+                for spine in cbar.ax.spines:
+                    cbar.ax.spines[spine].set_color('white')
                 plt.draw()
                 plt.pause(1e-10)
+        else:
+            for j in range(M0.shape[0]):
+                self._image_plot[j].set_data((M0[j, int(z/2)]))
+                self._image_plot[j].set_clim([M0_min[j],
+                                             M0_max[j]])
+
+            self.figure.canvas.draw_idle()
+            plt.draw()
+            plt.pause(1e-10)
 
     def computeInitialGuess(self, *args):
         """Initialize unknown array for the fitting.

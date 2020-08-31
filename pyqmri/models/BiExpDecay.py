@@ -35,6 +35,7 @@ class Model(BaseModel):
     """
 
     def __init__(self, par):
+        super().__init__(par)
         self.TE = np.ones((self.NScan, 1, 1, 1))
 
         for i in range(self.NScan):
@@ -95,44 +96,6 @@ class Model(BaseModel):
         M02 = x[3, ...] * self.uk_scale[3]
         T22 = 1 / (x[4, ...] * self.uk_scale[4])
         return np.array((M0, M01, T21, M02, T22))
-
-    def _execute_forward_2D(self, x, islice):
-        M0 = x[0, ...] * self.uk_scale[0]
-        M01 = x[1, ...] * self.uk_scale[1]
-        T21 = x[2, ...] * self.uk_scale[2]
-        M02 = x[3, ...] * self.uk_scale[3]
-        T22 = x[4, ...] * self.uk_scale[4]
-        S = M0 * (M01 * np.exp(-self.TE * (T21)) +
-                  M02 * np.exp(-self.TE * (T22)))
-        S[~np.isfinite(S)] = 1e-200
-        S = np.array(S, dtype=DTYPE)
-        return S
-
-    def _execute_gradient_2D(self, x, islice):
-        M0 = x[0, ...]
-        M01 = x[1, ...]
-        T21 = x[2, ...]
-        M02 = x[3, ...]
-        T22 = x[4, ...]
-        grad_M0 = self.uk_scale[0] * (
-            M01 * self.uk_scale[1] * np.exp(-self.TE * (
-                T21 * self.uk_scale[2])) +
-            M02 * self.uk_scale[3] *
-            np.exp(-self.TE * (T22 * self.uk_scale[4])))
-        grad_M01 = self.uk_scale[0] * M0 * self.uk_scale[1] * \
-            np.exp(-self.TE * (T21 * self.uk_scale[2]))
-        grad_T21 = -self.uk_scale[0] * M0 * M01 * self.uk_scale[1] * \
-            self.TE * \
-            self.uk_scale[2] * np.exp(-self.TE * (T21 * self.uk_scale[2]))
-        grad_M02 = self.uk_scale[0] * M0 * self.uk_scale[3] * \
-            np.exp(-self.TE * (T22 * self.uk_scale[4]))
-        grad_T22 = -self.uk_scale[0] * M0 * M02 * self.uk_scale[3] * \
-            self.TE * \
-            self.uk_scale[4] * np.exp(-self.TE * (T22 * self.uk_scale[4]))
-        grad = np.array([grad_M0, grad_M01, grad_T21,
-                         grad_M02, grad_T22], dtype=DTYPE)
-        grad[~np.isfinite(grad)] = 1e-20
-        return grad
 
     def _execute_forward_3D(self, x):
         M0 = x[0, ...] * self.uk_scale[0]
@@ -204,7 +167,7 @@ class Model(BaseModel):
         T22_max = T22.max()
 
         [z, y, x] = M01.shape
-        self.ax = []
+        self._ax = []
         if not self.figure:
             plt.ion()
             self.figure = plt.figure(figsize=(12, 6))
@@ -233,88 +196,88 @@ class Model(BaseModel):
             self.figure.tight_layout()
             self.figure.patch.set_facecolor(plt.cm.viridis.colors[0])
             for grid in self.gs:
-                self.ax.append(plt.subplot(grid))
-                self.ax[-1].axis('off')
+                self._ax.append(plt.subplot(grid))
+                self._ax[-1].axis('off')
 
-            self.M0_plot = self.ax[0].imshow(
+            self._M0_plot = self._ax[0].imshow(
                 (M0[int(self.NSlice / 2), ...]))
-            self.M0_plot_cor = self.ax[17].imshow(
+            self._M0_plot_cor = self._ax[17].imshow(
                 (M0[:, int(M01.shape[1] / 2), ...]))
-            self.M0_plot_sag = self.ax[1].imshow(
+            self._M0_plot_sag = self._ax[1].imshow(
                 np.flip((M0[:, :, int(M01.shape[-1] / 2)]).T, 1))
-            self.ax[0].set_title('Proton Density in a.u.', color='white')
-            self.ax[0].set_anchor('SE')
-            self.ax[1].set_anchor('SW')
-            self.ax[17].set_anchor('NW')
+            self._ax[0].set_title('Proton Density in a.u.', color='white')
+            self._ax[0].set_anchor('SE')
+            self._ax[1].set_anchor('SW')
+            self._ax[17].set_anchor('NW')
             cax = plt.subplot(self.gs[:, 2])
-            cbar = self.figure.colorbar(self.M0_plot, cax=cax)
+            cbar = self.figure.colorbar(self._M0_plot, cax=cax)
             cbar.ax.tick_params(labelsize=12, colors='white')
 #           cax.yaxis.set_ticks_position('left')
             for spine in cbar.ax.spines:
                 cbar.ax.spines[spine].set_color('white')
 
-            self.M01_plot = self.ax[5].imshow(
+            self._M01_plot = self._ax[5].imshow(
                 (M01[int(self.NSlice / 2), ...]))
-            self.M01_plot_cor = self.ax[22].imshow(
+            self._M01_plot_cor = self._ax[22].imshow(
                 (M01[:, int(M01.shape[1] / 2), ...]))
-            self.M01_plot_sag = self.ax[6].imshow(
+            self._M01_plot_sag = self._ax[6].imshow(
                 np.flip((M01[:, :, int(M01.shape[-1] / 2)]).T, 1))
-            self.ax[5].set_title('Proton Density in a.u.', color='white')
-            self.ax[5].set_anchor('SE')
-            self.ax[6].set_anchor('SW')
-            self.ax[22].set_anchor('NW')
+            self._ax[5].set_title('Proton Density in a.u.', color='white')
+            self._ax[5].set_anchor('SE')
+            self._ax[6].set_anchor('SW')
+            self._ax[22].set_anchor('NW')
             cax = plt.subplot(self.gs[:, 4])
-            cbar = self.figure.colorbar(self.M01_plot, cax=cax)
+            cbar = self.figure.colorbar(self._M01_plot, cax=cax)
             cbar.ax.tick_params(labelsize=12, colors='white')
             cax.yaxis.set_ticks_position('left')
             for spine in cbar.ax.spines:
                 cbar.ax.spines[spine].set_color('white')
 
-            self.M02_plot = self.ax[12].imshow(
+            self._M02_plot = self._ax[12].imshow(
                 (M02[int(self.NSlice / 2), ...]))
-            self.M02_plot_cor = self.ax[29].imshow(
+            self._M02_plot_cor = self._ax[29].imshow(
                 (M02[:, int(M02.shape[1] / 2), ...]))
-            self.M02_plot_sag = self.ax[13].imshow(
+            self._M02_plot_sag = self._ax[13].imshow(
                 np.flip((M02[:, :, int(M02.shape[-1] / 2)]).T, 1))
-            self.ax[12].set_title('Proton Density in a.u.', color='white')
-            self.ax[12].set_anchor('SE')
-            self.ax[13].set_anchor('SW')
-            self.ax[29].set_anchor('NW')
+            self._ax[12].set_title('Proton Density in a.u.', color='white')
+            self._ax[12].set_anchor('SE')
+            self._ax[13].set_anchor('SW')
+            self._ax[29].set_anchor('NW')
             cax = plt.subplot(self.gs[:, 11])
-            cbar = self.figure.colorbar(self.M02_plot, cax=cax)
+            cbar = self.figure.colorbar(self._M02_plot, cax=cax)
             cbar.ax.tick_params(labelsize=12, colors='white')
             cax.yaxis.set_ticks_position('left')
             for spine in cbar.ax.spines:
                 cbar.ax.spines[spine].set_color('white')
 
-            self.T21_plot = self.ax[7].imshow(
+            self._T21_plot = self._ax[7].imshow(
                 (T21[int(self.NSlice / 2), ...]))
-            self.T21_plot_cor = self.ax[24].imshow(
+            self._T21_plot_cor = self._ax[24].imshow(
                 (T21[:, int(T21.shape[1] / 2), ...]))
-            self.T21_plot_sag = self.ax[8].imshow(
+            self._T21_plot_sag = self._ax[8].imshow(
                 np.flip((T21[:, :, int(T21.shape[-1] / 2)]).T, 1))
-            self.ax[7].set_title('T21 in  ms', color='white')
-            self.ax[7].set_anchor('SE')
-            self.ax[8].set_anchor('SW')
-            self.ax[24].set_anchor('NW')
+            self._ax[7].set_title('T21 in  ms', color='white')
+            self._ax[7].set_anchor('SE')
+            self._ax[8].set_anchor('SW')
+            self._ax[24].set_anchor('NW')
             cax = plt.subplot(self.gs[:, 9])
-            cbar = self.figure.colorbar(self.T21_plot, cax=cax)
+            cbar = self.figure.colorbar(self._T21_plot, cax=cax)
             cbar.ax.tick_params(labelsize=12, colors='white')
             for spine in cbar.ax.spines:
                 cbar.ax.spines[spine].set_color('white')
 
-            self.T22_plot = self.ax[14].imshow(
+            self._T22_plot = self._ax[14].imshow(
                 (T22[int(self.NSlice / 2), ...]))
-            self.T22_plot_cor = self.ax[31].imshow(
+            self._T22_plot_cor = self._ax[31].imshow(
                 (T22[:, int(T22.shape[1] / 2), ...]))
-            self.T22_plot_sag = self.ax[15].imshow(
+            self._T22_plot_sag = self._ax[15].imshow(
                 np.flip((T22[:, :, int(T22.shape[-1] / 2)]).T, 1))
-            self.ax[14].set_title('T22 in  ms', color='white')
-            self.ax[14].set_anchor('SE')
-            self.ax[15].set_anchor('SW')
-            self.ax[31].set_anchor('NW')
+            self._ax[14].set_title('T22 in  ms', color='white')
+            self._ax[14].set_anchor('SE')
+            self._ax[15].set_anchor('SW')
+            self._ax[31].set_anchor('NW')
             cax = plt.subplot(self.gs[:, 16])
-            cbar = self.figure.colorbar(self.T22_plot, cax=cax)
+            cbar = self.figure.colorbar(self._T22_plot, cax=cax)
             cbar.ax.tick_params(labelsize=12, colors='white')
             for spine in cbar.ax.spines:
                 cbar.ax.spines[spine].set_color('white')
@@ -322,47 +285,47 @@ class Model(BaseModel):
             plt.draw()
             plt.pause(1e-10)
         else:
-            self.M0_plot.set_data((M0[int(self.NSlice / 2), ...]))
-            self.M0_plot_cor.set_data((M0[:, int(M01.shape[1] / 2), ...]))
-            self.M0_plot_sag.set_data(
+            self._M0_plot.set_data((M0[int(self.NSlice / 2), ...]))
+            self._M0_plot_cor.set_data((M0[:, int(M01.shape[1] / 2), ...]))
+            self._M0_plot_sag.set_data(
                 np.flip((M0[:, :, int(M01.shape[-1] / 2)]).T, 1))
-            self.M0_plot.set_clim([M0_min, M0_max])
-            self.M0_plot_cor.set_clim([M0_min, M0_max])
-            self.M0_plot_sag.set_clim([M0_min, M0_max])
+            self._M0_plot.set_clim([M0_min, M0_max])
+            self._M0_plot_cor.set_clim([M0_min, M0_max])
+            self._M0_plot_sag.set_clim([M0_min, M0_max])
 
-            self.M01_plot.set_data((M01[int(self.NSlice / 2), ...]))
-            self.M01_plot_cor.set_data(
+            self._M01_plot.set_data((M01[int(self.NSlice / 2), ...]))
+            self._M01_plot_cor.set_data(
                 (M01[:, int(M01.shape[1] / 2), ...]))
-            self.M01_plot_sag.set_data(
+            self._M01_plot_sag.set_data(
                 np.flip((M01[:, :, int(M01.shape[-1] / 2)]).T, 1))
-            self.M01_plot.set_clim([M01_min, M01_max])
-            self.M01_plot_cor.set_clim([M01_min, M01_max])
-            self.M01_plot_sag.set_clim([M01_min, M01_max])
-            self.T21_plot.set_data((T21[int(self.NSlice / 2), ...]))
-            self.T21_plot_cor.set_data(
+            self._M01_plot.set_clim([M01_min, M01_max])
+            self._M01_plot_cor.set_clim([M01_min, M01_max])
+            self._M01_plot_sag.set_clim([M01_min, M01_max])
+            self._T21_plot.set_data((T21[int(self.NSlice / 2), ...]))
+            self._T21_plot_cor.set_data(
                 (T21[:, int(T21.shape[1] / 2), ...]))
-            self.T21_plot_sag.set_data(
+            self._T21_plot_sag.set_data(
                 np.flip((T21[:, :, int(T21.shape[-1] / 2)]).T, 1))
-            self.T21_plot.set_clim([T21_min, T21_max])
-            self.T21_plot_sag.set_clim([T21_min, T21_max])
-            self.T21_plot_cor.set_clim([T21_min, T21_max])
+            self._T21_plot.set_clim([T21_min, T21_max])
+            self._T21_plot_sag.set_clim([T21_min, T21_max])
+            self._T21_plot_cor.set_clim([T21_min, T21_max])
 
-            self.M02_plot.set_data((M02[int(self.NSlice / 2), ...]))
-            self.M02_plot_cor.set_data(
+            self._M02_plot.set_data((M02[int(self.NSlice / 2), ...]))
+            self._M02_plot_cor.set_data(
                 (M02[:, int(M02.shape[1] / 2), ...]))
-            self.M02_plot_sag.set_data(
+            self._M02_plot_sag.set_data(
                 np.flip((M02[:, :, int(M02.shape[-1] / 2)]).T, 1))
-            self.M02_plot.set_clim([M02_min, M02_max])
-            self.M02_plot_cor.set_clim([M02_min, M02_max])
-            self.M02_plot_sag.set_clim([M02_min, M02_max])
-            self.T22_plot.set_data((T22[int(self.NSlice / 2), ...]))
-            self.T22_plot_cor.set_data(
+            self._M02_plot.set_clim([M02_min, M02_max])
+            self._M02_plot_cor.set_clim([M02_min, M02_max])
+            self._M02_plot_sag.set_clim([M02_min, M02_max])
+            self._T22_plot.set_data((T22[int(self.NSlice / 2), ...]))
+            self._T22_plot_cor.set_data(
                 (T22[:, int(T22.shape[1] / 2), ...]))
-            self.T22_plot_sag.set_data(
+            self._T22_plot_sag.set_data(
                 np.flip((T22[:, :, int(T22.shape[-1] / 2)]).T, 1))
-            self.T22_plot.set_clim([T22_min, T22_max])
-            self.T22_plot_sag.set_clim([T22_min, T22_max])
-            self.T22_plot_cor.set_clim([T22_min, T22_max])
+            self._T22_plot.set_clim([T22_min, T22_max])
+            self._T22_plot_sag.set_clim([T22_min, T22_max])
+            self._T22_plot_cor.set_clim([T22_min, T22_max])
             plt.draw()
             plt.pause(1e-10)
 
