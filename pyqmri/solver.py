@@ -69,7 +69,7 @@ class CGSolver:
                                 cl.mem_flags.COPY_HOST_PTR,
                                 hostbuf=par["C"].data)
         if SMS:
-            self._op = operator.OperatorKspaceSMS(par, self._prg, trafo=trafo)
+            self._op = operator.OperatorKspaceSMS(par, self._prg)
             self._tmp_sino = clarray.empty(
                 self._queue,
                 (self._NScan, self._NC,
@@ -662,24 +662,19 @@ class PDBaseSolver:
 
         return primal_vars
 
-    def _updateInitial(self, outp, inp):
+    def _updateInitial(self):
         pass
 
-    def _updatePrimal(self, outp, inp, tau):
+    def _updatePrimal(self):
         pass
 
-    def _updateDual(self, outp, inp, par):
+    def _updateDual(self):
         pass
 
-    def _calcResidual(
-                    primal_vars,
-                    dual_vars,
-                    Axold,
-                    tmp_results_adjoint,
-                    tmp_results_forward):
+    def _calcResidual(self):
         pass
 
-    def _setupVariables(inps, data):
+    def _setupVariables(self):
         pass
 
     def _updateConstraints(self):
@@ -969,42 +964,6 @@ class PDBaseSolver:
             np.float32(1/(1+par[0]/par[2])),
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
-
-    def update_primal_explicit(self, x_new, x, Kyk, xk, ATd,
-                               tau, delta, lambd, wait_for=[]):
-        """Explicit update of the primal variable.
-
-        Parameters
-        ----------
-          outp : PyOpenCL.Array
-            The result of the update step
-          inp : PyOpenCL.Array
-            The previous values of x
-          par : list
-            List of necessary parameters for the update
-          idx : int
-            Index of the device to use
-          idxq : int
-            Index of the queue to use
-          bound_cond : int
-            Apply boundary condition (1) or not (0).
-          wait_for : list of PyOpenCL.Events
-            A optional list for PyOpenCL.Events to wait for
-
-        Returns
-        -------
-            PyOpenCL.Event:
-                A PyOpenCL.Event to wait for.
-        """
-        return self._prg.update_primal_explicit(
-            self._queue, x.shape[1:], None, x_new.data, x.data, Kyk.data,
-            xk.data, ATd.data, np.float32(tau),
-            np.float32(1 / delta), np.float32(lambd), self.min_const.data,
-            self.max_const.data,
-            self.real_const.data, np.int32(self.unknowns),
-            wait_for=(
-                x_new.events + x.events + Kyk.events +
-                xk.events + ATd.events + wait_for))
 
 
 class PDSolverTV(PDBaseSolver):
