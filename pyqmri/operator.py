@@ -1270,6 +1270,8 @@ class OperatorImagespaceStreamed(Operator):
 
     def _fwdstreamed(self, outp, inp, par=None, idx=0, idxq=0,
                      bound_cond=0, wait_for=None):
+        if wait_for is None:
+            wait_for = []
         return (self.prg[idx].operator_fwd_imagespace(
             self.queue[4*idx+idxq],
             (self.par_slices+self._overlap, self.dimY, self.dimX), None,
@@ -1280,6 +1282,8 @@ class OperatorImagespaceStreamed(Operator):
 
     def _adjstreamedKyk1(self, outp, inp, par=None, idx=0, idxq=0,
                          bound_cond=0, wait_for=None):
+        if wait_for is None:
+            wait_for = []
         return self.prg[idx].update_Kyk1_imagespace(
             self.queue[4*idx+idxq],
             (self.par_slices+self._overlap, self.dimY, self.dimX), None,
@@ -1294,6 +1298,8 @@ class OperatorImagespaceStreamed(Operator):
 
     def _adjstreamed(self, outp, inp, par=None, idx=0, idxq=0,
                      bound_cond=0, wait_for=None):
+        if wait_for is None:
+            wait_for = []
         return self.prg[idx].operator_ad_imagespace(
             self.queue[4*idx+idxq],
             (self.par_slices+self._overlap, self.dimY, self.dimX), None,
@@ -1532,6 +1538,8 @@ class OperatorKspaceStreamed(Operator):
 
     def _fwdstreamed(self, outp, inp, par=None, idx=0, idxq=0,
                      bound_cond=0, wait_for=None):
+        if wait_for is None:
+            wait_for = []
         self._tmp_result[2*idx+idxq].add_event(self.prg[idx].operator_fwd(
             self.queue[4*idx+idxq],
             (self.par_slices+self._overlap, self.dimY, self.dimX), None,
@@ -1548,6 +1556,8 @@ class OperatorKspaceStreamed(Operator):
 
     def _adjstreamedKyk1(self, outp, inp, par=None, idx=0, idxq=0,
                          bound_cond=0, wait_for=None):
+        if wait_for is None:
+            wait_for = []
         self._tmp_result[2*idx+idxq].add_event(
             self.NUFFT[2*idx+idxq].FFTH(
                 self._tmp_result[2*idx+idxq], inp[0],
@@ -1569,6 +1579,8 @@ class OperatorKspaceStreamed(Operator):
 
     def _adjstreamed(self, outp, inp, par=None, idx=0, idxq=0,
                      bound_cond=0, wait_for=None):
+        if wait_for is None:
+            wait_for = []
         self._tmp_result[2*idx+idxq].add_event(
             self.NUFFT[2*idx+idxq].FFTH(
                 self._tmp_result[2*idx+idxq], inp[0],
@@ -1587,6 +1599,8 @@ class OperatorKspaceStreamed(Operator):
 
     def _FT(self, outp, inp, par=None, idx=0, idxq=0,
             bound_cond=0, wait_for=None):
+        if wait_for is None:
+            wait_for = []
         return self.NUFFT[2*idx+idxq].FFT(outp, inp[0])
 
 
@@ -1903,6 +1917,8 @@ class OperatorKspaceSMSStreamed(Operator):
 
     def _fwdstreamed(self, outp, inp, par=None, idx=0, idxq=0,
                      bound_cond=0, wait_for=None):
+        if wait_for is None:
+            wait_for = []
         return self.prg[idx].operator_fwd(
             self.queue[4*idx+idxq],
             (self.par_slices+self._overlap, self.dimY, self.dimX), None,
@@ -1916,6 +1932,8 @@ class OperatorKspaceSMSStreamed(Operator):
 
     def _adjstreamed(self, outp, inp, par=None, idx=0, idxq=0,
                      bound_cond=0, wait_for=None):
+        if wait_for is None:
+            wait_for = []
         return self.prg[idx].operator_ad(
             self.queue[4*idx+idxq],
             (self.par_slices+self._overlap, self.dimY, self.dimX), None,
@@ -1931,14 +1949,20 @@ class OperatorKspaceSMSStreamed(Operator):
 
     def _FT(self, outp, inp, par=None, idx=0, idxq=0,
             bound_cond=0, wait_for=None):
+        if wait_for is None:
+            wait_for = []
         return self.NUFFT[2*idx+idxq].FFT(outp, inp[0])
 
     def _FTH(self, outp, inp, par=None, idx=0, idxq=0,
              bound_cond=0, wait_for=None):
+        if wait_for is None:
+            wait_for = []
         return self.NUFFT[2*idx+idxq].FFTH(outp, inp[0])
 
     def _updateKyk1SMS(self, outp, inp, par=None, idx=0, idxq=0,
                        bound_cond=0, wait_for=None):
+        if wait_for is None:
+            wait_for = []
         return self.prg[idx].update_Kyk1SMS(
             self.queue[4*idx+idxq],
             (self.par_slices+self._overlap, self.dimY, self.dimX), None,
@@ -2434,7 +2458,7 @@ class OperatorFiniteGradientStreamed(Operator):
         """
         self._stream_div.eval(out, inp)
 
-    def adjoop(self, inp, wait_for=None):
+    def adjoop(self, inp, **kwargs):
         """Adjoint operator application out-of-place.
 
         Apply the linear operator from measurement space to parameter space
@@ -2461,6 +2485,8 @@ class OperatorFiniteGradientStreamed(Operator):
 
     def _grad(self, outp, inp, par=None, idx=0, idxq=0,
               bound_cond=0, wait_for=None):
+        if wait_for is None:
+            wait_for = []
         return self.prg[idx].gradient(
             self.queue[4*idx+idxq],
             (self._overlap+self.par_slices, self.dimY, self.dimX),
@@ -2471,6 +2497,8 @@ class OperatorFiniteGradientStreamed(Operator):
 
     def _div(self, outp, inp, par=None, idx=0, idxq=0,
              bound_cond=0, wait_for=None):
+        if wait_for is None:
+            wait_for = []
         return self.prg[idx].divergence(
             self.queue[4*idx+idxq],
             (self._overlap+self.par_slices, self.dimY, self.dimX), None,
@@ -2653,6 +2681,8 @@ class OperatorFiniteSymGradientStreamed(Operator):
 
     def _symgrad(self, outp, inp, par=None, idx=0, idxq=0,
                  bound_cond=0, wait_for=None):
+        if wait_for is None:
+            wait_for = []
         return self.prg[idx].sym_grad(
             self.queue[4*idx+idxq],
             (self._overlap+self.par_slices, self.dimY, self.dimX), None,
@@ -2663,6 +2693,8 @@ class OperatorFiniteSymGradientStreamed(Operator):
 
     def _symdiv(self, outp, inp, par=None, idx=0, idxq=0,
                 bound_cond=0, wait_for=None):
+        if wait_for is None:
+            wait_for = []
         return self.prg[idx].sym_divergence(
             self.queue[4*idx+idxq],
             (self._overlap+self.par_slices, self.dimY, self.dimX), None,
