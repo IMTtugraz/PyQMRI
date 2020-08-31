@@ -23,6 +23,8 @@ class PyOpenCLnuFFT():
           The context for the PyOpenCL computations.
         queue : PyOpenCL.Queue
           The computation Queue for the PyOpenCL kernels.
+        fft_dim : tuple of int
+          The dimensions to take the fft over
         DTYPE : Numpy.dtype
           The comlex precision type. Currently complex64 is used.
         DTYPE_real : Numpy.dtype
@@ -38,22 +40,25 @@ class PyOpenCLnuFFT():
         The context for the PyOpenCL computations.
       queue : PyOpenCL.Queue
         The computation Queue for the PyOpenCL kernels.
+      prg : PyOpenCL.Program
+        The PyOpenCL Program Object containing the compiled kernels.
+      fft_dim : tuple of int
+        The dimensions to take the fft over
     """
 
-    def __init__(self, ctx, queue, DTYPE, DTYPE_real):
+    def __init__(self, ctx, queue, fft_dim, DTYPE, DTYPE_real):
         self.DTYPE = DTYPE
         self.DTYPE_real = DTYPE_real
         self.ctx = ctx
         self.queue = queue
+        self.prg = None
+        self.fft_dim = fft_dim
 
     @staticmethod
     def create(ctx,
                queue,
                par,
                kwidth=5,
-               fft_dim=(
-                   1,
-                   2),
                klength=200,
                DTYPE=np.complex64,
                DTYPE_real=np.float32,
@@ -77,25 +82,22 @@ class PyOpenCLnuFFT():
             scans (NScan), image dimensions (dimX, dimY), number of coils (NC),
             sampling points (N) and read outs (NProj) a PyOpenCL queue (queue)
             and the complex coil sensitivities (C).
-          kwidth : int
+          kwidth : int, 5
             The width of the sampling kernel for regridding of non-uniform
             kspace samples.
-          fft_dim : tuple of ints
-            The dimensions which should be transformed. Defaults to 1 and 2
-            corresponding the the last two of fft_dim.
-          klength : int
+          klength : int, 200
             The length of the kernel lookup table which samples the contineous
             gridding kernel.
-          DTYPE : Numpy.dtype
+          DTYPE : Numpy.dtype, numpy.complex64
             The comlex precision type. Currently complex64 is used.
-          DTYPE_real : Numpy.dtype
+          DTYPE_real : Numpy.dtype, numpy.float32
             The real precision type. Currently float32 is used.
-          radial (bool):
+          radial : bool, False
             Switch for Cartesian (False) and non-Cartesian (True) FFT.
-          SMS (bool):
+          SMS : bool, False
             Switch between Simultaneous Multi Slice reconstruction (True) and
             simple slice by slice reconstruction.
-          streamed (bool):
+          streamed : bool, False
             Switch between normal reconstruction in one big block versus
             streamed reconstruction of smaller blocks.
 
@@ -117,7 +119,6 @@ class PyOpenCLnuFFT():
                     queue,
                     par,
                     kwidth=kwidth,
-                    fft_dim=fft_dim,
                     klength=klength,
                     DTYPE=DTYPE,
                     DTYPE_real=DTYPE_real)
@@ -126,7 +127,6 @@ class PyOpenCLnuFFT():
                     ctx,
                     queue,
                     par,
-                    fft_dim=fft_dim,
                     DTYPE=DTYPE,
                     DTYPE_real=DTYPE_real)
             elif SMS is False and radial is False:
@@ -134,7 +134,6 @@ class PyOpenCLnuFFT():
                     ctx,
                     queue,
                     par,
-                    fft_dim=fft_dim,
                     DTYPE=DTYPE,
                     DTYPE_real=DTYPE_real)
             else:
@@ -163,7 +162,6 @@ class PyOpenCLnuFFT():
                     queue,
                     par,
                     kwidth=kwidth,
-                    fft_dim=fft_dim,
                     klength=klength,
                     DTYPE=DTYPE,
                     DTYPE_real=DTYPE_real)
@@ -172,7 +170,6 @@ class PyOpenCLnuFFT():
                     ctx,
                     queue,
                     par,
-                    fft_dim=fft_dim,
                     DTYPE=DTYPE,
                     DTYPE_real=DTYPE_real)
             elif SMS is False and radial is False:
@@ -180,7 +177,6 @@ class PyOpenCLnuFFT():
                     ctx,
                     queue,
                     par,
-                    fft_dim=fft_dim,
                     DTYPE=DTYPE,
                     DTYPE_real=DTYPE_real)
             else:
@@ -234,9 +230,6 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
       klength : int
         The length of the kernel lookup table which samples the contineous
         gridding kernel.
-      fft_dim : tuple of ints
-        The dimensions which should be transformed. Defaults
-        to 1 and 2 corresponding the the last two of fft_dim.
       DTYPE : Numpy.dtype
         The comlex precision type. Currently complex64 is used.
       DTYPE_real : Numpy.dtype
@@ -279,13 +272,10 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
             queue,
             par,
             kwidth=5,
-            fft_dim=(
-                1,
-                2),
             klength=200,
             DTYPE=np.complex64,
             DTYPE_real=np.float32):
-        super().__init__(ctx, queue, DTYPE, DTYPE_real)
+        super().__init__(ctx, queue, par["fft_dim"], DTYPE, DTYPE_real)
         self.ogf = par["N"]/par["dimX"]
         self.fft_shape = (
             par["NScan"] *
@@ -294,9 +284,9 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
             int(par["dimY"]*self.ogf),
             int(par["dimX"]*self.ogf))
         self.fft_scale = DTYPE_real(
-            np.sqrt(np.prod(self.fft_shape[fft_dim[0]:])))
+            np.sqrt(np.prod(self.fft_shape[self.fft_dim[0]:])))
 
-        (kerneltable, kerneltable_FT, u) = calckbkernel(
+        (kerneltable, kerneltable_FT, _) = calckbkernel(
             kwidth, self.ogf, par["N"], klength)
 
         deapo = 1 / kerneltable_FT.astype(DTYPE_real)
@@ -321,7 +311,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
             0:self.par_fft, ...],
                        out_array=self._tmp_fft_array[
                            0:self.par_fft, ...],
-                       axes=fft_dim)
+                       axes=self.fft_dim)
 
         self._kernelpoints = kerneltable.size
         self._kwidth = kwidth / 2
@@ -343,7 +333,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
         del self.prg
         del self.fft
 
-    def FFTH(self, sg, s, wait_for=[], scan_offset=0):
+    def FFTH(self, sg, s, wait_for=None, scan_offset=0):
         """Perform the inverse (adjoint) NUFFT operation.
 
         Parameters
@@ -352,7 +342,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
             The complex image data.
           s : PyOpenCL.Array
             The non-uniformly gridded k-space
-          wait_for (list of PyopenCL.Event):
+          wait_for : list of PyopenCL.Event, None
             A List of PyOpenCL events to wait for.
           scan_offset : int, 0
             Offset compared to the first acquired scan.
@@ -361,6 +351,8 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
         -------
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         # Zero tmp arrays
         self._tmp_fft_array.add_event(
             self.prg.zero_tmp(
@@ -432,7 +424,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
             wait_for=(wait_for + sg.events + s.events +
                       self._tmp_fft_array.events))
 
-    def FFT(self, s, sg, wait_for=[], scan_offset=0):
+    def FFT(self, s, sg, wait_for=None, scan_offset=0):
         """Perform the forward NUFFT operation.
 
         Parameters
@@ -441,7 +433,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
             The non-uniformly gridded k-space.
           sg : PyOpenCL.Array
             The complex image data.
-          wait_for (list of PyopenCL.Event):
+          wait_for : list of PyopenCL.Event, None
             A List of PyOpenCL events to wait for.
           scan_offset : int, 0
             Offset compared to the first acquired scan.
@@ -450,6 +442,8 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
         -------
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         # Zero tmp arrays
         self._tmp_fft_array.add_event(
             self.prg.zero_tmp(
@@ -539,9 +533,6 @@ class PyOpenCLCartNUFFT(PyOpenCLnuFFT):
         coils (NC), sampling points (N) and read outs (NProj)
         a PyOpenCL queue (queue) and the complex coil
         sensitivities (C).
-      fft_dim : tuple of ints
-        The dimensions which should be transformed. Defaults
-        to 1 and 2 corresponding the the last two of fft_dim.
       DTYPE : Numpy.dtype
         The comlex precision type. Currently complex64 is used.
       DTYPE_real : Numpy.dtype
@@ -575,19 +566,16 @@ class PyOpenCLCartNUFFT(PyOpenCLnuFFT):
             ctx,
             queue,
             par,
-            fft_dim=(
-                1,
-                2),
             DTYPE=np.complex64,
             DTYPE_real=np.float32):
-        super().__init__(ctx, queue, DTYPE, DTYPE_real)
+        super().__init__(ctx, queue, par["fft_dim"], DTYPE, DTYPE_real)
         self.fft_shape = (
             par["NScan"] *
             par["NC"] *
             par["NSlice"],
             par["dimY"],
             par["dimX"])
-        self.fft_dim = par["fft_dim"]
+
         if par["fft_dim"] is not None:
             self.fft_scale = DTYPE_real(
                 np.sqrt(np.prod(self.fft_shape[self.fft_dim[0]:])))
@@ -614,7 +602,7 @@ class PyOpenCLCartNUFFT(PyOpenCLnuFFT):
         del self.ctx
         del self.prg
 
-    def FFTH(self, sg, s, wait_for=[], scan_offset=0):
+    def FFTH(self, sg, s, wait_for=None, scan_offset=0):
         """Perform the inverse (adjoint) FFT operation.
 
         Parameters
@@ -623,7 +611,7 @@ class PyOpenCLCartNUFFT(PyOpenCLnuFFT):
             The complex image data.
           s : PyOpenCL.Array
             The uniformly gridded k-space
-          wait_for (list of PyopenCL.Event):
+          wait_for : list of PyopenCL.Event, None
             A List of PyOpenCL events to wait for.
           scan_offset : int, 0
             Offset compared to the first acquired scan.
@@ -632,6 +620,8 @@ class PyOpenCLCartNUFFT(PyOpenCLnuFFT):
         -------
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         if self.fft_dim is not None:
             self._tmp_fft_array.add_event(
                 self.prg.maskingcpy(
@@ -641,7 +631,7 @@ class PyOpenCLCartNUFFT(PyOpenCLnuFFT):
                     self._tmp_fft_array.data,
                     s.data,
                     self.mask.data,
-                    wait_for=s.events+self._tmp_fft_array.events))
+                    wait_for=s.events+self._tmp_fft_array.events+wait_for))
             for j in range(np.prod(s.shape[0:2])):
                 self._tmp_fft_array.add_event(
                     self.fft.enqueue_arrays(
@@ -669,9 +659,9 @@ class PyOpenCLCartNUFFT(PyOpenCLnuFFT):
                         sg.data,
                         s.data,
                         self.DTYPE_real(1),
-                        wait_for=s.events+sg.events)
+                        wait_for=s.events+sg.events+wait_for)
 
-    def FFT(self, s, sg, wait_for=[], scan_offset=0):
+    def FFT(self, s, sg, wait_for=None, scan_offset=0):
         """Perform the forward FFT operation.
 
         Parameters
@@ -680,7 +670,7 @@ class PyOpenCLCartNUFFT(PyOpenCLnuFFT):
             The uniformly gridded k-space.
           sg : PyOpenCL.Array
             The complex image data.
-          wait_for (list of PyopenCL.Event):
+          wait_for : list of PyopenCL.Event, None
             A List of PyOpenCL events to wait for.
           scan_offset : int, 0
             Offset compared to the first acquired scan.
@@ -689,6 +679,8 @@ class PyOpenCLCartNUFFT(PyOpenCLnuFFT):
         -------
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         if self.fft_dim is not None:
             self._tmp_fft_array.add_event(
                 self.prg.copy(
@@ -701,7 +693,7 @@ class PyOpenCLCartNUFFT(PyOpenCLnuFFT):
                     self.DTYPE_real(
                         1 /
                         self.fft_scale),
-                    wait_for=s.events+self._tmp_fft_array.events))
+                    wait_for=s.events+self._tmp_fft_array.events+wait_for))
 
             for j in range(np.prod(s.shape[0:2])):
                 self._tmp_fft_array.add_event(
@@ -729,7 +721,7 @@ class PyOpenCLCartNUFFT(PyOpenCLnuFFT):
                         s.data,
                         sg.data,
                         self.DTYPE_real(1),
-                        wait_for=s.events+sg.events)
+                        wait_for=s.events+sg.events+wait_for)
 
 
 class PyOpenCLSMSNUFFT(PyOpenCLnuFFT):
@@ -749,9 +741,6 @@ class PyOpenCLSMSNUFFT(PyOpenCLnuFFT):
         coils (NC), sampling points (N) and read outs (NProj)
         a PyOpenCL queue (queue) and the complex coil
         sensitivities (C).
-      fft_dim : tuple of ints
-        The dimensions which should be transformed. Defaults
-        to 1 and 2 corresponding the the last two of fft_dim.
       DTYPE : Numpy.dtype
         The comlex precision type. Currently complex64 is used.
       DTYPE_real : Numpy.dtype
@@ -791,13 +780,9 @@ class PyOpenCLSMSNUFFT(PyOpenCLnuFFT):
             ctx,
             queue,
             par,
-            fft_dim=(
-                1,
-                2),
-            klength=200,
             DTYPE=np.complex64,
             DTYPE_real=np.float32):
-        super().__init__(ctx, queue, DTYPE, DTYPE_real)
+        super().__init__(ctx, queue, par["fft_dim"], DTYPE, DTYPE_real)
         self.fft_shape = (
             par["NScan"] *
             par["NC"] *
@@ -810,7 +795,6 @@ class PyOpenCLSMSNUFFT(PyOpenCLnuFFT):
         self.shift = clarray.to_device(
             self.queue, par["shift"].astype(DTYPE_real))
 
-        self.fft_dim = par["fft_dim"]
         self.par_fft = int(self.fft_shape[0] / par["NScan"])
 
         self.mask = clarray.to_device(self.queue, par["mask"])
@@ -838,7 +822,7 @@ class PyOpenCLSMSNUFFT(PyOpenCLnuFFT):
         del self.ctx
         del self.prg
 
-    def FFTH(self, sg, s, wait_for=[], scan_offset=0):
+    def FFTH(self, sg, s, wait_for=None, scan_offset=0):
         """Perform the inverse (adjoint) FFT operation.
 
         Parameters
@@ -847,7 +831,7 @@ class PyOpenCLSMSNUFFT(PyOpenCLnuFFT):
             The complex image data.
           s : PyOpenCL.Array
             The uniformly gridded k-space compressed by the MB factor.
-          wait_for (list of PyopenCL.Event):
+          wait_for : list of PyopenCL.Event, None
             A List of PyOpenCL events to wait for.
           scan_offset : int, 0
             Offset compared to the first acquired scan.
@@ -856,6 +840,8 @@ class PyOpenCLSMSNUFFT(PyOpenCLnuFFT):
         -------
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         if self.fft_dim is not None:
             self._tmp_fft_array.add_event(
                 self.prg.copy_SMS_adjkspace(
@@ -872,7 +858,7 @@ class PyOpenCLSMSNUFFT(PyOpenCLnuFFT):
                     np.int32(self.MB),
                     self.DTYPE_real(self.fft_scale),
                     np.int32(sg.shape[2]/self.packs/self.MB),
-                    wait_for=s.events))
+                    wait_for=s.events+wait_for))
             for j in range(s.shape[0]):
                 self._tmp_fft_array.add_event(
                     self.fft.enqueue_arrays(
@@ -904,9 +890,9 @@ class PyOpenCLSMSNUFFT(PyOpenCLnuFFT):
                     np.int32(self.MB),
                     self.DTYPE_real(1),
                     np.int32(sg.shape[2]/self.packs/self.MB),
-                    wait_for=s.events+sg.events)
+                    wait_for=s.events+sg.events+wait_for)
 
-    def FFT(self, s, sg, wait_for=[], scan_offset=0):
+    def FFT(self, s, sg, wait_for=None, scan_offset=0):
         """Perform the forward FFT operation.
 
         Parameters
@@ -915,7 +901,7 @@ class PyOpenCLSMSNUFFT(PyOpenCLnuFFT):
             The uniformly gridded k-space compressed by the MB factor.
           sg : PyOpenCL.Array
             The complex image data.
-          wait_for (list of PyopenCL.Event):
+          wait_for : list of PyopenCL.Event, None
             A List of PyOpenCL events to wait for.
           scan_offset : int, 0
             Offset compared to the first acquired scan.
@@ -924,6 +910,8 @@ class PyOpenCLSMSNUFFT(PyOpenCLnuFFT):
         -------
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         if self.fft_dim is not None:
             self._tmp_fft_array.add_event(
                 self.prg.copy(
@@ -933,7 +921,7 @@ class PyOpenCLSMSNUFFT(PyOpenCLnuFFT):
                     self._tmp_fft_array.data,
                     sg.data,
                     self.DTYPE_real(1 / self.fft_scale),
-                    wait_for=self._tmp_fft_array.events+sg.events))
+                    wait_for=self._tmp_fft_array.events+sg.events+wait_for))
 
             for j in range(s.shape[0]):
                 self._tmp_fft_array.add_event(
@@ -972,7 +960,7 @@ class PyOpenCLSMSNUFFT(PyOpenCLnuFFT):
                     np.int32(self.MB),
                     self.DTYPE_real(1),
                     np.int32(sg.shape[2]/self.packs/self.MB),
-                    wait_for=s.events+sg.events))
+                    wait_for=s.events+sg.events+wait_for))
 
 
 class PyOpenCLRadialNUFFTStreamed(PyOpenCLnuFFT):
@@ -1001,9 +989,6 @@ class PyOpenCLRadialNUFFTStreamed(PyOpenCLnuFFT):
       klength : int
         The length of the kernel lookup table which samples the contineous
         gridding kernel.
-      fft_dim : tuple of ints
-        The dimensions which should be transformed. Defaults
-        to 1 and 2 corresponding the the last two of fft_dim.
       DTYPE : Numpy.dtype
         The comlex precision type. Currently complex64 is used.
       DTYPE_real : Numpy.dtype
@@ -1046,14 +1031,12 @@ class PyOpenCLRadialNUFFTStreamed(PyOpenCLnuFFT):
             queue,
             par,
             kwidth=5,
-            fft_dim=(
-                1,
-                2),
             klength=200,
             DTYPE=np.complex64,
             DTYPE_real=np.float32):
 
-        super().__init__(ctx, queue, DTYPE, DTYPE_real)
+        super().__init__(ctx, queue, par["fft_dim"], DTYPE, DTYPE_real)
+
         self.ogf = par["N"]/par["dimX"]
         self.fft_shape = (par["NScan"] *
                           par["NC"] *
@@ -1061,7 +1044,7 @@ class PyOpenCLRadialNUFFTStreamed(PyOpenCLnuFFT):
                            par["overlap"]),
                           int(par["dimY"]*self.ogf),
                           int(par["dimX"]*self.ogf))
-        (kerneltable, kerneltable_FT, u) = calckbkernel(
+        (kerneltable, kerneltable_FT, _) = calckbkernel(
             kwidth, self.ogf, par["N"], klength)
         self._kernelpoints = kerneltable.size
 
@@ -1088,7 +1071,7 @@ class PyOpenCLRadialNUFFTStreamed(PyOpenCLnuFFT):
             0:self.par_fft, ...],
                        out_array=self._tmp_fft_array[
                            0:self.par_fft, ...],
-                       axes=fft_dim)
+                       axes=self.fft_dim)
 
         self._kernelpoints = kerneltable.size
         self._kwidth = kwidth / 2
@@ -1110,7 +1093,7 @@ class PyOpenCLRadialNUFFTStreamed(PyOpenCLnuFFT):
         del self.prg
         del self.fft
 
-    def FFTH(self, sg, s, wait_for=[]):
+    def FFTH(self, sg, s, wait_for=None):
         """Perform the inverse (adjoint) NUFFT operation.
 
         Parameters
@@ -1119,13 +1102,15 @@ class PyOpenCLRadialNUFFTStreamed(PyOpenCLnuFFT):
             The complex image data.
           s : PyOpenCL.Array
             The non-uniformly gridded k-space
-          wait_for (list of PyopenCL.Event):
+          wait_for : list of PyopenCL.Event, None
             A List of PyOpenCL events to wait for.
 
         Returns
         -------
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         # Zero tmp arrays
         self._tmp_fft_array.add_event(
             self.prg.zero_tmp(
@@ -1197,7 +1182,7 @@ class PyOpenCLRadialNUFFTStreamed(PyOpenCLnuFFT):
                                   wait_for=(wait_for + sg.events + s.events +
                                             self._tmp_fft_array.events))
 
-    def FFT(self, s, sg, wait_for=[]):
+    def FFT(self, s, sg, wait_for=None):
         """Perform the forward NUFFT operation.
 
         Parameters
@@ -1206,13 +1191,15 @@ class PyOpenCLRadialNUFFTStreamed(PyOpenCLnuFFT):
             The non-uniformly gridded k-space.
           sg : PyOpenCL.Array
             The complex image data.
-          wait_for (list of PyopenCL.Event):
+          wait_for : list of PyopenCL.Event, None
             A List of PyOpenCL events to wait for.
 
         Returns
         -------
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         # Zero tmp arrays
         self._tmp_fft_array.add_event(
             self.prg.zero_tmp(
@@ -1236,7 +1223,7 @@ class PyOpenCLRadialNUFFTStreamed(PyOpenCLnuFFT):
                 np.int32(self._tmp_fft_array.shape[-1]),
                 self.DTYPE_real(1 / self.fft_scale),
                 self.DTYPE_real(self.ogf),
-                wait_for=wait_for + sg.events + self._tmp_fft_array.events))
+                wait_for=sg.events + self._tmp_fft_array.events))
         # FFT
         self._tmp_fft_array.add_event(
             self.prg.fftshift(
@@ -1282,7 +1269,7 @@ class PyOpenCLRadialNUFFTStreamed(PyOpenCLnuFFT):
             self.dcf.data,
             self.cl_kerneltable,
             np.int32(self._kernelpoints),
-            wait_for=(s.events + wait_for + self._tmp_fft_array.events +
+            wait_for=(s.events + self._tmp_fft_array.events +
                       sg.events))
 
 
@@ -1303,9 +1290,6 @@ class PyOpenCLCartNUFFTStreamed(PyOpenCLnuFFT):
         coils (NC), sampling points (N) and read outs (NProj)
         a PyOpenCL queue (queue) and the complex coil
         sensitivities (C).
-      fft_dim : tuple of ints
-        The dimensions which should be transformed. Defaults
-        to 1 and 2 corresponding the the last two of fft_dim.
       DTYPE : Numpy.dtype
         The comlex precision type. Currently complex64 is used.
       DTYPE_real : Numpy.dtype
@@ -1339,19 +1323,14 @@ class PyOpenCLCartNUFFTStreamed(PyOpenCLnuFFT):
             ctx,
             queue,
             par,
-            kwidth=5,
-            fft_dim=(
-                1,
-                2),
-            klength=200,
             DTYPE=np.complex64,
             DTYPE_real=np.float32):
-        super().__init__(ctx, queue, DTYPE, DTYPE_real)
+        super().__init__(ctx, queue, par["fft_dim"], DTYPE, DTYPE_real)
         self.fft_shape = (par["NScan"] *
                           par["NC"] *
                           (par["par_slices"] +
                            par["overlap"]), par["dimY"], par["dimX"])
-        self.fft_dim = par["fft_dim"]
+
         self.par_fft = int(self.fft_shape[0] / par["NScan"])
         if self.fft_dim is not None:
             self.fft_scale = DTYPE_real(
@@ -1378,7 +1357,7 @@ class PyOpenCLCartNUFFTStreamed(PyOpenCLnuFFT):
         del self.ctx
         del self.prg
 
-    def FFTH(self, sg, s, wait_for=[]):
+    def FFTH(self, sg, s, wait_for=None):
         """Perform the inverse (adjoint) FFT operation.
 
         Parameters
@@ -1387,13 +1366,15 @@ class PyOpenCLCartNUFFTStreamed(PyOpenCLnuFFT):
             The complex image data.
           s : PyOpenCL.Array
             The uniformly gridded k-space
-          wait_for (list of PyopenCL.Event):
+          wait_for : list of PyopenCL.Event, None
             A List of PyOpenCL events to wait for.
 
         Returns
         -------
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         if self.fft_dim is not None:
             self._tmp_fft_array.add_event(
                 self.prg.maskingcpy(
@@ -1403,7 +1384,7 @@ class PyOpenCLCartNUFFTStreamed(PyOpenCLnuFFT):
                     self._tmp_fft_array.data,
                     s.data,
                     self.mask.data,
-                    wait_for=s.events+self._tmp_fft_array.events))
+                    wait_for=s.events+self._tmp_fft_array.events+wait_for))
 
             for j in range(int(self.fft_shape[0] / self.par_fft)):
                 self._tmp_fft_array.add_event(
@@ -1434,9 +1415,9 @@ class PyOpenCLCartNUFFTStreamed(PyOpenCLnuFFT):
                         sg.data,
                         s.data,
                         self.DTYPE_real(1),
-                        wait_for=s.events+sg.events)
+                        wait_for=s.events+sg.events+wait_for)
 
-    def FFT(self, s, sg, wait_for=[]):
+    def FFT(self, s, sg, wait_for=None):
         """Perform the forward FFT operation.
 
         Parameters
@@ -1445,13 +1426,15 @@ class PyOpenCLCartNUFFTStreamed(PyOpenCLnuFFT):
             The uniformly gridded k-space.
           sg : PyOpenCL.Array
             The complex image data.
-          wait_for (list of PyopenCL.Event):
+          wait_for : list of PyopenCL.Event, None
             A List of PyOpenCL events to wait for.
 
         Returns
         -------
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         if self.fft_dim is not None:
             self._tmp_fft_array.add_event(
                 self.prg.copy(
@@ -1463,7 +1446,7 @@ class PyOpenCLCartNUFFTStreamed(PyOpenCLnuFFT):
                     sg.data,
                     self.DTYPE_real(
                         1 /
-                        self.fft_scale)))
+                        self.fft_scale), wait_for=wait_for+sg.events))
             for j in range(int(self.fft_shape[0] / self.par_fft)):
                 self._tmp_fft_array.add_event(
                     self.fft.enqueue_arrays(
@@ -1491,7 +1474,7 @@ class PyOpenCLCartNUFFTStreamed(PyOpenCLnuFFT):
                 s.data,
                 sg.data,
                 self.DTYPE_real(1),
-                wait_for=s.events+sg.events)
+                wait_for=s.events+sg.events+wait_for)
 
 
 class PyOpenCLSMSNUFFTStreamed(PyOpenCLnuFFT):
@@ -1511,9 +1494,6 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLnuFFT):
         coils (NC), sampling points (N) and read outs (NProj)
         a PyOpenCL queue (queue) and the complex coil
         sensitivities (C).
-      fft_dim : tuple of ints
-        The dimensions which should be transformed. Defaults
-        to 1 and 2 corresponding the the last two of fft_dim.
       DTYPE : Numpy.dtype
         The comlex precision type. Currently complex64 is used.
       DTYPE_real : Numpy.dtype
@@ -1553,14 +1533,9 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLnuFFT):
             ctx,
             queue,
             par,
-            kwidth=5,
-            fft_dim=(
-                1,
-                2),
-            klength=200,
             DTYPE=np.complex64,
             DTYPE_real=np.float32):
-        super().__init__(ctx, queue, DTYPE, DTYPE_real)
+        super().__init__(ctx, queue, par["fft_dim"], DTYPE, DTYPE_real)
         self.fft_shape = (
             par["NC"] *
             par["NSlice"],
@@ -1572,7 +1547,6 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLnuFFT):
         self.shift = clarray.to_device(
             self.queue, par["shift"].astype(DTYPE_real))
 
-        self.fft_dim = par["fft_dim"]
         self.par_fft = int(self.fft_shape[0])
 
         self.mask = clarray.to_device(self.queue, par["mask"])
@@ -1601,7 +1575,7 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLnuFFT):
         del self.ctx
         del self.prg
 
-    def FFTH(self, sg, s, wait_for=[]):
+    def FFTH(self, sg, s, wait_for=None):
         """Perform the inverse (adjoint) FFT operation.
 
         Parameters
@@ -1610,13 +1584,15 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLnuFFT):
             The complex image data.
           s : PyOpenCL.Array
             The uniformly gridded k-space compressed by the MB factor.
-          wait_for (list of PyopenCL.Event):
+          wait_for : list of PyopenCL.Event, None
             A List of PyOpenCL events to wait for.
 
         Returns
         -------
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         if self.fft_dim is not None:
             self._tmp_fft_array.add_event(
                 self.prg.copy_SMS_adjkspace(
@@ -1633,7 +1609,7 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLnuFFT):
                     np.int32(self.MB),
                     self.DTYPE_real(self.fft_scale),
                     np.int32(sg.shape[2]/self.packs/self.MB),
-                    wait_for=s.events))
+                    wait_for=s.events+wait_for))
             self._tmp_fft_array.add_event(
                 self.fft.enqueue_arrays(
                     data=self._tmp_fft_array,
@@ -1661,9 +1637,9 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLnuFFT):
                     np.int32(self.MB),
                     self.DTYPE_real(1),
                     np.int32(sg.shape[2]/self.packs/self.MB),
-                    wait_for=s.events+sg.events)
+                    wait_for=s.events+sg.events+wait_for)
 
-    def FFT(self, s, sg, wait_for=[]):
+    def FFT(self, s, sg, wait_for=None):
         """Perform the forward FFT operation.
 
         Parameters
@@ -1672,13 +1648,15 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLnuFFT):
             The uniformly gridded k-space compressed by the MB factor.
           sg : PyOpenCL.Array
             The complex image data.
-          wait_for (list of PyopenCL.Event):
+          wait_for : list of PyopenCL.Event, None
             A List of PyOpenCL events to wait for.
 
         Returns
         -------
           PyOpenCL.Event: A PyOpenCL event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         if self.fft_dim is not None:
             self._tmp_fft_array.add_event(
                 self.prg.copy(
@@ -1688,7 +1666,7 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLnuFFT):
                     self._tmp_fft_array.data,
                     sg.data,
                     self.DTYPE_real(1 / self.fft_scale),
-                    wait_for=self._tmp_fft_array.events+sg.events))
+                    wait_for=self._tmp_fft_array.events+sg.events+wait_for))
 
             self._tmp_fft_array.add_event(
                 self.fft.enqueue_arrays(
@@ -1723,4 +1701,4 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLnuFFT):
                     np.int32(self.MB),
                     self.DTYPE_real(1),
                     np.int32(sg.shape[2]/self.packs/self.MB),
-                    wait_for=s.events+sg.events))
+                    wait_for=s.events+sg.events+wait_for))

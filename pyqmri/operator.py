@@ -106,7 +106,7 @@ class Operator(ABC):
         self._overlap = 0
 
     @abstractmethod
-    def fwd(self, out, inp, wait_for=[]):
+    def fwd(self, out, inp, **kwargs):
         """Forward operator application in-place.
 
         Apply the linear operator from parameter space to measurement space
@@ -120,8 +120,6 @@ class Operator(ABC):
             computation.
           inp : PyOpenCL.Array
             The complex parameter space data which is used as input.
-          wait_for : list of PyopenCL.Event
-            A List of PyOpenCL events to wait for.
 
         Returns
         -------
@@ -131,7 +129,7 @@ class Operator(ABC):
         ...
 
     @abstractmethod
-    def adj(self, out, inp, wait_for=[]):
+    def adj(self, out, inp, **kwargs):
         """Adjoint operator application in-place.
 
         Apply the linear operator from measurement space to parameter space
@@ -145,8 +143,6 @@ class Operator(ABC):
             computation.
           inp : PyOpenCL.Array
             The complex measurement space data which is used as input.
-          wait_for : list of PyopenCL.Event
-            A List of PyOpenCL events to wait for.
 
         Returns
         -------
@@ -155,7 +151,7 @@ class Operator(ABC):
         ...
 
     @abstractmethod
-    def fwdoop(self, inp, wait_for=[]):
+    def fwdoop(self, inp, **kwargs):
         """Forward operator application out-of-place.
 
         Apply the linear operator from parameter space to measurement space
@@ -168,8 +164,6 @@ class Operator(ABC):
         ----------
           inp : PyOpenCL.Array
             The complex parameter space data which is used as input.
-          wait_for : list of PyopenCL.Event
-            A List of PyOpenCL events to wait for.
 
         Returns
         -------
@@ -179,7 +173,7 @@ class Operator(ABC):
         ...
 
     @abstractmethod
-    def adjoop(self, inp, wait_for=[]):
+    def adjoop(self, inp, **kwargs):
         """Adjoint operator application out-of-place.
 
         Apply the linear operator from measurement space to parameter space
@@ -192,28 +186,6 @@ class Operator(ABC):
         ----------
           inp : PyOpenCL.Array
             The complex measurement space which is used as input.
-          wait_for : list of PyopenCL.Event
-            A List of PyOpenCL events to wait for.
-
-        Returns
-        -------
-          PyOpenCL.Array: A PyOpenCL array containing the result of the
-          computation.
-        """
-        """Adjoint operator application out-of-place.
-
-        Apply the linear operator from measurement space to parameter space
-        If streamed operations are used the PyOpenCL.Arrays are replaced
-        by Numpy.Array
-        This method need to generate a temporary array and will return it as
-        the result.
-
-        Parameters
-        ----------
-          inp : PyOpenCL.Array
-            The complex measurement space which is used as input.
-          wait_for : list of PyopenCL.Event
-            A List of PyOpenCL events to wait for.
 
         Returns
         -------
@@ -466,7 +438,7 @@ class OperatorImagespace(Operator):
         self.queue = self.queue[0]
         self.ctx = self.ctx[0]
 
-    def fwd(self, out, inp, wait_for=[]):
+    def fwd(self, out, inp, **kwargs):
         """Forward operator application in-place.
 
         Apply the linear operator from parameter space to measurement space
@@ -493,9 +465,9 @@ class OperatorImagespace(Operator):
             out.data, inp[0].data, inp[2].data,
             np.int32(self.NScan),
             np.int32(self.unknowns),
-            wait_for=inp[0].events + out.events + wait_for)
+            wait_for=inp[0].events + out.events + kwargs["wait_for"])
 
-    def fwdoop(self, inp, wait_for=[]):
+    def fwdoop(self, inp, **kwargs):
         """Forward operator application out-of-place.
 
         Apply the linear operator from parameter space to measurement space
@@ -524,10 +496,10 @@ class OperatorImagespace(Operator):
             tmp_result.data, inp[0].data, inp[2].data,
             np.int32(self.NScan),
             np.int32(self.unknowns),
-            wait_for=inp[0].events + wait_for))
+            wait_for=inp[0].events + kwargs["wait_for"]))
         return tmp_result
 
-    def adj(self, out, inp, wait_for=[]):
+    def adj(self, out, inp, **kwargs):
         """Adjoint operator application in-place.
 
         Apply the linear operator from measurement space to parameter space
@@ -553,9 +525,9 @@ class OperatorImagespace(Operator):
             out.data, inp[0].data, inp[2].data,
             np.int32(self.NScan),
             np.int32(self.unknowns),
-            wait_for=wait_for + inp[0].events + out.events)
+            wait_for=kwargs["wait_for"] + inp[0].events + out.events)
 
-    def adjoop(self, inp, wait_for=[]):
+    def adjoop(self, inp, **kwargs):
         """Adjoint operator application out-of-place.
 
         Apply the linear operator from measurement space to parameter space
@@ -584,10 +556,10 @@ class OperatorImagespace(Operator):
             out.data, inp[0].data, inp[2].data,
             np.int32(self.NScan),
             np.int32(self.unknowns),
-            wait_for=wait_for + inp[0].events + out.events).wait()
+            wait_for=kwargs["wait_for"] + inp[0].events + out.events).wait()
         return out
 
-    def adjKyk1(self, out, inp, wait_for=[]):
+    def adjKyk1(self, out, inp, **kwargs):
         """Apply the linear operator from image space to parameter space.
 
         This method fully implements the combined linear operator
@@ -614,7 +586,8 @@ class OperatorImagespace(Operator):
             inp[4].data,
             np.int32(self.unknowns),
             self.DTYPE_real(self._dz),
-            wait_for=inp[0].events + out.events + inp[1].events + wait_for)
+            wait_for=(inp[0].events + out.events
+                      + inp[1].events + kwargs["wait_for"]))
 
 
 class OperatorKspace(Operator):
@@ -673,7 +646,7 @@ class OperatorKspace(Operator):
                                     DTYPE=DTYPE,
                                     DTYPE_real=DTYPE_real)
 
-    def fwd(self, out, inp, wait_for=[]):
+    def fwd(self, out, inp, **kwargs):
         """Forward operator application in-place.
 
         Apply the linear operator from parameter space to measurement space
@@ -705,14 +678,15 @@ class OperatorKspace(Operator):
                 inp[2].data, np.int32(self.NC),
                 np.int32(self.NScan),
                 np.int32(self.unknowns),
-                wait_for=self._tmp_result.events + inp[0].events + wait_for))
+                wait_for=(self._tmp_result.events + inp[0].events
+                          + kwargs["wait_for"])))
         return self.NUFFT.FFT(
             out,
             self._tmp_result,
-            wait_for=wait_for +
+            wait_for=kwargs["wait_for"] +
             self._tmp_result.events)
 
-    def fwdoop(self, inp, wait_for=[]):
+    def fwdoop(self, inp, **kwargs):
         """Forward operator application out-of-place.
 
         Apply the linear operator from parameter space to measurement space
@@ -743,7 +717,8 @@ class OperatorKspace(Operator):
                 inp[2].data, np.int32(self.NC),
                 np.int32(self.NScan),
                 np.int32(self.unknowns),
-                wait_for=self._tmp_result.events + inp[0].events + wait_for))
+                wait_for=(self._tmp_result.events + inp[0].events
+                          + kwargs["wait_for"])))
         tmp_sino = clarray.empty(
             self.queue,
             (self.NScan, self.NC, self.NSlice, self.Nproj, self.N),
@@ -752,7 +727,7 @@ class OperatorKspace(Operator):
             self.NUFFT.FFT(tmp_sino, self._tmp_result))
         return tmp_sino
 
-    def adj(self, out, inp, wait_for=[]):
+    def adj(self, out, inp, **kwargs):
         """Adjoint operator application in-place.
 
         Apply the linear operator from measurement space to parameter space
@@ -775,16 +750,17 @@ class OperatorKspace(Operator):
         """
         self._tmp_result.add_event(
             self.NUFFT.FFTH(
-                self._tmp_result, inp[0], wait_for=wait_for + inp[0].events))
+                self._tmp_result, inp[0], wait_for=(kwargs["wait_for"]
+                                                    + inp[0].events)))
         return self.prg.operator_ad(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data, self._tmp_result.data, inp[1].data,
             inp[2].data, np.int32(self.NC),
             np.int32(self.NScan),
             np.int32(self.unknowns),
-            wait_for=wait_for + self._tmp_result.events + out.events)
+            wait_for=kwargs["wait_for"] + self._tmp_result.events + out.events)
 
-    def adjoop(self, inp, wait_for=[]):
+    def adjoop(self, inp, **kwargs):
         """Adjoint operator application out-of-place.
 
         Apply the linear operator from measurement space to parameter space
@@ -807,7 +783,8 @@ class OperatorKspace(Operator):
         """
         self._tmp_result.add_event(
             self.NUFFT.FFTH(
-                self._tmp_result, inp[0], wait_for=wait_for + inp[0].events))
+                self._tmp_result, inp[0], wait_for=(kwargs["wait_for"]
+                                                    + inp[0].events)))
         out = clarray.empty(
             self.queue, (self.unknowns, self.NSlice, self.dimY, self.dimX),
             dtype=self.DTYPE)
@@ -817,10 +794,11 @@ class OperatorKspace(Operator):
             inp[2].data, np.int32(self.NC),
             np.int32(self.NScan),
             np.int32(self.unknowns),
-            wait_for=wait_for + self._tmp_result.events + out.events).wait()
+            wait_for=(kwargs["wait_for"] + self._tmp_result.events
+                      + out.events)).wait()
         return out
 
-    def adjKyk1(self, out, inp, wait_for=[]):
+    def adjKyk1(self, out, inp, **kwargs):
         """Apply the linear operator from parameter space to k-space.
 
         This method fully implements the combined linear operator
@@ -841,7 +819,8 @@ class OperatorKspace(Operator):
         """
         self._tmp_result.add_event(
             self.NUFFT.FFTH(
-                self._tmp_result, inp[0], wait_for=wait_for + inp[0].events))
+                self._tmp_result, inp[0], wait_for=(kwargs["wait_for"]
+                                                    + inp[0].events)))
         return self.prg.update_Kyk1(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data, self._tmp_result.data, inp[2].data,
@@ -850,7 +829,7 @@ class OperatorKspace(Operator):
             inp[4].data,
             np.int32(self.unknowns), self.DTYPE_real(self._dz),
             wait_for=(self._tmp_result.events +
-                      out.events + inp[1].events + wait_for))
+                      out.events + inp[1].events + kwargs["wait_for"]))
 
 
 class OperatorKspaceSMS(Operator):
@@ -912,7 +891,7 @@ class OperatorKspaceSMS(Operator):
                                     DTYPE=DTYPE,
                                     DTYPE_real=DTYPE_real)
 
-    def fwd(self, out, inp, wait_for=[]):
+    def fwd(self, out, inp, **kwargs):
         """Forward operator application in-place.
 
         Apply the linear operator from parameter space to measurement space
@@ -944,13 +923,14 @@ class OperatorKspaceSMS(Operator):
                 inp[2].data, np.int32(self.NC),
                 np.int32(self.NScan),
                 np.int32(self.unknowns),
-                wait_for=self._tmp_result.events + inp[0].events + wait_for))
+                wait_for=(self._tmp_result.events + inp[0].events
+                          + kwargs["wait_for"])))
         return self.NUFFT.FFT(
             out,
             self._tmp_result,
-            wait_for=wait_for + self._tmp_result.events + out.events)
+            wait_for=self._tmp_result.events + out.events)
 
-    def fwdoop(self, inp, wait_for=[]):
+    def fwdoop(self, inp, **kwargs):
         """Forward operator application out-of-place.
 
         Apply the linear operator from parameter space to measurement space
@@ -981,7 +961,8 @@ class OperatorKspaceSMS(Operator):
                 inp[2].data, np.int32(self.NC),
                 np.int32(self.NScan),
                 np.int32(self.unknowns),
-                wait_for=self._tmp_result.events + inp[0].events + wait_for))
+                wait_for=(self._tmp_result.events + inp[0].events
+                          + kwargs["wait_for"])))
         tmp_sino = clarray.empty(
             self.queue,
             (self.NScan, self.NC, self.packs, self.Nproj, self.N),
@@ -990,7 +971,7 @@ class OperatorKspaceSMS(Operator):
             self.NUFFT.FFT(tmp_sino, self._tmp_result))
         return tmp_sino
 
-    def adj(self, out, inp, wait_for=[]):
+    def adj(self, out, inp, **kwargs):
         """Adjoint operator application in-place.
 
         Apply the linear operator from measurement space to parameter space
@@ -1013,16 +994,17 @@ class OperatorKspaceSMS(Operator):
         """
         self._tmp_result.add_event(
             self.NUFFT.FFTH(
-                self._tmp_result, inp[0], wait_for=wait_for + inp[0].events))
+                self._tmp_result, inp[0], wait_for=(kwargs["wait_for"]
+                                                    + inp[0].events)))
         return self.prg.operator_ad(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data, self._tmp_result.data, inp[1].data,
             inp[2].data, np.int32(self.NC),
             np.int32(self.NScan),
             np.int32(self.unknowns),
-            wait_for=wait_for + self._tmp_result.events + out.events)
+            wait_for=self._tmp_result.events + out.events)
 
-    def adjoop(self, inp, wait_for=[]):
+    def adjoop(self, inp, **kwargs):
         """Adjoint operator application out-of-place.
 
         Apply the linear operator from measurement space to parameter space
@@ -1045,7 +1027,8 @@ class OperatorKspaceSMS(Operator):
         """
         self._tmp_result.add_event(
             self.NUFFT.FFTH(
-                self._tmp_result, inp[0], wait_for=wait_for + inp[0].events))
+                self._tmp_result, inp[0], wait_for=(kwargs["wait_for"]
+                                                    + inp[0].events)))
         out = clarray.empty(
             self.queue, (self.unknowns, self.NSlice, self.dimY, self.dimX),
             dtype=self.DTYPE)
@@ -1055,10 +1038,10 @@ class OperatorKspaceSMS(Operator):
             inp[2].data, np.int32(self.NC),
             np.int32(self.NScan),
             np.int32(self.unknowns),
-            wait_for=wait_for + self._tmp_result.events + out.events).wait()
+            wait_for=self._tmp_result.events + out.events).wait()
         return out
 
-    def adjKyk1(self, out, inp, wait_for=[]):
+    def adjKyk1(self, out, inp, **kwargs):
         """Apply the linear operator from parameter space to k-space.
 
         This method fully implements the combined linear operator
@@ -1079,7 +1062,8 @@ class OperatorKspaceSMS(Operator):
         """
         self._tmp_result.add_event(
             self.NUFFT.FFTH(
-                self._tmp_result, inp[0], wait_for=wait_for + inp[0].events))
+                self._tmp_result, inp[0], wait_for=(kwargs["wait_for"]
+                                                    + inp[0].events)))
         return self.prg.update_Kyk1(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data, self._tmp_result.data, inp[2].data,
@@ -1088,7 +1072,7 @@ class OperatorKspaceSMS(Operator):
             inp[4].data,
             np.int32(self.unknowns), self.DTYPE_real(self._dz),
             wait_for=(self._tmp_result.events +
-                      out.events + inp[1].events + wait_for))
+                      out.events + inp[1].events))
 
 
 class OperatorImagespaceStreamed(Operator):
@@ -1172,7 +1156,7 @@ class OperatorImagespaceStreamed(Operator):
               coil_shape,
               model_grad_shape]])
 
-    def fwd(self, out, inp, wait_for=[]):
+    def fwd(self, out, inp, **kwargs):
         """Forward operator application in-place.
 
         Apply the linear operator from parameter space to measurement space
@@ -1196,7 +1180,7 @@ class OperatorImagespaceStreamed(Operator):
         """
         self.fwdstr.eval(out, inp)
 
-    def fwdoop(self, inp, wait_for=[]):
+    def fwdoop(self, inp, **kwargs):
         """Forward operator application out-of-place.
 
         Apply the linear operator from parameter space to measurement space
@@ -1221,7 +1205,7 @@ class OperatorImagespaceStreamed(Operator):
         self.fwdstr.eval([tmp_result], inp)
         return tmp_result
 
-    def adj(self, out, inp, wait_for=[]):
+    def adj(self, out, inp, **kwargs):
         """Adjoint operator application in-place.
 
         Apply the linear operator from measurement space to parameter space
@@ -1244,7 +1228,7 @@ class OperatorImagespaceStreamed(Operator):
         """
         self.adjstr.eval(out, inp)
 
-    def adjoop(self, inp, wait_for=[]):
+    def adjoop(self, inp, **kwargs):
         """Adjoint operator application out-of-place.
 
         Apply the linear operator from measurement space to parameter space
@@ -1285,7 +1269,7 @@ class OperatorImagespaceStreamed(Operator):
         self.adjstrKyk1.eval(out, inp)
 
     def _fwdstreamed(self, outp, inp, par=None, idx=0, idxq=0,
-                     bound_cond=0, wait_for=[]):
+                     bound_cond=0, wait_for=None):
         return (self.prg[idx].operator_fwd_imagespace(
             self.queue[4*idx+idxq],
             (self.par_slices+self._overlap, self.dimY, self.dimX), None,
@@ -1295,7 +1279,7 @@ class OperatorImagespaceStreamed(Operator):
             wait_for=outp.events+inp[0].events+inp[2].events+wait_for))
 
     def _adjstreamedKyk1(self, outp, inp, par=None, idx=0, idxq=0,
-                         bound_cond=0, wait_for=[]):
+                         bound_cond=0, wait_for=None):
         return self.prg[idx].update_Kyk1_imagespace(
             self.queue[4*idx+idxq],
             (self.par_slices+self._overlap, self.dimY, self.dimX), None,
@@ -1309,7 +1293,7 @@ class OperatorImagespaceStreamed(Operator):
                       inp[3].events+wait_for))
 
     def _adjstreamed(self, outp, inp, par=None, idx=0, idxq=0,
-                     bound_cond=0, wait_for=[]):
+                     bound_cond=0, wait_for=None):
         return self.prg[idx].operator_ad_imagespace(
             self.queue[4*idx+idxq],
             (self.par_slices+self._overlap, self.dimY, self.dimX), None,
@@ -1434,7 +1418,7 @@ class OperatorKspaceStreamed(Operator):
             [self.data_shape],
             [[trans_shape]])
 
-    def fwd(self, out, inp, wait_for=[]):
+    def fwd(self, out, inp, **kwargs):
         """Forward operator application in-place.
 
         Apply the linear operator from parameter space to measurement space
@@ -1458,7 +1442,7 @@ class OperatorKspaceStreamed(Operator):
         """
         self.fwdstr.eval(out, inp)
 
-    def fwdoop(self, inp, wait_for=[]):
+    def fwdoop(self, inp, **kwargs):
         """Forward operator application out-of-place.
 
         Apply the linear operator from parameter space to measurement space
@@ -1483,7 +1467,7 @@ class OperatorKspaceStreamed(Operator):
         self.fwdstr.eval([tmp_result], inp)
         return tmp_result
 
-    def adj(self, out, inp, wait_for=[]):
+    def adj(self, out, inp, **kwargs):
         """Adjoint operator application in-place.
 
         Apply the linear operator from measurement space to parameter space
@@ -1506,7 +1490,7 @@ class OperatorKspaceStreamed(Operator):
         """
         self.adjstr.eval(out, inp)
 
-    def adjoop(self, inp, wait_for=[]):
+    def adjoop(self, inp, **kwargs):
         """Adjoint operator application out-of-place.
 
         Apply the linear operator from measurement space to parameter space
@@ -1547,7 +1531,7 @@ class OperatorKspaceStreamed(Operator):
         self.adjstrKyk1.eval(out, inp)
 
     def _fwdstreamed(self, outp, inp, par=None, idx=0, idxq=0,
-                     bound_cond=0, wait_for=[]):
+                     bound_cond=0, wait_for=None):
         self._tmp_result[2*idx+idxq].add_event(self.prg[idx].operator_fwd(
             self.queue[4*idx+idxq],
             (self.par_slices+self._overlap, self.dimY, self.dimX), None,
@@ -1563,7 +1547,7 @@ class OperatorKspaceStreamed(Operator):
             wait_for=outp.events+wait_for+self._tmp_result[2*idx+idxq].events)
 
     def _adjstreamedKyk1(self, outp, inp, par=None, idx=0, idxq=0,
-                         bound_cond=0, wait_for=[]):
+                         bound_cond=0, wait_for=None):
         self._tmp_result[2*idx+idxq].add_event(
             self.NUFFT[2*idx+idxq].FFTH(
                 self._tmp_result[2*idx+idxq], inp[0],
@@ -1584,7 +1568,7 @@ class OperatorKspaceStreamed(Operator):
                 inp[2].events + inp[3].events + wait_for))
 
     def _adjstreamed(self, outp, inp, par=None, idx=0, idxq=0,
-                     bound_cond=0, wait_for=[]):
+                     bound_cond=0, wait_for=None):
         self._tmp_result[2*idx+idxq].add_event(
             self.NUFFT[2*idx+idxq].FFTH(
                 self._tmp_result[2*idx+idxq], inp[0],
@@ -1602,7 +1586,7 @@ class OperatorKspaceStreamed(Operator):
                       inp[1].events+inp[2].events+wait_for))
 
     def _FT(self, outp, inp, par=None, idx=0, idxq=0,
-            bound_cond=0, wait_for=[]):
+            bound_cond=0, wait_for=None):
         return self.NUFFT[2*idx+idxq].FFT(outp, inp[0])
 
 
@@ -1742,7 +1726,7 @@ class OperatorKspaceSMSStreamed(Operator):
             reverse_dir=True,
             posofnorm=[True])
 
-    def fwd(self, out, inp, wait_for=[]):
+    def fwd(self, out, inp, **kwargs):
         """Forward operator application in-place.
 
         Apply the linear operator from parameter space to measurement space
@@ -1778,7 +1762,7 @@ class OperatorKspaceSMSStreamed(Operator):
                 self.dat_trans_axes),
             requirements='C'))
 
-    def fwdoop(self, inp, wait_for=[]):
+    def fwdoop(self, inp, **kwargs):
         """Forward operator application out-of-place.
 
         Apply the linear operator from parameter space to measurement space
@@ -1813,7 +1797,7 @@ class OperatorKspaceSMSStreamed(Operator):
                 self.dat_trans_axes),
             requirements='C')
 
-    def adj(self, out, inp, par=None):
+    def adj(self, out, inp, **kwargs):
         """Adjoint operator application in-place.
 
         Apply the linear operator from measurement space to parameter space
@@ -1825,8 +1809,8 @@ class OperatorKspaceSMSStreamed(Operator):
             The complex parameter space data which is used as input.
           inp : numpy.Array
             The complex parameter space data which is used as input.
-          par : list of PyOpenCL.Arrays
-            List of constant parameters for the streamed function.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
 
         Returns
         -------
@@ -1846,7 +1830,7 @@ class OperatorKspaceSMSStreamed(Operator):
             requirements='C')
         self.adjstr.eval(out, [[self._tmp_fft1]+inp[0][1:]])
 
-    def adjoop(self, inp, wait_for=[]):
+    def adjoop(self, inp, **kwargs):
         """Adjoint operator application out-of-place.
 
         Apply the linear operator from measurement space to parameter space
@@ -1881,7 +1865,7 @@ class OperatorKspaceSMSStreamed(Operator):
         self.adjstr.eval([self._tmp_Kyk1], [[self._tmp_fft1]+inp[0][1:]])
         return self._tmp_Kyk1
 
-    def adjKyk1(self, out, inp, par=None):
+    def adjKyk1(self, out, inp, **kwargs):
         """Apply the linear operator from parameter space to k-space.
 
         This method fully implements the combined linear operator
@@ -1893,8 +1877,8 @@ class OperatorKspaceSMSStreamed(Operator):
             The complex parameter space data which is used as input.
           inp : numpy.Array
             The complex parameter space data which is used as input.
-          par : list of PyOpenCL.Arrays
-            List of constant parameters for the streamed function.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
 
         Returns
         -------
@@ -1915,10 +1899,10 @@ class OperatorKspaceSMSStreamed(Operator):
         self.adjstr.eval([self._tmp_Kyk1], [[self._tmp_fft1]+inp[0][2:-1]])
         return self._updateKyk1SMSStreamed.evalwithnorm(
             out,
-            [[self._tmp_Kyk1]+[inp[0][1]]+[inp[0][-1]]], par)
+            [[self._tmp_Kyk1]+[inp[0][1]]+[inp[0][-1]]], kwargs["par"])
 
     def _fwdstreamed(self, outp, inp, par=None, idx=0, idxq=0,
-                     bound_cond=0, wait_for=[]):
+                     bound_cond=0, wait_for=None):
         return self.prg[idx].operator_fwd(
             self.queue[4*idx+idxq],
             (self.par_slices+self._overlap, self.dimY, self.dimX), None,
@@ -1931,7 +1915,7 @@ class OperatorKspaceSMSStreamed(Operator):
                       inp[1].events+inp[2].events+wait_for))
 
     def _adjstreamed(self, outp, inp, par=None, idx=0, idxq=0,
-                     bound_cond=0, wait_for=[]):
+                     bound_cond=0, wait_for=None):
         return self.prg[idx].operator_ad(
             self.queue[4*idx+idxq],
             (self.par_slices+self._overlap, self.dimY, self.dimX), None,
@@ -1946,15 +1930,15 @@ class OperatorKspaceSMSStreamed(Operator):
                 inp[2].events + wait_for))
 
     def _FT(self, outp, inp, par=None, idx=0, idxq=0,
-            bound_cond=0, wait_for=[]):
+            bound_cond=0, wait_for=None):
         return self.NUFFT[2*idx+idxq].FFT(outp, inp[0])
 
     def _FTH(self, outp, inp, par=None, idx=0, idxq=0,
-             bound_cond=0, wait_for=[]):
+             bound_cond=0, wait_for=None):
         return self.NUFFT[2*idx+idxq].FFTH(outp, inp[0])
 
     def _updateKyk1SMS(self, outp, inp, par=None, idx=0, idxq=0,
-                       bound_cond=0, wait_for=[]):
+                       bound_cond=0, wait_for=None):
         return self.prg[idx].update_Kyk1SMS(
             self.queue[4*idx+idxq],
             (self.par_slices+self._overlap, self.dimY, self.dimX), None,
@@ -2029,7 +2013,7 @@ class OperatorFiniteGradient(Operator):
                      dtype=self.DTYPE_real))
         self._weights = par["weights"]
 
-    def fwd(self, out, inp, wait_for=[]):
+    def fwd(self, out, inp, **kwargs):
         """Forward operator application in-place.
 
         Apply the linear operator from parameter space to measurement space
@@ -2055,9 +2039,9 @@ class OperatorFiniteGradient(Operator):
             self.queue, inp.shape[1:], None, out.data, inp.data,
             np.int32(self.unknowns),
             self.ratio.data, self.DTYPE_real(self._dz),
-            wait_for=out.events + inp.events + wait_for)
+            wait_for=out.events + inp.events + kwargs["wait_for"])
 
-    def fwdoop(self, inp, wait_for=[]):
+    def fwdoop(self, inp, **kwargs):
         """Forward operator application out-of-place.
 
         Apply the linear operator from parameter space to measurement space
@@ -2086,10 +2070,10 @@ class OperatorFiniteGradient(Operator):
             self.queue, inp.shape[1:], None, tmp_result.data, inp.data,
             np.int32(self.unknowns),
             self.ratio.data, self.DTYPE_real(self._dz),
-            wait_for=tmp_result.events + inp.events + wait_for))
+            wait_for=tmp_result.events + inp.events + kwargs["wait_for"]))
         return tmp_result
 
-    def adj(self, out, inp, wait_for=[]):
+    def adj(self, out, inp, **kwargs):
         """Adjoint operator application in-place.
 
         Apply the linear operator from measurement space to parameter space
@@ -2114,9 +2098,9 @@ class OperatorFiniteGradient(Operator):
             self.queue, inp.shape[1:-1], None, out.data, inp.data,
             np.int32(self.unknowns), self.ratio.data,
             self.DTYPE_real(self._dz),
-            wait_for=out.events + inp.events + wait_for)
+            wait_for=out.events + inp.events + kwargs["wait_for"])
 
-    def adjoop(self, inp, wait_for=[]):
+    def adjoop(self, inp, **kwargs):
         """Adjoint operator application out-of-place.
 
         Apply the linear operator from measurement space to parameter space
@@ -2144,7 +2128,7 @@ class OperatorFiniteGradient(Operator):
             self.queue, inp.shape[1:-1], None, tmp_result.data, inp.data,
             np.int32(self.unknowns), self.ratio.data,
             self.DTYPE_real(self._dz),
-            wait_for=tmp_result.events + inp.events + wait_for))
+            wait_for=tmp_result.events + inp.events + kwargs["wait_for"]))
         return tmp_result
 
 
@@ -2190,7 +2174,7 @@ class OperatorFiniteSymGradient(Operator):
                      dtype=self.DTYPE_real))
         self._weights = par["weights"]
 
-    def fwd(self, out, inp, wait_for=[]):
+    def fwd(self, out, inp, **kwargs):
         """Forward operator application in-place.
 
         Apply the linear operator from parameter space to measurement space
@@ -2217,9 +2201,9 @@ class OperatorFiniteSymGradient(Operator):
             np.int32(self.unknowns_TGV),
             self.ratio.data,
             self.DTYPE_real(self._dz),
-            wait_for=out.events + inp.events + wait_for)
+            wait_for=out.events + inp.events + kwargs["wait_for"])
 
-    def fwdoop(self, inp, wait_for=[]):
+    def fwdoop(self, inp, **kwargs):
         """Forward operator application out-of-place.
 
         Apply the linear operator from parameter space to measurement space
@@ -2249,10 +2233,10 @@ class OperatorFiniteSymGradient(Operator):
             np.int32(self.unknowns_TGV),
             self.ratio.data,
             self.DTYPE_real(self._dz),
-            wait_for=tmp_result.events + inp.events + wait_for))
+            wait_for=tmp_result.events + inp.events + kwargs["wait_for"]))
         return tmp_result
 
-    def adj(self, out, inp, wait_for=[]):
+    def adj(self, out, inp, **kwargs):
         """Adjoint operator application in-place.
 
         Apply the linear operator from measurement space to parameter space
@@ -2278,9 +2262,9 @@ class OperatorFiniteSymGradient(Operator):
             np.int32(self.unknowns_TGV),
             self.ratio.data,
             self.DTYPE_real(self._dz),
-            wait_for=out.events + inp.events + wait_for)
+            wait_for=out.events + inp.events + kwargs["wait_for"])
 
-    def adjoop(self, inp, wait_for=[]):
+    def adjoop(self, inp, **kwargs):
         """Adjoint operator application out-of-place.
 
         Apply the linear operator from measurement space to parameter space
@@ -2310,7 +2294,7 @@ class OperatorFiniteSymGradient(Operator):
             np.int32(self.unknowns_TGV),
             self.ratio.data,
             self.DTYPE_real(self._dz),
-            wait_for=tmp_result.events + inp.events + wait_for))
+            wait_for=tmp_result.events + inp.events + kwargs["wait_for"]))
         return tmp_result
 
 
@@ -2378,7 +2362,7 @@ class OperatorFiniteGradientStreamed(Operator):
             [[self._grad_shape]],
             reverse_dir=True)
 
-    def fwd(self, out, inp, wait_for=[]):
+    def fwd(self, out, inp, **kwargs):
         """Forward operator application in-place.
 
         Apply the linear operator from parameter space to measurement space
@@ -2402,7 +2386,7 @@ class OperatorFiniteGradientStreamed(Operator):
         """
         self._stream_grad.eval(out, inp)
 
-    def fwdoop(self, inp, wait_for=[]):
+    def fwdoop(self, inp, **kwargs):
         """Forward operator application out-of-place.
 
         Apply the linear operator from parameter space to measurement space
@@ -2427,7 +2411,7 @@ class OperatorFiniteGradientStreamed(Operator):
         self._stream_grad.eval([out], inp)
         return out
 
-    def adj(self, out, inp, wait_for=[]):
+    def adj(self, out, inp, **kwargs):
         """Adjoint operator application in-place.
 
         Apply the linear operator from measurement space to parameter space
@@ -2450,7 +2434,7 @@ class OperatorFiniteGradientStreamed(Operator):
         """
         self._stream_div.eval(out, inp)
 
-    def adjoop(self, inp, wait_for=[]):
+    def adjoop(self, inp, wait_for=None):
         """Adjoint operator application out-of-place.
 
         Apply the linear operator from measurement space to parameter space
@@ -2476,7 +2460,7 @@ class OperatorFiniteGradientStreamed(Operator):
         return out
 
     def _grad(self, outp, inp, par=None, idx=0, idxq=0,
-              bound_cond=0, wait_for=[]):
+              bound_cond=0, wait_for=None):
         return self.prg[idx].gradient(
             self.queue[4*idx+idxq],
             (self._overlap+self.par_slices, self.dimY, self.dimX),
@@ -2486,7 +2470,7 @@ class OperatorFiniteGradientStreamed(Operator):
             wait_for=outp.events + inp[0].events + wait_for)
 
     def _div(self, outp, inp, par=None, idx=0, idxq=0,
-             bound_cond=0, wait_for=[]):
+             bound_cond=0, wait_for=None):
         return self.prg[idx].divergence(
             self.queue[4*idx+idxq],
             (self._overlap+self.par_slices, self.dimY, self.dimX), None,
@@ -2570,7 +2554,7 @@ class OperatorFiniteSymGradientStreamed(Operator):
             [self._grad_shape],
             [[self._symgrad_shape]])
 
-    def fwd(self, out, inp, wait_for=[]):
+    def fwd(self, out, inp, **kwargs):
         """Forward operator application in-place.
 
         Apply the linear operator from parameter space to measurement space
@@ -2594,7 +2578,7 @@ class OperatorFiniteSymGradientStreamed(Operator):
         """
         self._stream_symgrad.eval(out, inp)
 
-    def fwdoop(self, inp, wait_for=[]):
+    def fwdoop(self, inp, **kwargs):
         """Forward operator application out-of-place.
 
         Apply the linear operator from parameter space to measurement space
@@ -2619,7 +2603,7 @@ class OperatorFiniteSymGradientStreamed(Operator):
         self._stream_symgrad.eval([out], inp)
         return out
 
-    def adj(self, out, inp, wait_for=[]):
+    def adj(self, out, inp, **kwargs):
         """Adjoint operator application in-place.
 
         Apply the linear operator from measurement space to parameter space
@@ -2642,7 +2626,7 @@ class OperatorFiniteSymGradientStreamed(Operator):
         """
         self._stream_symdiv.eval(out, inp)
 
-    def adjoop(self, inp, wait_for=[]):
+    def adjoop(self, inp, **kwargs):
         """Adjoint operator application out-of-place.
 
         Apply the linear operator from measurement space to parameter space
@@ -2668,7 +2652,7 @@ class OperatorFiniteSymGradientStreamed(Operator):
         return out
 
     def _symgrad(self, outp, inp, par=None, idx=0, idxq=0,
-                 bound_cond=0, wait_for=[]):
+                 bound_cond=0, wait_for=None):
         return self.prg[idx].sym_grad(
             self.queue[4*idx+idxq],
             (self._overlap+self.par_slices, self.dimY, self.dimX), None,
@@ -2678,7 +2662,7 @@ class OperatorFiniteSymGradientStreamed(Operator):
             wait_for=outp.events + inp[0].events + wait_for)
 
     def _symdiv(self, outp, inp, par=None, idx=0, idxq=0,
-                bound_cond=0, wait_for=[]):
+                bound_cond=0, wait_for=None):
         return self.prg[idx].sym_divergence(
             self.queue[4*idx+idxq],
             (self._overlap+self.par_slices, self.dimY, self.dimX), None,
