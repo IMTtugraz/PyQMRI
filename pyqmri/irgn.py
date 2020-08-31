@@ -190,6 +190,7 @@ class IRGNOptimizer:
             streamed=self._streamed,
             imagespace=self._imagespace
             )
+        self._setupPrivateAttributes()
 
     def _setupLinearOps(self, DTYPE, DTYPE_real):
         grad_op = operator.Operator.GradientOperatorFactory(

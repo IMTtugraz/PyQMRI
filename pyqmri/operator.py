@@ -2040,7 +2040,7 @@ class OperatorKspaceSMSStreamed(Operator):
                            outp,
                            inp,
                            reverse_dir=False,
-                           posofnorm=[]):
+                           posofnorm=None):
         return streaming.Stream(
             functions,
             outp,
