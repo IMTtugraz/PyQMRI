@@ -2015,13 +2015,15 @@ class OperatorFiniteGradient(Operator):
         The context for the PyOpenCL computations.
       queue : PyOpenCL.Queue
         The computation Queue for the PyOpenCL kernels.
+      ratio : list of PyOpenCL.Array
+        Ratio between the different unknowns
     """
 
     def __init__(self, par, prg, DTYPE=np.complex64, DTYPE_real=np.float32):
         super().__init__(par, prg, DTYPE, DTYPE_real)
         self.queue = self.queue[0]
         self.ctx = self.ctx[0]
-        self._ratio = clarray.to_device(
+        self.ratio = clarray.to_device(
             self.queue,
             (par["weights"]).astype(
                      dtype=self.DTYPE_real))
@@ -2052,7 +2054,7 @@ class OperatorFiniteGradient(Operator):
         return self.prg.gradient(
             self.queue, inp.shape[1:], None, out.data, inp.data,
             np.int32(self.unknowns),
-            self._ratio.data, self.DTYPE_real(self._dz),
+            self.ratio.data, self.DTYPE_real(self._dz),
             wait_for=out.events + inp.events + wait_for)
 
     def fwdoop(self, inp, wait_for=[]):
@@ -2083,7 +2085,7 @@ class OperatorFiniteGradient(Operator):
         tmp_result.add_event(self.prg.gradient(
             self.queue, inp.shape[1:], None, tmp_result.data, inp.data,
             np.int32(self.unknowns),
-            self._ratio.data, self.DTYPE_real(self._dz),
+            self.ratio.data, self.DTYPE_real(self._dz),
             wait_for=tmp_result.events + inp.events + wait_for))
         return tmp_result
 
@@ -2110,7 +2112,7 @@ class OperatorFiniteGradient(Operator):
         """
         return self.prg.divergence(
             self.queue, inp.shape[1:-1], None, out.data, inp.data,
-            np.int32(self.unknowns), self._ratio.data,
+            np.int32(self.unknowns), self.ratio.data,
             self.DTYPE_real(self._dz),
             wait_for=out.events + inp.events + wait_for)
 
@@ -2140,7 +2142,7 @@ class OperatorFiniteGradient(Operator):
             self.DTYPE, "C")
         tmp_result.add_event(self.prg.divergence(
             self.queue, inp.shape[1:-1], None, tmp_result.data, inp.data,
-            np.int32(self.unknowns), self._ratio.data,
+            np.int32(self.unknowns), self.ratio.data,
             self.DTYPE_real(self._dz),
             wait_for=tmp_result.events + inp.events + wait_for))
         return tmp_result
@@ -2174,13 +2176,15 @@ class OperatorFiniteSymGradient(Operator):
         The context for the PyOpenCL computations.
       queue : PyOpenCL.Queue
         The computation Queue for the PyOpenCL kernels.
+      ratio : list of PyOpenCL.Array
+        Ratio between the different unknowns
     """
 
     def __init__(self, par, prg, DTYPE=np.complex64, DTYPE_real=np.float32):
         super().__init__(par, prg, DTYPE, DTYPE_real)
         self.queue = self.queue[0]
         self.ctx = self.ctx[0]
-        self._ratio = clarray.to_device(
+        self.ratio = clarray.to_device(
             self.queue,
             (par["weights"]).astype(
                      dtype=self.DTYPE_real))
@@ -2211,7 +2215,7 @@ class OperatorFiniteSymGradient(Operator):
         return self.prg.sym_grad(
             self.queue, inp.shape[1:-1], None, out.data, inp.data,
             np.int32(self.unknowns_TGV),
-            self._ratio.data,
+            self.ratio.data,
             self.DTYPE_real(self._dz),
             wait_for=out.events + inp.events + wait_for)
 
@@ -2243,7 +2247,7 @@ class OperatorFiniteSymGradient(Operator):
         tmp_result.add_event(self.prg.sym_grad(
             self.queue, inp.shape[1:-1], None, tmp_result.data, inp.data,
             np.int32(self.unknowns_TGV),
-            self._ratio.data,
+            self.ratio.data,
             self.DTYPE_real(self._dz),
             wait_for=tmp_result.events + inp.events + wait_for))
         return tmp_result
@@ -2272,7 +2276,7 @@ class OperatorFiniteSymGradient(Operator):
         return self.prg.sym_divergence(
             self.queue, inp.shape[1:-1], None, out.data, inp.data,
             np.int32(self.unknowns_TGV),
-            self._ratio.data,
+            self.ratio.data,
             self.DTYPE_real(self._dz),
             wait_for=out.events + inp.events + wait_for)
 
@@ -2304,7 +2308,7 @@ class OperatorFiniteSymGradient(Operator):
         tmp_result.add_event(self.prg.sym_divergence(
             self.queue, inp.shape[1:-1], None, tmp_result.data, inp.data,
             np.int32(self.unknowns_TGV),
-            self._ratio.data,
+            self.ratio.data,
             self.DTYPE_real(self._dz),
             wait_for=tmp_result.events + inp.events + wait_for))
         return tmp_result
@@ -2340,6 +2344,8 @@ class OperatorFiniteGradientStreamed(Operator):
         The computation Queue for the PyOpenCL kernels.
       par_slices : int
         Slices to parallel transfer to the compute device.
+      ratio : list of PyOpenCL.Array
+        Ratio between the different unknowns
     """
 
     def __init__(self, par, prg, DTYPE=np.complex64, DTYPE_real=np.float32):
@@ -2350,9 +2356,9 @@ class OperatorFiniteGradientStreamed(Operator):
         self._overlap = par["overlap"]
         self.par_slices = par["par_slices"]
 
-        self._ratio = []
+        self.ratio = []
         for j in range(self.num_dev):
-            self._ratio.append(
+            self.ratio.append(
                 clarray.to_device(
                     self.queue[4*j],
                     (par["weights"]).astype(
@@ -2476,7 +2482,7 @@ class OperatorFiniteGradientStreamed(Operator):
             (self._overlap+self.par_slices, self.dimY, self.dimX),
             None, outp.data, inp[0].data,
             np.int32(self.unknowns),
-            self._ratio[idx].data, self.DTYPE_real(self._dz),
+            self.ratio[idx].data, self.DTYPE_real(self._dz),
             wait_for=outp.events + inp[0].events + wait_for)
 
     def _div(self, outp, inp, par=None, idx=0, idxq=0,
@@ -2485,9 +2491,19 @@ class OperatorFiniteGradientStreamed(Operator):
             self.queue[4*idx+idxq],
             (self._overlap+self.par_slices, self.dimY, self.dimX), None,
             outp.data, inp[0].data, np.int32(self.unknowns),
-            self._ratio[idx].data, np.int32(bound_cond),
+            self.ratio[idx].data, np.int32(bound_cond),
             self.DTYPE_real(self._dz),
             wait_for=outp.events + inp[0].events + wait_for)
+
+    def getStreamedGradientObject(self):
+        """Access privat stream gradient object.
+
+        Returns
+        -------
+          PyqMRI.Streaming.Stream:
+              A PyQMRI streaming object for the gradient computation.
+        """
+        return self._stream_grad
 
 
 class OperatorFiniteSymGradientStreamed(Operator):
@@ -2520,6 +2536,8 @@ class OperatorFiniteSymGradientStreamed(Operator):
         The computation Queue for the PyOpenCL kernels.
       par_slices : int
         Slices to parallel transfer to the compute device.
+      ratio : list of PyOpenCL.Array
+        Ratio between the different unknowns
     """
 
     def __init__(self, par, prg, DTYPE=np.complex64, DTYPE_real=np.float32):
@@ -2533,9 +2551,9 @@ class OperatorFiniteSymGradientStreamed(Operator):
         self._grad_shape = unknown_shape + (4,)
         self._symgrad_shape = unknown_shape + (8,)
 
-        self._ratio = []
+        self.ratio = []
         for j in range(self.num_dev):
-            self._ratio.append(
+            self.ratio.append(
                 clarray.to_device(
                     self.queue[4*j],
                     (par["weights"]).astype(
@@ -2655,7 +2673,7 @@ class OperatorFiniteSymGradientStreamed(Operator):
             self.queue[4*idx+idxq],
             (self._overlap+self.par_slices, self.dimY, self.dimX), None,
             outp.data, inp[0].data, np.int32(self.unknowns),
-            self._ratio[idx].data,
+            self.ratio[idx].data,
             self.DTYPE_real(self._dz),
             wait_for=outp.events + inp[0].events + wait_for)
 
@@ -2666,7 +2684,18 @@ class OperatorFiniteSymGradientStreamed(Operator):
             (self._overlap+self.par_slices, self.dimY, self.dimX), None,
             outp.data, inp[0].data,
             np.int32(self.unknowns),
-            self._ratio[idx].data,
+            self.ratio[idx].data,
             np.int32(bound_cond),
             self.DTYPE_real(self._dz),
             wait_for=outp.events + inp[0].events + wait_for)
+
+    def getStreamedSymGradientObject(self):
+        """Access privat stream symmetrized gradient object.
+
+        Returns
+        -------
+          PyqMRI.Streaming.Stream:
+              A PyQMRI streaming object for the symmetrized gradient
+              computation.
+        """
+        return self._stream_grad

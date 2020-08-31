@@ -36,14 +36,16 @@ class Stream:
         used per device.
       num_dev : int
         Number of computation devices.
-      reverse : bool
+      reverse : bool, false
         Indicator of the streaming direction. If False, streaming will
         start at the first and end at the last slice. If True streaming
         will be performed vice versa
-      lhs : list of bool
+      lhs : list of bool, None
         Indicator for the norm calculation in the line search of TGV.
         lhs refers to left hand side. Needs to be passed if a norm should
         be computed.
+      DTYPE : numpy.dype, numpy.complex64
+        Complex data type.
 
     Attributes
     ----------
@@ -68,7 +70,7 @@ class Stream:
         Total number of slices
       num_fun : int
         Total number of functions to stream (length of fun)
-      lhs : list of bool
+      lhs : list of bool, None
         Indicator for the norm calculation in the line search of TGV.
         lhs refers to left hand side.
       at_end : bool

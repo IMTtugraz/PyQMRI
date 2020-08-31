@@ -174,7 +174,7 @@ class CGSolver:
         del Ax, b, res, p, data, res_new
         return np.squeeze(x.get())
 
-    def eval_fwd_kspace_cg(self, y, x, wait_for=[]):
+    def eval_fwd_kspace_cg(self, y, x, wait_for=None):
         """Apply forward operator for image reconstruction.
 
         Parameters
@@ -183,7 +183,7 @@ class CGSolver:
             The result of the computation
           x : PyOpenCL.Array
             The input array
-          wait_for : list of PyopenCL.Event
+          wait_for : list of PyopenCL.Event, None
             A List of PyOpenCL events to wait for.
 
         Returns
@@ -191,6 +191,8 @@ class CGSolver:
             PyOpenCL.Event:
                 A PyOpenCL.Event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg.operator_fwd_cg(self._queue,
                                          (self._NSlice, self._dimY,
                                           self._dimX),
@@ -200,7 +202,7 @@ class CGSolver:
                                          np.int32(self._NScan),
                                          wait_for=wait_for)
 
-    def _operator_lhs(self, out, x, wait_for=[]):
+    def _operator_lhs(self, out, x, wait_for=None):
         """Compute the left hand side of the CG equation.
 
         Parameters
@@ -209,7 +211,7 @@ class CGSolver:
             The result of the computation
           x : PyOpenCL.Array
             The input array
-          wait_for : list of PyopenCL.Event
+          wait_for : list of PyopenCL.Event, None
             A List of PyOpenCL events to wait for.
 
         Returns
@@ -217,13 +219,15 @@ class CGSolver:
             PyOpenCL.Event:
                 A PyOpenCL.Event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         self._tmp_result.add_event(self.eval_fwd_kspace_cg(
             self._tmp_result, x, wait_for=self._tmp_result.events+x.events))
         self._tmp_sino.add_event(self._FT(
             self._tmp_sino, self._tmp_result, scan_offset=self.scan_offset))
         return self._operator_rhs(out, self._tmp_sino)
 
-    def _operator_rhs(self, out, x, wait_for=[]):
+    def _operator_rhs(self, out, x, wait_for=None):
         """Compute the right hand side of the CG equation.
 
         Parameters
@@ -240,6 +244,8 @@ class CGSolver:
             PyOpenCL.Event:
                 A PyOpenCL.Event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         self._tmp_result.add_event(self._FTH(
             self._tmp_result, x, wait_for=wait_for+x.events,
             scan_offset=self.scan_offset))
@@ -746,7 +752,7 @@ class PDBaseSolver:
         self.mu = 1/self.delta
 
     def update_primal(self, outp, inp, par, idx=0, idxq=0,
-                      bound_cond=0, wait_for=[]):
+                      bound_cond=0, wait_for=None):
         """Primal update of the x variable in the Primal-Dual Algorithm.
 
         Parameters
@@ -763,7 +769,7 @@ class PDBaseSolver:
             Index of the queue to use
           bound_cond : int
             Apply boundary condition (1) or not (0).
-          wait_for : list of PyOpenCL.Events
+          wait_for : list of PyOpenCL.Events, None
             A optional list for PyOpenCL.Events to wait for
 
         Returns
@@ -771,6 +777,8 @@ class PDBaseSolver:
             PyOpenCL.Event:
                 A PyOpenCL.Event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_primal_LM(
             self._queue[4*idx+idxq],
             self._kernelsize, None,
@@ -784,7 +792,7 @@ class PDBaseSolver:
                       inp[2].events+wait_for))
 
     def update_v(self, outp, inp, par=None, idx=0, idxq=0,
-                 bound_cond=0, wait_for=[]):
+                 bound_cond=0, wait_for=None):
         """Primal update of the v variable in Primal-Dual Algorithm.
 
         Parameters
@@ -801,7 +809,7 @@ class PDBaseSolver:
             Index of the queue to use
           bound_cond : int
             Apply boundary condition (1) or not (0).
-          wait_for : list of PyOpenCL.Events
+          wait_for : list of PyOpenCL.Events, None
             A optional list for PyOpenCL.Events to wait for
 
         Returns
@@ -809,13 +817,15 @@ class PDBaseSolver:
             PyOpenCL.Event:
                 A PyOpenCL.Event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_v(
             self._queue[4*idx+idxq], (outp[..., 0].size,), None,
             outp.data, inp[0].data, inp[1].data, np.float32(par[0]),
             wait_for=outp.events+inp[0].events+inp[1].events+wait_for)
 
     def update_z1(self, outp, inp, par=None, idx=0, idxq=0,
-                  bound_cond=0, wait_for=[]):
+                  bound_cond=0, wait_for=None):
         """Dual update of the z1 variable in Primal-Dual Algorithm for TGV.
 
         Parameters
@@ -832,7 +842,7 @@ class PDBaseSolver:
             Index of the queue to use
           bound_cond : int
             Apply boundary condition (1) or not (0).
-          wait_for : list of PyOpenCL.Events
+          wait_for : list of PyOpenCL.Events, None
             A optional list for PyOpenCL.Events to wait for
 
         Returns
@@ -840,6 +850,8 @@ class PDBaseSolver:
             PyOpenCL.Event:
                 A PyOpenCL.Event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_z1(
             self._queue[4*idx+idxq],
             self._kernelsize, None,
@@ -852,7 +864,7 @@ class PDBaseSolver:
                       inp[2].events+inp[3].events+inp[4].events+wait_for))
 
     def update_z1_tv(self, outp, inp, par=None, idx=0, idxq=0,
-                     bound_cond=0, wait_for=[]):
+                     bound_cond=0, wait_for=None):
         """Dual update of the z1 variable in Primal-Dual Algorithm for TV.
 
         Parameters
@@ -869,7 +881,7 @@ class PDBaseSolver:
             Index of the queue to use
           bound_cond : int
             Apply boundary condition (1) or not (0).
-          wait_for : list of PyOpenCL.Events
+          wait_for : list of PyOpenCL.Events, None
             A optional list for PyOpenCL.Events to wait for
 
         Returns
@@ -877,6 +889,8 @@ class PDBaseSolver:
             PyOpenCL.Event:
                 A PyOpenCL.Event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_z1_tv(
             self._queue[4*idx+idxq],
             self._kernelsize, None,
@@ -889,7 +903,7 @@ class PDBaseSolver:
                       inp[1].events+inp[2].events+wait_for))
 
     def update_z2(self, outp, inp, par=None, idx=0, idxq=0,
-                  bound_cond=0, wait_for=[]):
+                  bound_cond=0, wait_for=None):
         """Dual update of the z2 variable in Primal-Dual Algorithm for TGV.
 
         Parameters
@@ -906,7 +920,7 @@ class PDBaseSolver:
             Index of the queue to use
           bound_cond : int
             Apply boundary condition (1) or not (0).
-          wait_for : list of PyOpenCL.Events
+          wait_for : list of PyOpenCL.Events, None
             A optional list for PyOpenCL.Events to wait for
 
         Returns
@@ -914,6 +928,8 @@ class PDBaseSolver:
             PyOpenCL.Event:
                 A PyOpenCL.Event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_z2(
             self._queue[4*idx+idxq],
             self._kernelsize, None,
@@ -925,7 +941,7 @@ class PDBaseSolver:
                       inp[1].events+inp[2].events+wait_for))
 
     def update_Kyk2(self, outp, inp, par=None, idx=0, idxq=0,
-                    bound_cond=0, wait_for=[]):
+                    bound_cond=0, wait_for=None):
         """Precompute the v-part of the Adjoint Linear operator.
 
         Parameters
@@ -942,7 +958,7 @@ class PDBaseSolver:
             Index of the queue to use
           bound_cond : int
             Apply boundary condition (1) or not (0).
-          wait_for : list of PyOpenCL.Events
+          wait_for : list of PyOpenCL.Events, None
             A optional list for PyOpenCL.Events to wait for
 
         Returns
@@ -950,6 +966,8 @@ class PDBaseSolver:
             PyOpenCL.Event:
                 A PyOpenCL.Event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_Kyk2(
             self._queue[4*idx+idxq],
             self._kernelsize, None,
@@ -961,7 +979,7 @@ class PDBaseSolver:
             wait_for=outp.events + inp[0].events + inp[1].events+wait_for)
 
     def update_r(self, outp, inp, par=None, idx=0, idxq=0,
-                 bound_cond=0, wait_for=[]):
+                 bound_cond=0, wait_for=None):
         """Update the data dual variable r.
 
         Parameters
@@ -978,7 +996,7 @@ class PDBaseSolver:
             Index of the queue to use
           bound_cond : int
             Apply boundary condition (1) or not (0).
-          wait_for : list of PyOpenCL.Events
+          wait_for : list of PyOpenCL.Events, None
             A optional list for PyOpenCL.Events to wait for
 
         Returns
@@ -986,6 +1004,8 @@ class PDBaseSolver:
             PyOpenCL.Event:
                 A PyOpenCL.Event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_r(
             self._queue[4*idx+idxq], (outp.size,), None,
             outp.data, inp[0].data,
@@ -1108,7 +1128,7 @@ class PDSolverTV(PDBaseSolver):
                              [in_dual["r"], in_dual["z1"],
                               self._coils,
                               self.modelgrad,
-                              self._grad_op._ratio]))
+                              self._grad_op.ratio]))
 
         out_fwd["Ax"].add_event(self._op.fwd(
             out_fwd["Ax"], [in_primal["x"], self._coils, self.modelgrad]))
@@ -1178,7 +1198,7 @@ class PDSolverTV(PDBaseSolver):
                 [out_dual["r"], out_dual["z1"],
                  self._coils,
                  self.modelgrad,
-                 self._grad_op._ratio]))
+                 self._grad_op.ratio]))
 
         ynorm = (
             (
@@ -1383,13 +1403,13 @@ class PDSolverTGV(PDBaseSolver):
                              [in_dual["r"], in_dual["z1"],
                               self._coils,
                               self.modelgrad,
-                              self._grad_op._ratio]))
+                              self._grad_op.ratio]))
 
         out_adj["Kyk2"].add_event(
             self.update_Kyk2(
                 outp=out_adj["Kyk2"],
                 inp=(in_dual["z2"], in_dual["z1"]),
-                par=[self._symgrad_op._ratio]))
+                par=[self._symgrad_op.ratio]))
 
         out_fwd["Ax"].add_event(self._op.fwd(
             out_fwd["Ax"], [in_primal["x"], self._coils, self.modelgrad]))
@@ -1479,12 +1499,12 @@ class PDSolverTGV(PDBaseSolver):
                 [out_dual["r"], out_dual["z1"],
                  self._coils,
                  self.modelgrad,
-                 self._grad_op._ratio]))
+                 self._grad_op.ratio]))
         out_adj["Kyk2"].add_event(
             self.update_Kyk2(
                 outp=out_adj["Kyk2"],
                 inp=(out_dual["z2"], out_dual["z1"]),
-                par=[self._symgrad_op._ratio]))
+                par=[self._symgrad_op.ratio]))
 
         ynorm = (
             (
@@ -1598,8 +1618,6 @@ class PDSolverStreamed(PDBaseSolver):
         prg : PyOpenCL.Program
           A PyOpenCL Program containing the
           kernels for optimization.
-        linops : list of PyQMRI Operator
-          The linear operators used for fitting.
         coils : PyOpenCL Buffer or empty list
           The coils used for reconstruction.
         model : PyQMRI.Model
@@ -1616,6 +1634,9 @@ class PDSolverStreamed(PDBaseSolver):
         Size of the partial derivative array of the unknowns
       grad_shape : tuple of int
         Size of the finite difference based gradient
+      symgrad_shape : tuple of int, None
+        Size of the finite difference based symmetrized gradient. Defaults
+        to None in TV based optimization.
       data_shape : tuple of int
         Size of the data to be fitted
       data_trans_axes : list of int
@@ -1625,7 +1646,7 @@ class PDSolverStreamed(PDBaseSolver):
     """
 
     def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model, imagespace=False):
+                 coils, model, imagespace=False):
         super().__init__(
             par,
             irgn_par,
@@ -1635,6 +1656,11 @@ class PDSolverStreamed(PDBaseSolver):
             prg,
             coils,
             model)
+
+        self._op = None
+        self.symgrad_shape = None
+        self._packs = None
+        self._numofpacks = None
 
         self.unknown_shape = (par["NSlice"], par["unknowns"],
                               par["dimY"], par["dimX"])
@@ -1647,6 +1673,9 @@ class PDSolverStreamed(PDBaseSolver):
         self._NSlice = par["NSlice"]
         self._par_slices = par["par_slices"]
         self._overlap = par["overlap"]
+
+        self._symgrad_op = None
+        self._grad_op = None
 
         if imagespace:
             self.data_shape = (par["NSlice"], par["NScan"],
@@ -1691,7 +1720,8 @@ class PDSolverStreamed(PDBaseSolver):
             self.stream_initial_1 += self._op.fwdstr
             self.stream_initial_1 += self._op.adjstrKyk1
             if reg_type == 'TGV':
-                self.stream_initial_1 += self._symgrad_op._stream_symgrad
+                self.stream_initial_1 += \
+                    self._symgrad_op.getStreamedSymGradientObject()
 
         if reg_type == 'TGV':
             self.stream_Kyk2 = self._defineoperator(
@@ -1706,7 +1736,7 @@ class PDSolverStreamed(PDBaseSolver):
                 [],
                 [[]])
 
-            self.stream_initial_2 += self._grad_op._stream_grad
+            self.stream_initial_2 += self._grad_op.getStreamedGradientObject()
             self.stream_initial_2 += self.stream_Kyk2
 
         self.stream_primal = self._defineoperator(
@@ -1723,7 +1753,7 @@ class PDSolverStreamed(PDBaseSolver):
             [[]])
 
         self.update_primal_1 += self.stream_primal
-        self.update_primal_1 += self._grad_op._stream_grad
+        self.update_primal_1 += self._grad_op.getStreamedGradientObject()
         self.update_primal_1.connectouttoin(0, (1, 0))
 
         if not SMS:
@@ -1744,7 +1774,8 @@ class PDSolverStreamed(PDBaseSolver):
                 reverse_dir=True)
 
             self.update_primal_2 += self.stream_update_v
-            self.update_primal_2 += self._symgrad_op._stream_symgrad
+            self.update_primal_2 += \
+                self._symgrad_op.getStreamedSymGradientObject()
             self.update_primal_2.connectouttoin(0, (1, 0))
             self.stream_update_z1 = self._defineoperator(
                 [self.update_z1],
@@ -1823,7 +1854,7 @@ class PDSolverStreamed(PDBaseSolver):
                         outp,
                         inp,
                         reverse_dir=False,
-                        posofnorm=[],
+                        posofnorm=None,
                         slices=None):
         if slices is None:
             slices = self._NSlice
@@ -1909,7 +1940,6 @@ class PDSolverStreamedTGV(PDSolverStreamed):
             tau,
             fval,
             prg,
-            linop,
             coils,
             model,
             imagespace=imagespace)
@@ -1997,7 +2027,7 @@ class PDSolverStreamedTGV(PDSolverStreamed):
                  self._coils, self.modelgrad, []],
                 [in_primal["v"]]],
             [[],
-             [self._grad_op._ratio],
+             [self._grad_op.ratio],
              []])
 
         self.stream_initial_2.eval(
@@ -2006,7 +2036,7 @@ class PDSolverStreamedTGV(PDSolverStreamed):
             [[in_primal["x"]],
              [in_dual["z2"], in_dual["z1"], []]],
             [[],
-             self._symgrad_op._ratio])
+             self._symgrad_op.ratio])
 
     def _updatePrimal(self,
                       out_primal, out_fwd,
@@ -2059,7 +2089,7 @@ class PDSolverStreamedTGV(PDSolverStreamed):
             [
                 [beta*tau, theta, self.alpha, self.omega],
                 [beta * tau, theta, self.lambd],
-                [self._grad_op._ratio]
+                [self._grad_op.ratio]
             ])
         (lhs2, ynorm2) = self.update_dual_2.evalwithnorm(
             [out_dual["z2"],
@@ -2068,7 +2098,7 @@ class PDSolverStreamedTGV(PDSolverStreamed):
               in_precomp_fwd["symgradx"]],
              [[], out_dual["z1"], in_precomp_adj["Kyk2"]]],
             [[beta*tau, theta, self.beta],
-             self._symgrad_op._ratio])
+             self._symgrad_op.ratio])
 
         ynorm = np.abs(ynorm1 + ynorm2)**(1/2)
         lhs = np.sqrt(beta) * tau * np.abs(lhs1 + lhs2)**(1/2)
@@ -2212,7 +2242,7 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
         self._op.adjKyk1(
             [out_adj["Kyk1"]],
             [[in_dual["r"], in_dual["z1"], self._coils, self.modelgrad, []]],
-            [[self._grad_op._ratio]])
+            [[self._grad_op.ratio]])
 
         self._symgrad_op.fwd(
             [out_fwd["symgradx"]],
@@ -2224,7 +2254,7 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
             [[in_primal["x"]],
              [in_dual["z2"], in_dual["z1"], []]],
             [[],
-             self._symgrad_op._ratio])
+             self._symgrad_op.ratio])
 
     def _updatePrimal(self,
                       out_primal, out_fwd,
@@ -2283,7 +2313,7 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
             [[out_dual["r"],
               out_dual["z1"],
               self._coils, self.modelgrad, in_precomp_adj["Kyk1"]]],
-            [[self._grad_op._ratio]])
+            [[self._grad_op.ratio]])
 
         (lhs4, ynorm4) = self.update_dual_2.evalwithnorm(
             [out_dual["z2"],
@@ -2292,7 +2322,7 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
               in_precomp_fwd["symgradx"]],
              [[], out_dual["z1"], in_precomp_adj["Kyk2"]]],
             [[beta*tau, theta, self.beta],
-             self._symgrad_op._ratio])
+             self._symgrad_op.ratio])
 
         ynorm = np.abs(ynorm1+ynorm2+ynorm3+ynorm4)**(1/2)
         lhs = np.sqrt(beta)*tau*np.abs(lhs1+lhs2+lhs3+lhs4)**(1/2)
@@ -2355,7 +2385,6 @@ class PDSolverStreamedTV(PDSolverStreamed):
             tau,
             fval,
             prg,
-            linop,
             coils,
             model,
             imagespace=imagespace)
@@ -2423,7 +2452,7 @@ class PDSolverStreamedTV(PDSolverStreamed):
                 [in_dual["r"], in_dual["z1"],
                  self._coils, self.modelgrad, []]],
             [[],
-             [self._grad_op._ratio]])
+             [self._grad_op.ratio]])
 
     def _updatePrimal(self,
                       out_primal, out_fwd,
@@ -2468,7 +2497,7 @@ class PDSolverStreamedTV(PDSolverStreamed):
             [
                 [beta*tau, theta, self.alpha, self.omega],
                 [beta * tau, theta, self.lambd],
-                [self._grad_op._ratio]
+                [self._grad_op.ratio]
             ])
 
         ynorm = np.abs(ynorm1)**(1/2)
@@ -2582,8 +2611,6 @@ class PDSolverStreamedTVSMS(PDSolverStreamedTV):
                              self._packs*self._numofpacks,
                              par["dimY"], par["dimX"])
 
-        self._setupstreamingops = self._setupstreamingopsSMS
-
         self._expdim_dat = 1
         self._expdim_C = 0
 
@@ -2608,7 +2635,7 @@ class PDSolverStreamedTVSMS(PDSolverStreamedTV):
         self._op.adjKyk1(
             [out_adj["Kyk1"]],
             [[in_dual["r"], in_dual["z1"], self._coils, self.modelgrad, []]],
-            [[self._grad_op._ratio]])
+            [[self._grad_op.ratio]])
 
     def _updatePrimal(self,
                       out_primal, out_fwd,
@@ -2658,7 +2685,7 @@ class PDSolverStreamedTVSMS(PDSolverStreamedTV):
             [[out_dual["r"],
               out_dual["z1"],
               self._coils, self.modelgrad, in_precomp_adj["Kyk1"]]],
-            [[self._grad_op._ratio]])
+            [[self._grad_op.ratio]])
 
         ynorm = np.abs(ynorm1+ynorm2+ynorm3)**(1/2)
         lhs = np.sqrt(beta)*tau*np.abs(lhs1+lhs2+lhs3)**(1/2)
