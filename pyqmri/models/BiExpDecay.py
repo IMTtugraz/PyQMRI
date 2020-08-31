@@ -74,7 +74,7 @@ class Model(BaseModel):
                 True))
         self.guess = None
 
-        self._ax = None
+        self._ax = []
         self._M0_plot = None
         self._M0_plot_cor = None
         self._M0_plot_sag = None

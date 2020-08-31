@@ -190,7 +190,12 @@ class IRGNOptimizer:
             streamed=self._streamed,
             imagespace=self._imagespace
             )
-        self._setupPrivateAttributes()
+
+        self._gamma = None
+        self._delta = None
+        self._omega = None
+        self._step_val = None
+        self._modelgrad = None
 
     def _setupLinearOps(self, DTYPE, DTYPE_real):
         grad_op = operator.Operator.GradientOperatorFactory(
@@ -215,13 +220,6 @@ class IRGNOptimizer:
             if self._streamed:
                 v = np.require(np.swapaxes(v, 0, 1), requirements='C')
         return grad_op, symgrad_op, v
-
-    def _setupPrivateAttributes(self):
-        self._gamma = None
-        self._delta = None
-        self._omega = None
-        self._step_val = None
-        self._modelgrad = None
 
     def execute(self, data):
         """Start the IRGN optimization.
