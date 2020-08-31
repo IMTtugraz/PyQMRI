@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Module handling the start up of the fitting procedure."""
-import pyopencl as cl
 import argparse
 import os
 import h5py
@@ -14,6 +13,10 @@ from tkinter import filedialog
 from tkinter import Tk
 
 import matplotlib.pyplot as plt
+
+import pyopencl as cl
+import pyopencl.array as clarray
+
 
 from pyqmri._helper_fun import _goldcomp as goldcomp
 from pyqmri._helper_fun._est_coils import est_coils
@@ -31,27 +34,27 @@ def _choosePlatform(myargs, par):
     par["GPU"] = False
     par["Platform_Indx"] = 0
     if myargs.use_GPU:
-        for j in range(len(platforms)):
-            if platforms[j].get_devices(device_type=cl.device_type.GPU):
+        for j, platfrom in enumerate(platforms):
+            if platfrom.get_devices(device_type=cl.device_type.GPU):
                 print("GPU OpenCL platform <%s> found "
                       "with %i device(s) and OpenCL-version <%s>"
-                      % (str(platforms[j].get_info(cl.platform_info.NAME)),
-                         len(platforms[j].get_devices(
+                      % (str(platfrom.get_info(cl.platform_info.NAME)),
+                         len(platfrom.get_devices(
                              device_type=cl.device_type.GPU)),
-                         str(platforms[j].get_info(cl.platform_info.VERSION))))
+                         str(platfrom.get_info(cl.platform_info.VERSION))))
                 par["GPU"] = True
                 par["Platform_Indx"] = j
     if not par["GPU"]:
         if myargs.use_GPU:
             print("No GPU OpenCL platform found. Falling back to CPU.")
-        for j in range(len(platforms)):
-            if platforms[j].get_devices(device_type=cl.device_type.CPU):
+        for j, platfrom in enumerate(platforms):
+            if platfrom.get_devices(device_type=cl.device_type.CPU):
                 print("CPU OpenCL platform <%s> found "
                       "with %i device(s) and OpenCL-version <%s>"
-                      % (str(platforms[j].get_info(cl.platform_info.NAME)),
-                         len(platforms[j].get_devices(
+                      % (str(platfrom.get_info(cl.platform_info.NAME)),
+                         len(platfrom.get_devices(
                              device_type=cl.device_type.GPU)),
-                         str(platforms[j].get_info(cl.platform_info.VERSION))))
+                         str(platfrom.get_info(cl.platform_info.VERSION))))
                 par["GPU"] = False
                 par["Platform_Indx"] = j
     return platforms
@@ -107,7 +110,7 @@ def _setupOCL(myargs, par):
     platforms = _choosePlatform(myargs, par)
     par["ctx"] = []
     par["queue"] = []
-    if type(myargs.devices) == int:
+    if isinstance(myargs.devices, int):
         myargs.devices = [myargs.devices]
     if myargs.streamed:
         if len(myargs.devices) == 1 and myargs.devices[0] == -1:
@@ -155,7 +158,6 @@ def _setupOCL(myargs, par):
 def _genImages(myargs, par, data, off):
     if not myargs.usecg:
         FFT = utils.NUFFT(par, trafo=myargs.trafo, SMS=myargs.sms)
-        import pyopencl.array as clarray
 
         def nFTH(x, fft, par):
             siz = np.shape(x)
@@ -530,8 +532,8 @@ def _start_recon(myargs):
         par["par_slices"] = reco_Slices
         par["overlap"] = 0
     if not myargs.trafo:
-        tmpmask = np.ones((data[0, 0,  ...]).shape)
-        tmpmask[np.abs(data[0, 0,  ...]) == 0] = 0
+        tmpmask = np.ones((data[0, 0, ...]).shape)
+        tmpmask[np.abs(data[0, 0, ...]) == 0] = 0
         par['mask'] = np.reshape(
             tmpmask,
             (data[0, 0, ...].shape)).astype(DTYPE_real)
@@ -620,7 +622,7 @@ def _start_recon(myargs):
 def _str2bool(v):
     if isinstance(v, bool):
         return v
-    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+    elif v.lower() in ('yes', 'true', 't', 'y', '1'):
         return True
     elif v.lower() in ('no', 'false', 'f', 'n', '0'):
         return False

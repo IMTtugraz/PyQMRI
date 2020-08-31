@@ -386,12 +386,12 @@ class IRGNOptimizer:
         tmpres = self._pdop.run(x, res, iters)
         for key in tmpres:
             if key == 'x':
-                if type(tmpres[key]) == np.ndarray:
+                if isinstance(tmpres[key], np.ndarray):
                     x = tmpres["x"]
                 else:
                     x = tmpres["x"].get()
             if key == 'v':
-                if type(tmpres[key]) == np.ndarray:
+                if isinstance(tmpres[key], np.ndarray):
                     self._v = tmpres["v"]
                 else:
                     self._v = tmpres["v"].get()

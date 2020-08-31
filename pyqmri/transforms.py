@@ -650,16 +650,16 @@ class PyOpenCLCartNUFFT(PyOpenCLnuFFT):
                     self._tmp_fft_array.data,
                     self.DTYPE_real(
                         self.fft_scale)))
-        else:
-            return self.prg.copy(
-                        self.queue,
-                        (s.size,
-                         ),
-                        None,
-                        sg.data,
-                        s.data,
-                        self.DTYPE_real(1),
-                        wait_for=s.events+sg.events+wait_for)
+
+        return self.prg.copy(
+                    self.queue,
+                    (s.size,
+                     ),
+                    None,
+                    sg.data,
+                    s.data,
+                    self.DTYPE_real(1),
+                    wait_for=s.events+sg.events+wait_for)
 
     def FFT(self, s, sg, wait_for=None, scan_offset=0):
         """Perform the forward FFT operation.
@@ -712,16 +712,16 @@ class PyOpenCLCartNUFFT(PyOpenCLnuFFT):
                     self._tmp_fft_array.data,
                     self.mask.data,
                     wait_for=s.events+self._tmp_fft_array.events))
-        else:
-            return self.prg.copy(
-                        self.queue,
-                        (sg.size,
-                         ),
-                        None,
-                        s.data,
-                        sg.data,
-                        self.DTYPE_real(1),
-                        wait_for=s.events+sg.events+wait_for)
+
+        return self.prg.copy(
+                    self.queue,
+                    (sg.size,
+                     ),
+                    None,
+                    s.data,
+                    sg.data,
+                    self.DTYPE_real(1),
+                    wait_for=s.events+sg.events+wait_for)
 
 
 class PyOpenCLSMSNUFFT(PyOpenCLnuFFT):
@@ -875,22 +875,22 @@ class PyOpenCLSMSNUFFT(PyOpenCLnuFFT):
                                   self._tmp_fft_array.data,
                                   self.DTYPE_real(self.fft_scale),
                                   wait_for=self._tmp_fft_array.events))
-        else:
-            return self.prg.copy_SMS_adj(
-                    self.queue,
-                    (sg.shape[0] * sg.shape[1],
-                     sg.shape[-2],
-                     sg.shape[-1]),
-                    None,
-                    sg.data,
-                    s.data,
-                    self.shift.data,
-                    self.mask.data,
-                    np.int32(self.packs),
-                    np.int32(self.MB),
-                    self.DTYPE_real(1),
-                    np.int32(sg.shape[2]/self.packs/self.MB),
-                    wait_for=s.events+sg.events+wait_for)
+
+        return self.prg.copy_SMS_adj(
+                self.queue,
+                (sg.shape[0] * sg.shape[1],
+                 sg.shape[-2],
+                 sg.shape[-1]),
+                None,
+                sg.data,
+                s.data,
+                self.shift.data,
+                self.mask.data,
+                np.int32(self.packs),
+                np.int32(self.MB),
+                self.DTYPE_real(1),
+                np.int32(sg.shape[2]/self.packs/self.MB),
+                wait_for=s.events+sg.events+wait_for)
 
     def FFT(self, s, sg, wait_for=None, scan_offset=0):
         """Perform the forward FFT operation.
@@ -946,21 +946,21 @@ class PyOpenCLSMSNUFFT(PyOpenCLnuFFT):
                     self.DTYPE_real(self.fft_scale),
                     np.int32(sg.shape[2]/self.packs/self.MB),
                     wait_for=s.events+self._tmp_fft_array.events))
-        else:
-            return (
-                self.prg.copy_SMS_fwd(
-                    self.queue,
-                    (s.shape[0] * s.shape[1], s.shape[-2], s.shape[-1]),
-                    None,
-                    s.data,
-                    sg.data,
-                    self.shift.data,
-                    self.mask.data,
-                    np.int32(self.packs),
-                    np.int32(self.MB),
-                    self.DTYPE_real(1),
-                    np.int32(sg.shape[2]/self.packs/self.MB),
-                    wait_for=s.events+sg.events+wait_for))
+
+        return (
+            self.prg.copy_SMS_fwd(
+                self.queue,
+                (s.shape[0] * s.shape[1], s.shape[-2], s.shape[-1]),
+                None,
+                s.data,
+                sg.data,
+                self.shift.data,
+                self.mask.data,
+                np.int32(self.packs),
+                np.int32(self.MB),
+                self.DTYPE_real(1),
+                np.int32(sg.shape[2]/self.packs/self.MB),
+                wait_for=s.events+sg.events+wait_for))
 
 
 class PyOpenCLRadialNUFFTStreamed(PyOpenCLnuFFT):
@@ -1406,16 +1406,16 @@ class PyOpenCLCartNUFFTStreamed(PyOpenCLnuFFT):
                     self._tmp_fft_array.data,
                     self.DTYPE_real(
                         self.fft_scale)))
-        else:
-            return self.prg.copy(
-                        self.queue,
-                        (s.size,
-                         ),
-                        None,
-                        sg.data,
-                        s.data,
-                        self.DTYPE_real(1),
-                        wait_for=s.events+sg.events+wait_for)
+
+        return self.prg.copy(
+                    self.queue,
+                    (s.size,
+                     ),
+                    None,
+                    sg.data,
+                    s.data,
+                    self.DTYPE_real(1),
+                    wait_for=s.events+sg.events+wait_for)
 
     def FFT(self, s, sg, wait_for=None):
         """Perform the forward FFT operation.
@@ -1465,16 +1465,16 @@ class PyOpenCLCartNUFFTStreamed(PyOpenCLnuFFT):
                     self._tmp_fft_array.data,
                     self.mask.data,
                     wait_for=s.events+self._tmp_fft_array.events))
-        else:
-            return self.prg.copy(
-                self.queue,
-                (sg.size,
-                 ),
-                None,
-                s.data,
-                sg.data,
-                self.DTYPE_real(1),
-                wait_for=s.events+sg.events+wait_for)
+
+        return self.prg.copy(
+            self.queue,
+            (sg.size,
+             ),
+            None,
+            s.data,
+            sg.data,
+            self.DTYPE_real(1),
+            wait_for=s.events+sg.events+wait_for)
 
 
 class PyOpenCLSMSNUFFTStreamed(PyOpenCLnuFFT):
@@ -1622,22 +1622,22 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLnuFFT):
                                   self._tmp_fft_array.data,
                                   self.DTYPE_real(self.fft_scale),
                                   wait_for=self._tmp_fft_array.events))
-        else:
-            return self.prg.copy_SMS_adj(
-                    self.queue,
-                    (sg.shape[0] * sg.shape[1],
-                     sg.shape[-2],
-                     sg.shape[-1]),
-                    None,
-                    sg.data,
-                    s.data,
-                    self.shift.data,
-                    self.mask.data,
-                    np.int32(self.packs),
-                    np.int32(self.MB),
-                    self.DTYPE_real(1),
-                    np.int32(sg.shape[2]/self.packs/self.MB),
-                    wait_for=s.events+sg.events+wait_for)
+
+        return self.prg.copy_SMS_adj(
+                self.queue,
+                (sg.shape[0] * sg.shape[1],
+                 sg.shape[-2],
+                 sg.shape[-1]),
+                None,
+                sg.data,
+                s.data,
+                self.shift.data,
+                self.mask.data,
+                np.int32(self.packs),
+                np.int32(self.MB),
+                self.DTYPE_real(1),
+                np.int32(sg.shape[2]/self.packs/self.MB),
+                wait_for=s.events+sg.events+wait_for)
 
     def FFT(self, s, sg, wait_for=None):
         """Perform the forward FFT operation.
@@ -1687,18 +1687,18 @@ class PyOpenCLSMSNUFFTStreamed(PyOpenCLnuFFT):
                     self.DTYPE_real(self.fft_scale),
                     np.int32(sg.shape[2]/self.packs/self.MB),
                     wait_for=s.events+self._tmp_fft_array.events))
-        else:
-            return (
-                self.prg.copy_SMS_fwd(
-                    self.queue,
-                    (s.shape[0] * s.shape[1], s.shape[-2], s.shape[-1]),
-                    None,
-                    s.data,
-                    sg.data,
-                    self.shift.data,
-                    self.mask.data,
-                    np.int32(self.packs),
-                    np.int32(self.MB),
-                    self.DTYPE_real(1),
-                    np.int32(sg.shape[2]/self.packs/self.MB),
-                    wait_for=s.events+sg.events+wait_for))
+
+        return (
+            self.prg.copy_SMS_fwd(
+                self.queue,
+                (s.shape[0] * s.shape[1], s.shape[-2], s.shape[-1]),
+                None,
+                s.data,
+                sg.data,
+                self.shift.data,
+                self.mask.data,
+                np.int32(self.packs),
+                np.int32(self.MB),
+                self.DTYPE_real(1),
+                np.int32(sg.shape[2]/self.packs/self.MB),
+                wait_for=s.events+sg.events+wait_for))

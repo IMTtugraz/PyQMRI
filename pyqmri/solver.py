@@ -10,13 +10,13 @@ Attribues:
 """
 
 from __future__ import division
+import sys
 import numpy as np
 from pkg_resources import resource_filename
 import pyopencl as cl
 import pyopencl.array as clarray
 import pyqmri.operator as operator
 from pyqmri._helper_fun import CLProgram as Program
-import sys
 import pyqmri.streaming as streaming
 DTYPE = np.complex64
 DTYPE_real = np.float32
@@ -595,8 +595,7 @@ class PDBaseSolver:
                     )
                 if lhs <= ynorm * delta_line:
                     break
-                else:
-                    tau_new = tau_new * mu_line
+                tau_new = tau_new * mu_line
 
             tau = tau_new
             for j, k in zip(primal_vars_new,
@@ -625,7 +624,7 @@ class PDBaseSolver:
 
             if not np.mod(i, 10):
                 if self.display_iterations:
-                    if type(primal_vars["x"]) is np.ndarray:
+                    if isinstance(primal_vars["x"], np.ndarray):
                         self.model.plot_unknowns(
                             np.swapaxes(primal_vars["x"], 0, 1))
                     else:
