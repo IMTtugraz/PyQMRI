@@ -29,7 +29,6 @@ RUN pip3 install pyopencl
 
 RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash
     
-
 RUN git clone https://github.com/geggo/gpyfft.git &&\
     pip3 install gpyfft/. &&\
     pip3 install pytest &&\
@@ -37,5 +36,3 @@ RUN git clone https://github.com/geggo/gpyfft.git &&\
     pip3 install pylint &&\
     pip3 install pylint_junit &&\
     pip3 install pytest-integration
-
-RUN git clone https://github.com/MaierOli2010/PyQMRI
