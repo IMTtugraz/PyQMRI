@@ -6,14 +6,15 @@ ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
 ENV DEBIAN_FRONTEND=noninteractive 
 ENV DEBCONF_NONINTERACTIVE_SEEN=true
 
-RUN apt-get update
-
-RUN apt-get install -y python3 && \
+RUN apt-get update &&\
+    apt-get install -y python3 && \
     apt-get install -y python3-pip && \
     apt-get install -y python3-tk && \
     apt-get install -y ocl-icd* opencl-headers &&\
     apt-get install -y libclfft* &&\
-    apt-get install -y git 
+    apt-get install -y git &&\
+    apt-get install -y curl &&\
+    apt-get install -y tar
 
 ENV JENKINS_HOME /var/jenkins_home
 ENV JENKINS_SLAVE_AGENT_PORT 50000
