@@ -14,7 +14,8 @@ RUN apt-get install -y python3 && \
     apt-get install -y ocl-icd* opencl-headers &&\
     apt-get install -y libclfft* &&\
     apt-get install -y git &&\
-    apt-get install -y wget
+    apt-get install -y curl &&\
+    apt-get install -y tar &&\
 
 ENV JENKINS_HOME /var/jenkins_home
 ENV JENKINS_SLAVE_AGENT_PORT 50000
@@ -27,7 +28,7 @@ ENV PATH="/var/jenkins_home/.local:${PATH}"
 
 RUN pip3 install cython 
 RUN pip3 install pyopencl
-RUN wget https://github.com/git-lfs/git-lfs/releases/download/v2.11.0/git-lfs-linux-amd64-v2.11.0.tar.gz &&\
+RUN curl https://github.com/git-lfs/git-lfs/releases/download/v2.11.0/git-lfs-linux-amd64-v2.11.0.tar.gz &&\
     tar -xf git-lfs-linux-amd64-v2.11.0.tar.gz &&\
     cd git-lfs-linux-amd64-v2.11.0 &&\
     ./install.sh
