@@ -12,8 +12,7 @@ RUN apt-get update &&\
     apt-get install -y python3-tk && \
     apt-get install -y ocl-icd* opencl-headers &&\
     apt-get install -y libclfft* &&\
-    apt-get install -y git &&\
-    apt-get install -y curl
+    apt-get install -y git
 
 ENV JENKINS_HOME /var/jenkins_home
 ENV JENKINS_SLAVE_AGENT_PORT 50000
@@ -26,10 +25,6 @@ ENV PATH="/var/jenkins_home/.local:${PATH}"
 
 RUN pip3 install cython 
 RUN pip3 install pyopencl
-
-RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash
-
-RUN git lfs install
     
 RUN git clone https://github.com/geggo/gpyfft.git &&\
     pip3 install gpyfft/. &&\
