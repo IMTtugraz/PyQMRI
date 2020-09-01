@@ -88,8 +88,11 @@ def gen_default_config():
 
 def read_config(conf_file, reg_type="DEFAULT"):
     config = configparser.ConfigParser()
+
+    if not conf_file.endswith('.ini'):
+        conf_file.append('.ini')
     try:
-        with open(conf_file + '.ini', 'r') as f:
+        with open(conf_file, 'r') as f:
             config.read_file(f)
     except BaseException:
         print("Config file not readable or not found. "

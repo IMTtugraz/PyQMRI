@@ -31,5 +31,6 @@ RUN git clone https://github.com/geggo/gpyfft.git &&\
     pip3 install pytest &&\
     pip3 install pytest-cov &&\
     pip3 install pylint &&\
-    pip3 install pylint_junit
+    pip3 install pylint_junit &&\
+    pip3 install pytest-integration
 

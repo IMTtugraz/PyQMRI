@@ -18,9 +18,9 @@ pipeline {
         sh 'pylint -ry --output-format=parseable --exit-zero ./pyqmri > pylint.log'
       }
     }
-    stage('Unittests') {
+    stage('Testing') {
       steps {
-        sh 'pytest --junitxml results.xml --cov=pyqmri test/'
+        sh 'pytest --junitxml results.xml --cov=pyqmri --integration-cover test/'
         sh 'coverage xml'
       }
     }

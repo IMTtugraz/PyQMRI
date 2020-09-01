@@ -48,8 +48,10 @@ class Model(BaseModel):
     def __init__(self, par):
 
         super().__init__(par)
-
         config = configparser.ConfigParser()
+
+        if not par["modelfile"].endswith('.ini'):
+            par["modelfile"].append('.ini')
         try:
             with open(par["modelfile"], 'r') as f:
                 config.read_file(f)

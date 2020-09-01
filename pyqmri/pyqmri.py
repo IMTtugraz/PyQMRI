@@ -326,6 +326,7 @@ def _readInput(myargs, par):
         file = myargs.file
     name = os.path.normpath(file)
     par["fname"] = name.split(os.sep)[-1]
+
     if myargs.outdir == '':
         outdir = os.sep.join(name.split(os.sep)[:-1]) + os.sep + \
             "PyQMRI_out" + \
@@ -585,7 +586,7 @@ def _start_recon(myargs):
 ###############################################################################
     data, images = _estScaleNorm(myargs, par, images, data)
 
-    if myargs.weights is None:
+    if myargs.weights is -1:
         par["weights"] = np.ones((par["unknowns"]), dtype=np.float32)
     else:
         par["weights"] = np.array(myargs.weights, dtype=np.float32)
@@ -629,13 +630,25 @@ def _str2bool(v):
     raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
-def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
+def run(recon_type='3D',
+        reg_type='TGV',
+        slices=1,
+        trafo=True,
         streamed=False,
-        par_slices=1, data='', model='GeneralModel', config='default',
+        par_slices=1,
+        data='',
+        model='GeneralModel',
+        config='default',
         imagespace=False,
-        OCL_GPU=True, sms=False, devices=0, dz=1, weights=None,
+        OCL_GPU=True,
+        sms=False,
+        devices=0,
+        dz=1,
+        weights=-1,
+        useCGguess=True,
         out='',
-        modelfile="models.ini", modelname="VFA-E1"):
+        modelfile="models.ini",
+        modelname="VFA-E1"):
     """
     Start a 3D model based reconstruction.
 
@@ -699,161 +712,124 @@ def run(recon_type='3D', reg_type='TGV', slices=1, trafo=True,
         Path to the .mod file for the generative model.
       modelname : str
         Name of the model in the .mod file to use.
+      weights : list of float, -1
+        Optional weights for each unknown. Defaults to -1, i.e. no additional
+        weights are used.
     """
-    argparrun = argparse.ArgumentParser(
-        description="T1 quantification from VFA "
-                    "data. By default runs 3D "
-                    "regularization for TGV.")
-    argparrun.add_argument(
-      '--recon_type', default=recon_type, dest='type',
-      help='Choose reconstruction type (currently only 3D)')
-    argparrun.add_argument(
-      '--reg_type', default=reg_type, dest='reg',
-      help="Choose regularization type (default: TGV) "
-           "options are: TGV, TV, all")
-    argparrun.add_argument(
-      '--slices', default=slices, dest='slices', type=int,
-      help="Number of reconstructed slices (default=40). "
-           "Symmetrical around the center slice.")
-    argparrun.add_argument(
-      '--trafo', default=trafo, dest='trafo', type=_str2bool,
-      help='Choos between radial (1, default) and Cartesian (0) sampling. ')
-    argparrun.add_argument(
-      '--streamed', default=streamed, dest='streamed', type=_str2bool,
-      help='Enable streaming of large data arrays (e.g. >10 slices).')
-    argparrun.add_argument(
-      '--par_slices', default=par_slices, dest='par_slices', type=int,
-      help='number of slices per package. Volume devided by GPU\'s and'
-           ' par_slices must be an even number!')
-    argparrun.add_argument(
-      '--data', default=data, dest='file',
-      help="Full path to input data. "
-           "If not provided, a file dialog will open.")
-    argparrun.add_argument(
-      '--config', default=config, dest='config',
-      help="Name of config file to use (assumed to be in the same folder). "
-           "If not specified, use default parameters.")
-    argparrun.add_argument(
-      '--imagespace', default=imagespace, dest='imagespace', type=_str2bool,
-      help="Select if Reco is performed on images (1) or on kspace (0) data. "
-           "Defaults to 0")
-    argparrun.add_argument(
-      '--sms', default=sms, dest='sms', type=_str2bool,
-      help="Switch to SMS reconstruction")
-    argparrun.add_argument(
-      '--OCL_GPU', default=OCL_GPU, dest='use_GPU', type=_str2bool,
-      help="Select if CPU or GPU should be used as OpenCL platform. "
-           "Defaults to GPU (1). CAVE: CPU FFT not working")
-    argparrun.add_argument(
-      '--devices', default=devices, dest='devices', type=int,
-      help="Device ID of device(s) to use for streaming. "
-           "-1 selects all available devices", nargs='*')
-    argparrun.add_argument(
-      '--dz', default=dz, dest='dz', type=float,
-      help="Ratio of physical Z to X/Y dimension. "
-           "X/Y is assumed to be isotropic. Defaults to 1")
-    argparrun.add_argument(
-      '--weights', default=weights, dest='weights', type=float,
-      help="Ratio of unkowns to each other. Defaults to 1. "
-           "If passed, needs to be in the same size as the number of unknowns",
-           nargs='*')
-    argparrun.add_argument(
-      '--useCGguess', default=True, dest='usecg', type=_str2bool,
-      help="Switch between CG sense and simple FFT as \
-            initial guess for the images.")
-    argparrun.add_argument('--out', default=out, dest='outdir', type=str,
-                           help="Set output directory. Defaults to the input "
-                                "file directory")
-    group_console = argparrun.add_mutually_exclusive_group()
-    group_console.add_argument(
-      '--model', default=model, dest='sig_model',
-      help='Name of the signal model to use. Defaults to VFA. \
- Please put your signal model file in the Model subfolder.')
-    group_console.add_argument(
-      '--modelfile', default=modelfile, dest='modelfile', type=str,
-      help="Path to the model file.")
-    argparrun.add_argument(
-      '--modelname', default=modelname, dest='modelname', type=str,
-      help="Name of the model to use.")
-    argsrun = argparrun.parse_args()
+    params = [('--recon_type', str(recon_type)),
+              ('--reg_type', str(reg_type)),
+              ('--slices', str(slices)),
+              ('--trafo', str(trafo)),
+              ('--streamed', str(streamed)),
+              ('--par_slices', str(par_slices)),
+              ('--data', str(data)),
+              ('--config', str(config)),
+              ('--imagespace', str(imagespace)),
+              ('--sms', str(sms)),
+              ('--OCL_GPU', str(OCL_GPU)),
+              ('--devices', str(devices)),
+              ('--dz', str(dz)),
+              ('--weights', str(weights)),
+              ('--useCGguess', str(useCGguess)),
+              ('--model', str(model)),
+              ('--modelfile', str(modelfile)),
+              ('--modelname', str(modelname)),
+              ('--outdir', str(out))
+              ]
+
+    sysargs = sys.argv[1:]
+    for par_name, par_value in params:
+        if par_name not in sysargs:
+            sysargs.append(par_name)
+            sysargs.append(par_value)
+    argsrun, unknown = _parseArguments(sysargs)
+    if unknown:
+        print("Unknown command line arguments passed: " + str(unknown) + "."
+              " These will be ignored for fitting.")
     _start_recon(argsrun)
 
 
-if __name__ == '__main__':
+def _parseArguments(args):
     argparmain = argparse.ArgumentParser(
         description="T1 quantification from VFA "
                     "data. By default runs 3D "
                     "regularization for TGV.")
     argparmain.add_argument(
-      '--recon_type', default='3D', dest='type',
+      '--recon_type', dest='type',
       help='Choose reconstruction type (currently only 3D)')
     argparmain.add_argument(
-      '--reg_type', default='TGV', dest='reg',
+      '--reg_type', dest='reg',
       help="Choose regularization type (default: TGV) "
            "options are: TGV, TV, all")
     argparmain.add_argument(
-      '--slices', default=-1, dest='slices', type=int,
+      '--slices', dest='slices', type=int,
       help="Number of reconstructed slices (default=40). "
            "Symmetrical around the center slice.")
     argparmain.add_argument(
-      '--trafo', default=True, dest='trafo', type=_str2bool,
+      '--trafo', dest='trafo', type=_str2bool,
       help='Choos between radial (1, default) and Cartesian (0) sampling. ')
     argparmain.add_argument(
-      '--streamed', default=False, dest='streamed', type=_str2bool,
+      '--streamed', dest='streamed', type=_str2bool,
       help='Enable streaming of large data arrays (e.g. >10 slices).')
     argparmain.add_argument(
-      '--par_slices', default=1, dest='par_slices', type=int,
+      '--par_slices', dest='par_slices', type=int,
       help='number of slices per package. Volume devided by GPU\'s and'
            ' par_slices must be an even number!')
     argparmain.add_argument(
-      '--data', default='', dest='file',
+      '--data', dest='file',
       help="Full path to input data. "
            "If not provided, a file dialog will open.")
     argparmain.add_argument(
-      '--config', default='default', dest='config',
+      '--config', dest='config',
       help='Name of config file to use (assumed to be in the same folder). \
  If not specified, use default parameters.')
     argparmain.add_argument(
-      '--imagespace', default=False, dest='imagespace', type=_str2bool,
+      '--imagespace', dest='imagespace', type=_str2bool,
       help="Select if Reco is performed on images (1) or on kspace (0) data. "
            "Defaults to 0")
     argparmain.add_argument(
-      '--sms', default=False, dest='sms', type=_str2bool,
+      '--sms', dest='sms', type=_str2bool,
       help="Switch to SMS reconstruction")
     argparmain.add_argument(
-      '--OCL_GPU', default=True, dest='use_GPU', type=_str2bool,
+      '--OCL_GPU', dest='use_GPU', type=_str2bool,
       help="Select if CPU or GPU should be used as OpenCL platform. "
            "Defaults to GPU (1). CAVE: CPU FFT not working")
     argparmain.add_argument(
-      '--devices', default=0, dest='devices', type=int,
+      '--devices', dest='devices', type=int,
       help="Device ID of device(s) to use for streaming. "
            "-1 selects all available devices", nargs='*')
     argparmain.add_argument(
-      '--dz', default=1, dest='dz', type=float,
+      '--dz', dest='dz', type=float,
       help="Ratio of physical Z to X/Y dimension. "
            "X/Y is assumed to be isotropic. Defaults to  1")
     argparmain.add_argument(
-      '--weights', default=None, dest='weights', type=float,
+      '--weights', dest='weights', type=float,
       help="Ratio of unkowns to each other. Defaults to 1. "
            "If passed, needs to be in the same size as the number of unknowns",
            nargs='*')
     argparmain.add_argument(
-      '--useCGguess', default=True, dest='usecg', type=_str2bool,
+      '--useCGguess', dest='usecg', type=_str2bool,
       help="Switch between CG sense and simple FFT as "
            "initial guess for the images.")
-    argparmain.add_argument('--out', default='', dest='outdir', type=str,
+    argparmain.add_argument('--out', dest='outdir', type=str,
                             help="Set output directory. Defaults to the input "
                             "file directory")
-    group = argparmain.add_mutually_exclusive_group()
-    group.add_argument(
-      '--model', default='GeneralModel', dest='sig_model',
+    argparmain.add_argument(
+      '--model', dest='sig_model',
       help='Name of the signal model to use. Defaults to VFA. \
  Please put your signal model file in the Model subfolder.')
-    group.add_argument(
-      '--modelfile', default="models.ini", dest='modelfile', type=str,
+    argparmain.add_argument(
+      '--modelfile', dest='modelfile', type=str,
       help="Path to the model file.")
     argparmain.add_argument(
-      '--modelname', default="VFA-E1", dest='modelname', type=str,
+      '--modelname', dest='modelname', type=str,
       help="Name of the model to use.")
-    argsmain = argparmain.parse_args()
-    _start_recon(argsmain)
+    argparmain.add_argument('--outdir', dest='outdir', type=str,
+                            help="The path to the output directory. Defaults "
+                            "to the location of the input.")
+    arguments, unknown = argparmain.parse_known_args(args)
+    return arguments, unknown
+
+
+if __name__ == '__main__':
+    run()
