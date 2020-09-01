@@ -1,26 +1,3 @@
-node{
-  checkout(
-    [
-      $class: 'GitSCM', 
-      branches: [[name: '**']], 
-      doGenerateSubmoduleConfigurations: false, 
-      extensions: [
-      [$class: 'GitLFSPull'],
-      [$class: 'CheckoutOption', timeout: 20],
-      [$class: 'CloneOption',
-              depth: 0,
-              noTags: false,
-              shallow: false,
-              timeout: 120]
-      ], 
-      submoduleCfg: [], 
-      userRemoteConfigs: [
-      [credentialsId: 'github', 
-       url: 'https://github.com/MaierOli2010/PyQMRI']]
-    ]
-    )
-}
-
 pipeline {    
   agent {
     dockerfile {
