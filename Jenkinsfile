@@ -8,7 +8,6 @@ pipeline {
   stages {
     stage('Checkout') {
       steps {
-        cleanWs()
         checkout(
         [
           $class: 'GitSCM', 
