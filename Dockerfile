@@ -15,7 +15,7 @@ RUN apt-get install -y python3 && \
     apt-get install -y libclfft* &&\
     apt-get install -y git &&\
     apt-get install -y curl &&\
-    apt-get install -y tar &&\
+    apt-get install -y tar
 
 ENV JENKINS_HOME /var/jenkins_home
 ENV JENKINS_SLAVE_AGENT_PORT 50000
