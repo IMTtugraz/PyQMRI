@@ -7,6 +7,18 @@ pipeline {
 
   }
   stages {
+  stage('Checkout') {
+    checkout(
+      [
+        $class: 'GitSCM', 
+        branches: [[name: '**']], 
+        doGenerateSubmoduleConfigurations: false, 
+        extensions: [[$class: 'GitLFSPull']], 
+        submoduleCfg: [], 
+        userRemoteConfigs: [[credentialsId: 'github', url: 'https://github.com/MaierOli2010/PyQMRI']]
+      ]
+      )
+    }
     stage('Build') {
       steps {
         sh 'pip3 install -r requirements.txt'
