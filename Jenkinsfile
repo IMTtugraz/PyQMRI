@@ -1,4 +1,4 @@
-pipeline {
+node{
   checkout(
     [
       $class: 'GitSCM', 
@@ -9,7 +9,9 @@ pipeline {
       userRemoteConfigs: [[credentialsId: 'github', url: 'https://github.com/MaierOli2010/PyQMRI']]
     ]
     )
-      
+}
+
+pipeline {    
   agent {
     dockerfile {
       filename 'Dockerfile'
