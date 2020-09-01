@@ -34,7 +34,6 @@ pipeline {
           cobertura coberturaReportFile: 'coverage.xml'
           junit 'results.xml'
           recordIssues enabledForFailure: true, tool: pyLint(pattern: 'pylint.log')
-          cleanWs()
       }
   }
 }
