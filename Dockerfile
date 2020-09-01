@@ -26,7 +26,12 @@ ENV PATH="/var/jenkins_home/.local:${PATH}"
 
 RUN pip3 install cython 
 RUN pip3 install pyopencl
-RUN git install lfs
+RUN wget https://github.com/git-lfs/git-lfs/releases/download/v2.11.0/git-lfs-linux-amd64-v2.11.0.tar.gz &&\
+    tar -xf git-lfs-linux-amd64-v2.11.0.tar.gz &&\
+    cd git-lfs-linux-amd64-v2.11.0 &&\
+    ./install.sh
+    
+
 RUN git clone https://github.com/geggo/gpyfft.git &&\
     pip3 install gpyfft/. &&\
     pip3 install pytest &&\
