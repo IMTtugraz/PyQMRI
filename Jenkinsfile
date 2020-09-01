@@ -21,8 +21,7 @@ pipeline {
           userRemoteConfigs: [
             [credentialsId: 'github', 
             url: 'https://github.com/MaierOli2010/PyQMRI']]])
-         sh 'cd test'   
-         sh 'ls -la'
+         sh 'ls -la test'
         } 
     }
     stage('Build') {
