@@ -4,9 +4,19 @@ node{
       $class: 'GitSCM', 
       branches: [[name: '**']], 
       doGenerateSubmoduleConfigurations: false, 
-      extensions: [[$class: 'GitLFSPull']], 
+      extensions: [
+      [$class: 'GitLFSPull'],
+      [$class: 'CheckoutOption', timeout: 20],
+      [$class: 'CloneOption',
+              depth: 0,
+              noTags: false,
+              shallow: false,
+              timeout: 120]
+      ], 
       submoduleCfg: [], 
-      userRemoteConfigs: [[credentialsId: 'github', url: 'https://github.com/MaierOli2010/PyQMRI']]
+      userRemoteConfigs: [
+      [credentialsId: 'github', 
+       url: 'https://github.com/MaierOli2010/PyQMRI']]
     ]
     )
 }
