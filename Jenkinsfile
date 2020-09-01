@@ -1,32 +1,11 @@
-pipeline {      
+pipeline {  
+  checkout([$class: 'GitSCM', branches: [[name: '**']], doGenerateSubmoduleConfigurations: false, extensions: [[$class: 'CheckoutOption', timeout: 5], [$class: 'CloneOption', noTags: false, reference: '', shallow: false, timeout: 5], [$class: 'GitLFSPull']], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'github', url: 'https://github.com/MaierOli2010/PyQMRI']]])
   agent {
     dockerfile {
       filename 'Dockerfile'
       args '--gpus all -u root'
   }
   stages {
-      checkout(
-        [
-          $class: 'GitSCM', 
-          branches: [[name: '**']], 
-          doGenerateSubmoduleConfigurations: false, 
-          extensions: [
-          [$class: 'GitLFSPull'],
-          [$class: 'CheckoutOption', timeout: 20],
-          [$class: 'CloneOption',
-                  depth: 0,
-                  noTags: false,
-                  shallow: false,
-                  timeout: 120]
-          ], 
-          submoduleCfg: [], 
-          userRemoteConfigs: [
-          [credentialsId: 'github', 
-          url: 'https://github.com/MaierOli2010/PyQMRI']]
-        ]
-        )
-        }
-    
     stage('Build') {
       steps {
         sh 'pip3 install -r requirements.txt'
