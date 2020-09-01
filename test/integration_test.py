@@ -47,7 +47,7 @@ def test_VFA_model_kspace_TV():
 
 @pytest.mark.integration_test
 def test_VFA_model_kspace_TGV_cart():
-    assert pyqmri.run(data=os.getcwd()+'/test/VFA_cart.h5',
+    assert pyqmri.run(data=os.getcwd()+'/test/VFA_cart_test.h5',
                       model='VFA',
                       config=os.getcwd()+'/test/default.ini',
                       trafo=False,
@@ -56,7 +56,7 @@ def test_VFA_model_kspace_TGV_cart():
 
 @pytest.mark.integration_test
 def test_VFA_model_kspace_TGV_cart_multislice():
-    assert pyqmri.run(data=os.getcwd()+'/test/VFA_cart.h5',
+    assert pyqmri.run(data=os.getcwd()+'/test/VFA_cart_test.h5',
                       model='VFA',
                       config=os.getcwd()+'/test/default.ini',
                       trafo=False,
@@ -66,7 +66,7 @@ def test_VFA_model_kspace_TGV_cart_multislice():
 
 @pytest.mark.integration_test
 def test_VFA_model_kspace_TGV_cart_multislice_streamed():
-    assert pyqmri.run(data=os.getcwd()+'/test/VFA_cart.h5',
+    assert pyqmri.run(data=os.getcwd()+'/test/VFA_cart_test.h5',
                       model='VFA',
                       config=os.getcwd()+'/test/default.ini',
                       trafo=False,

@@ -699,7 +699,7 @@ class PDBaseSolver:
                     tau,
                     theta
                     ):
-        return ([], [])
+        return ({}, {})
 
     def _calcResidual(
                     self,
@@ -708,10 +708,10 @@ class PDBaseSolver:
                     in_precomp_fwd,
                     in_precomp_adj,
                     data):
-        return ([], [], [])
+        return ({}, {}, {})
 
     def _setupVariables(self, inp, data):
-        return ([], [], [], [], [], [], [], [], [])
+        return ({}, {}, {}, {}, {}, {}, {}, {}, {})
 
     def _updateConstraints(self):
         num_const = (len(self.model.constraints))
