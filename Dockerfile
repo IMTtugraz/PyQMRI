@@ -28,6 +28,8 @@ RUN pip3 install cython
 RUN pip3 install pyopencl
 
 RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash
+
+RUN git lfs install
     
 RUN git clone https://github.com/geggo/gpyfft.git &&\
     pip3 install gpyfft/. &&\
