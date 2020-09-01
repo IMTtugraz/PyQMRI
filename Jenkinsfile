@@ -7,20 +7,22 @@ pipeline {
   }
   stages {
     stage('Checkout') {
-      cleanWs()
-      checkout(
-      [
-        $class: 'GitSCM', 
-        branches: [[name: '**']], 
-        doGenerateSubmoduleConfigurations: false, 
-        extensions: [
-          [$class: 'CheckoutOption', timeout: 5], 
-          [$class: 'CloneOption', noTags: false, reference: '', shallow: false, timeout: 5], 
-          [$class: 'GitLFSPull']], 
-        submoduleCfg: [], 
-        userRemoteConfigs: [
-          [credentialsId: 'github', 
-          url: 'https://github.com/MaierOli2010/PyQMRI']]])
+      steps {
+        cleanWs()
+        checkout(
+        [
+          $class: 'GitSCM', 
+          branches: [[name: '**']], 
+          doGenerateSubmoduleConfigurations: false, 
+          extensions: [
+            [$class: 'CheckoutOption', timeout: 5], 
+            [$class: 'CloneOption', noTags: false, reference: '', shallow: false, timeout: 5], 
+            [$class: 'GitLFSPull']], 
+          submoduleCfg: [], 
+          userRemoteConfigs: [
+            [credentialsId: 'github', 
+            url: 'https://github.com/MaierOli2010/PyQMRI']]])
+        } 
     }
     stage('Build') {
       steps {
