@@ -19,13 +19,13 @@ pipeline {
     }
     stage('Unittests') {
       steps {
-        sh 'pytest --junitxml results_unittests.xml --cov=pyqmri --integration-cover test/Unittests'
+        sh 'pytest --junitxml results_unittests.xml --cov=pyqmri test/unittests/'
       }
     }
     stage('Integrationtests') {
       steps {
         sh 'ipcluster start&'
-        sh 'pytest --junitxml results_integrationtests.xml --cov=pyqmri --integration-cover test/Integrationtests'
+        sh 'pytest --junitxml results_integrationtests.xml --cov=pyqmri --integration-cover test/integrationtests/'
         sh 'coverage xml'
         sh 'ipcluster stop&'
       }
