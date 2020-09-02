@@ -19,8 +19,10 @@ pipeline {
     }
     stage('Testing') {
       steps {
+        sh 'ipcluster start&'
         sh 'pytest --junitxml results.xml --cov=pyqmri --integration-cover test/'
         sh 'coverage xml'
+        sh 'ipcluster stop&'
       }
     }
   }

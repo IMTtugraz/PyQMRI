@@ -96,11 +96,17 @@ def gen_multislice_data():
 
     slices = 4
 
-    file_out["Coils"] = np.repeat(Coils, repeat=slices, axis=1)
-    file_out["real_dat"] = np.repeat(real_dat, repeat=slices, axis=2)
-    file_out["imag_dat"] = np.repeat(imag_dat, repeat=slices, axis=2)
-    file_out["fa_corr"] = np.repeat(fa_corr, repeat=slices, axis=0)
-    file_out["images"] = np.repeat(images, repeat=slices, axis=1)
+    Coils = np.repeat(Coils, repeat=slices, axis=1)
+    real_dat = np.repeat(real_dat, repeat=slices, axis=2)
+    imag_dat = np.repeat(imag_dat, repeat=slices, axis=2)
+    fa_corr = np.repeat(fa_corr, repeat=slices, axis=0)
+    images = np.repeat(images, repeat=slices, axis=1)
+
+    file_out["Coils"] = Coils
+    file_out["real_dat"] = real_dat
+    file_out["imag_dat"] = imag_dat
+    file_out["fa_corr"] = fa_corr
+    file_out["images"] = images
 
     image_dimensions[2] = slices
 
