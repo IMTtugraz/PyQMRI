@@ -6,7 +6,6 @@ import argparse
 import os
 import time
 import importlib
-import gc
 
 import numpy as np
 from tkinter import filedialog
@@ -604,9 +603,6 @@ def _start_recon(myargs):
     else:
         opt.execute(data)
     plt.close('all')
-
-    del par["ctx"], par["queue"], opt, model, par
-    gc.collect()
 
 
 def _str2bool(v):
