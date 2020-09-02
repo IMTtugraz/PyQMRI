@@ -6,11 +6,6 @@ pipeline {
       }
   }
   stages {
-    stage('Checkout') {
-      steps {
-         sh 'ls -la test'
-        } 
-    }
     stage('Build') {
       steps {
         sh 'pip3 install -r requirements.txt'

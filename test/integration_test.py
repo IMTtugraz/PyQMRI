@@ -9,6 +9,8 @@ import pytest
 import os
 import pyqmri
 import shutil
+import h5py
+import numpy as np
 
 
 @pytest.mark.integration_test
@@ -47,7 +49,7 @@ def test_VFA_model_kspace_TV():
 
 @pytest.mark.integration_test
 def test_VFA_model_kspace_TGV_cart():
-    assert pyqmri.run(data=os.getcwd()+'/test/VFA_cart_test.h5',
+    assert pyqmri.run(data=os.getcwd()+'/test/VFA_cart_smalltest.h5',
                       model='VFA',
                       config=os.getcwd()+'/test/default.ini',
                       trafo=False,
@@ -55,7 +57,7 @@ def test_VFA_model_kspace_TGV_cart():
 
 
 @pytest.mark.integration_test
-def test_VFA_model_kspace_TGV_cart_multislice():
+def test_VFA_model_kspace_TGV_cart_multislice(gen_multislice_data):
     assert pyqmri.run(data=os.getcwd()+'/test/VFA_cart_test.h5',
                       model='VFA',
                       config=os.getcwd()+'/test/default.ini',
@@ -65,7 +67,7 @@ def test_VFA_model_kspace_TGV_cart_multislice():
 
 
 @pytest.mark.integration_test
-def test_VFA_model_kspace_TGV_cart_multislice_streamed():
+def test_VFA_model_kspace_TGV_cart_multislice_streamed(gen_multislice_data):
     assert pyqmri.run(data=os.getcwd()+'/test/VFA_cart_test.h5',
                       model='VFA',
                       config=os.getcwd()+'/test/default.ini',
@@ -74,6 +76,38 @@ def test_VFA_model_kspace_TGV_cart_multislice_streamed():
                       streamed=1,
                       devices=0,
                       ) is None
+
+
+@pytest.fixture(scope="function")
+def gen_multislice_data():
+    file = h5py.File(os.getcwd()+'/test/VFA_cart_smalltest.h5')
+
+    Coils = file["Coils"][()]
+    real_dat = file["real_dat"][()]
+    imag_dat = file["imag_dat"][()]
+    images = file["images"][()]
+    fa_corr = file["fa_corr"][()]
+
+    image_dimensions = file.attrs["image_dimensions"]
+    fa = file.attrs["fa"][()]
+    TR = file.attrs["TR"]
+
+    file_out = h5py.File(os.getcwd()+'/test/VFA_cart_test.h5')
+
+    slices = 4
+
+    file_out["Coils"] = np.repeat(Coils, repeat=slices, axis=1)
+    file_out["real_dat"] = np.repeat(real_dat, repeat=slices, axis=2)
+    file_out["imag_dat"] = np.repeat(imag_dat, repeat=slices, axis=2)
+    file_out["fa_corr"] = np.repeat(fa_corr, repeat=slices, axis=0)
+    file_out["images"] = np.repeat(images, repeat=slices, axis=1)
+
+    image_dimensions[2] = slices
+
+    file_out.attrs["TR"] = TR
+    file_out.attrs["fa"] = fa
+    file_out.attrs["flip_angle(s)"] = fa
+    file_out.attrs["image_dimension"] = image_dimensions
 
 
 @pytest.fixture(autouse=True, scope="session")
