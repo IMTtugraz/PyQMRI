@@ -96,11 +96,11 @@ def gen_multislice_data():
 
     slices = 4
 
-    Coils = np.repeat(Coils, repeat=slices, axis=1)
-    real_dat = np.repeat(real_dat, repeat=slices, axis=2)
-    imag_dat = np.repeat(imag_dat, repeat=slices, axis=2)
-    fa_corr = np.repeat(fa_corr, repeat=slices, axis=0)
-    images = np.repeat(images, repeat=slices, axis=1)
+    Coils = np.repeat(Coils, repeats=slices, axis=1)
+    real_dat = np.repeat(real_dat, repeats=slices, axis=2)
+    imag_dat = np.repeat(imag_dat, repeats=slices, axis=2)
+    fa_corr = np.repeat(fa_corr, repeats=slices, axis=0)
+    images = np.repeat(images, repeats=slices, axis=1)
 
     file_out["Coils"] = Coils
     file_out["real_dat"] = real_dat
@@ -113,7 +113,9 @@ def gen_multislice_data():
     file_out.attrs["TR"] = TR
     file_out.attrs["fa"] = fa
     file_out.attrs["flip_angle(s)"] = fa
-    file_out.attrs["image_dimension"] = image_dimensions
+    file_out.attrs["image_dimensions"] = image_dimensions
+    file_out.close()
+    file.close()
 
 
 @pytest.fixture(autouse=True, scope="session")
