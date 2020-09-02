@@ -90,7 +90,7 @@ def read_config(conf_file, reg_type="DEFAULT"):
     config = configparser.ConfigParser()
 
     if not conf_file.endswith('.ini'):
-        conf_file.append('.ini')
+        conf_file += '.ini'
     try:
         with open(conf_file, 'r') as f:
             config.read_file(f)

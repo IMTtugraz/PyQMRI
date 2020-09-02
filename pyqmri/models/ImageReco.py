@@ -61,9 +61,18 @@ class Model(BaseModel):
             The rescaled unknowns
         """
         tmp_x = np.copy(x)
+        uk_names = []
         for j in range(self.NScan):
             tmp_x[j] *= self.uk_scale[j]
-        return tmp_x
+            uk_names.append("Image_"+str(j))
+
+        const = []
+        for constrained in self.constraints:
+            const.append(constrained.real)
+
+        return {"data": tmp_x,
+                "unknown_name": uk_names,
+                "real_valued": const}
 
     def _execute_forward_3D(self, x):
         S = np.zeros_like(x)
@@ -78,73 +87,6 @@ class Model(BaseModel):
             grad_M0[j, ...] = self.uk_scale[j]*np.ones_like(x)
         grad_M0[~np.isfinite(grad_M0)] = 1e-20
         return grad_M0
-
-    def plot_unknowns(self, x, dim_2D=False):
-        """Plot the unkowns in an interactive figure.
-
-        This function can be used to plot intermediate results during the
-        optimization process.
-
-        Parameters
-        ----------
-          x : numpy.array
-            The array of unknowns to be displayed
-          dim_2D : bool, false
-            Currently unused.
-        """
-        M0 = np.zeros_like(x)
-        M0_min = []
-        M0_max = []
-        M0 = np.abs(M0)
-        for j in range(x.shape[0]):
-            M0[j, ...] = np.abs(x[j, ...] * self.uk_scale[j])
-            M0_min.append(M0[j].min())
-            M0_max.append(M0[j].max())
-        if dim_2D:
-            raise NotImplementedError("2D Not Implemented")
-
-        [z, y, x] = M0.shape[1:]
-        if not self.figure:
-            plt.ion()
-            ax = []
-            plot_dim = int(np.ceil(np.sqrt(M0.shape[0])))
-            self.figure = plt.figure(figsize=(12, 6))
-            self.figure.subplots_adjust(hspace=0.3, wspace=0)
-            wd_ratio = np.tile([1, 1 / 20, 1 / (5)], plot_dim)
-            gs = gridspec.GridSpec(
-                plot_dim, 3 * plot_dim,
-                width_ratios=wd_ratio, hspace=0.3, wspace=0)
-            self.figure.tight_layout()
-            self.figure.patch.set_facecolor('black')
-            for grid in gs:
-                ax.append(plt.subplot(grid))
-                ax[-1].axis('off')
-            for j in range(M0.shape[0]):
-                self._image_plot.append(
-                    ax[3 * j].imshow(
-                        (M0[j, int(z/2)]),
-                        vmin=M0_min[j],
-                        vmax=M0_max[j], cmap='gray'))
-                ax[3 *
-                   j].set_title('Image: ' +
-                                str(j), color='white')
-                ax[3 * j + 1].axis('on')
-                cbar = self.figure.colorbar(
-                    self._image_plot[j], cax=ax[3 * j + 1])
-                cbar.ax.tick_params(labelsize=12, colors='white')
-                for spine in cbar.ax.spines:
-                    cbar.ax.spines[spine].set_color('white')
-                plt.draw()
-                plt.pause(1e-10)
-        else:
-            for j in range(M0.shape[0]):
-                self._image_plot[j].set_data((M0[j, int(z/2)]))
-                self._image_plot[j].set_clim([M0_min[j],
-                                             M0_max[j]])
-
-            self.figure.canvas.draw_idle()
-            plt.draw()
-            plt.pause(1e-10)
 
     def computeInitialGuess(self, *args):
         """Initialize unknown array for the fitting.

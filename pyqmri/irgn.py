@@ -301,7 +301,7 @@ class IRGNOptimizer:
             print("GN-Iter: %d  Elapsed time: %f seconds" % (ign, end))
             print("-" * 75)
             self._fval_old = self._fval
-            self._saveToFile(ign, self._model.rescale(result))
+            self._saveToFile(ign, self._model.rescale(result)["data"])
         self._calcResidual(result, data, ign+1)
 
     def _updateIRGNRegPar(self, ign):

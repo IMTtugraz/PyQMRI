@@ -92,9 +92,9 @@ def test_VFA_model_kspace_TGV_cart_multislice_streamed(gen_multislice_data):
 
 
 @pytest.mark.integration_test
-def test_VFA_model_kspace_TGV_cart_imageguess(
+def test_VFA_model_kspace_TGV_cart_imageguess_CG(
         gen_multislice_data_noimageguess):
-    assert pyqmri.run(data=os.getcwd()+'/test/VFA_cart_smalltest.h5',
+    assert pyqmri.run(data=os.getcwd()+'/test/VFA_cart_test_imageguess.h5',
                       model='VFA',
                       config=os.getcwd()+'/test/default.ini',
                       trafo=False,
@@ -104,7 +104,7 @@ def test_VFA_model_kspace_TGV_cart_imageguess(
 @pytest.mark.integration_test
 def test_VFA_model_kspace_TGV_cart_imageguess(
         gen_multislice_data_noimageguess):
-    assert pyqmri.run(data=os.getcwd()+'/test/VFA_cart_smalltest.h5',
+    assert pyqmri.run(data=os.getcwd()+'/test/VFA_cart_test_imageguess.h5',
                       model='VFA',
                       config=os.getcwd()+'/test/default.ini',
                       trafo=False,

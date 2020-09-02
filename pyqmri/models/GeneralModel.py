@@ -65,6 +65,7 @@ class Model(BaseModel):
 
         modelpar = sympy.symbols(params["parameter"])
         unknowns = sympy.symbols(params["unknowns"])
+        self._unknowns = unknowns
 
         par["unknowns_TGV"] = len(unknowns)
         par["unknowns_H1"] = 0
@@ -149,10 +150,17 @@ class Model(BaseModel):
             The rescaled unknowns
         """
         tmp_x = np.copy(x)
+        uk_name = []
         for j in range(x.shape[0]):
             tmp_x[j] = self.rescalefun[j](
                 self.modelparams, x, self.uk_scale)
-        return tmp_x
+            uk_name.append(str(self._unknowns[j]))
+        const = []
+        for constrained in self.constraints:
+            const.append(constrained.real)
+        return {"data": tmp_x,
+                "unknown_name": uk_name,
+                "real_valued": const}
 
     def _execute_forward_3D(self, x):
         S = self.signaleq(self.modelparams, x, self.uk_scale)
@@ -179,65 +187,6 @@ class Model(BaseModel):
             modelgradient = np.squeeze(modelgradient, axis=1)
         modelgradient[~np.isfinite(modelgradient)] = 1e-20
         return modelgradient
-
-    def plot_unknowns(self, x, dim_2D=False):
-        """Plot the unkowns in an interactive figure.
-
-        This function can be used to plot intermediate results during the
-        optimization process.
-
-        Parameters
-        ----------
-          x : numpy.array
-            The array of unknowns to be displayed
-          dim_2D : bool, false
-            Currently unused.
-        """
-        tmp_x = (self.rescale(x))
-        tmp_x[0] = np.abs(tmp_x[0])
-        tmp_x = np.real(tmp_x)
-
-        if dim_2D:
-            pass
-        else:
-            ax = []
-            if not self.figure:
-                plot_dim = int(np.ceil(np.sqrt(len(self.uk_scale))))
-                plt.ion()
-                self.figure = plt.figure(figsize=(12, 6))
-                self.figure.subplots_adjust(hspace=0.3, wspace=0)
-                wd_ratio = np.tile([1, 1 / 20, 1 / (5)], plot_dim)
-                gs = gridspec.GridSpec(
-                    plot_dim, 3 * plot_dim,
-                    width_ratios=wd_ratio, hspace=0.3, wspace=0)
-                self.figure.tight_layout()
-                self.figure.patch.set_facecolor(plt.cm.viridis.colors[0])
-                for grid in gs:
-                    ax.append(plt.subplot(grid))
-                    ax[-1].axis('off')
-                for j in range(len(self.uk_scale)):
-                    self._plot.append(
-                        ax[3 * j].imshow(
-                            tmp_x[j, int(self.NSlice / 2), ...]))
-                    ax[3 *
-                       j].set_title('UK : ' +
-                                    str(j), color='white')
-                    ax[3 * j + 1].axis('on')
-                    cbar = self.figure.colorbar(
-                        self._plot[j], cax=ax[3 * j + 1])
-                    cbar.ax.tick_params(labelsize=12, colors='white')
-                    for spine in cbar.ax.spines:
-                        cbar.ax.spines[spine].set_color('white')
-
-                plt.draw()
-                plt.pause(1e-10)
-
-            else:
-                for j in range(len(self.uk_scale)):
-                    self._plot[j].set_data(tmp_x[j, int(self.NSlice / 2), ...])
-                    self._plot[j].set_clim([tmp_x[j].min(), tmp_x[j].max()])
-                plt.draw()
-                plt.pause(1e-10)
 
     def computeInitialGuess(self, *args):
         """Initialize unknown array for the fitting.

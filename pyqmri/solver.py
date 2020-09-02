@@ -11,7 +11,10 @@ Attribues:
 
 from __future__ import division
 import sys
+import itertools
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 from pkg_resources import resource_filename
 import pyopencl as cl
 import pyopencl.array as clarray
