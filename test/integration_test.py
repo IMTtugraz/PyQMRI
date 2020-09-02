@@ -79,7 +79,7 @@ def test_VFA_model_kspace_TGV_cart_multislice_streamed(gen_multislice_data):
 
 
 @pytest.mark.integration_test
-def test_VFA_model_kspace_TGV_cart_multislice_streamed(gen_multislice_data):
+def test_VFA_model_kspace_TV_cart_multislice_streamed(gen_multislice_data):
     assert pyqmri.run(data=os.getcwd()+'/test/VFA_cart_test.h5',
                       model='VFA',
                       config=os.getcwd()+'/test/default.ini',

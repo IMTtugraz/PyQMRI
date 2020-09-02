@@ -51,7 +51,7 @@ class Model(BaseModel):
         config = configparser.ConfigParser()
 
         if not par["modelfile"].endswith('.ini'):
-            par["modelfile"].append('.ini')
+            par["modelfile"] += '.ini'
         try:
             with open(par["modelfile"], 'r') as f:
                 config.read_file(f)
