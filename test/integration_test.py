@@ -80,7 +80,7 @@ def test_VFA_model_kspace_TGV_cart_multislice_streamed(gen_multislice_data):
 
 @pytest.fixture(scope="function")
 def gen_multislice_data():
-    file = h5py.File(os.getcwd()+'/test/VFA_cart_smalltest.h5')
+    file = h5py.File(os.getcwd()+'/test/VFA_cart_smalltest.h5', 'r')
 
     Coils = file["Coils"][()]
     real_dat = file["real_dat"][()]
@@ -92,7 +92,7 @@ def gen_multislice_data():
     fa = file.attrs["fa"][()]
     TR = file.attrs["TR"]
 
-    file_out = h5py.File(os.getcwd()+'/test/VFA_cart_test.h5')
+    file_out = h5py.File(os.getcwd()+'/test/VFA_cart_test.h5', 'w')
 
     slices = 4
 
