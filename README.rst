@@ -2,6 +2,9 @@
     :target: https://travis-ci.com/IMTtugraz/PyQMRI
 .. image:: https://badge.fury.io/py/pyqmri.svg
     :target: https://pypi.org/project/pyqmri
+.. image:: https://readthedocs.org/projects/pyqmri/badge/?version=latest
+    :target: https://pyqmri.readthedocs.io/en/latest/?badge=latest
+    :alt: Documentation Status
     
 PyQMRI - Model-Based Parameter Quantification
 =============================================
