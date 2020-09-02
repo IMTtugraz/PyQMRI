@@ -21,6 +21,7 @@ pipeline {
       steps {
         sh 'pytest --junitxml results_unittests.xml --cov=pyqmri --cov-append test/unittests/'
         sh 'coverage xml'
+        sh 'mv coverage.xml coverage_unittest.xml'
       }
     }
     stage('Integrationtests') {
@@ -34,7 +35,7 @@ pipeline {
   }
   post {
       always {
-          cobertura coberturaReportFile: '*.xml', enableNewApi: true
+          cobertura coberturaReportFile: 'coverage.xml, coverage_unittest.xml', enableNewApi: true
           junit 'results*.xml'
           recordIssues enabledForFailure: true, tool: pyLint(pattern: 'pylint.log')
           cleanWs()
