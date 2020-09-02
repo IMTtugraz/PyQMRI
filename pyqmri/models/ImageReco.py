@@ -2,10 +2,7 @@
 # -*- coding: utf-8 -*-
 """Module holding the simple image model for image reconstruction."""
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 from pyqmri.models.template import BaseModel, constraints, DTYPE
-plt.ion()
 
 
 class Model(BaseModel):

@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Module holding the bi-exponential model for fitting."""
-import matplotlib.gridspec as gridspec
-import matplotlib.pyplot as plt
 import numpy as np
 from pyqmri.models.template import BaseModel, constraints, DTYPE
-plt.ion()
 
 
 class Model(BaseModel):

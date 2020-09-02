@@ -217,4 +217,4 @@ def clean_up():
     try:
         shutil.rmtree(os.getcwd()+'/test/PyQMRI_out')
     except OSError as e:
-        print ("Error: %s - %s." %(e.filename, e.strerror))
+        print("Error: %s - %s." % (e.filename, e.strerror))

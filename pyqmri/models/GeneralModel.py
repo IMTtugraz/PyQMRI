@@ -4,8 +4,6 @@
 import configparser
 import numpy as np
 import sympy
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 from pyqmri.models.template import BaseModel, constraints, DTYPE
 
 

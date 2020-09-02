@@ -6,6 +6,7 @@ import argparse
 import os
 import time
 import importlib
+import gc
 
 import numpy as np
 from tkinter import filedialog
@@ -129,30 +130,15 @@ def _setupOCL(myargs, par):
         dev.append(platforms[par["Platform_Indx"]].get_devices()[device])
         tmpxtx = cl.Context(dev)
         par["ctx"].append(tmpxtx)
-        par["queue"].append(
-         cl.CommandQueue(
-          tmpxtx,
-          platforms[par["Platform_Indx"]].get_devices()[device],
-          properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE
-          | cl.command_queue_properties.PROFILING_ENABLE))
-        par["queue"].append(
-         cl.CommandQueue(
-          tmpxtx,
-          platforms[par["Platform_Indx"]].get_devices()[device],
-          properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE
-          | cl.command_queue_properties.PROFILING_ENABLE))
-        par["queue"].append(
-         cl.CommandQueue(
-          tmpxtx,
-          platforms[par["Platform_Indx"]].get_devices()[device],
-          properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE
-          | cl.command_queue_properties.PROFILING_ENABLE))
-        par["queue"].append(
-         cl.CommandQueue(
-          tmpxtx,
-          platforms[par["Platform_Indx"]].get_devices()[device],
-          properties=cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE
-          | cl.command_queue_properties.PROFILING_ENABLE))
+        for j in range(4):
+            par["queue"].append(
+                cl.CommandQueue(
+                   tmpxtx,
+                   platforms[par["Platform_Indx"]].get_devices()[device],
+                   properties=(
+                     cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE)
+                   )
+                )
 
 
 def _genImages(myargs, par, data, off):
@@ -618,6 +604,9 @@ def _start_recon(myargs):
     else:
         opt.execute(data)
     plt.close('all')
+
+    del par["ctx"], par["queue"], opt, model, par
+    gc.collect()
 
 
 def _str2bool(v):
