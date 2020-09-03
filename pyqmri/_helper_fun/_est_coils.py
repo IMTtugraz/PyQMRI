@@ -142,8 +142,8 @@ def est_coils(data, par, file, args, off):
                         nlinvNewtonSteps,
                         True,
                         nlinvRealConstr,
-                        par["DTYPE"],
-                        par["DTYPE_real"]))
+                        DTYPE=par["DTYPE"],
+                        DTYPE_real=par["DTYPE_real"]))
 
             for i in range(par["NSlice"]):
                 par["C"][:, i, :, :] = result[i].get()[2:, -1, :, :]
@@ -199,7 +199,9 @@ def est_coils(data, par, file, args, off):
                         tmp,
                         nlinvNewtonSteps,
                         True,
-                        nlinvRealConstr))
+                        nlinvRealConstr,
+                        DTYPE=par["DTYPE"],
+                        DTYPE_real=par["DTYPE_real"]))
 
             for i in range(par["NSlice"]):
                 par["C"][:, i, :, :] = result[i].get()[2:, -1, :, :]
@@ -320,7 +322,9 @@ def est_coils(data, par, file, args, off):
                         combinedData,
                         nlinvNewtonSteps,
                         True,
-                        nlinvRealConstr))
+                        nlinvRealConstr,
+                        DTYPE=par["DTYPE"],
+                        DTYPE_real=par["DTYPE_real"]))
 
             for i in range(par["NSlice"]):
                 par["C"][:, i, :, :] = result[i].get()[2:, -1, :, :]
@@ -372,7 +376,9 @@ def est_coils(data, par, file, args, off):
                         tmp,
                         nlinvNewtonSteps,
                         True,
-                        nlinvRealConstr))
+                        nlinvRealConstr,
+                        DTYPE=par["DTYPE"],
+                        DTYPE_real=par["DTYPE_real"]))
 
             for i in range(par["NSlice"]):
                 par["C"][:, i, :, :] = result[i].get()[2:, -1, :, :]
