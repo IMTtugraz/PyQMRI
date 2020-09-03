@@ -20,13 +20,13 @@ sys.path.insert(0, os.path.abspath('..'))
 # -- Project information -----------------------------------------------------
 
 project = 'PyQMRI'
-copyright = '2019, Oliver Maier'
+copyright = '2020, Oliver Maier'
 author = 'Oliver Maier'
 
 # The short X.Y version
-version = ''
+version = '0.31b1'
 # The full version, including alpha/beta/rc tags
-release = '2018'
+release = '2020.0.31beta1'
 
 autosummary_generate = True
 # -- General configuration ---------------------------------------------------
@@ -77,13 +77,16 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'mbpq.egg-info']
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
 
+# Pretend gpyfft is present
+autodoc_mock_imports = ["gpyfft"]
+
 
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'alabaster'
+html_theme = 'sphinx_rtd_theme'
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -110,7 +113,7 @@ html_static_path = ['_static']
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'MBPQdoc'
+htmlhelp_basename = 'PyQMRIdoc'
 
 
 # -- Options for LaTeX output ------------------------------------------------
@@ -137,7 +140,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'MBPQ.tex', 'Model Based Parameter Quantification Documentation',
+    (master_doc, 'PyQMRI.tex', 'Model Based Parameter Quantification Documentation',
      'Oliver Maier', 'manual'),
 ]
 
@@ -158,8 +161,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'MBPQ', 'Model Based Parameter Quantification Documentation',
-     author, 'MBPQ', 'One line description of project.',
+    (master_doc, 'PyQMRI', 'Model Based Parameter Quantification Documentation',
+     author, 'PyQMRI', 'One line description of project.',
      'Miscellaneous'),
 ]
 
