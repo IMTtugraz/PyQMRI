@@ -19,6 +19,6 @@ from pyqmri import transforms
 from pyqmri import models
 from pyqmri.pyqmri import run
 from pyqmri._helper_fun.multislice_viewer import imshow as msv
-from pyqmri.models.template import BaseModel, constraints, DTYPE, DTYPE_real
+from pyqmri.models.template import BaseModel, constraints
 from pyqmri.models.GeneralModel \
     import genDefaultModelfile as generate_text_models

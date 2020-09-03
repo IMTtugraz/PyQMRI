@@ -21,4 +21,4 @@ def cmp(k):
     w = np.repeat(w, nspokes, 0)
     w = np.reshape(w, (N, nspokes)).T
 
-    return w
+    return np.array(w)

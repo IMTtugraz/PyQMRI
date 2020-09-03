@@ -23,7 +23,7 @@ import numpy as np
 import pyfftw
 
 
-def nlinvns(Y, n, *arg):
+def nlinvns(Y, n, *arg, DTYPE=np.complex64, DTYPE_real=np.float32):
 
     nrarg = len(arg)
     if nrarg == 2:
@@ -41,17 +41,17 @@ def nlinvns(Y, n, *arg):
     [c, y, x] = Y.shape
 
     if returnProfiles:
-        R = np.zeros([c + 2, n, y, x], complex)
+        R = np.zeros([c + 2, n, y, x], DTYPE)
 
     else:
-        R = np.zeros([2, n, y, x], complex)
+        R = np.zeros([2, n, y, x], DTYPE)
 
     # initialization x-vector
-    X0 = np.array(np.zeros([c + 1, y, x]), np.float64)
+    X0 = np.array(np.zeros([c + 1, y, x]), DTYPE_real)
     X0[0, :, :] = 1  # object part
 
     # initialize mask and weights
-    P = np.ones(Y[0, :, :].shape, dtype=np.float64)
+    P = np.ones(Y[0, :, :].shape, dtype=DTYPE_real)
     P[Y[0, :, :] == 0] = 0
 
     W = _weights(y, x)
@@ -62,7 +62,7 @@ def nlinvns(Y, n, *arg):
     yscale = 100 / np.sqrt(_scal(Y, Y))
     YS = Y * yscale
 
-    XT = np.zeros([c + 1, y, x], dtype=np.complex64)
+    XT = np.zeros([c + 1, y, x], dtype=DTYPE)
     XN = np.copy(X0)
 
     start = time.clock()
@@ -80,7 +80,7 @@ def nlinvns(Y, n, *arg):
         # calculate rhs
         r = _derHns(P, W, XT, RES, realConstr)
 
-        r = np.array(r + alpha * (X0 - XN), dtype=np.complex64)
+        r = np.array(r + alpha * (X0 - XN), dtype=DTYPE)
 
         z = np.zeros_like(r)
         d = np.copy(r)
@@ -129,7 +129,7 @@ def nlinvns(Y, n, *arg):
 
 
 def _scal(a, b):
-    v = np.array(np.sum(np.conj(a) * b), dtype=np.complex64)
+    v = np.sum(np.conj(a) * b)
     return v
 
 
@@ -144,8 +144,8 @@ def _apweightsnsH(W, CT):
 
 
 def _opns(P, X):
-    K = np.array(X[0, :, :] * X[1:, :, :], dtype=np.complex64)
-    K = np.array(P * _nsFft(K), dtype=np.complex64)
+    K = X[0, :, :] * X[1:, :, :]
+    K = P * _nsFft(K)
     return K
 
 
@@ -166,16 +166,16 @@ def _derHns(P, W, X0, DK, realConstr):
         DXrho = np.sum(K * np.conj(X0[1:, :, :]), 0)
 
     DXc = _apweightsnsH(W, (K * np.conj(X0[0, :, :])))
-    DX = np.array(np.concatenate(
-        (DXrho[None, ...], DXc), axis=0), dtype=np.complex64)
+    DX = np.concatenate(
+        (DXrho[None, ...], DXc), axis=0)
     return DX
 
 
 def _nsFft(M):
     si = M.shape
     a = 1 / (np.sqrt((si[M.ndim - 1])) * np.sqrt((si[M.ndim - 2])))
-    K = np.array((pyfftw.interfaces.numpy_fft.fft2(
-        M, norm=None)).dot(a), dtype=np.complex64)
+    K = pyfftw.interfaces.numpy_fft.fft2(
+        M, norm=None).dot(a)
     return K
 
 

@@ -1,13 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Module holding the classes for different numerical Optimizer.
-
-Attribues:
-  DTYPE : numpy.dtype, numpy.complex64
-    Complex working precission. Currently single precission only.
-  DTYPE_real : numpy.dtype, numpy.float32
-    Real working precission. Currently single precission only.
-"""
+"""Module holding the classes for different numerical Optimizer."""
 
 from __future__ import division
 import sys
@@ -18,8 +11,6 @@ import pyopencl.array as clarray
 import pyqmri.operator as operator
 from pyqmri._helper_fun import CLProgram as Program
 import pyqmri.streaming as streaming
-DTYPE = np.complex64
-DTYPE_real = np.float32
 
 
 class CGSolver:
@@ -68,27 +59,37 @@ class CGSolver:
                                 cl.mem_flags.READ_ONLY |
                                 cl.mem_flags.COPY_HOST_PTR,
                                 hostbuf=par["C"].data)
+        self._DTYPE = par["DTYPE"]
+        self._DTYPE_real = par["DTYPE_real"]
+
+        self.__op, FT = operator.Operator.MRIOperatorFactory(
+            par,
+            self._prg,
+            self._DTYPE,
+            self._DTYPE_real,
+            trafo=trafo,
+            SMS=SMS
+            )
+
         if SMS:
-            self._op = operator.OperatorKspaceSMS(par, self._prg)
             self._tmp_sino = clarray.empty(
                 self._queue,
                 (self._NScan, self._NC,
                  int(self._NSlice/par["MB"]), par["Nproj"], par["N"]),
-                DTYPE, "C")
+                self._DTYPE, "C")
         else:
-            self._op = operator.OperatorKspace(par, self._prg, trafo=trafo)
             self._tmp_sino = clarray.empty(
                 self._queue,
                 (self._NScan, self._NC,
                  self._NSlice, par["Nproj"], par["N"]),
-                DTYPE, "C")
-        self._FT = self._op.NUFFT.FFT
-        self._FTH = self._op.NUFFT.FFTH
+                self._DTYPE, "C")
+        self._FT = FT.FFT
+        self._FTH = FT.FFTH
         self._tmp_result = clarray.empty(
             self._queue,
             (self._NScan, self._NC,
              self._NSlice, self._dimY, self._dimX),
-            DTYPE, "C")
+            self._DTYPE, "C")
         par["NScan"] = NScan_save
         self._scan_offset = 0
 
@@ -137,15 +138,15 @@ class CGSolver:
             x = clarray.zeros(self._queue,
                               (self._NScan, 1,
                                self._NSlice, self._dimY, self._dimX),
-                              DTYPE, "C")
+                              self._DTYPE, "C")
         b = clarray.empty(self._queue,
                           (self._NScan, 1,
                            self._NSlice, self._dimY, self._dimX),
-                          DTYPE, "C")
+                          self._DTYPE, "C")
         Ax = clarray.empty(self._queue,
                            (self._NScan, 1,
                             self._NSlice, self._dimY, self._dimX),
-                           DTYPE, "C")
+                           self._DTYPE, "C")
 
         data = clarray.to_device(self._queue, data)
         self._operator_rhs(b, data)
@@ -343,8 +344,19 @@ class PDBaseSolver:
         list if a unknown is constrained to real values only. (1 True, 0 False)
     """
 
-    def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 coil, model):
+    def __init__(self,
+                 par,
+                 irgn_par,
+                 queue,
+                 tau,
+                 fval,
+                 prg,
+                 coil,
+                 model,
+                 DTYPE=np.complex64,
+                 DTYPE_real=np.float32):
+        self._DTYPE = DTYPE
+        self._DTYPE_real = DTYPE_real
         self.delta = irgn_par["delta"]
         self.omega = irgn_par["omega"]
         self.lambd = irgn_par["lambd"]
@@ -354,7 +366,7 @@ class PDBaseSolver:
         self.mu = 1 / self.delta
         self.tau = tau
         self.beta_line = 1e3  # 1e10#1e12
-        self.theta_line = np.float32(1.0)
+        self.theta_line = DTYPE_real(1.0)
         self.unknowns_TGV = par["unknowns_TGV"]
         self.unknowns_H1 = par["unknowns_H1"]
         self.unknowns = par["unknowns"]
@@ -385,7 +397,9 @@ class PDBaseSolver:
             reg_type='TGV',
             SMS=False,
             streamed=False,
-            imagespace=False):
+            imagespace=False,
+            DTYPE=np.complex64,
+            DTYPE_real=np.float32):
         """
         Generate a PDSolver object.
 
@@ -424,6 +438,10 @@ class PDBaseSolver:
             Switch between streamed (1) and normal (0) reconstruction.
           imagespace : bool, false
             Switch between k-space (false) and imagespace based fitting (true).
+          DTYPE : numpy.dtype, numpy.complex64
+             Complex working precission.
+          DTYPE_real : numpy.dtype, numpy.float32
+            Real working precission.
         """
         if reg_type == 'TV':
             if streamed:
@@ -432,73 +450,86 @@ class PDBaseSolver:
                         par,
                         irgn_par,
                         queue,
-                        np.float32(1 / np.sqrt(8)),
+                        DTYPE_real(1 / np.sqrt(8)),
                         init_fval,
                         prg,
                         linops,
                         coils,
                         model,
-                        imagespace=imagespace)
+                        imagespace=imagespace,
+                        DTYPE=DTYPE,
+                        DTYPE_real=DTYPE_real)
                 else:
                     pdop = PDSolverStreamedTV(
                         par,
                         irgn_par,
                         queue,
-                        np.float32(1 / np.sqrt(8)),
+                        DTYPE_real(1 / np.sqrt(8)),
                         init_fval,
                         prg,
                         linops,
                         coils,
                         model,
-                        imagespace=imagespace)
+                        imagespace=imagespace,
+                        DTYPE=DTYPE,
+                        DTYPE_real=DTYPE_real)
             else:
                 pdop = PDSolverTV(par,
                                   irgn_par,
                                   queue,
-                                  np.float32(1 / np.sqrt(8)),
+                                  DTYPE_real(1 / np.sqrt(8)),
                                   init_fval, prg,
                                   linops,
                                   coils,
-                                  model)
+                                  model,
+                                  DTYPE=DTYPE,
+                                  DTYPE_real=DTYPE_real
+                                  )
 
         elif reg_type == 'TGV':
-            L = np.float32(0.5 * (18.0 + np.sqrt(33)))
+            L = DTYPE_real(0.5 * (18.0 + np.sqrt(33)))
             if streamed:
                 if SMS:
                     pdop = PDSolverStreamedTGVSMS(
                         par,
                         irgn_par,
                         queue,
-                        np.float32(1 / np.sqrt(L)),
+                        DTYPE_real(1 / np.sqrt(L)),
                         init_fval,
                         prg,
                         linops,
                         coils,
                         model,
-                        imagespace=imagespace)
+                        imagespace=imagespace,
+                        DTYPE=DTYPE,
+                        DTYPE_real=DTYPE_real)
                 else:
                     pdop = PDSolverStreamedTGV(
                         par,
                         irgn_par,
                         queue,
-                        np.float32(1 / np.sqrt(L)),
+                        DTYPE_real(1 / np.sqrt(L)),
                         init_fval,
                         prg,
                         linops,
                         coils,
                         model,
-                        imagespace=imagespace)
+                        imagespace=imagespace,
+                        DTYPE=DTYPE,
+                        DTYPE_real=DTYPE_real)
             else:
                 pdop = PDSolverTGV(
                     par,
                     irgn_par,
                     queue,
-                    np.float32(1 / np.sqrt(L)),
+                    DTYPE_real(1 / np.sqrt(L)),
                     init_fval,
                     prg,
                     linops,
                     coils,
-                    model)
+                    model,
+                    DTYPE=DTYPE,
+                    DTYPE_real=DTYPE_real)
         else:
             raise NotImplementedError
         return pdop
@@ -531,21 +562,21 @@ class PDBaseSolver:
         """
         self._updateConstraints()
         tau = self.tau
-        tau_new = np.float32(0)
+        tau_new = self._DTYPE_real(0)
 
         theta_line = self.theta_line
         beta_line = self.beta_line
-        beta_new = np.float32(0)
-        mu_line = np.float32(0.5)
-        delta_line = np.float32(1)
-        ynorm = np.float32(0.0)
-        lhs = np.float32(0.0)
-        primal = np.float32(0.0)
-        primal_new = np.float32(0)
-        dual = np.float32(0.0)
-        gap_init = np.float32(0.0)
-        gap_old = np.float32(0.0)
-        gap = np.float32(0.0)
+        beta_new = self._DTYPE_real(0)
+        mu_line = self._DTYPE_real(0.5)
+        delta_line = self._DTYPE_real(1)
+        ynorm = self._DTYPE_real(0.0)
+        lhs = self._DTYPE_real(0.0)
+        primal = self._DTYPE_real(0.0)
+        primal_new = self._DTYPE_real(0)
+        dual = self._DTYPE_real(0.0)
+        gap_init = self._DTYPE_real(0.0)
+        gap_old = self._DTYPE_real(0.0)
+        gap = self._DTYPE_real(0.0)
 
         (primal_vars,
          primal_vars_new,
@@ -715,12 +746,12 @@ class PDBaseSolver:
 
     def _updateConstraints(self):
         num_const = (len(self.model.constraints))
-        min_const = np.zeros((num_const), dtype=np.float32)
-        max_const = np.zeros((num_const), dtype=np.float32)
+        min_const = np.zeros((num_const), dtype=self._DTYPE_real)
+        max_const = np.zeros((num_const), dtype=self._DTYPE_real)
         real_const = np.zeros((num_const), dtype=np.int32)
         for j in range(num_const):
-            min_const[j] = np.float32(self.model.constraints[j].min)
-            max_const[j] = np.float32(self.model.constraints[j].max)
+            min_const[j] = self._DTYPE_real(self.model.constraints[j].min)
+            max_const[j] = self._DTYPE_real(self.model.constraints[j].max)
             real_const[j] = np.int32(self.model.constraints[j].real)
 
         self.min_const = []
@@ -783,8 +814,8 @@ class PDBaseSolver:
             self._queue[4*idx+idxq],
             self._kernelsize, None,
             outp.data, inp[0].data, inp[1].data, inp[2].data, inp[3].data,
-            np.float32(par[0]),
-            np.float32(par[0]/par[1]),
+            self._DTYPE_real(par[0]),
+            self._DTYPE_real(par[0]/par[1]),
             self.min_const[idx].data, self.max_const[idx].data,
             self.real_const[idx].data, np.int32(self.unknowns),
             wait_for=(outp.events +
@@ -821,7 +852,7 @@ class PDBaseSolver:
             wait_for = []
         return self._prg[idx].update_v(
             self._queue[4*idx+idxq], (outp[..., 0].size,), None,
-            outp.data, inp[0].data, inp[1].data, np.float32(par[0]),
+            outp.data, inp[0].data, inp[1].data, self._DTYPE_real(par[0]),
             wait_for=outp.events+inp[0].events+inp[1].events+wait_for)
 
     def update_z1(self, outp, inp, par=None, idx=0, idxq=0,
@@ -857,9 +888,10 @@ class PDBaseSolver:
             self._kernelsize, None,
             outp.data, inp[0].data, inp[1].data,
             inp[2].data, inp[3].data, inp[4].data,
-            np.float32(par[0]), np.float32(par[1]),
-            np.float32(1/par[2]), np.int32(self.unknowns_TGV),
-            np.int32(self.unknowns_H1), np.float32(1 / (1 + par[0] / par[3])),
+            self._DTYPE_real(par[0]), self._DTYPE_real(par[1]),
+            self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
+            np.int32(self.unknowns_H1),
+            self._DTYPE_real(1 / (1 + par[0] / par[3])),
             wait_for=(outp.events+inp[0].events+inp[1].events +
                       inp[2].events+inp[3].events+inp[4].events+wait_for))
 
@@ -895,10 +927,11 @@ class PDBaseSolver:
             self._queue[4*idx+idxq],
             self._kernelsize, None,
             outp.data, inp[0].data, inp[1].data, inp[2].data,
-            np.float32(par[0]),
-            np.float32(par[1]),
-            np.float32(1/par[2]), np.int32(self.unknowns_TGV),
-            np.int32(self.unknowns_H1), np.float32(1 / (1 + par[0] / par[3])),
+            self._DTYPE_real(par[0]),
+            self._DTYPE_real(par[1]),
+            self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
+            np.int32(self.unknowns_H1),
+            self._DTYPE_real(1 / (1 + par[0] / par[3])),
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
 
@@ -934,14 +967,21 @@ class PDBaseSolver:
             self._queue[4*idx+idxq],
             self._kernelsize, None,
             outp.data, inp[0].data, inp[1].data, inp[2].data,
-            np.float32(par[0]),
-            np.float32(par[1]),
-            np.float32(1/par[2]), np.int32(self.unknowns),
+            self._DTYPE_real(par[0]),
+            self._DTYPE_real(par[1]),
+            self._DTYPE_real(1/par[2]), np.int32(self.unknowns),
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
 
-    def update_Kyk2(self, outp, inp, par=None, idx=0, idxq=0,
-                    bound_cond=0, wait_for=None):
+    def update_Kyk2(self,
+                    outp,
+                    inp,
+                    par=None,
+                    idx=0,
+                    idxq=0,
+                    bound_cond=0,
+                    wait_for=None
+                    ):
         """Precompute the v-part of the Adjoint Linear operator.
 
         Parameters
@@ -975,7 +1015,7 @@ class PDBaseSolver:
             np.int32(self.unknowns),
             par[idx].data,
             np.int32(bound_cond),
-            np.float32(self.dz),
+            self._DTYPE_real(self.dz),
             wait_for=outp.events + inp[0].events + inp[1].events+wait_for)
 
     def update_r(self, outp, inp, par=None, idx=0, idxq=0,
@@ -1010,8 +1050,8 @@ class PDBaseSolver:
             self._queue[4*idx+idxq], (outp.size,), None,
             outp.data, inp[0].data,
             inp[1].data, inp[2].data, inp[3].data,
-            np.float32(par[0]), np.float32(par[1]),
-            np.float32(1/(1+par[0]/par[2])),
+            self._DTYPE_real(par[0]), self._DTYPE_real(par[1]),
+            self._DTYPE_real(1/(1+par[0]/par[2])),
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
 
@@ -1067,8 +1107,18 @@ class PDSolverTV(PDBaseSolver):
         TV regularization weight
     """
 
-    def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model):
+    def __init__(self,
+                 par,
+                 irgn_par,
+                 queue,
+                 tau,
+                 fval,
+                 prg,
+                 linop,
+                 coils,
+                 model,
+                 **kwargs
+                 ):
         super().__init__(
             par,
             irgn_par,
@@ -1077,14 +1127,15 @@ class PDSolverTV(PDBaseSolver):
             fval,
             prg,
             coils,
-            model)
+            model,
+            **kwargs)
         self.alpha = irgn_par["gamma"]
         self._op = linop[0]
         self._grad_op = linop[1]
 
     def _setupVariables(self, inp, data):
 
-        data = clarray.to_device(self._queue[0], data.astype(DTYPE))
+        data = clarray.to_device(self._queue[0], data.astype(self._DTYPE))
 
         primal_vars = {}
         primal_vars_new = {}
@@ -1105,12 +1156,12 @@ class PDSolverTV(PDBaseSolver):
         dual_vars["r"] = clarray.zeros(
             self._queue[0],
             data.shape,
-            dtype=DTYPE)
+            dtype=self._DTYPE)
         dual_vars_new["r"] = clarray.empty_like(dual_vars["r"])
 
         dual_vars["z1"] = clarray.zeros(self._queue[0],
                                         primal_vars["x"].shape+(4,),
-                                        dtype=DTYPE)
+                                        dtype=self._DTYPE)
         dual_vars_new["z1"] = clarray.empty_like(dual_vars["z1"])
 
         tmp_results_forward["gradx"] = clarray.empty_like(
@@ -1327,7 +1378,7 @@ class PDSolverTGV(PDBaseSolver):
     """
 
     def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model):
+                 linop, coils, model, **kwargs):
         super().__init__(
             par,
             irgn_par,
@@ -1336,7 +1387,8 @@ class PDSolverTGV(PDBaseSolver):
             fval,
             prg,
             coils,
-            model)
+            model,
+            **kwargs)
         self.alpha = irgn_par["gamma"]
         self.beta = irgn_par["gamma"] * 2
         self._op = linop[0]
@@ -1345,7 +1397,7 @@ class PDSolverTGV(PDBaseSolver):
 
     def _setupVariables(self, inp, data):
 
-        data = clarray.to_device(self._queue[0], data.astype(DTYPE))
+        data = clarray.to_device(self._queue[0], data.astype(self._DTYPE))
 
         primal_vars = {}
         primal_vars_new = {}
@@ -1357,7 +1409,7 @@ class PDSolverTGV(PDBaseSolver):
         primal_vars_new["x"] = clarray.empty_like(primal_vars["x"])
         primal_vars["v"] = clarray.zeros(self._queue[0],
                                          primal_vars["x"].shape+(4,),
-                                         dtype=DTYPE)
+                                         dtype=self._DTYPE)
         primal_vars_new["v"] = clarray.empty_like(primal_vars["v"])
 
         tmp_results_adjoint["Kyk1"] = clarray.empty_like(primal_vars["x"])
@@ -1372,16 +1424,16 @@ class PDSolverTGV(PDBaseSolver):
         dual_vars["r"] = clarray.zeros(
             self._queue[0],
             data.shape,
-            dtype=DTYPE)
+            dtype=self._DTYPE)
         dual_vars_new["r"] = clarray.empty_like(dual_vars["r"])
 
         dual_vars["z1"] = clarray.zeros(self._queue[0],
                                         primal_vars["x"].shape+(4,),
-                                        dtype=DTYPE)
+                                        dtype=self._DTYPE)
         dual_vars_new["z1"] = clarray.empty_like(dual_vars["z1"])
         dual_vars["z2"] = clarray.zeros(self._queue[0],
                                         primal_vars["x"].shape+(8,),
-                                        dtype=DTYPE)
+                                        dtype=self._DTYPE)
         dual_vars_new["z2"] = clarray.empty_like(dual_vars["z2"])
 
         tmp_results_forward["gradx"] = clarray.empty_like(
@@ -1656,7 +1708,7 @@ class PDSolverStreamed(PDBaseSolver):
     """
 
     def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 coils, model, imagespace=False):
+                 coils, model, imagespace=False, **kwargs):
         super().__init__(
             par,
             irgn_par,
@@ -1665,7 +1717,8 @@ class PDSolverStreamed(PDBaseSolver):
             fval,
             prg,
             coils,
-            model)
+            model,
+            **kwargs)
 
         self._op = None
         self.symgrad_shape = None
@@ -1705,20 +1758,20 @@ class PDSolverStreamed(PDBaseSolver):
         elif reg_type == 'TGV':
             self.v = np.zeros(
                 self.grad_shape,
-                dtype=DTYPE)
+                dtype=self._DTYPE)
             self.z2 = np.zeros(
                 self.symgrad_shape,
-                dtype=DTYPE)
+                dtype=self._DTYPE)
         else:
             raise NotImplementedError("Not implemented")
         self._setupstreamingops(reg_type, SMS=SMS)
 
         self.r = np.zeros(
                 self.data_shape,
-                dtype=DTYPE)
+                dtype=self._DTYPE)
         self.z1 = np.zeros(
             self.grad_shape,
-            dtype=DTYPE)
+            dtype=self._DTYPE)
 
     def _setupstreamingops(self, reg_type, SMS=False):
         if not SMS:
@@ -1941,7 +1994,8 @@ class PDSolverStreamedTGV(PDSolverStreamed):
                  coils,
                  model,
                  imagespace=False,
-                 SMS=False):
+                 SMS=False,
+                 **kwargs):
 
         super().__init__(
             par,
@@ -1952,7 +2006,8 @@ class PDSolverStreamedTGV(PDSolverStreamed):
             prg,
             coils,
             model,
-            imagespace=imagespace)
+            imagespace=imagespace,
+            **kwargs)
 
         self.alpha = irgn_par["gamma"]
         self.beta = irgn_par["gamma"] * 2
@@ -1976,7 +2031,7 @@ class PDSolverStreamedTGV(PDSolverStreamed):
         primal_vars_new["x"] = np.zeros_like(primal_vars["x"])
         primal_vars["v"] = np.zeros(
                                         primal_vars["x"].shape+(4,),
-                                        dtype=DTYPE)
+                                        dtype=self._DTYPE)
         primal_vars_new["v"] = np.zeros_like(primal_vars["v"])
 
         tmp_results_adjoint["Kyk1"] = np.zeros_like(primal_vars["x"])
@@ -1990,16 +2045,16 @@ class PDSolverStreamedTGV(PDSolverStreamed):
         tmp_results_forward_new = {}
         dual_vars["r"] = np.zeros(
             data.shape,
-            dtype=DTYPE)
+            dtype=self._DTYPE)
         dual_vars_new["r"] = np.zeros_like(dual_vars["r"])
 
         dual_vars["z1"] = np.zeros(
                                             primal_vars["x"].shape+(4,),
-                                            dtype=DTYPE)
+                                            dtype=self._DTYPE)
         dual_vars_new["z1"] = np.zeros_like(dual_vars["z1"])
         dual_vars["z2"] = np.zeros(
                                             primal_vars["x"].shape+(8,),
-                                            dtype=DTYPE)
+                                            dtype=self._DTYPE)
         dual_vars_new["z2"] = np.zeros_like(dual_vars["z2"])
 
         tmp_results_forward["gradx"] = np.zeros_like(
@@ -2219,7 +2274,7 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
     """
 
     def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model, imagespace=False):
+                 linop, coils, model, imagespace=False, **kwargs):
 
         self._packs = par["packs"]
         self._numofpacks = par["numofpacks"]
@@ -2242,7 +2297,8 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
             coils,
             model,
             imagespace=imagespace,
-            SMS=True)
+            SMS=True,
+            **kwargs)
 
     def _updateInitial(self,
                        out_fwd, out_adj,
@@ -2386,7 +2442,7 @@ class PDSolverStreamedTV(PDSolverStreamed):
     """
 
     def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model, imagespace=False, SMS=False):
+                 linop, coils, model, imagespace=False, SMS=False, **kwargs):
 
         super().__init__(
             par,
@@ -2397,7 +2453,8 @@ class PDSolverStreamedTV(PDSolverStreamed):
             prg,
             coils,
             model,
-            imagespace=imagespace)
+            imagespace=imagespace,
+            **kwargs)
 
         self.alpha = irgn_par["gamma"]
         self._op = linop[0]
@@ -2426,11 +2483,11 @@ class PDSolverStreamedTV(PDSolverStreamed):
         tmp_results_forward_new = {}
         dual_vars["r"] = np.zeros(
             data.shape,
-            dtype=DTYPE)
+            dtype=self._DTYPE)
         dual_vars_new["r"] = np.zeros_like(dual_vars["r"])
 
         dual_vars["z1"] = np.zeros(primal_vars["x"].shape+(4,),
-                                   dtype=DTYPE)
+                                   dtype=self._DTYPE)
         dual_vars_new["z1"] = np.zeros_like(dual_vars["z1"])
 
         tmp_results_forward["gradx"] = np.zeros_like(
@@ -2612,7 +2669,7 @@ class PDSolverStreamedTVSMS(PDSolverStreamedTV):
     """
 
     def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model, imagespace=False):
+                 linop, coils, model, imagespace=False, **kwargs):
         self._packs = par["packs"]
         self._numofpacks = par["numofpacks"]
         self.data_shape = (self._packs*self._numofpacks, par["NScan"],
@@ -2635,7 +2692,8 @@ class PDSolverStreamedTVSMS(PDSolverStreamedTV):
             coils,
             model,
             imagespace=imagespace,
-            SMS=True)
+            SMS=True,
+            **kwargs)
 
     def _updateInitial(self,
                        out_fwd, out_adj,

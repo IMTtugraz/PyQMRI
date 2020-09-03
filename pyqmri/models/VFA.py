@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Module holding the variable flip angle model for T1 fitting."""
 import numpy as np
-from pyqmri.models.template import BaseModel, constraints, DTYPE
+from pyqmri.models.template import BaseModel, constraints
 
 
 class Model(BaseModel):
@@ -50,7 +50,7 @@ class Model(BaseModel):
             print("No flipangle correction found!")
 
         phi_corr = np.zeros(
-            (self.NScan, self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+            (self.NScan, self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
         for i in range(np.size(par["flip_angle(s)"])):
             phi_corr[i, :, :, :] = par["flip_angle(s)"][i] *\
                 np.pi / 180 * self.fa_corr
@@ -117,7 +117,7 @@ class Model(BaseModel):
         S = x[0, ...] * self.uk_scale[0] * (-E1 + 1) * self._sin_phi /\
             (-E1 * self._cos_phi + 1)
         S[~np.isfinite(S)] = 1e-20
-        S = np.array(S, dtype=DTYPE)
+        S = np.array(S, dtype=self._DTYPE)
         return S
 
     def _execute_gradient_3D(self, x):
@@ -130,7 +130,7 @@ class Model(BaseModel):
             self._sin_phi * self._cos_phi / (-E1 * self._cos_phi + 1)**2 -\
             M0 * self.uk_scale[0] * self.uk_scale[1] * self._sin_phi /\
             (-E1 * self._cos_phi + 1)
-        grad = np.array([grad_M0, grad_T1], dtype=DTYPE)
+        grad = np.array([grad_M0, grad_T1], dtype=self._DTYPE)
         grad[~np.isfinite(grad)] = 1e-20
         return grad
 
@@ -146,11 +146,11 @@ class Model(BaseModel):
             here.
         """
         test_T1 = 1500 * np.ones(
-            (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+            (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
         test_M0 = np.ones(
             (self.NSlice, self.dimY, self.dimX),
-            dtype=DTYPE)
+            dtype=self._DTYPE)
         test_T1 = np.exp(-self.TR / (test_T1))
         x = np.array([test_M0 / self.uk_scale[0],
-                      test_T1 / self.uk_scale[1]], dtype=DTYPE)
+                      test_T1 / self.uk_scale[1]], dtype=self._DTYPE)
         self.guess = x

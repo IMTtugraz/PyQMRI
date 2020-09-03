@@ -3,7 +3,7 @@
 """Module holding the inversion recovers Look-Locker quantification model."""
 import numexpr as ne
 import numpy as np
-from pyqmri.models.template import BaseModel, constraints, DTYPE
+from pyqmri.models.template import BaseModel, constraints
 
 
 class Model(BaseModel):
@@ -70,7 +70,7 @@ class Model(BaseModel):
         par["unknowns_H1"] = 0
         par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
 
-        phi_corr = np.zeros_like(par["fa_corr"], dtype=DTYPE)
+        phi_corr = np.zeros_like(par["fa_corr"], dtype=self._DTYPE)
         phi_corr = np.real(
             self.fa) * np.real(par["fa_corr"]) + 1j *\
             np.imag(self.fa) * np.imag(par["fa_corr"])
@@ -134,7 +134,7 @@ class Model(BaseModel):
              self.NSlice,
              self.dimY,
              self.dimX),
-            dtype=DTYPE)
+            dtype=self._DTYPE)
 
         TR = self.TR
         tau = self.tau
@@ -166,7 +166,7 @@ class Model(BaseModel):
                 S[i, j, ...] = numexpeval_S(
                     M0, M0_sc, sin_phi, cos_phi, n, Q_F, F, Etau)
 
-        return np.array(np.mean(S, axis=1, dtype=DTYPE), dtype=DTYPE)
+        return np.mean(S, axis=1, dtype=self._DTYPE).astype(self._DTYPE)
 
     def _execute_gradient_3D(self, x):
         grad = np.zeros(
@@ -176,7 +176,7 @@ class Model(BaseModel):
              self.NSlice,
              self.dimY,
              self.dimX),
-            dtype=DTYPE)
+            dtype=self._DTYPE)
         M0_sc = self.uk_scale[0]
         TR = self.TR
         tau = self.tau
@@ -282,7 +282,7 @@ class Model(BaseModel):
                     M0, M0_sc, Etau, cos_phi, sin_phi, n,
                     tmp1, tmp2, tmp3, tau)
 
-        return np.array(np.mean(grad, axis=2, dtype=DTYPE), dtype=DTYPE)
+        return np.mean(grad, axis=2, dtype=self._DTYPE).astype(self._DTYPE)
 
     def computeInitialGuess(self, *args):
         """Initialize unknown array for the fitting.
@@ -296,11 +296,11 @@ class Model(BaseModel):
             here.
         """
         test_T1 = 800 * np.ones(
-            (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+            (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
         test_M0 = 1e-3*np.ones(
-            (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+            (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
         test_T1 = np.exp(-self.scale / (test_T1))
 
         self.guess = np.array(
             [test_M0 / self.uk_scale[0],
-             test_T1 / self.uk_scale[1]], dtype=DTYPE)
+             test_T1 / self.uk_scale[1]], dtype=self._DTYPE)

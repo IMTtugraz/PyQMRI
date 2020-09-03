@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Module holding the diffusion tensor model for fitting."""
 import numpy as np
-from pyqmri.models.template import BaseModel, constraints, DTYPE
+from pyqmri.models.template import BaseModel, constraints
 
 
 class Model(BaseModel):
@@ -201,7 +201,7 @@ class Model(BaseModel):
               self.dir[..., 1] * self.dir[..., 2]
 
         S = (x[0, ...] * self.uk_scale[0] *
-             np.exp(- ADC * self.b)).astype(DTYPE)
+             np.exp(- ADC * self.b)).astype(self._DTYPE)
 
         S *= self.phase
         S[~np.isfinite(S)] = 0
@@ -270,7 +270,7 @@ class Model(BaseModel):
              grad_ADC_y,
              grad_ADC_xz,
              grad_ADC_z,
-             grad_ADC_yz], dtype=DTYPE)
+             grad_ADC_yz], dtype=self._DTYPE)
         grad[~np.isfinite(grad)] = 0
         return grad
 
@@ -295,7 +295,7 @@ class Model(BaseModel):
             test_M0 = self.b0
         else:
             test_M0 = args[0][0]
-        ADC = 1 * np.ones(args[0].shape[-3:], dtype=DTYPE)
+        ADC = 1 * np.ones(args[0].shape[-3:], dtype=self._DTYPE)
 
         x = np.array(
             [
@@ -306,5 +306,5 @@ class Model(BaseModel):
                 0 * ADC,
                 ADC,
                 0 * ADC],
-            dtype=DTYPE)
+            dtype=self._DTYPE)
         self.guess = x

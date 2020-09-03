@@ -188,7 +188,9 @@ class IRGNOptimizer:
             reg_type=self._reg_type,
             SMS=self._SMS,
             streamed=self._streamed,
-            imagespace=self._imagespace
+            imagespace=self._imagespace,
+            DTYPE=DTYPE,
+            DTYPE_real=DTYPE_real
             )
 
         self._gamma = None

@@ -4,7 +4,7 @@
 import configparser
 import numpy as np
 import sympy
-from pyqmri.models.template import BaseModel, constraints, DTYPE
+from pyqmri.models.template import BaseModel, constraints
 
 
 def _str2bool(v):
@@ -167,7 +167,7 @@ class Model(BaseModel):
         if self.indphase is True:
             S *= self._phase
         S[~np.isfinite(S)] = 1e-20
-        S = S.astype(dtype=DTYPE)
+        S = S.astype(dtype=self._DTYPE)
         return S
 
     def _execute_gradient_3D(self, x):
@@ -180,7 +180,7 @@ class Model(BaseModel):
             for ukgrad in self.grad:
                 modelgradient.append(
                     ukgrad(self.modelparams, x, self.uk_scale))
-        modelgradient = np.array(modelgradient, dtype=DTYPE)
+        modelgradient = np.array(modelgradient, dtype=self._DTYPE)
         while len(modelgradient.shape) >= 6:
             modelgradient = np.squeeze(modelgradient, axis=1)
         modelgradient[~np.isfinite(modelgradient)] = 1e-20
@@ -202,7 +202,7 @@ class Model(BaseModel):
         if self.indphase is True:
             self._phase = np.exp(1j*(np.angle(args[0])-np.angle(args[0][0])))
         x = np.ones((len(self.init_values),
-                     self.NSlice, self.dimY, self.dimX), DTYPE)
+                     self.NSlice, self.dimY, self.dimX), self._DTYPE)
         for j in range(len(self.init_values)):
             if "image" in self.init_values[j]:
                 x[j] = args[0][int(self.init_values[j].split("_")[-1])]

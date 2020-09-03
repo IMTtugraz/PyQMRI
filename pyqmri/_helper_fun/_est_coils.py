@@ -15,9 +15,6 @@ from pyqmri._helper_fun import _nlinvns as nlinvns
 from pyqmri._helper_fun import _goldcomp as goldcomp
 from pyqmri._helper_fun import _utils as utils
 
-DTYPE = np.complex64
-DTYPE_real = np.float32
-
 
 def est_coils(data, par, file, args, off):
     ###########################################################################
@@ -38,21 +35,22 @@ def est_coils(data, par, file, args, off):
             int(slices_coils / 2) - int(np.floor((par["NSlice"]) / 2)) + off:
             int(slices_coils / 2) + int(np.ceil(par["NSlice"] / 2)) + off,
             ...]
+        par["C"] = par["C"].astype(par["DTYPE"])
     elif not args.sms and "Coils" in list(file.keys()):
         if args.trafo and not file['Coils'].shape[1] >= par["NSlice"]:
 
             traj_coil = np.reshape(
                 par["traj"], (par["NScan"] * par["Nproj"], par["N"]))
-            dcf_coil = np.sqrt(
-                np.array(
-                    goldcomp.cmp(traj_coil),
-                    dtype=DTYPE))
+            dcf_coil = np.sqrt(goldcomp.cmp(traj_coil))
+            dcf_coil = np.require(dcf_coil,
+                                  requirements='C',
+                                  dtype=par["DTYPE_real"])
 
             par["C"] = np.zeros(
                 (par["NC"], par["NSlice"], par["dimY"], par["dimX"]),
-                dtype=DTYPE)
+                dtype=par["DTYPE"])
             par["phase"] = np.zeros(
-                (par["NSlice"], par["dimY"], par["dimX"]), dtype=DTYPE)
+                (par["NSlice"], par["dimY"], par["dimX"]), dtype=par["DTYPE"])
 
             par_coils = {}
             par_coils["traj"] = traj_coil
@@ -89,9 +87,9 @@ def est_coils(data, par, file, args, off):
                     requirements='C') * dcf_coil
                 tmp_coilData = clarray.zeros(
                     FFT.queue, (1, 1, 1, par["dimY"], par["dimX"]),
-                    dtype=DTYPE)
+                    dtype=par["DTYPE"])
                 coilData = np.zeros(
-                    (par["NC"], par["dimY"], par["dimX"]), dtype=DTYPE)
+                    (par["NC"], par["dimY"], par["dimX"]), dtype=par["DTYPE"])
                 for j in range(par["NC"]):
                     tmp_combinedData = clarray.to_device(
                         FFT.queue, combinedData[None, :, j, ...])
@@ -105,7 +103,7 @@ def est_coils(data, par, file, args, off):
                     np.sqrt(
                         par["dimX"] *
                         par["dimY"]),
-                    dtype=DTYPE,
+                    dtype=par["DTYPE"],
                     requirements='C')
 
                 dview = c[int(np.floor(i * len(c) / par["NSlice"]))]
@@ -151,9 +149,9 @@ def est_coils(data, par, file, args, off):
 
             par["C"] = np.zeros(
                 (par["NC"], par["NSlice"], par["dimY"], par["dimX"]),
-                dtype=DTYPE)
+                dtype=par["DTYPE"])
             par["phase"] = np.zeros(
-                (par["NSlice"], par["dimY"], par["dimX"]), dtype=DTYPE)
+                (par["NSlice"], par["dimY"], par["dimX"]), dtype=par["DTYPE"])
 
             result = []
             combinedData = np.sum(data, 0)
@@ -212,22 +210,26 @@ def est_coils(data, par, file, args, off):
                     int(np.floor((par["NSlice"]) / 2)) + off:
                     int(slices_coils / 2) +
                     int(np.ceil(par["NSlice"] / 2)) + off, ...]
+            par["C"] = par["C"].astype(par["DTYPE"])
 
     else:
         if args.trafo:
 
             traj_coil = np.reshape(
                 par["traj"], (par["NScan"] * par["Nproj"], par["N"]))
-            dcf_coil = np.sqrt(np.array(goldcomp.cmp(traj_coil), dtype=DTYPE))
+            dcf_coil = np.sqrt(goldcomp.cmp(traj_coil))
+            dcf_coil = np.require(dcf_coil,
+                                  requirements='C',
+                                  dtype=par["DTYPE_real"])
 
             par["C"] = np.zeros(
                 (par["NC"],
                  par["NSlice"],
                     par["dimY"],
                     par["dimX"]),
-                dtype=DTYPE)
+                dtype=par["DTYPE"])
             par["phase"] = np.zeros(
-                (par["NSlice"], par["dimY"], par["dimX"]), dtype=DTYPE)
+                (par["NSlice"], par["dimY"], par["dimX"]), dtype=par["DTYPE"])
 
             par_coils = {}
             par_coils["traj"] = traj_coil
@@ -262,9 +264,9 @@ def est_coils(data, par, file, args, off):
                     requirements='C') * dcf_coil
                 tmp_coilData = clarray.zeros(
                     FFT.queue, (1, 1, 1, par["dimY"], par["dimX"]),
-                    dtype=DTYPE)
+                    dtype=par["DTYPE"])
                 coilData = np.zeros(
-                    (par["NC"], par["dimY"], par["dimX"]), dtype=DTYPE)
+                    (par["NC"], par["dimY"], par["dimX"]), dtype=par["DTYPE"])
                 for j in range(par["NC"]):
                     tmp_combinedData = clarray.to_device(
                         FFT.queue, combinedData[None, :, j, ...])
@@ -278,7 +280,7 @@ def est_coils(data, par, file, args, off):
                     np.sqrt(
                         par["dimX"] *
                         par["dimY"]),
-                    dtype=DTYPE,
+                    dtype=par["DTYPE"],
                     requirements='C')
 
                 dview = c[int(np.floor(i * len(c) / par["NSlice"]))]
@@ -319,9 +321,9 @@ def est_coils(data, par, file, args, off):
                  par["NSlice"],
                     par["dimY"],
                     par["dimX"]),
-                dtype=DTYPE)
+                dtype=par["DTYPE"])
             par["phase"] = np.zeros(
-                (par["NSlice"], par["dimY"], par["dimX"]), dtype=DTYPE)
+                (par["NSlice"], par["dimY"], par["dimX"]), dtype=par["DTYPE"])
 
             result = []
             combinedData = np.sum(data, 0)

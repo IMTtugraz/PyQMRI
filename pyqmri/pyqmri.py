@@ -25,10 +25,6 @@ from pyqmri.solver import CGSolver
 from pyqmri.irgn import IRGNOptimizer
 
 
-DTYPE = np.complex64
-DTYPE_real = np.float32
-
-
 def _choosePlatform(myargs, par):
     platforms = cl.get_platforms()
     par["GPU"] = False
@@ -102,7 +98,7 @@ def _precoompFFT(data, par):
     else:
         par["fft_dim"] = [-2, -1]
 
-    return np.require(data.astype(DTYPE),
+    return np.require(data.astype(par["DTYPE"]),
                       requirements='C')
 
 
@@ -148,10 +144,11 @@ def _genImages(myargs, par, data, off):
             siz = np.shape(x)
             result = np.zeros(
                 (par["NScan"], par["NC"], par["NSlice"],
-                 par["dimY"], par["dimX"]), dtype=DTYPE)
+                 par["dimY"], par["dimX"]), dtype=par["DTYPE"])
             tmp_result = clarray.empty(fft.queue,
                                        (1, 1, par["NSlice"],
-                                        par["dimY"], par["dimX"]), dtype=DTYPE)
+                                        par["dimY"], par["dimX"]),
+                                       dtype=par["DTYPE"])
             start = time.time()
             for j in range(siz[0]):
                 for k in range(siz[1]):
@@ -177,7 +174,7 @@ def _genImages(myargs, par, data, off):
             images = np.zeros((par["NScan"],
                                par["NSlice"],
                                par["dimY"],
-                               par["dimX"]), dtype=DTYPE)
+                               par["dimX"]), dtype=par["DTYPE"])
             if par["NScan"]/par_scans >= 1:
                 cgs = CGSolver(par, par_scans, myargs.trafo, myargs.sms)
                 for j in range(int(par["NScan"]/par_scans)):
@@ -218,7 +215,7 @@ def _genImages(myargs, par, data, off):
                                     par["NScan"], par_scans))
                 del cgs
             par["file"].create_dataset("images", images.shape,
-                                       dtype=DTYPE, data=images)
+                                       dtype=par["DTYPE"], data=images)
         else:
             images = par["file"]['images']
             if images.shape[1] < par["NSlice"]:
@@ -234,7 +231,7 @@ def _genImages(myargs, par, data, off):
                         np.floor((par["NSlice"]) / 2)) + off:int(
                           slices_images / 2) + int(
                             np.ceil(par["NSlice"] / 2)) + off,
-                      ...].astype(DTYPE)
+                      ...].astype(par["DTYPE"])
     return images
 
 
@@ -278,7 +275,7 @@ def _estScaleNorm(myargs, par, images, data):
     par["SNR_est"] = SNR_est
     print("Estimated SNR from kspace", SNR_est)
 
-    dscale = DTYPE_real(1 / np.linalg.norm(np.abs(data)))
+    dscale = par["DTYPE_real"](1 / np.linalg.norm(np.abs(data)))
     print("Dscale: ", dscale)
     par["dscale"] = dscale
     images = images*dscale
@@ -351,7 +348,16 @@ def _start_recon(myargs):
 # Create par struct to store relevant parameteres for reconstruction/fitting
     par = {}
 ###############################################################################
-# Select input file ############################################0##############
+# Define precision ############################################################
+###############################################################################
+    if myargs.double_precision is True:
+        par["DTYPE"] = np.complex128
+        par["DTYPE_real"] = np.float64
+    else:
+        par["DTYPE"] = np.complex64
+        par["DTYPE_real"] = np.float32
+###############################################################################
+# Select input file ###########################################################
 ###############################################################################
     _readInput(myargs, par)
 ###############################################################################
@@ -364,25 +370,29 @@ def _start_recon(myargs):
     off = 0
 
     if myargs.sms:
-        data = par["file"]['real_dat'][()].astype(DTYPE)\
-               + 1j*par["file"]['imag_dat'][()].astype(DTYPE)
+        data = par["file"]['real_dat'][()].astype(par["DTYPE"])\
+               + 1j*par["file"]['imag_dat'][()].astype(par["DTYPE"])
     else:
         data = par["file"]['real_dat'][
-          ..., int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:
-          int(NSlice/2)+int(np.ceil(reco_Slices/2))+off, :, :].astype(DTYPE)\
+          ...,
+          int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:
+          int(NSlice/2)+int(np.ceil(reco_Slices/2))+off, :, :
+              ].astype(par["DTYPE"])\
                + 1j*par["file"]['imag_dat'][
-          ..., int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:
-          int(NSlice/2)+int(np.ceil(reco_Slices/2))+off, :, :].astype(DTYPE)
+          ...,
+          int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:
+          int(NSlice/2)+int(np.ceil(reco_Slices/2))+off, :, :
+              ].astype(par["DTYPE"])
 
     dimreduction = 0
     if myargs.trafo:
-        par["traj"] = par["file"]['real_traj'][()].astype(DTYPE) + \
-                      1j*par["file"]['imag_traj'][()].astype(DTYPE)
+        par["traj"] = par["file"]['real_traj'][()].astype(par["DTYPE"]) + \
+                      1j*par["file"]['imag_traj'][()].astype(par["DTYPE"])
 
-        par["dcf"] = np.sqrt(np.array(goldcomp.cmp(
-                         par["traj"]), dtype=DTYPE_real)).astype(DTYPE_real)
+        par["dcf"] = np.sqrt(goldcomp.cmp(
+                         par["traj"]))
         par["dcf"] = np.require(np.abs(par["dcf"]),
-                                DTYPE_real, requirements='C')
+                                par["DTYPE_real"], requirements='C')
     else:
         par["traj"] = None
         par["dcf"] = None
@@ -402,10 +412,9 @@ def _start_recon(myargs):
             par["traj"] = np.require(par["traj"][
                 ..., int(dimreduction/2):
                 par["traj"].shape[-1]-int(dimreduction/2)], requirements='C')
-            par["dcf"] = np.sqrt(np.array(goldcomp.cmp(par["traj"]),
-                                          dtype=DTYPE_real)).astype(DTYPE_real)
+            par["dcf"] = np.sqrt(goldcomp.cmp(par["traj"]))
             par["dcf"] = np.require(np.abs(par["dcf"]),
-                                    DTYPE_real, requirements='C')
+                                    par["DTYPE_real"], requirements='C')
         else:
             data = np.require(data[...,
                                    int(dimreduction/2):
@@ -420,12 +429,13 @@ def _start_recon(myargs):
     if "fa_corr" in list(par["file"].keys()):
         print("Using provied flip angle correction.")
         if myargs.sms:
-            par["fa_corr"] = np.flip(par["file"]['fa_corr'][()].astype(DTYPE),
-                                     0)[...]
+            par["fa_corr"] = np.flip(
+                par["file"]['fa_corr'][()].astype(par["DTYPE"]),
+                0)[...]
         else:
             NSlice_fa, _, _ = par["file"]['fa_corr'][()].shape
             par["fa_corr"] = np.flip(
-                par["file"]['fa_corr'][()].astype(DTYPE),
+                par["file"]['fa_corr'][()].astype(par["DTYPE"]),
                 0)[
                   int(NSlice_fa/2)-int(np.floor((reco_Slices)/2)):
                   int(NSlice_fa/2)+int(np.ceil(reco_Slices/2)),
@@ -441,12 +451,12 @@ def _start_recon(myargs):
         print("Using provied flip angle correction.")
         if myargs.sms:
             par["fa_corr"] = np.flip(
-                par["file"]['interpol_fa'][()].astype(DTYPE),
+                par["file"]['interpol_fa'][()].astype(par["DTYPE"]),
                 0)[...]
         else:
             NSlice_fa, _, _ = par["file"]['interpol_fa'][()].shape
             par["fa_corr"] = np.flip(
-                par["file"]['interpol_fa'][()].astype(DTYPE),
+                par["file"]['interpol_fa'][()].astype(par["DTYPE"]),
                 0)[
                   int(NSlice_fa/2)-int(np.floor((reco_Slices)/2)):
                   int(NSlice_fa/2)+int(np.ceil(reco_Slices/2)),
@@ -478,9 +488,8 @@ def _start_recon(myargs):
         par["traj"] = np.require(np.reshape(par["traj"][:Nproj*NScan, :],
                                             (NScan, Nproj, N)),
                                  requirements='C')
-        par["dcf"] = np.sqrt(np.array(goldcomp.cmp(par["traj"]),
-                                      dtype=DTYPE_real)).astype(DTYPE_real)
-        par["dcf"] = np.require(np.abs(par["dcf"]), DTYPE_real,
+        par["dcf"] = np.sqrt(goldcomp.cmp(par["traj"]))
+        par["dcf"] = np.require(np.abs(par["dcf"]), par["DTYPE_real"],
                                 requirements='C')
     elif data.ndim == 4 and "ImageReco" in myargs.sig_model:
         data = data[None]
@@ -522,7 +531,7 @@ def _start_recon(myargs):
         tmpmask[np.abs(data[0, 0, ...]) == 0] = 0
         par['mask'] = np.reshape(
             tmpmask,
-            (data[0, 0, ...].shape)).astype(DTYPE_real)
+            (data[0, 0, ...].shape)).astype(par["DTYPE_real"])
         del tmpmask
     else:
         par['mask'] = None
@@ -531,7 +540,7 @@ def _start_recon(myargs):
 ###############################################################################
 # ratio of z direction to x,y, important for finite differences ###############
 ###############################################################################
-    par["dz"] = myargs.dz
+    par["dz"] = par["DTYPE_real"](myargs.dz)
 ###############################################################################
 # Create OpenCL Context and Queues ############################################
 ###############################################################################
@@ -550,9 +559,9 @@ def _start_recon(myargs):
         else:
             data = data*(par["dcf"])
     if NC == 1:
-        par['C'] = np.ones((data[0, ...].shape), dtype=DTYPE)
+        par['C'] = np.ones((data[0, ...].shape), dtype=par["DTYPE"])
     else:
-        par['C'] = par['C'].astype(DTYPE)
+        par['C'] = par['C'].astype(par["DTYPE"])
 ###############################################################################
 # Init forward model and initial guess ########################################
 ###############################################################################
@@ -572,13 +581,15 @@ def _start_recon(myargs):
     data, images = _estScaleNorm(myargs, par, images, data)
 
     if myargs.weights is -1:
-        par["weights"] = np.ones((par["unknowns"]), dtype=np.float32)
+        par["weights"] = np.ones((par["unknowns"]), dtype=par["DTYPE_real"])
     else:
-        par["weights"] = np.array(myargs.weights, dtype=np.float32)
+        par["weights"] = np.array(myargs.weights, dtype=par["DTYPE_real"])
 ###############################################################################
 # Compute initial guess #######################################################
 ###############################################################################
-    model.computeInitialGuess(images, par["dscale"])
+    model.computeInitialGuess(
+        images,
+        par["dscale"])
 ###############################################################################
 # initialize operator  ########################################################
 ###############################################################################
@@ -589,7 +600,9 @@ def _start_recon(myargs):
                         SMS=myargs.sms,
                         config=myargs.config,
                         streamed=myargs.streamed,
-                        reg_type=myargs.reg)
+                        reg_type=myargs.reg,
+                        DTYPE=par["DTYPE"],
+                        DTYPE_real=par["DTYPE_real"])
     f = h5py.File(par["outdir"]+"output_" + par["fname"], "a")
     f.create_dataset("images_ifft", data=images)
     f.attrs['data_norm'] = par["dscale"]
@@ -615,8 +628,7 @@ def _str2bool(v):
     raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
-def run(recon_type='3D',
-        reg_type='TGV',
+def run(reg_type='TGV',
         slices=1,
         trafo=True,
         streamed=False,
@@ -625,7 +637,6 @@ def run(recon_type='3D',
         model='GeneralModel',
         config='default',
         imagespace=False,
-        OCL_GPU=True,
         sms=False,
         devices=0,
         dz=1,
@@ -633,7 +644,8 @@ def run(recon_type='3D',
         useCGguess=True,
         out='',
         modelfile="models.ini",
-        modelname="VFA-E1"):
+        modelname="VFA-E1",
+        double_precision=False):
     """
     Start a 3D model based reconstruction.
 
@@ -647,61 +659,58 @@ def run(recon_type='3D',
 
     Parameters
     ----------
-      recon_type : str
-        3D (2D currently not supported but 3D works on one slice also)
-      reg_type : str
+      reg_type : str, TGV
         TGV or TV, defaults to TGV
-      slices : int
+      slices : int, 1
         The number of slices to reconsturct. Slices are picked symmetrically
         from the volume center. Pass -1 to select all slices available.
         Defaults to 1
-      trafo : bool
+      trafo : bool, True
         Choos between Radial (1) or Cartesian (0) FFT
-      streamed : bool
+      streamed : bool, False
         Toggle between streaming slices to the GPU (1) or computing
         everything with a single memory transfer (0). Defaults to 0
-      par_slices : int
+      par_slices : int, 1
         Number of slices per streamed package. Volume devided by GPU's and
         par_slices must be an even number! Defaults to 1
-      data : str
+      data : str, ''
         The path to the .h5 file containing the data to reconstruct.
         If left empty, a GUI will open and asks for data file selection. This
         is also the default behaviour.
-      model : str
+      model : str, GeneralModel
         The name of the model which should be used to fit the data. Defaults to
         'VFA'. A path to your own model file can be passed. See the Model Class
         for further information on how to setup your own model.
-      config : str
+      config : str, default
         The path to the confi gfile used for the IRGN reconstruction. If
         not specified the default config file will be used. If no default
         config file is present in the current working directory one will be
         generated.
-      imagespace : bool
+      imagespace : bool, False
         Select between fitting in imagespace (1) or in k-space (0).
         Defaults to 0
-      OCL_GPU : bool
-        Select between GPU (1) or CPU (0) OpenCL devices. Defaults to GPU
-        CAVE: CPU FFT not working.
-      sms : bool
+      sms : bool, False
         use Simultaneous Multi Slice Recon (1) or normal reconstruction (0).
         Defaults to 0
-      devices : list of int
+      devices : list of int, 0
         The device ID of device(s) to use for streaming/reconstruction
-      dz : float
+      dz : float, 1
         Ratio of physical Z to X/Y dimension. X/Y is assumed to be isotropic.
-      useCGguess : bool
+      useCGguess : bool, True
         Switch between CG sense and simple FFT as initial guess for the images.
-      out : str
+      out : str, ''
         Output directory. Defaults to the location of the input file.
-      modelpath : str
+      modelpath : str, models.ini
         Path to the .mod file for the generative model.
-      modelname : str
+      modelname : str, VFA-E1
         Name of the model in the .mod file to use.
       weights : list of float, -1
         Optional weights for each unknown. Defaults to -1, i.e. no additional
         weights are used.
+      double_precision : bool, False
+        Enable double precission computation.
     """
-    params = [('--recon_type', str(recon_type)),
+    params = [('--recon_type', "TGV"),
               ('--reg_type', str(reg_type)),
               ('--slices', str(slices)),
               ('--trafo', str(trafo)),
@@ -711,7 +720,7 @@ def run(recon_type='3D',
               ('--config', str(config)),
               ('--imagespace', str(imagespace)),
               ('--sms', str(sms)),
-              ('--OCL_GPU', str(OCL_GPU)),
+              ('--OCL_GPU', "True"),
               ('--devices', str(devices)),
               ('--dz', str(dz)),
               ('--weights', str(weights)),
@@ -719,7 +728,8 @@ def run(recon_type='3D',
               ('--model', str(model)),
               ('--modelfile', str(modelfile)),
               ('--modelname', str(modelname)),
-              ('--outdir', str(out))
+              ('--outdir', str(out)),
+              ('--double_precision', str(double_precision))
               ]
 
     sysargs = sys.argv[1:]
@@ -812,6 +822,12 @@ def _parseArguments(args):
     argparmain.add_argument('--outdir', dest='outdir', type=str,
                             help="The path to the output directory. Defaults "
                             "to the location of the input.")
+    argparmain.add_argument(
+      '--double_precision', dest='double_precision', type=_str2bool,
+      help="Switch between single (False, default) and double "
+           "precision (True). Usually, single precision gives high enough "
+           "accuracy.")
+
     arguments, unknown = argparmain.parse_known_args(args)
     return arguments, unknown
 

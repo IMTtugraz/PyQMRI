@@ -226,17 +226,17 @@ __kernel void update_z1_tv(
 
 
 __kernel void update_primal(
-__global double2 *u_new,
-__global double2 *u,
-__global double2 *Kyk,
-__global double2 *u_k,
-const double tau,
-const double tauinv,
-const double div,
-__global double* min,
-__global double* max,
-__global int* real, const int NUk
-)
+                __global double2 *u_new,
+                __global double2 *u,
+                __global double2 *Kyk,
+                __global double2 *u_k,
+                const double tau,
+                const double tauinv,
+                const double div,
+                __global double* min,
+                __global double* max,
+                __global int* real, const int NUk
+                )
 {
     size_t Nx = get_global_size(2), Ny = get_global_size(1);
     size_t NSl = get_global_size(0);

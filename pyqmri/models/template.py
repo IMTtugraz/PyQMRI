@@ -7,9 +7,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
-DTYPE = np.complex64
-DTYPE_real = np.float32
-
 
 class constraints:
     """Constraints for a parameter.
@@ -94,6 +91,8 @@ class BaseModel(ABC):
         self.NSlice = par["NSlice"]
         self.dimX = par["dimX"]
         self.dimY = par["dimY"]
+        self._DTYPE = par["DTYPE"]
+        self._DTYPE_real = par["DTYPE_real"]
         self._figure = None
         self._plot_trans = []
         self._plot_cor = []

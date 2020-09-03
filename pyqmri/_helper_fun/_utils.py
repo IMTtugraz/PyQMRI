@@ -9,8 +9,6 @@ import configparser
 import os
 import numpy as np
 from pyqmri.transforms import PyOpenCLnuFFT
-DTYPE = np.complex64
-DTYPE_real = np.float32
 
 
 def prime_factors(n):

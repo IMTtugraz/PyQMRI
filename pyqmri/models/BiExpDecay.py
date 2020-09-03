@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Module holding the bi-exponential model for fitting."""
 import numpy as np
-from pyqmri.models.template import BaseModel, constraints, DTYPE
+from pyqmri.models.template import BaseModel, constraints
 
 
 class Model(BaseModel):
@@ -133,7 +133,7 @@ class Model(BaseModel):
         S = M0 * (M01 * np.exp(-self.TE * (T21)) +
                   M02 * np.exp(-self.TE * (T22)))
         S[~np.isfinite(S)] = 1e-20
-        S = np.array(S, dtype=DTYPE)
+        S = np.array(S, dtype=self._DTYPE)
         return S
 
     def _execute_gradient_3D(self, x):
@@ -158,7 +158,7 @@ class Model(BaseModel):
             self.TE * \
             self.uk_scale[4] * np.exp(-self.TE * (T22 * self.uk_scale[4]))
         grad = np.array([grad_M0, grad_M01, grad_T21,
-                         grad_M02, grad_T22], dtype=DTYPE)
+                         grad_M02, grad_T22], dtype=self._DTYPE)
         grad[~np.isfinite(grad)] = 1e-20
         return grad
 
@@ -175,17 +175,17 @@ class Model(BaseModel):
         """
         test_M0 = 0.1 * np.ones(
             (self.NSlice, self.dimY, self.dimX),
-            dtype=DTYPE)
+            dtype=self._DTYPE)
         test_M01 = 0.5 * np.ones(
-            (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+            (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
         test_T11 = 1/10 * np.ones(
-            (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+            (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
         test_T12 = 1/150 * np.ones(
-            (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+            (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
 
         self.guess = np.array([
             test_M0,
             test_M01,
             test_T11,
             test_M01,
-            test_T12], dtype=DTYPE)
+            test_T12], dtype=self._DTYPE)

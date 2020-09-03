@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Module holding the simple image model for image reconstruction."""
 import numpy as np
-from pyqmri.models.template import BaseModel, constraints, DTYPE
+from pyqmri.models.template import BaseModel, constraints
 
 
 class Model(BaseModel):
@@ -79,7 +79,7 @@ class Model(BaseModel):
         return S
 
     def _execute_gradient_3D(self, x):
-        grad_M0 = np.zeros(((self.NScan, )+x.shape), dtype=DTYPE)
+        grad_M0 = np.zeros(((self.NScan, )+x.shape), dtype=self._DTYPE)
         for j in range(self.NScan):
             grad_M0[j, ...] = self.uk_scale[j]*np.ones_like(x)
         grad_M0[~np.isfinite(grad_M0)] = 1e-20
@@ -96,4 +96,4 @@ class Model(BaseModel):
             Assumes the images series at position 0 and uses it as initial
             guess.
         """
-        self.guess = ((args[0]).astype(DTYPE))
+        self.guess = ((args[0]).astype(self._DTYPE))
