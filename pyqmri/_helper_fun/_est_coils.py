@@ -141,7 +141,9 @@ def est_coils(data, par, file, args, off):
                         combinedData,
                         nlinvNewtonSteps,
                         True,
-                        nlinvRealConstr))
+                        nlinvRealConstr,
+                        par["DTYPE"],
+                        par["DTYPE_real"]))
 
             for i in range(par["NSlice"]):
                 par["C"][:, i, :, :] = result[i].get()[2:, -1, :, :]
