@@ -64,7 +64,7 @@ class CGSolver:
 
         self.__op, FT = operator.Operator.MRIOperatorFactory(
             par,
-            self._prg,
+            [self._prg],
             self._DTYPE,
             self._DTYPE_real,
             trafo=trafo,
