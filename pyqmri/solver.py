@@ -1931,7 +1931,8 @@ class PDSolverStreamed(PDBaseSolver):
             self._queue,
             self.num_dev,
             reverse_dir,
-            posofnorm)
+            posofnorm,
+            DTYPE=self._DTYPE)
 
 
 class PDSolverStreamedTGV(PDSolverStreamed):
