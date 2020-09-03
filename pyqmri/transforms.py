@@ -286,7 +286,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
         self.fft_scale = DTYPE_real(
             np.sqrt(np.prod(self.fft_shape[self.fft_dim[0]:])))
 
-        (kerneltable, kerneltable_FT, _) = calckbkernel(
+        (kerneltable, kerneltable_FT) = calckbkernel(
             kwidth, self.ogf, par["N"], klength)
 
         deapo = 1 / kerneltable_FT.astype(DTYPE_real)
@@ -1044,7 +1044,7 @@ class PyOpenCLRadialNUFFTStreamed(PyOpenCLnuFFT):
                            par["overlap"]),
                           int(par["dimY"]*self.ogf),
                           int(par["dimX"]*self.ogf))
-        (kerneltable, kerneltable_FT, _) = calckbkernel(
+        (kerneltable, kerneltable_FT) = calckbkernel(
             kwidth, self.ogf, par["N"], klength)
         self._kernelpoints = kerneltable.size
 

@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Wed Jan 30 11:10:07 2019
-
-@author: omaier
-"""
+"""Utility functions for PyQMRI fitting."""
 import configparser
 import os
-import numpy as np
 from pyqmri.transforms import PyOpenCLnuFFT
 
 
 def prime_factors(n):
+    """Prime factorication.
+
+    Parameters
+    ----------
+      n : int
+        Value which should be factorized into primes.
+    """
     i = 2
     factors = []
     while i * i <= n:
@@ -26,6 +28,17 @@ def prime_factors(n):
 
 
 def NUFFT(par, trafo=True, SMS=False):
+    """NUFFT for image guess.
+
+    Parameters
+    ----------
+      par : dict
+        Parameter struct to setup the NUFFT
+      trafo : bool, True
+        Radial (True) or Cartesian (False) FFT.
+      SMS : bool, False
+        SMS (True) or normal FFT (False, default).
+    """
     NC = par["NC"]
     NScan = par["NScan"]
     par["NC"] = 1
@@ -41,7 +54,7 @@ def NUFFT(par, trafo=True, SMS=False):
 
 
 def gen_default_config():
-
+    """Generate default config file."""
     config = configparser.ConfigParser()
 
     config['TGV'] = {}
@@ -84,7 +97,16 @@ def gen_default_config():
         config.write(configfile)
 
 
-def read_config(conf_file, reg_type="DEFAULT"):
+def read_config(conf_file, reg_type="TGV"):
+    """Config file reader.
+
+    Parameters
+    ----------
+      conf_file : str
+        Path to config file
+      reg_type : str, TGV
+        Select witch regularization parameters from the file should be used.
+    """
     config = configparser.ConfigParser()
 
     if not conf_file.endswith('.ini'):
@@ -110,26 +132,23 @@ def read_config(conf_file, reg_type="DEFAULT"):
         return params
 
 
-def save_config(conf, path, reg_type="DEFAULT"):
+def save_config(conf, path, reg_type="TGV"):
+    """Config file writer.
+
+    Save the used config alongside the results.
+
+    Parameters
+    ----------
+      conf : str
+        Path to config file
+      path : str
+        Output path
+      reg_type : str, TGV
+        Select witch regularization parameters from the file should be used.
+    """
     tmp_dict = {}
     tmp_dict[reg_type] = conf
     config = configparser.ConfigParser()
     config.read_dict(tmp_dict)
     with open(path+os.sep+'config.ini', 'w') as configfile:
         config.write(configfile)
-
-def fibonacci(num):
-    if num < 3:
-        if num < 2:
-            fib = 1
-        else:
-            np.zeros((2))
-            fib[0] = 1
-            fib[1] = 1
-    else:
-        fib = np.zeros(num)
-        fib[0] = 1
-        fib[1] = 1
-        for ii in range(2, num):
-            fib[ii] = fib[ii - 2] + fib[ii - 1]
-    return fib

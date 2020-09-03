@@ -17,6 +17,34 @@ from pyqmri._helper_fun import _utils as utils
 
 
 def est_coils(data, par, file, args, off):
+    """Estimate coil sensitivity profiles.
+
+    This function estimates coil sensitivity profiles based on the
+    non-linear inversion method from Uecker et al. It first checks if
+    coil information is present in the given data file and if the size
+    matches the number of slices that should be reconstructed. If the
+    check fails, new coil sensitivity information is estimated and saved to
+    the data file.
+
+    Parameters
+    ----------
+      data : numpy.array
+        The complex k-space data.
+      par : dict
+        Parameter dictionary.
+      file : h5py.File
+          A h5py.File possibly containing the coil profiles. Also used for
+          storing newly computed profile information.
+      args : argparse.ArgumentParser
+        Commandline arguments passed to the script.
+      off : int
+        A possible offset of the zero slice.
+
+    Returns
+    -------
+        numpy.array
+            The complex coilsensitivity information.
+    """
     ###########################################################################
     # Initiate parallel interface #############################################
     ###########################################################################

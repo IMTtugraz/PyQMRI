@@ -24,7 +24,29 @@ import pyfftw
 
 
 def nlinvns(Y, n, *arg, DTYPE=np.complex64, DTYPE_real=np.float32):
+    """Non-linear inversen based Coil sensitivity estimation.
 
+    Parameters
+    ----------
+      Y : numpy.array
+        Data used for estimation
+      n : int
+        number of Gausse-Newton iteration steps
+      realConstr : bool
+        Real value constraint on the image. Should be set to false usually.
+      returnProfiles : bool
+        Return coil profiles. Should be set to True usually.
+      DTYPE : numpy.dtype, numpy.complex64
+        Complex working precission.
+      DTYPE_real : numpy.dtype, numpy.float32
+        Real working precission.
+
+    Returns
+    -------
+    numpy.array :
+        The results of each iteration containing the reconstructed image at
+        position 0 and 1, followed by the complex coil sensitivities.
+    """
     nrarg = len(arg)
     if nrarg == 2:
         returnProfiles = arg[0]
