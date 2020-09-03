@@ -27,7 +27,7 @@ from pyqmri.irgn import IRGNOptimizer
 
 def _choosePlatform(myargs, par):
     platforms = cl.get_platforms()
-    par["GPU"] = False
+    use_GPU = False
     par["Platform_Indx"] = 0
     if myargs.use_GPU:
         for j, platfrom in enumerate(platforms):
@@ -38,9 +38,9 @@ def _choosePlatform(myargs, par):
                          len(platfrom.get_devices(
                              device_type=cl.device_type.GPU)),
                          str(platfrom.get_info(cl.platform_info.VERSION))))
-                par["GPU"] = True
+                use_GPU = True
                 par["Platform_Indx"] = j
-    if not par["GPU"]:
+    if not use_GPU:
         if myargs.use_GPU:
             print("No GPU OpenCL platform found. Falling back to CPU.")
         for j, platfrom in enumerate(platforms):
@@ -51,7 +51,7 @@ def _choosePlatform(myargs, par):
                          len(platfrom.get_devices(
                              device_type=cl.device_type.GPU)),
                          str(platfrom.get_info(cl.platform_info.VERSION))))
-                par["GPU"] = False
+                use_GPU = False
                 par["Platform_Indx"] = j
     return platforms
 
@@ -276,7 +276,7 @@ def _estScaleNorm(myargs, par, images, data):
     print("Estimated SNR from kspace", SNR_est)
 
     dscale = par["DTYPE_real"](1 / np.linalg.norm(np.abs(data)))
-    print("Dscale: ", dscale)
+    print("Data scale: ", dscale)
     par["dscale"] = dscale
     images = images*dscale
     data = data*dscale
@@ -324,45 +324,7 @@ def _readInput(myargs, par):
     par["file"] = h5py.File(file, 'a')
 
 
-def _start_recon(myargs):
-    sig_model_path = os.path.normpath(myargs.sig_model)
-    if len(sig_model_path.split(os.sep)) > 1:
-        if os.path.splitext(sig_model_path)[-1] == '':
-            spec = importlib.util.spec_from_file_location(
-                    sig_model_path.split(os.sep)[-1]+'.py',
-                    sig_model_path+'.py')
-        elif os.path.splitext(sig_model_path)[-1] == '.py':
-            spec = importlib.util.spec_from_file_location(
-                    sig_model_path.split(os.sep)[-1], sig_model_path)
-        else:
-            raise argparse.ArgumentTypeError(
-                "Specified model file does not end with .py nor does it have "
-                "no extension at all. Please specify a valid python file.")
-        sig_model = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(sig_model)
-    else:
-        sig_model = importlib.import_module(
-            "pyqmri.models."+str(sig_model_path))
-    np.seterr(divide='ignore', invalid='ignore')
-
-# Create par struct to store relevant parameteres for reconstruction/fitting
-    par = {}
-###############################################################################
-# Define precision ############################################################
-###############################################################################
-    if myargs.double_precision is True:
-        par["DTYPE"] = np.complex128
-        par["DTYPE_real"] = np.float64
-    else:
-        par["DTYPE"] = np.complex64
-        par["DTYPE_real"] = np.float32
-###############################################################################
-# Select input file ###########################################################
-###############################################################################
-    _readInput(myargs, par)
-###############################################################################
-# Read Data ###################################################################
-###############################################################################
+def _read_data_from_file(par, myargs):
     reco_Slices = myargs.slices
     dimX, dimY, NSlice = ((par["file"].attrs['image_dimensions']).astype(int))
     if reco_Slices == -1:
@@ -422,58 +384,34 @@ def _start_recon(myargs):
                                    int(dimreduction/2):
                                    data.shape[-1]-int(dimreduction/2)],
                               requirements='C')
+    return data, dimX, dimY, NSlice, reco_Slices, dimreduction, off
 
-###############################################################################
-# Flip angle correction #######################################################
-###############################################################################
+
+def _read_flip_angle_correction_data(par, myargs, dimreduction, reco_Slices):
     if "fa_corr" in list(par["file"].keys()):
-        print("Using provied flip angle correction.")
-        if myargs.sms:
-            par["fa_corr"] = np.flip(
-                par["file"]['fa_corr'][()].astype(par["DTYPE"]),
-                0)[...]
-        else:
-            NSlice_fa, _, _ = par["file"]['fa_corr'][()].shape
-            par["fa_corr"] = np.flip(
-                par["file"]['fa_corr'][()].astype(par["DTYPE"]),
-                0)[
-                  int(NSlice_fa/2)-int(np.floor((reco_Slices)/2)):
-                  int(NSlice_fa/2)+int(np.ceil(reco_Slices/2)),
-                  ...]
-        par["fa_corr"][par["fa_corr"] == 0] = 1
-        par["fa_corr"] = par["fa_corr"][
-           ...,
-           int(dimreduction/2):par["fa_corr"].shape[-2]-int(dimreduction/2),
-           int(dimreduction/2):par["fa_corr"].shape[-1]-int(dimreduction/2)]
-        par["fa_corr"] = np.require((np.transpose(par["fa_corr"], (0, 2, 1))),
-                                    requirements='C')
+        NSlice_fa, _, _ = par["file"]['fa_corr'][()].shape
     elif "interpol_fa" in list(par["file"].keys()):
-        print("Using provied flip angle correction.")
-        if myargs.sms:
-            par["fa_corr"] = np.flip(
-                par["file"]['interpol_fa'][()].astype(par["DTYPE"]),
-                0)[...]
-        else:
-            NSlice_fa, _, _ = par["file"]['interpol_fa'][()].shape
-            par["fa_corr"] = np.flip(
-                par["file"]['interpol_fa'][()].astype(par["DTYPE"]),
-                0)[
-                  int(NSlice_fa/2)-int(np.floor((reco_Slices)/2)):
-                  int(NSlice_fa/2)+int(np.ceil(reco_Slices/2)),
-                  ...]
-        par["fa_corr"][par["fa_corr"] == 0] = 0
-        par["fa_corr"] = par["fa_corr"][
-           ...,
-           int(dimreduction/2):par["fa_corr"].shape[-2]-int(dimreduction/2),
-           int(dimreduction/2):par["fa_corr"].shape[-1]-int(dimreduction/2)]
-        par["fa_corr"] = np.require((np.transpose(par["fa_corr"], (0, 2, 1))),
-                                    requirements='C')
-    else:
-        print("No flip angle correction provided/used.")
+        NSlice_fa, _, _ = par["file"]['interpol_fa'][()].shape
 
+    par["fa_corr"] = np.flip(
+        par["file"]['fa_corr'][()].astype(par["DTYPE"]),
+        0)[
+          int(NSlice_fa/2)-int(np.floor((reco_Slices)/2)):
+          int(NSlice_fa/2)+int(np.ceil(reco_Slices/2)),
+          ...]
+    par["fa_corr"][par["fa_corr"] == 0] = 1
+    par["fa_corr"] = par["fa_corr"][
+       ...,
+       int(dimreduction/2):par["fa_corr"].shape[-2]-int(dimreduction/2),
+       int(dimreduction/2):par["fa_corr"].shape[-1]-int(dimreduction/2)]
+    par["fa_corr"] = np.require((np.transpose(par["fa_corr"], (0, 2, 1))),
+                                requirements='C')
+
+
+def _check_data_size(par, data, sigmodel):
     if data.ndim == 5:
-        [NScan, NC, reco_Slices, Nproj, N] = data.shape
-    elif data.ndim == 4 and "IRLL" in myargs.sig_model:
+        pass
+    elif data.ndim == 4 and "IRLL" in sigmodel:
         Nproj_new = 13
         print("4D Data passed and IRLL model used. Reordering Projections "
               "into "+str(Nproj_new)+" Spokes/Frame")
@@ -491,52 +429,132 @@ def _start_recon(myargs):
         par["dcf"] = np.sqrt(goldcomp.cmp(par["traj"]))
         par["dcf"] = np.require(np.abs(par["dcf"]), par["DTYPE_real"],
                                 requirements='C')
-    elif data.ndim == 4 and "ImageReco" in myargs.sig_model:
+    elif data.ndim == 4 and "ImageReco" in sigmodel:
         data = data[None]
-        [NScan, NC, reco_Slices, Nproj, N] = data.shape
     else:
-        print("Wrong data dimension / model incompatible. Returning")
-        return
+        raise ValueError(
+            "Wrong data dimension / model incompatible.")
+    return data
 
+
+def _populate_par_w_sequencepar(par,
+                                datashape,
+                                imagedims,
+                                SMS,
+                                imagespace,
+                                streamded,
+                                par_slices,
+                                trafo):
+    for att in par["file"].attrs:
+        par[att] = par["file"].attrs[att]
+    par["NC"] = datashape[1]
+    par["dimY"] = imagedims[-2]
+    par["dimX"] = imagedims[-1]
+    if SMS:
+        par["NSlice"] = imagedims[0]
+        par["packs"] = int(par["packs"])
+        par["numofpacks"] = int(
+            imagedims[0]/(int(par["packs"])*int(par["MB"])))
+    else:
+        par["NSlice"] = datashape[2]
+        par["packs"] = 1
+        par["MB"] = 1
+    par["NScan"] = datashape[0]
+    par["N"] = datashape[-1]
+    par["Nproj"] = datashape[-2]
+    par["imagespace"] = imagespace
+    par["fft_dim"] = (-2, -1)
+    if streamded:
+        par["par_slices"] = par_slices
+        par["overlap"] = 1
+    else:
+        par["par_slices"] = datashape[2]
+        par["overlap"] = 0
+    par["transpXY"] = False
+
+
+def _import_sigmodel(modelpath):
+    sig_model_path = os.path.normpath(modelpath)
+    if len(sig_model_path.split(os.sep)) > 1:
+        if os.path.splitext(sig_model_path)[-1] == '':
+            spec = importlib.util.spec_from_file_location(
+                    sig_model_path.split(os.sep)[-1]+'.py',
+                    sig_model_path+'.py')
+        elif os.path.splitext(sig_model_path)[-1] == '.py':
+            spec = importlib.util.spec_from_file_location(
+                    sig_model_path.split(os.sep)[-1], sig_model_path)
+        else:
+            raise argparse.ArgumentTypeError(
+                "Specified model file does not end with .py nor does it have "
+                "no extension at all. Please specify a valid python file.")
+        sig_model = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(sig_model)
+    else:
+        sig_model = importlib.import_module(
+            "pyqmri.models."+str(sig_model_path))
+    return sig_model
+
+
+def _start_recon(myargs):
+    sig_model = _import_sigmodel(myargs.sig_model)
+# Create par struct to store relevant parameteres for reconstruction/fitting
+    par = {}
+###############################################################################
+# Define precision ############################################################
+###############################################################################
+    if myargs.double_precision is True:
+        par["DTYPE"] = np.complex128
+        par["DTYPE_real"] = np.float64
+    else:
+        par["DTYPE"] = np.complex64
+        par["DTYPE_real"] = np.float32
+###############################################################################
+# Select input file ###########################################################
+###############################################################################
+    _readInput(myargs, par)
+###############################################################################
+# Read Data ###################################################################
+###############################################################################
+    data, dimX, dimY, NSlice, reco_Slices, dimreduction, off = \
+        _read_data_from_file(par, myargs)
+###############################################################################
+# Flip angle correction #######################################################
+###############################################################################
+    if "fa_corr" in list(par["file"].keys()) or \
+            "interpol_fa" in list(par["file"].keys()):
+        print("Using provied flip angle correction.")
+        _read_flip_angle_correction_data(
+            par,
+            myargs,
+            dimreduction,
+            reco_Slices
+            )
+    else:
+        print("No flip angle correction provided/used.")
+###############################################################################
+# Check size compatibility ####################################################
+###############################################################################
+    data = _check_data_size(par, data, myargs.sig_model)
 ###############################################################################
 # Set sequence related parameters #############################################
 ###############################################################################
-    for att in par["file"].attrs:
-        par[att] = par["file"].attrs[att]
-
-    par["NC"] = NC
-    par["dimY"] = dimY
-    par["dimX"] = dimX
-    if myargs.sms:
-        par["NSlice"] = NSlice
-        par["packs"] = int(par["packs"])
-        par["numofpacks"] = int(NSlice/(int(par["packs"])*int(par["MB"])))
-    else:
-        par["NSlice"] = reco_Slices
-        par["packs"] = 1
-        par["MB"] = 1
-    par["NScan"] = NScan
-    par["N"] = N
-    par["Nproj"] = Nproj
-    par["imagespace"] = myargs.imagespace
-    par["fft_dim"] = (-2, -1)
-    if myargs.streamed:
-        par["par_slices"] = myargs.par_slices
-        par["overlap"] = 1
-    else:
-        par["par_slices"] = reco_Slices
-        par["overlap"] = 0
+    _populate_par_w_sequencepar(par,
+                                data.shape,
+                                (NSlice, dimY, dimX),
+                                myargs.sms,
+                                myargs.imagespace,
+                                myargs.streamed,
+                                myargs.par_slices,
+                                myargs.trafo)
     if not myargs.trafo:
-        tmpmask = np.ones((data[0, 0, ...]).shape)
+        tmpmask = np.ones(data.shape[2:])
         tmpmask[np.abs(data[0, 0, ...]) == 0] = 0
         par['mask'] = np.reshape(
             tmpmask,
-            (data[0, 0, ...].shape)).astype(par["DTYPE_real"])
+            (data.shape[2:])).astype(par["DTYPE_real"])
         del tmpmask
     else:
         par['mask'] = None
-    par["transpXY"] = False
-
 ###############################################################################
 # ratio of z direction to x,y, important for finite differences ###############
 ###############################################################################
@@ -579,7 +597,6 @@ def _start_recon(myargs):
 # Scale data norm  ############################################################
 ###############################################################################
     data, images = _estScaleNorm(myargs, par, images, data)
-
     if myargs.weights is -1:
         par["weights"] = np.ones((par["unknowns"]), dtype=par["DTYPE_real"])
     else:

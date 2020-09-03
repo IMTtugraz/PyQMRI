@@ -883,6 +883,7 @@ class PDBaseSolver:
         """
         if wait_for is None:
             wait_for = []
+
         return self._prg[idx].update_z1(
             self._queue[4*idx+idxq],
             self._kernelsize, None,
