@@ -1,7 +1,7 @@
 Models
 ======
 .. automodule:: pyqmri.models
-   :members: __all__
+   :members:
    :undoc-members:
 .. automodule:: pyqmri.models.BiExpDecay
    :members:

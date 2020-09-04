@@ -46,7 +46,7 @@ extensions = [
 ]
 
 autodoc_default_options = {
-    'members': True,
+    'members': None,
     'special-members': '__all__',
 }
 
