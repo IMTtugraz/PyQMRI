@@ -29,4 +29,4 @@ dist*
 .egg*
 pyqmri.egg*
 .coverage
-doc/_build
+doc/_build*
