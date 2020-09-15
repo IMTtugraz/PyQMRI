@@ -93,7 +93,7 @@ $$
 $$
 which includes a non-linear forward operator ($A$), mapping the parameters $u$ to (complex) data space $d$, and non-smooth regularization due to 
 the $L^1$-norms of the T(G)V functional [Bredies2010, Knoll2011]. Setting $\alpha_1=0$ and $v=0$ the problem
-becomes simple TV regularization [Rudin1992]. The gradient $\nalba$ and symmetrized gradient $\mathcal{E}$ operators are implemented using finite differences.
+becomes simple TV regularization [Rudin1992]. The gradient $\nabla$ and symmetrized gradient $\mathcal{E}$ operators are implemented using finite differences.
 To further improve the quality of the reconstructed parameter maps 'PyQMRI' uses a Frobenius norm to join spatial
 information from all maps in the T(G)V functionals [Bredies2014, Knoll2017a].
 
