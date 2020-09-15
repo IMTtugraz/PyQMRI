@@ -61,7 +61,9 @@ double-buffering based solution strategy is implemented. Double-buffering
 allows to overlap computation and memory transfer from/to the GPU, thus
 hiding the associated memory latency. By overlapping the transfered blocks
 it is possible to pass on 3D information utilizing finite differences based
-regularization strategies [@Maier2019d]. 
+regularization strategies [@Maier2019d]. Figure \autoref{fig:db} shows a schematic of the employed double-buffering scheme.
+
+![Simple doublebuffering using two separate command queues and overlaping transfer/compute operations.\label{fig:db}](doublebuffering.png)
 
 Currently 3D acuqisitions with at least one fully sampled dimension can
 be reconstructed on the GPU, including stack-of-X acquisitions or 3D Cartesian
@@ -108,6 +110,9 @@ $$
 $$
 needs to be solved to find a solution of the overall problem. The solution if this subproblems is realized by utilizing a well established primal-dual algorithm [@Chambolle2011]. 
 The inclusion of the additional $L^2$-norm penalty improves convexity of the subproblem and resembles a Levenberg-Marquat update for proper choices of the weighting matrix $M$.
+A graphical representation of the involved steps is given in figure \autoref{fig:pipeline}.
+
+![Graphical representation of the employed regularized non-linear fitting procedure.\label{fig:pipeline}](pipeline.png)
 
 
 # Acknowledgements
