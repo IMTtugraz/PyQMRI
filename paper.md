@@ -114,7 +114,6 @@ A graphical representation of the involved steps is given in figure \autoref{fig
 
 ![Graphical representation of the employed regularized non-linear fitting procedure.\label{fig:pipeline}](pipeline.png)
 
-
 # Acknowledgements
 
 Oliver Maier acknowledges grant support from the Austrian Academy of Sciences under award DOC-Fellowship 24966.
