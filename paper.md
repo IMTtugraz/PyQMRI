@@ -42,7 +42,6 @@ which lead to prolonged reconstruction times. An effect that gets even worse in
 volumetric imaging. 
 
 
-
 # Statement of need 
 
 'PyQMRI' aims at reducing the required reconstruction time by means of a
@@ -68,7 +67,7 @@ of 'SymPy'. Fitting can be initiated via a CLI or by importing the package
 into a Python script. 
 
 'PyQMRI' and its precedors have been succesfully used in several scientific
-publications [@Maier:2018]. To the best of the authors knowledge 'PyQMRI'
+publications. To the best of the authors knowledge 'PyQMRI'
 is the only availabel Python toolbox that offers real 3D regularization 
 for arbitrary large volumetric data while simultaneously utilizing the computation
 power of recent GPUs.
@@ -88,32 +87,6 @@ the $L^1$-norms of the T(G)V functional. For $\alpha_1=0$ and $v=0$ the problem
 amounts to simple TV regularization. To further improve the quality of the 
 reconstructed parameter maps 'PyQMRI' uses a Frobenius norm to join spatial
 information from all maps in the T(G)V functionals.
-
-# Citations
-
-Citations to entries in paper.bib should be in
-[rMarkdown](http://rmarkdown.rstudio.com/authoring_bibliographies_and_citations.html)
-format.
-
-If you want to cite a software repository URL (e.g. something on GitHub without a preferred
-citation) then you can do it with the example BibTeX entry below for @fidgit.
-
-For a quick reference, the following citation commands can be used:
-- `@author:2001`  ->  "Author et al. (2001)"
-- `[@author:2001]` -> "(Author et al., 2001)"
-- `[@author1:2001; @author2:2001]` -> "(Author1 et al., 2001; Author2 et al., 2002)"
-
-# Figures
-
-Figures can be included like this:
-![Caption for example figure.\label{fig:example}](figure.png)
-and referenced from text using \autoref{fig:example}.
-
-Fenced code blocks are rendered with syntax highlighting:
-```python
-for n in range(10):
-    yield f(n)
-```	
 
 # Acknowledgements
 
