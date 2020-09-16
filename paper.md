@@ -1,5 +1,5 @@
 ---
-title: 'PyQMRI: Accelerated Quantitative MRI toolbox'
+title: 'PyQMRI: An accelerated Quantitative MRI Python toolbox'
 tags:
   - Python
   - MRI
@@ -10,8 +10,11 @@ authors:
   - name: Oliver Maier^[Corresponding author.]
     orcid: 0000-0002-7800-0022
     affiliation: "1" # (Multiple affiliations must be quoted)
-  - name: Stefan Spann
-    affiliation: "1, 2"
+  - name: Stefan M Spann
+    affiliation: "1"
+  - name: Markues Bödenler
+    orcid: 0000-0001-6018-7821
+    affiliation: "1"
   - name: Rudolf Stollberger
     orcid: 0000-0002-4969-3878
     affiliation: "1, 2"
@@ -31,15 +34,16 @@ bibliography: paper.bib
 
 # Summary
 
-Quantitative MRI (qMRI) aims at identifying the underlying physical tissue quantities 
+Quantitative MRI (qMRI) aims at identifying the underlying physical tissue constants 
 that define the contrast in an imaging experiment. Under certain simplifications,
 analytical expressions are available to describe the relation between image
 intensity and physical parameters of tissue. Using several measurements with 
-varying sequence parameters it is possible to solve the associated inverse problem.
+varying sequence parameters it is possible to solve the associated inverse problem
+of identifying the tissue constants.
 
-The increased measurement time of such experiments is typically tackeld by 
+The increased measurement time due to the repeated imaging experiments of such studies is typically tackeld by 
 undersampling the data acquisiton. However, the reduced amount of data as well 
-as the typical non-linear problem structer require dedicated numerical solution strategies [@Donoho2006; @Lustig2007; @Block2009; @Doneva2010; @Sumpf2012; @Roeloffs2016]
+as the typical non-linear structure of the associated inverse problem require dedicated numerical solution strategies [@Donoho2006; @Lustig2007; @Block2009; @Doneva2010; @Sumpf2012; @Roeloffs2016]
 which lead to prolonged reconstruction times. An effect that gets even worse if 3D volumes are of interest. 
 
 In recent years the upsurge of computationally powerful GPUs has led to a variety of
@@ -77,7 +81,7 @@ new models can be introduced via a simple text file, utilizing the power
 of 'SymPy'. Fitting can be initiated via a CLI or by importing the package
 into a Python script. To the best of the authors knowledge 'PyQMRI'
 is the only availabel Python toolbox that offers real 3D regularization 
-in an iterative solution algorithm for inverse qunatitative MRI problems
+in an iterative solution algorithm for inverse quantitative MRI problems
 and for arbitrary large volumetric data while simultaneously utilizing the computation
 power of recent GPUs.
 
