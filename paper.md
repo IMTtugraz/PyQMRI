@@ -114,11 +114,11 @@ $$
 \nonumber \frac{\delta_k}{2}\|u-u^k\|_{M_k}^2.
 $$
 needs to be solved to find a solution of the overall problem. The subproblems are solved utilizing a well established primal-dual algorithm [@Chambolle2011]
- combined with a line-search [@Malitsky2018] to speed-up convergence. 
+ combined with a line-search [@Malitsky2018] to speed-up convergence. Constant terms, stemming from the linearization, are precomputed and fused with the data $d$, yielding $\tilde{d}^k$.
 The inclusion of the additional $L^2$-norm penalty improves convexity of the subproblem and resembles a Levenberg-Marquat update for proper choices of the weighting matrix $M$.
-A graphical representation of the involved steps is given in figure \autoref{fig:pipeline}.
+A graphical representation of the involved steps is given in \autoref{fig:pipeline}.
 
-![Graphical representation of the employed regularized non-linear fitting procedure shown for an exemplary T1 quantification problem.\label{fig:pipeline}](pipeline.png)
+![Graphical representation of the employed regularized non-linear fitting procedure shown for an exemplary T1 quantification problem. $C_i$ describes complex coilsensitivity information, $\mathcal{F}$ amounts to the sampling process including the Fourier transforamtion, and $S_p$ equals the non-linear relationship between image intensity and the unknown physical quantities (T1 and Proton Density (PD)).\label{fig:pipeline}](pipeline.png)
 
 # Acknowledgements
 
