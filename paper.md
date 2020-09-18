@@ -34,38 +34,39 @@ bibliography: paper.bib
 
 # Summary
 
-Quantitative MRI (qMRI) aims at identifying the underlying physical tissue constants 
+Quantitative MRI (qMRI) aims at identifying the underlying physical tissue parameters 
 that define the contrast in an imaging experiment. Under certain simplifications,
 analytical expressions are available to describe the relation between image
-intensity and physical parameters of tissue. Using several measurements with 
-varying sequence parameters it is possible to solve the associated inverse problem
-of identifying the tissue constants.
+intensity and physical properties of tissue. Using several measurements with 
+varying sequence settings (e.g. flip-angle, repetition time, echo time) it is possible to solve the associated inverse problem
+of identifying these tissue parameters.
 
 The increased measurement time due to the repeated imaging experiments of such studies is typically tackeld by 
-undersampling the data acquisiton. However, the reduced amount of data as well 
+subsampling the data acquisiton, i.e. acquiring less data than the Nyquist-Shannon theorem implies. However, the reduced amount of data as well 
 as the typical non-linear structure of the associated inverse problem require dedicated numerical solution strategies [@Donoho2006; @Lustig2007; @Block2009; @Doneva2010; @Sumpf2012; @Roeloffs2016]
-which lead to prolonged reconstruction times. An effect that gets even worse if 3D volumes are of interest. 
+which lead to prolonged reconstruction times. An effect that gets even more demanding if 3D image volumes are of interest. 
 
 In recent years the upsurge of computationally powerful GPUs has led to a variety of
 GPU based implementations to speed up computation time of highly parallelizeable operations 
 (e.g., the Fourier transformation in MRI [@Knoll2014g]). However, as memory is
-a scarce resource, most of the work is carried out in a 2D fashion, even though
-additional information in form of a third dimension is commonly available.
+a scarce resource, most reconstruction and fitting algorithms are applied in a slice-by-slice fashion to 
+the volumetric data by taking a Fourier transformation along a fully sampled acuqisition direction.
+Thus, neglecting additional information in form of the third dimension of 3D data.
 
-To utilize 3D information on memory limited GPUs special solutions strategies are 
-necessary to maintain the speed advantage, e.g., hide memory latency of repeated transfers.
+To utilize 3D information in advanced reconstruction and fitting algorithms on memory limited GPUs, 
+special solutions strategies are necessary to leverage the speed advantage, e.g., hide memory latency of repeated transfers.
 
 # Statement of need 
 
 'PyQMRI' aims at reducing the required reconstruction time by means of a
-highly parallelized PyOpenCL [@Klockner2012a] implementation of an state-of-the-art fitting algorithm 
+highly parallelized PyOpenCL [@Klockner2012a] implementation of a state-of-the-art fitting algorithm 
 while maintaining the easy-to-use properties of a Python package.
-In addition to fitting small date (e.g. 2D slices) completely on the GPU an efficient
+In addition to fitting small data (e.g. 2D slices) completely on the GPU an efficient
 double-buffering based solution strategy is implemented. Double-buffering 
 allows to overlap computation and memory transfer from/to the GPU, thus
 hiding the associated memory latency. By overlapping the transfered blocks
 it is possible to pass on 3D information utilizing finite differences based
-regularization strategies [@Maier2019d]. Figure \autoref{fig:db} shows a schematic of the employed double-buffering scheme.
+regularization strategies [@Maier2019d]. \autoref{fig:db} shows a schematic of the employed double-buffering scheme.
 
 ![Simple doublebuffering using two separate command queues and overlaping transfer/compute operations.\label{fig:db}](doublebuffering.png)
 
@@ -78,10 +79,10 @@ and total generalized variation (TGV) using finite differences gradient operatio
 
 'PyQMRI' comes with several pre-implemented quantiative models. In addition
 new models can be introduced via a simple text file, utilizing the power
-of 'SymPy'. Fitting can be initiated via a CLI or by importing the package
+of 'SymPy' to generate numerical models as well as their partial derivatives in Python. Fitting can be initiated via a CLI or by importing the package
 into a Python script. To the best of the authors knowledge 'PyQMRI'
 is the only availabel Python toolbox that offers real 3D regularization 
-in an iterative solution algorithm for inverse quantitative MRI problems
+in an iterative solver for inverse quantitative MRI problems
 and for arbitrary large volumetric data while simultaneously utilizing the computation
 power of recent GPUs.
 
@@ -95,7 +96,7 @@ The general problem structure dealt with in 'PyQMRI' is as follows:
 
 $$
 \underset{u,v}{\min}\quad 
-\frac{1}{2}\sum_{n=1}^{N_d}\|A_{\phi,t_n}(u)-d_n\|_2^2 
+\frac{1}{2}\|A(u) - d\|_2^2 
 +\nonumber \gamma( \alpha_0\|\nabla u - v\|_{1,2,F} + 
 \alpha_1\|\mathcal{E}v\|_{1,2,F})
 $$
@@ -108,18 +109,21 @@ information from all maps in the T(G)V functionals [@Bredies2014; @Knoll2017a].
 Following the Gauss-Newton approach a sequence $k$ of linearized sub-problems of the form
 $$
 \underset{u,v}{\min}\quad 
-\frac{1}{2}\sum_{n=1}^{N_d}\|\mathrm{D}A_{\phi,t_n}\rvert_{u=u^{k}} u-\tilde{d_n}^k
+\frac{1}{2}\|\mathrm{D}A\rvert_{u=u^{k}} u-\tilde{d}^k
 \|_2^2 + \nonumber\gamma_k(\alpha_0\|\nabla u - v\|_{1,2,F} + \alpha_1|\|\mathcal{E}v\|_{1,2,F}) +
 \nonumber \frac{\delta_k}{2}\|u-u^k\|_{M_k}^2.
 $$
-needs to be solved to find a solution of the overall problem. The solution if this subproblems is realized by utilizing a well established primal-dual algorithm [@Chambolle2011]. 
+needs to be solved to find a solution of the overall problem. The subproblems are solved utilizing a well established primal-dual algorithm [@Chambolle2011]
+ combined with a line-search [@Malitsky2018] to speed-up convergence. 
 The inclusion of the additional $L^2$-norm penalty improves convexity of the subproblem and resembles a Levenberg-Marquat update for proper choices of the weighting matrix $M$.
 A graphical representation of the involved steps is given in figure \autoref{fig:pipeline}.
 
-![Graphical representation of the employed regularized non-linear fitting procedure.\label{fig:pipeline}](pipeline.png)
+![Graphical representation of the employed regularized non-linear fitting procedure shown for an exemplary T1 quantification problem.\label{fig:pipeline}](pipeline.png)
 
 # Acknowledgements
 
 Oliver Maier acknowledges grant support from the Austrian Academy of Sciences under award DOC-Fellowship 24966.
+
+The authors would like to acknowledge the NVIDIA Corporation Hardware grant support.
 
 # References
