@@ -61,7 +61,7 @@ special solutions strategies are necessary to leverage the speed advantage, e.g.
 
 # Statement of need 
 
-'PyQMRI' aims at reducing the required reconstruction time by means of a
+`PyQMRI` aims at reducing the required reconstruction time by means of a
 highly parallelized PyOpenCL [@Klockner2012a] implementation of a state-of-the-art fitting algorithm 
 while maintaining the easy-to-use properties of a Python package.
 In addition to fitting small data (e.g. 2D slices) completely on the GPU an efficient
@@ -80,22 +80,22 @@ on an iterativly regularized Gauss-Newton (IRGN) approach combined with
 a primal-dual inner loop. Regulariaztion strategies include total variation (TV)
 and total generalized variation (TGV) using finite differences gradient operations.
 
-'PyQMRI' comes with several pre-implemented quantiative models. In addition
+`PyQMRI` comes with several pre-implemented quantiative models. In addition
 new models can be introduced via a simple text file, utilizing the power
-of 'SymPy' to generate numerical models as well as their partial derivatives in Python. Fitting can be initiated via a CLI or by importing the package
-into a Python script. To the best of the authors knowledge 'PyQMRI'
+of `SymPy` to generate numerical models as well as their partial derivatives in Python. Fitting can be initiated via a CLI or by importing the package
+into a Python script. To the best of the authors knowledge `PyQMRI`
 is the only availabel Python toolbox that offers real 3D regularization 
 in an iterative solver for inverse quantitative MRI problems
 and for arbitrary large volumetric data while simultaneously utilizing the computation
 power of recent GPUs.
 
-'PyQMRI' and its precedors have been succesfully used in several scientific
+`PyQMRI` and its precedors have been succesfully used in several scientific
 publications. Examples include T1 quantification from subsampled radial FLASH 
 and inversion-recovery Look-Locker data [@Maier2019c], diffusion tensor imaging [@Maier2020a], 
 and on-going work on aterial spin labeling [@Maier2020b; @Maier2020c], as well as low-field T1 mapping using field cycling MRI. 
 
 # Algorithmic
-The general problem structure dealt with in 'PyQMRI' is as follows:
+The general problem structure dealt with in `PyQMRI` is as follows:
 
 $$
 \underset{u,v}{\min}\quad 
@@ -106,7 +106,7 @@ $$
 which includes a non-linear forward operator ($A$), mapping the parameters $u$ to (complex) data space $d$, and non-smooth regularization due to 
 the $L^1$-norms of the T(G)V functional [@Bredies2010; @Knoll2011]. Setting $\alpha_1=0$ and $v=0$ the problem
 becomes simple TV regularization [@Rudin1992]. The gradient $\nabla$ and symmetrized gradient $\mathcal{E}$ operators are implemented using finite differences.
-To further improve the quality of the reconstructed parameter maps 'PyQMRI' uses a Frobenius norm to join spatial
+To further improve the quality of the reconstructed parameter maps `PyQMRI` uses a Frobenius norm to join spatial
 information from all maps in the T(G)V functionals [@Bredies2014; @Knoll2017a].
 
 Following the Gauss-Newton approach a sequence $k$ of linearized sub-problems of the form
