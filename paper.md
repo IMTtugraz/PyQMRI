@@ -35,7 +35,10 @@ bibliography: paper.bib
 # Summary
 
 Quantitative MRI (qMRI) aims at identifying the underlying physical tissue parameters 
-that define the contrast in an imaging experiment. Under certain simplifications,
+that define the contrast in an imaging experiment. In contrast to conventional MRI examinations, qMRI
+offers insights into diseases based on absolut quantitative values instead of relative intensity changes in arbitrary units, thus, 
+potentiall simplifying comparisons between different medical sites as well as giving the opprotunity to
+classify the severity or progression of certain diseases. Under certain simplifications,
 analytical expressions are available to describe the relation between image
 intensity and physical properties of tissue. Using several measurements with 
 varying sequence settings (e.g. flip-angle, repetition time, echo time) it is possible to solve the associated inverse problem
