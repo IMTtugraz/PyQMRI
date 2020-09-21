@@ -72,7 +72,7 @@ hiding the associated memory latency. By overlapping the transfered blocks
 it is possible to pass on 3D information utilizing finite differences based
 regularization strategies [@Maier2019d]. \autoref{fig:db} shows a schematic of the employed double-buffering scheme.
 
-![Simple doublebuffering using two separate command queues and overlaping transfer/compute operations.\label{fig:db}](doublebuffering.png)
+![Simple double-buffering schme using two separate command queues and overlaping transfer/compute operations. \label{fig:db}](doublebuffering.png)
 
 Currently 3D acuqisitions with at least one fully sampled dimension can
 be reconstructed on the GPU, including stack-of-X acquisitions or 3D Cartesian
@@ -110,7 +110,8 @@ which includes a non-linear forward operator ($A$), mapping the parameters $u$ t
 the $L^1$-norms of the T(G)V functional [@Bredies2010; @Knoll2011]. Setting $\alpha_1=0$ and $v=0$ the problem
 becomes simple TV regularization [@Rudin1992]. The gradient $\nabla$ and symmetrized gradient $\mathcal{E}$ operators are implemented using finite differences.
 To further improve the quality of the reconstructed parameter maps `PyQMRI` uses a Frobenius norm to join spatial
-information from all maps in the T(G)V functionals [@Bredies2014; @Knoll2017a].
+information from all maps in the T(G)V functionals [@Bredies2014; @Knoll2017a]. Box constraints, limiting each unknown paramater in $u$ to a physiological meaningful range,
+can be set in conjunction with real or complex value constraints.
 
 Following the Gauss-Newton approach a sequence $k$ of linearized sub-problems of the form
 $$
@@ -119,10 +120,15 @@ $$
 \|_2^2 + \nonumber\gamma_k(\alpha_0\|\nabla u - v\|_{1,2,F} + \alpha_1|\|\mathcal{E}v\|_{1,2,F}) +
 \nonumber \frac{\delta_k}{2}\|u-u^k\|_{M_k}^2.
 $$
-needs to be solved to find a solution of the overall problem. The subproblems are solved utilizing a well established primal-dual algorithm [@Chambolle2011]
+needs to be solved to find a solution of the overall problem. The subproblems can be recast into a saddle-point structure by application of the Fenchel duality
+\begin{equation}\label{eq:PD}
+\underset{u}{\min}\,\underset{y}{\max}~ \left<\mathrm{K}u,y\right> + G(u) - 
+F^*(y),
+\end{equation}
+and solved utilizing a well established primal-dual algorithm [@Chambolle2011]
  combined with a line-search [@Malitsky2018] to speed-up convergence. Constant terms, stemming from the linearization, are precomputed and fused with the data $d$, yielding $\tilde{d}^k$.
-The inclusion of the additional $L^2$-norm penalty improves convexity of the subproblem and resembles a Levenberg-Marquat update for proper choices of the weighting matrix $M$.
-A graphical representation of the involved steps is given in \autoref{fig:pipeline}.
+The inclusion of the additional $L^2$-norm penalty improves convexity of the subproblem and resembles a Levenberg-Marquat update for $M_k=diag(\mathrm{D}A\rvert_{u=u^{k}}^T
+\mathrm{D}A\rvert_{u=u^{k}})$. A graphical representation of the involved steps is given in \autoref{fig:pipeline}. The regularization weights, regularization type (TV/TGV), and the number of outer and inner iterations can be changed using a plain text configuration file.
 
 ![Graphical representation of the employed regularized non-linear fitting procedure shown for an exemplary T1 quantification problem. $C_i$ describes complex coilsensitivity information, $\mathcal{F}$ amounts to the sampling process including the Fourier transforamtion, and $S_p$ equals the non-linear relationship between image intensity and the unknown physical quantities (T1 and Proton Density (PD)).\label{fig:pipeline}](pipeline.png)
 
