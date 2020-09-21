@@ -120,7 +120,9 @@ $$
 \|_2^2 + \nonumber\gamma_k(\alpha_0\|\nabla u - v\|_{1,2,F} + \alpha_1|\|\mathcal{E}v\|_{1,2,F}) +
 \nonumber \frac{\delta_k}{2}\|u-u^k\|_{M_k}^2.
 $$
-needs to be solved to find a solution of the overall problem. The subproblems can be recast into a saddle-point structure by application of the Fenchel duality
+needs to be solved to find a solution of the overall problem. The matrix $\mathrm{D}A
+\rvert_{u=u^{k}} = \frac{\partial{A}}{\partial 
+u}(u^k)$ resembles the Jacobian of the system. The subproblems can be recast into a saddle-point structure by application of the Fenchel duality
 \begin{equation}\label{eq:PD}
 \underset{u}{\min}\,\underset{y}{\max}~ \left<\mathrm{K}u,y\right> + G(u) - 
 F^*(y),
