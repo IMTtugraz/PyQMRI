@@ -81,14 +81,16 @@ on an iterativly regularized Gauss-Newton (IRGN) approach combined with
 a primal-dual inner loop. Regulariaztion strategies include total variation (TV)
 and total generalized variation (TGV) using finite differences gradient operations.
 
-`PyQMRI` comes with several pre-implemented quantiative models. In addition
+`PyQMRI` comes with several pre-implemented quantiative models. In addition,
 new models can be introduced via a simple text file, utilizing the power
 of `SymPy` to generate numerical models as well as their partial derivatives in Python. Fitting can be initiated via a CLI or by importing the package
 into a Python script. To the best of the authors knowledge `PyQMRI`
 is the only availabel Python toolbox that offers real 3D regularization 
 in an iterative solver for inverse quantitative MRI problems
 and for arbitrary large volumetric data while simultaneously utilizing the computation
-power of recent GPUs.
+power of recent GPUs. Due to `PyQMRI`s OpenCL backend no vendor specific hardware restrictions are present, however,
+current limitations of the `gpyfft` backage used to wrap the `clfft`, constrain the use to GPU devices only.
+A switch to other `clfft` wrappers might solve this limitation in future releases but `gpyfft` is the only one that currently supports fast non-power-of-two transformations up to 13.
 
 `PyQMRI` and its precedors have been succesfully used in several scientific
 publications. Examples include T1 quantification from subsampled radial FLASH 
