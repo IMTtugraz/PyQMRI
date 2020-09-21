@@ -35,34 +35,35 @@ bibliography: paper.bib
 # Summary
 
 Quantitative MRI (qMRI) aims at identifying the underlying physical tissue parameters 
-that define the contrast in an imaging experiment. In contrast to conventional MRI examinations, qMRI
+that define the contrast in an imaging experiment. Contrary to conventional MRI examinations, qMRI
 offers insights into diseases based on absolut quantitative values instead of relative intensity changes in arbitrary units, thus, 
 potentiall simplifying comparisons between different medical sites as well as giving the opprotunity to
-classify the severity or progression of certain diseases. Under certain simplifications,
-analytical expressions are available to describe the relation between image
+classify the severity or progression of certain diseases. Under certain simplifications
+analytical expressions are available, describing the relation between image
 intensity and physical properties of tissue. Using several measurements with 
 varying sequence settings (e.g. flip-angle, repetition time, echo time) it is possible to solve the associated inverse problem
 of identifying these tissue parameters.
 
 The increased measurement time due to the repeated imaging experiments of such studies is typically tackeld by 
 subsampling the data acquisiton, i.e. acquiring less data than the Nyquist-Shannon theorem implies. However, the reduced amount of data as well 
-as the typical non-linear structure of the associated inverse problem require dedicated numerical solution strategies [@Donoho2006; @Lustig2007; @Block2009; @Doneva2010; @Sumpf2012; @Roeloffs2016]
-which lead to prolonged reconstruction times. An effect that gets even more demanding if 3D image volumes are of interest. 
+as the typical non-linear structure of the associated inverse problem require dedicated numerical solution strategies [@Donoho2006; @Lustig2007; @Block2009; @Doneva2010; @Sumpf2012; @Roeloffs2016] wich are commonly known as model-based reconstruction. However, the involved non-linear iterative reconstruction techniques often lead to prolonged reconstruction times. An effect that gets even more demanding if 3D image volumes are of interest. 
 
 In recent years the upsurge of computationally powerful GPUs has led to a variety of
 GPU based implementations to speed up computation time of highly parallelizeable operations 
 (e.g., the Fourier transformation in MRI [@Knoll2014g]). However, as memory is
 a scarce resource, most reconstruction and fitting algorithms are applied in a slice-by-slice fashion to 
-the volumetric data by taking a Fourier transformation along a fully sampled acuqisition direction.
-Thus, neglecting additional information in form of the third dimension of 3D data.
+the volumetric data by taking a Fourier transformation along a fully sampled acuqisition direction, effectively yielding a set of 2D problems.
+Subsequently the additional information in form of the third dimension of volumetric data is neglected.
 
-To utilize 3D information in advanced reconstruction and fitting algorithms on memory limited GPUs, 
-special solutions strategies are necessary to leverage the speed advantage, e.g., hide memory latency of repeated transfers.
+To utilize full 3D information in advanced reconstruction and fitting algorithms on memory limited GPUs, 
+special solutions strategies are necessary to leverage the speed advantage, e.g., hide memory latency of repeated transfers to/from the GPU to host memory.
+This can be achieved using asynchronous execution strategies but correct synchronization of critical operations can be error prone.
+To this end, a simple to use toolbox is of high interest for qMRI.
 
 # Statement of need 
 
 `PyQMRI` aims at reducing the required reconstruction time by means of a
-highly parallelized PyOpenCL [@Klockner2012a] implementation of a state-of-the-art fitting algorithm 
+highly parallelized `PyOpenCL` [@Klockner2012a] implementation of a state-of-the-art fitting algorithm 
 while maintaining the easy-to-use properties of a Python package.
 In addition to fitting small data (e.g. 2D slices) completely on the GPU an efficient
 double-buffering based solution strategy is implemented. Double-buffering 
