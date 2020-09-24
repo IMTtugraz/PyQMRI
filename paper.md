@@ -89,13 +89,13 @@ is the only availabel Python toolbox that offers real 3D regularization
 in an iterative solver for inverse quantitative MRI problems
 and for arbitrary large volumetric data while simultaneously utilizing the computation
 power of recent GPUs. Due to `PyQMRI`s OpenCL backend no vendor specific hardware restrictions are present, however,
-current limitations of the `gpyfft` backage used to wrap the `clfft`, constrain the use to GPU devices only.
+current limitations of the `gpyfft` package used to wrap the `clfft`, constrain the use to GPU devices only.
 A switch to other `clfft` wrappers might solve this limitation in future releases but `gpyfft` is the only one that currently supports fast non-power-of-two transformations up to 13.
 
-`PyQMRI` and its precedors have been succesfully used in several scientific
-publications. Examples include T1 quantification from subsampled radial FLASH 
+`PyQMRI` and its predecessors have been succesfully used in several scientific
+publications. Examples include $T_1$ quantification from subsampled radial FLASH 
 and inversion-recovery Look-Locker data [@Maier2019c], diffusion tensor imaging [@Maier2020a], 
-and on-going work on aterial spin labeling [@Maier2020b; @Maier2020c], as well as low-field T1 mapping using field cycling MRI. 
+and on-going work on aterial spin labeling [@Maier2020b; @Maier2020c], as well as low-field T1 mapping at multiple fields using fast field-cycling MRI. 
 
 # Algorithmic
 The general problem structure dealt with in `PyQMRI` is as follows:
@@ -108,7 +108,7 @@ $$
 $$
 which includes a non-linear forward operator ($A$), mapping the parameters $u$ to (complex) data space $d$, and non-smooth regularization due to 
 the $L^1$-norms of the T(G)V functional [@Bredies2010; @Knoll2011]. Setting $\alpha_1=0$ and $v=0$ the problem
-becomes simple TV regularization [@Rudin1992]. The gradient $\nabla$ and symmetrized gradient $\mathcal{E}$ operators are implemented using finite differences.
+becomes simple TV regularization [@Rudin1992]. The gradient&nbsp;$\nabla$ and symmetrized gradient&nbsp;$\mathcal{E}$ operators are implemented using finite differences.
 To further improve the quality of the reconstructed parameter maps `PyQMRI` uses a Frobenius norm to join spatial
 information from all maps in the T(G)V functionals [@Bredies2014; @Knoll2017a]. Box constraints, limiting each unknown paramater in $u$ to a physiological meaningful range,
 can be set in conjunction with real or complex value constraints.
@@ -133,7 +133,7 @@ The inclusion of the additional $L^2$-norm penalty improves convexity of the sub
 \mathrm{D}A\rvert_{u=u^{k}})$. A graphical representation of the involved steps is given in \autoref{fig:pipeline}. The regularization weights, regularization type (TV/TGV), and the number of outer and inner iterations can be changed using a plain text configuration file. It was shown by [@Salzo2012] that the GN approach converges with linear rate to a 
 critical point for non-convex problems with non-differential penalty functions if the initialization is sufficiently close. Thus a meaningful initial guess based on physiological knowledge on the parameters $u$ should be used to initialize the fitting, e.g. mean T1 value of the tissue of interest.
 
-![Graphical representation of the employed regularized non-linear fitting procedure shown for an exemplary T1 quantification problem. $C_i$ describes complex coilsensitivity information, $\mathcal{F}$ amounts to the sampling process including the Fourier transforamtion, and $S_p$ equals the non-linear relationship between image intensity and the unknown physical quantities (T1 and Proton Density (PD)).\label{fig:pipeline}](pipeline.png)
+![Graphical representation of the employed regularized non-linear fitting procedure shown for an exemplary $T_1$ quantification problem. $C_i$ describes complex coilsensitivity information, $\mathcal{F}$ amounts to the sampling process including the Fourier transforamtion, and $S_p$ equals the non-linear relationship between image intensity and the unknown physical quantities ($T_1$ and Proton Density (PD)).\label{fig:pipeline}](pipeline.png)
 
 # Acknowledgements
 
