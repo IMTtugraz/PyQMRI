@@ -23,6 +23,7 @@ from pyqmri._helper_fun._est_coils import est_coils
 from pyqmri._helper_fun import _utils as utils
 from pyqmri.solver import CGSolver
 from pyqmri.irgn import IRGNOptimizer
+np.seterr(divide='ignore', invalid='ignore')
 
 
 def _choosePlatform(myargs, par):
@@ -314,6 +315,8 @@ def _readInput(myargs, par):
             "PyQMRI_out" + \
             os.sep + myargs.sig_model + os.sep + \
             time.strftime("%Y-%m-%d  %H-%M-%S") + os.sep
+        if outdir[0] == "/":
+            outdir = os.getcwd() + outdir
     else:
         outdir = myargs.outdir + os.sep + "PyQMRI_out" + \
             os.sep + myargs.sig_model + os.sep + par["fname"] + os.sep + \
@@ -597,7 +600,7 @@ def _start_recon(myargs):
 # Scale data norm  ############################################################
 ###############################################################################
     data, images = _estScaleNorm(myargs, par, images, data)
-    if myargs.weights is -1:
+    if np.allclose(myargs.weights, -1):
         par["weights"] = np.ones((par["unknowns"]), dtype=par["DTYPE_real"])
     else:
         par["weights"] = np.array(myargs.weights, dtype=par["DTYPE_real"])
