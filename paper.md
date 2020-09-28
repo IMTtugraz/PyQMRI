@@ -1,5 +1,5 @@
 ---
-title: 'PyQMRI: An accelerated Quantitative MRI Python toolbox'
+title: 'PyQMRI: An accelerated Python based Quantitative MRI Python toolbox'
 tags:
   - Python
   - MRI
@@ -36,9 +36,9 @@ bibliography: paper.bib
 
 Quantitative MRI (qMRI) aims at identifying the underlying physical tissue parameters 
 that define the contrast in an imaging experiment. Contrary to conventional MRI examinations, qMRI
-offers insights into diseases based on absolut quantitative values instead of relative intensity changes in arbitrary units, thus, 
+offers insights into diseases based on absolut quantitative values instead of relative intensity changes in arbitrary units. Thus, 
 potentiall simplifying comparisons between different medical sites as well as giving the opprotunity to
-classify the severity or progression of certain diseases. Under certain simplifications
+classify the severity or progression of certain diseases. Under particular simplifications
 analytical expressions are available, describing the relation between image
 intensity and physical properties of tissue. Using several measurements with 
 varying sequence settings (e.g. flip-angle, repetition time, echo time) it is possible to solve the associated inverse problem
@@ -52,13 +52,13 @@ In recent years the upsurge of computationally powerful GPUs has led to a variet
 GPU based implementations to speed up computation time of highly parallelizeable operations 
 (e.g., the Fourier transformation in MRI [@Knoll2014g]). However, as memory is
 a scarce resource, most reconstruction and fitting algorithms are applied in a slice-by-slice fashion to 
-the volumetric data by taking a Fourier transformation along a fully sampled acuqisition direction, effectively yielding a set of 2D problems.
-Subsequently the additional information in form of the third dimension of volumetric data is neglected.
+the volumetric data by taking a Fourier transformation along a fully sampled acquisition direction, effectively yielding a set of 2D problems.
+Hence the additional information in form of the third dimension of volumetric data is neglected, leading to a loss in performance.
 
 To utilize full 3D information in advanced reconstruction and fitting algorithms on memory limited GPUs, 
 special solutions strategies are necessary to leverage the speed advantage, e.g., hide memory latency of repeated transfers to/from the GPU to host memory.
 This can be achieved using asynchronous execution strategies but correct synchronization of critical operations can be error prone.
-To this end, a simple to use toolbox is of high interest for qMRI.
+To this end, we propose a simple to use toolbox for quantitative MRI.
 
 # Statement of need 
 
@@ -72,18 +72,18 @@ hiding the associated memory latency. By overlapping the transfered blocks
 it is possible to pass on 3D information utilizing finite differences based
 regularization strategies [@Maier2019d]. \autoref{fig:db} shows a schematic of the employed double-buffering scheme.
 
-![Simple double-buffering schme using two separate command queues and overlaping transfer/compute operations. \label{fig:db}](doublebuffering.png)
+![Simple double-buffering scheme using two separate command queues and overlaping transfer/compute operations. \label{fig:db}](doublebuffering.png)
 
-Currently 3D acuqisitions with at least one fully sampled dimension can
+Currently 3D acquisitions with at least one fully sampled dimension can
 be reconstructed on the GPU, including stack-of-X acquisitions or 3D Cartesian
 based imaging. Of course 2D data can be reconstructed as well. Fitting is based
-on an iterativly regularized Gauss-Newton (IRGN) approach combined with 
-a primal-dual inner loop. Regulariaztion strategies include total variation (TV)
-and total generalized variation (TGV) using finite differences gradient operations.
+on an iteratively regularized Gauss-Newton (IRGN) approach combined with 
+a primal-dual inner loop. Regularization strategies include total variation (TV) [@Rudin1992]
+and total generalized variation (TGV) [@Bredies2010; @Knoll2011] using finite differences gradient operations.
 
 `PyQMRI` comes with several pre-implemented quantiative models. In addition,
 new models can be introduced via a simple text file, utilizing the power
-of `SymPy` to generate numerical models as well as their partial derivatives in Python. Fitting can be initiated via a CLI or by importing the package
+of `SymPy` to generate numerical models as well as their partial derivatives in Python. Fitting can be initiated via a command line interface (CLI) or by importing the package
 into a Python script. To the best of the authors knowledge `PyQMRI`
 is the only availabel Python toolbox that offers real 3D regularization 
 in an iterative solver for inverse quantitative MRI problems
@@ -95,10 +95,10 @@ A switch to other `clfft` wrappers might solve this limitation in future release
 `PyQMRI` and its predecessors have been succesfully used in several scientific
 publications. Examples include $T_1$ quantification from subsampled radial FLASH 
 and inversion-recovery Look-Locker data [@Maier2019c], diffusion tensor imaging [@Maier2020a], 
-and on-going work on aterial spin labeling [@Maier2020b; @Maier2020c], as well as low-field $T_1$ mapping at multiple fields using fast field-cycling MRI. 
+and ongoing work on aterial spin labeling [@Maier2020b; @Maier2020c], as well as low-field $T_1$ mapping at multiple fields using fast field-cycling MRI. 
 
 # Algorithmic
-The general problem structure dealt with in `PyQMRI` is as follows:
+`PyQMRI` deals with the following general problem structure:
 
 $$
 \underset{u,v}{\min}\quad 
@@ -106,11 +106,11 @@ $$
 +\nonumber \gamma( \alpha_0\|\nabla u - v\|_{1,2,F} + 
 \alpha_1\|\mathcal{E}v\|_{1,2,F})
 $$
-which includes a non-linear forward operator ($A$), mapping the parameters $u$ to (complex) data space $d$, and non-smooth regularization due to 
+which includes a non-linear forward operator ($A$), mapping the parameters $u$ to (complex) data space $d$, and a non-smooth regularization functional due to 
 the $L^1$-norms of the T(G)V functional [@Bredies2010; @Knoll2011]. Setting $\alpha_1=0$ and $v=0$ the problem
 becomes simple TV regularization [@Rudin1992]. The gradient&nbsp;$\nabla$ and symmetrized gradient&nbsp;$\mathcal{E}$ operators are implemented using finite differences.
 To further improve the quality of the reconstructed parameter maps `PyQMRI` uses a Frobenius norm to join spatial
-information from all maps in the T(G)V functionals [@Bredies2014; @Knoll2017a]. Box constraints, limiting each unknown paramater in $u$ to a physiological meaningful range,
+information from all maps in the T(G)V functionals [@Bredies2014; @Knoll2017a]. Box constraints, limiting each unknown parameter in $u$ to a physiological meaningful range,
 can be set in conjunction with real or complex value constraints.
 
 Following the Gauss-Newton approach a sequence $k$ of linearized sub-problems of the form
@@ -133,7 +133,7 @@ The inclusion of the additional $L^2$-norm penalty improves convexity of the sub
 \mathrm{D}A\rvert_{u=u^{k}})$. A graphical representation of the involved steps is given in \autoref{fig:pipeline}. The regularization weights, regularization type (TV/TGV), and the number of outer and inner iterations can be changed using a plain text configuration file. It was shown by [@Salzo2012] that the GN approach converges with linear rate to a 
 critical point for non-convex problems with non-differential penalty functions if the initialization is sufficiently close. Thus a meaningful initial guess based on physiological knowledge on the parameters $u$ should be used to initialize the fitting, e.g. mean $T_1$ value of the tissue of interest.
 
-![Graphical representation of the employed regularized non-linear fitting procedure shown for an exemplary $T_1$ quantification problem. $C_i$ describes complex coilsensitivity information, $\mathcal{F}$ amounts to the sampling process including the Fourier transforamtion, and $S_p$ equals the non-linear relationship between image intensity and the unknown physical quantities ($T_1$ and Proton Density (PD)).\label{fig:pipeline}](pipeline.png)
+![Graphical representation of the employed regularized non-linear fitting procedure shown for an exemplary $T_1$ quantification problem. $C_i$ describes complex coilsensitivity information, $\mathcal{F}$ amounts to the sampling process including the Fourier transformation, and $S_p$ equals the non-linear relationship between image intensity and the unknown physical quantities ($T_1$ and Proton Density (PD)).\label{fig:pipeline}](pipeline.png)
 
 # Acknowledgements
 
