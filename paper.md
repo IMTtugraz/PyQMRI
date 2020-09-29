@@ -46,7 +46,7 @@ of identifying these tissue parameters.
 
 The increased measurement time due to the repeated imaging experiments of such studies is typically tackeld by 
 subsampling the data acquisiton, i.e. acquiring less data than the Nyquist-Shannon theorem implies. However, the reduced amount of data as well 
-as the typical non-linear structure of the associated inverse problem require dedicated numerical solution strategies [@Donoho2006; @Lustig2007; @Block2009; @Doneva2010; @Sumpf2012; @Roeloffs2016] wich are commonly known as model-based reconstruction. However, the involved non-linear iterative reconstruction techniques often lead to prolonged reconstruction times. An effect that gets even more demanding if 3D image volumes are of interest. 
+as the typical non-linear structure of the associated inverse problem require dedicated numerical solution strategies [@Donoho2006; @Lustig2007; @Block2009; @Doneva2010; @Sumpf2012; @Roeloffs2016] wich are commonly known as model-based reconstruction. These methods directly solve for the unknown parameter maps from raw k-space data. The repeated transisition from k-space to image-space combined with the involved non-linear iterative reconstruction techniques to identify the unknown parameters often leads to prolonged reconstruction times. An effect that gets even more demanding if 3D image volumes are of interest. 
 
 In recent years the upsurge of computationally powerful GPUs has led to a variety of
 GPU based implementations to speed up computation time of highly parallelizeable operations 
@@ -63,9 +63,9 @@ To this end, we propose a simple to use toolbox for quantitative MRI.
 # Statement of need 
 
 `PyQMRI` aims at reducing the required reconstruction time by means of a
-highly parallelized `PyOpenCL` [@Klockner2012a] implementation of a state-of-the-art fitting algorithm 
+highly parallelized `PyOpenCL` [@Klockner2012a] implementation of a state-of-the-art model-based reconstruction and fitting algorithm 
 while maintaining the easy-to-use properties of a Python package.
-In addition to fitting small data (e.g. 2D slices) completely on the GPU an efficient
+In addition to processing small data (e.g. 2D slices) completely on the GPU an efficient
 double-buffering based solution strategy is implemented. Double-buffering 
 allows to overlap computation and memory transfer from/to the GPU, thus
 hiding the associated memory latency. By overlapping the transfered blocks
@@ -76,10 +76,12 @@ regularization strategies [@Maier2019d]. \autoref{fig:db} shows a schematic of t
 
 Currently 3D acquisitions with at least one fully sampled dimension can
 be reconstructed on the GPU, including stack-of-X acquisitions or 3D Cartesian
-based imaging. Of course 2D data can be reconstructed as well. Fitting is based
+based imaging. Of course 2D data can be reconstructed as well. The combination of reconstruction and non-linear fitting is based
 on an iteratively regularized Gauss-Newton (IRGN) approach combined with 
 a primal-dual inner loop. Regularization strategies include total variation (TV) [@Rudin1992]
-and total generalized variation (TGV) [@Bredies2010; @Knoll2011] using finite differences gradient operations.
+and total generalized variation (TGV) [@Bredies2010; @Knoll2011] using finite differences gradient operations. 
+In addition to the combined reconstruction and fitting algorithm, `PyQMRI` can also be used to speed-up non-linear parameter fitting
+of complex or real valued image data.
 
 `PyQMRI` comes with several pre-implemented quantiative models. In addition,
 new models can be introduced via a simple text file, utilizing the power
