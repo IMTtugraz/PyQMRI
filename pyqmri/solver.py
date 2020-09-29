@@ -696,7 +696,7 @@ class PDBaseSolver:
                      1000*gap / self._fval_init,
                      beta_line))
                 sys.stdout.flush()
-        # self.beta_line = beta_line
+        self.beta_line = beta_line
         self.tau = tau
         return primal_vars
 

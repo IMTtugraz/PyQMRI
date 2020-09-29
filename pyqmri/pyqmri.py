@@ -315,8 +315,6 @@ def _readInput(myargs, par):
             "PyQMRI_out" + \
             os.sep + myargs.sig_model + os.sep + \
             time.strftime("%Y-%m-%d  %H-%M-%S") + os.sep
-        if outdir[0] == "/":
-            outdir = os.getcwd() + outdir
     else:
         outdir = myargs.outdir + os.sep + "PyQMRI_out" + \
             os.sep + myargs.sig_model + os.sep + par["fname"] + os.sep + \
@@ -748,7 +746,7 @@ def run(reg_type='TGV',
               ('--model', str(model)),
               ('--modelfile', str(modelfile)),
               ('--modelname', str(modelname)),
-              ('--outdir', str(out)),
+              ('--out', str(out)),
               ('--double_precision', str(double_precision))
               ]
 
@@ -839,9 +837,6 @@ def _parseArguments(args):
     argparmain.add_argument(
       '--modelname', dest='modelname', type=str,
       help="Name of the model to use.")
-    argparmain.add_argument('--outdir', dest='outdir', type=str,
-                            help="The path to the output directory. Defaults "
-                            "to the location of the input.")
     argparmain.add_argument(
       '--double_precision', dest='double_precision', type=_str2bool,
       help="Switch between single (False, default) and double "

@@ -264,11 +264,11 @@ class IRGNOptimizer:
 
             self._balanceModelGradients(result)
 
-            if ign==0:#not np.mod(ign, 4):
-                self._pdop._grad_op.updateRatio(result)
-                if self._reg_type == 'TGV':
-                    self._pdop._symgrad_op.updateRatio(
-                        self._pdop._grad_op.ratio)
+            # if not np.mod(ign, 1):
+            #     self._pdop._grad_op.updateRatio(result)
+            #     if self._reg_type == 'TGV':
+            #         self._pdop._symgrad_op.updateRatio(
+            #             self._pdop._grad_op.ratio)
 
             self._step_val = np.nan_to_num(self._model.execute_forward(result))
 
