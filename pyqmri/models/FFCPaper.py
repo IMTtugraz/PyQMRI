@@ -300,10 +300,10 @@ class Model(BaseModel):
         self.dscale = args[1]
         self.images = np.abs(args[0]/args[1])[
             :self.t.shape[1]]
-        test_M0 = 1e-1*np.ones(
+        test_M0 = self.dscale*np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
         self.constraints[0].update(1/args[1])
-        test_Xi = 10*np.ones(
+        test_Xi = 1*np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
         # self.constraints[1].update(1/args[1])
         test_R1 = 200 * np.ones(

@@ -33,7 +33,7 @@ __kernel void update_z2(
                 __global double16 *gx_,
                 const double sigma,
                 const double theta,
-                const double alphainv,
+                const double alphainvz,
                 const int NUk
                 )
 {

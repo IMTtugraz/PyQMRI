@@ -365,7 +365,7 @@ class PDBaseSolver:
         self.display_iterations = irgn_par["display_iterations"]
         self.mu = 1 / self.delta
         self.tau = tau
-        self.beta_line = 1e3  # 1e10#1e12
+        self.beta_line = 1e2  # 1e10#1e12
         self.theta_line = DTYPE_real(1.0)
         self.unknowns_TGV = par["unknowns_TGV"]
         self.unknowns_H1 = par["unknowns_H1"]
@@ -696,8 +696,8 @@ class PDBaseSolver:
                      1000*gap / self._fval_init,
                      beta_line))
                 sys.stdout.flush()
-        self.beta_line = beta_line
-        self.tau = tau
+        # self.beta_line = beta_line
+        # self.tau = tau
         return primal_vars
 
     def _updateInitial(
