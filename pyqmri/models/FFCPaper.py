@@ -51,6 +51,12 @@ class Model(BaseModel):
                 constraints(1,
                             2000,
                             True))
+        self._ind1 = 51
+        self._ind2 = 81
+        self._labels=[]
+        for j in range(len(self.b)):
+            self._labels.append(
+                "Field "+str(round(self.b[j]*1e3, 2))+" mT")
 
     def rescale(self, x):
         tmp_x = np.copy(x)
@@ -190,116 +196,145 @@ class Model(BaseModel):
         return grad
 
     def plot_unknowns(self, x, dim_2D=False):
-            unknowns = self.rescale(x)
-            tmp_x = unknowns["data"]
-            images = np.abs(self._execute_forward_3D(x) / self.dscale)[
-                :self.t.shape[1]]
-            # tmp_x = (self.rescale(x))
-            tmp_x[0] = np.abs(tmp_x[0])/self.dscale
-            # tmp_x[1] /= self.dscale
-            tmp_x[1] = np.abs(tmp_x[1])
-            tmp_x = np.real(tmp_x)
+        unknowns = self.rescale(x)
+        tmp_x = unknowns["data"]
 
-            ind1 = 26
-            ind2 = 26
+        images = np.abs(self._execute_forward_3D(x) / self.dscale)
+        images = np.reshape(images, self.t.shape+images.shape[-3:])
 
-            if dim_2D:
-                pass
-            else:
+        tmp_x[0] = np.abs(tmp_x[0])/self.dscale
+        tmp_x[1] = np.abs(tmp_x[1])
+        tmp_x = np.real(tmp_x)
+
+        if dim_2D:
+            pass
+        else:
+            if not self._figure:
                 self.ax = []
-                if not self._figure:
-                    plot_dim = int(np.ceil(np.sqrt(len(self.uk_scale))))
-                    plt.ion()
-                    self._figure = plt.figure(figsize=(12, 6))
-                    self._figure.subplots_adjust(hspace=0.3, wspace=0)
-                    wd_ratio = np.tile([1, 1 / 20, 1 / (5)], plot_dim)
-                    self.gs = gridspec.GridSpec(
-                        plot_dim+1, 3*plot_dim,
-                        width_ratios=wd_ratio, hspace=0.3, wspace=0)
-                    self._figure.tight_layout()
-                    self._figure.patch.set_facecolor(plt.cm.viridis.colors[0])
-                    for grid in self.gs:
-                        self.ax.append(plt.subplot(grid))
-                        self.ax[-1].axis('off')
-                    self._plot = []
-                    for j in range(len(self.uk_scale)):
-                        self._plot.append(
-                            self.ax[3 * j].imshow(
-                                tmp_x[j, int(self.NSlice / 2), ...]))
-                        self.ax[3 *
-                                j].set_title('UK : ' +
-                                             str(j), color='white')
-                        self.ax[3 * j + 1].axis('on')
-                        cbar = self._figure.colorbar(
-                            self._plot[j], cax=self.ax[3 * j + 1])
-                        cbar.ax.tick_params(labelsize=12, colors='white')
-                        for spine in cbar.ax.spines:
-                            cbar.ax.spines[spine].set_color('white')
-                    plt.draw()
-                    plt.pause(1e-10)
+                plot_dim = int(np.ceil(np.sqrt(len(self.uk_scale))))
+                plt.ion()
+                self._figure = plt.figure(figsize=(12, 6))
+                self._figure.subplots_adjust(hspace=0.3, wspace=0)
+                wd_ratio = np.tile([1, 1 / 20, 1 / (5)], plot_dim)
+                self.gs = gridspec.GridSpec(
+                    plot_dim+1, 3*plot_dim,
+                    width_ratios=wd_ratio, hspace=0.3, wspace=0)
+                self._figure.tight_layout()
+                self._figure.patch.set_facecolor(plt.cm.viridis.colors[0])
+                for grid in self.gs:
+                    self.ax.append(plt.subplot(grid))
+                    self.ax[-1].axis('off')
+                self._plot = []
+                for j in range(len(self.uk_scale)):
+                    self._plot.append(
+                        self.ax[3 * j].imshow(
+                            tmp_x[j, int(self.NSlice / 2), ...]))
+                    self.ax[3 *
+                            j].set_title('UK : ' +
+                                         str(j), color='white')
+                    self.ax[3 * j + 1].axis('on')
+                    cbar = self._figure.colorbar(
+                        self._plot[j], cax=self.ax[3 * j + 1])
+                    cbar.ax.tick_params(labelsize=12, colors='white')
+                    for spine in cbar.ax.spines:
+                        cbar.ax.spines[spine].set_color('white')
+                plt.draw()
+                plt.pause(1e-10)
+                self._figure.canvas.mpl_connect(
+                    'button_press_event',
+                    self.onclick)
 
-                    self.plot_ax = plt.subplot(self.gs[-1, :])
+                self.plot_ax = plt.subplot(self.gs[-1, :])
+                self.plot_ax.set_title("Time course", color='w')
+                self.time_course_ref = []
+                for j in range(len(self.b)):
+                    self.time_course_ref.append(self.plot_ax.plot(
+                        self.t[j], np.real(
+                            self.images[j, :,
+                                        int(self.NSlice/2),
+                                        self._ind2, self._ind1]).T,
+                        'x', label=self._labels[j])[0])
+                self.plot_ax.set_prop_cycle(None)
+                legend = self.plot_ax.legend(frameon=True, framealpha=0.3)
+                for _txt in legend.texts:
+                    _txt.set_alpha(0.3)
+                for lh in legend.legendHandles:
+                    lh._legmarker.set_alpha(0.3)
+                self.time_course = self.plot_ax.plot(
+                    self.t.T, np.real(
+                        images[..., int(self.NSlice/2),
+                               self._ind2, self._ind1]).T)
+                self.plot_ax.set_ylim(
+                    np.minimum(np.real(images[...,
+                                              int(self.NSlice/2),
+                                              self._ind2,
+                                              self._ind1]).min(),
+                               np.real(self.images[...,
+                                                   int(self.NSlice/2),
+                                                   self._ind2,
+                                                   self._ind1]).min()),
+                    1.2*np.maximum(np.real(images[...,
+                                                  int(self.NSlice/2),
+                                                  self._ind2,
+                                                  self._ind1]).max(),
+                                   np.real(self.images[...,
+                                                       int(self.NSlice/2),
+                                                       self._ind2,
+                                                       self._ind1]).max()))
+                for spine in self.plot_ax.spines:
+                    self.plot_ax.spines[spine].set_color('white')
+                self.plot_ax.xaxis.label.set_color('white')
+                self.plot_ax.yaxis.label.set_color('white')
+                self.plot_ax.tick_params(axis='both', colors='white')
 
-                    self.time_course_ref = self.plot_ax.scatter(
-                        self.t[0], np.real(
-                            self.images[:, int(self.NSlice/2), ind2, ind1]),
-                        color='g', marker="2")
-                    self.time_course = self.plot_ax.plot(
-                        self.t[0], np.real(
-                            images[:, int(self.NSlice/2), ind2, ind1]), 'r')[0]
-                    self.plot_ax.set_ylim(
-                        np.real(self.images[:,
-                                            int(self.NSlice/2),
-                                            ind2,
-                                            ind1]).min() - np.real(
-                                self.images[:,
-                                            int(self.NSlice/2),
-                                            ind2,
-                                            ind1]).min() * 0.01,
-                        np.real(self.images[:,
-                                            int(self.NSlice/2),
-                                            ind2,
-                                            ind1]).max() + np.real(
-                               self.images[:,
-                                           int(self.NSlice/2),
-                                           ind2,
-                                           ind1]).max() * 0.01)
-                    for spine in self.plot_ax.spines:
-                        self.plot_ax.spines[spine].set_color('white')
-                    plt.draw()
-                    plt.show()
-                    plt.pause(1e-4)
+                plt.draw()
+                plt.show()
+                plt.pause(1e-4)
+            else:
+                for j in range(len(self.uk_scale)):
+                    self._plot[j].set_data(
+                        tmp_x[j, int(self.NSlice / 2), ...])
+                    self._plot[j].set_clim(
+                        [tmp_x[j].min(), tmp_x[j].max()])
 
-                else:
-                    for j in range(len(self.uk_scale)):
-                        self._plot[j].set_data(tmp_x[j, int(self.NSlice / 2), ...])
-                        self._plot[j].set_clim([tmp_x[j].min(), tmp_x[j].max()])
-                    self.time_course.set_ydata(
-                        np.real(images[:, int(self.NSlice/2), ind2, ind1]))
-                    self.plot_ax.set_ylim(
-                        np.real(self.images[:,
-                                            int(self.NSlice/2),
-                                            ind2,
-                                            ind1]).min() - np.real(
-                                self.images[:,
-                                            int(self.NSlice/2),
-                                            ind2,
-                                            ind1]).min() * 0.01,
-                        np.real(self.images[:,
-                                            int(self.NSlice/2),
-                                            ind2,
-                                            ind1]).max() + np.real(
-                               self.images[:,
-                                           int(self.NSlice/2),
-                                           ind2,
-                                           ind1]).max() * 0.01)
-                    plt.draw()
-                    plt.pause(1e-10)
+                for j in range(len(self.b)):
+                    self.time_course[j].set_ydata(
+                        np.real(images[
+                            j, :, int(self.NSlice/2), self._ind2, self._ind1]))
+                self.plot_ax.set_ylim(
+                    np.minimum(np.real(images[...,
+                                              int(self.NSlice/2),
+                                              self._ind2,
+                                              self._ind1]).min(),
+                               np.real(self.images[...,
+                                                   int(self.NSlice/2),
+                                                   self._ind2,
+                                                   self._ind1]).min()),
+                    1.2*np.maximum(np.real(images[...,
+                                                  int(self.NSlice/2),
+                                                  self._ind2,
+                                                  self._ind1]).max(),
+                                   np.real(self.images[...,
+                                                       int(self.NSlice/2),
+                                                       self._ind2,
+                                                       self._ind1]).max()))
+                plt.draw()
+                plt.pause(1e-10)
+
+    def onclick(self, event):
+        if event.inaxes in self.ax[::3]:
+            self._ind1 = int(event.xdata)
+            self._ind2 = int(event.ydata)
+            for j in range(len(self.b)):
+                self.time_course_ref[j].set_ydata(np.real(
+                        self.images[j, :,
+                                    int(self.NSlice/2),
+                                    self._ind2, self._ind1]).T)
 
     def computeInitialGuess(self, *args):
         self.dscale = args[1]
-        self.images = np.abs(args[0]/args[1])[
-            :self.t.shape[1]]
+        self.images = np.reshape(np.abs(args[0]/args[1]),
+                                 self.t.shape+args[0].shape[-3:])
         test_M0 = self.dscale*np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
         self.constraints[0].update(1/args[1])
