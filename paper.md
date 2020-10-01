@@ -35,23 +35,23 @@ bibliography: paper.bib
 # Summary
 
 Quantitative MRI (qMRI) aims at identifying the underlying physical tissue parameters 
-that define the contrast in an imaging experiment. Contrary to conventional MRI examinations, qMRI
-offers insights into diseases based on absolut quantitative values instead of relative intensity changes in arbitrary units. Thus, 
-potentiall simplifying comparisons between different medical sites as well as giving the opprotunity to
-classify the severity or progression of certain diseases. Under particular simplifications
+that define the contrast in an imaging experiment. Additionally to structural information from conventional MRI examinations, qMRI
+offers insights into diseases based on absolut quantitative values. Thus, 
+potentially simplifying comparisons between different medical sites as well as giving the opprotunity to
+classify the severity or progression of diseases. Under particular assumptions
 analytical expressions are available, describing the relation between image
 intensity and physical properties of tissue. Using several measurements with 
 varying sequence settings (e.g. flip-angle, repetition time, echo time) it is possible to solve the associated inverse problem
 of identifying these tissue parameters.
 
-The increased measurement time due to the repeated imaging experiments of such studies is typically tackeld by 
-subsampling the data acquisiton, i.e. acquiring less data than the Nyquist-Shannon theorem implies. However, the reduced amount of data as well 
-as the typical non-linear structure of the associated inverse problem require dedicated numerical solution strategies [@Donoho2006; @Lustig2007; @Block2009; @Doneva2010; @Sumpf2012; @Roeloffs2016] wich are commonly known as model-based reconstruction. These methods directly solve for the unknown parameter maps from raw k-space data. The repeated transisition from k-space to image-space combined with the involved non-linear iterative reconstruction techniques to identify the unknown parameters often leads to prolonged reconstruction times. An effect that gets even more demanding if 3D image volumes are of interest. 
+The increased measurement time due to the repeated imaging experiments of such studies can be tackeld by 
+subsampling the data acquisiton, i.e. acquiring less data than the Nyquist-Shannon theorem implies, combinaed with information from spatially independent recieve coils (parallel imaging). 
+However, the reduced amount of data as well as the typical non-linear structure of the associated inverse problem require dedicated numerical solution strategies [@Donoho2006; @Lustig2007; @Block2009; @Doneva2010; @Sumpf2012; @Roeloffs2016] wich are commonly known as model-based reconstruction. Model-based reconstruction can combine parallel imaging and compressed sensing to further reduce the amount of necessary data for reconstruction and fitting. The method directly solves for the unknown parameter maps from raw k-space data. The repeated transisition from k-space to image-space combined with the involved non-linear iterative reconstruction techniques to identify the unknown parameters often leads to prolonged reconstruction times. An effect that gets even more demanding if 3D image volumes are of interest. 
 
 In recent years the upsurge of computationally powerful GPUs has led to a variety of
 GPU based implementations to speed up computation time of highly parallelizeable operations 
-(e.g., the Fourier transformation in MRI [@Knoll2014g]). However, as memory is
-a scarce resource, most reconstruction and fitting algorithms are applied in a slice-by-slice fashion to 
+(e.g., the Fourier transformation in MRI [@Knoll2014g]). As model-based approaches make use of several measurements, memory on the GPU can be
+a scarce resource. Thus, most reconstruction and fitting algorithms are applied in a slice-by-slice fashion to 
 the volumetric data by taking a Fourier transformation along a fully sampled acquisition direction, effectively yielding a set of 2D problems.
 Hence the additional information in form of the third dimension of volumetric data is neglected, leading to a loss in performance.
 
@@ -71,6 +71,7 @@ allows to overlap computation and memory transfer from/to the GPU, thus
 hiding the associated memory latency. By overlapping the transfered blocks
 it is possible to pass on 3D information utilizing finite differences based
 regularization strategies [@Maier2019d]. \autoref{fig:db} shows a schematic of the employed double-buffering scheme.
+To make sure that this asynchronous execution strategy yields the expected results unit-testing is emplyed.
 
 ![Simple double-buffering scheme using two separate command queues and overlaping transfer/compute operations. \label{fig:db}](doublebuffering.png)
 
@@ -80,8 +81,9 @@ based imaging. Of course 2D data can be reconstructed as well. The combination o
 on an iteratively regularized Gauss-Newton (IRGN) approach combined with 
 a primal-dual inner loop. Regularization strategies include total variation (TV) [@Rudin1992]
 and total generalized variation (TGV) [@Bredies2010; @Knoll2011] using finite differences gradient operations. 
-In addition to the combined reconstruction and fitting algorithm, `PyQMRI` can also be used to speed-up non-linear parameter fitting
-of complex or real valued image data.
+In addition to the combined reconstruction and fitting algorithm from k-space data, `PyQMRI` can also be used to speed-up non-linear parameter fitting
+of complex or real valued image data. The main advantage of fitting the complex (k-space) data is that the assumed Gaussian noise characteristics for the commonly used $L_2$ data fidelity term are valid. This is especially important for problems suffering from poor SNR, e.g. Diffusion Tensor Imaging, where the wrong noise assumption can lead to significant errors in the quantification process [@Jones2004].
+
 
 `PyQMRI` comes with several pre-implemented quantiative models. In addition,
 new models can be introduced via a simple text file, utilizing the power
