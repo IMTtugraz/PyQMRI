@@ -53,10 +53,10 @@ class Model(BaseModel):
                             True))
         self._ind1 = 51
         self._ind2 = 81
-        self._labels=[]
+        self._labels = []
         for j in range(len(self.b)):
             self._labels.append(
-                "Field "+str(round(self.b[j]*1e3, 2))+" mT")
+                "Field "+str(np.round(self.b[j]*1e3, 2))+" mT")
 
     def rescale(self, x):
         tmp_x = np.copy(x)
