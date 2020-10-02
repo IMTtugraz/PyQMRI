@@ -36,7 +36,7 @@ bibliography: paper.bib
 
 Quantitative MR imaging (qMRI) and the associated possibility of finding imaging biomarkers has gained considerably in importance with the development towards stratified and quantitative medicine. qMRI aims to identify the underlying bio-physical and tissue parameters that determine contrast in an imaging experiment. In addition to the contrast information from conventional MRI examinations, qMRI provides insights into diseases based on biophysical, microstructural, and also functional information in absolute quantitative values. For quantification, biophysical models are used, which describe the relationship between image intensity and physical properties of the tissue for certain scanning sequences and sequence parameters. By performing several measurements with different sequence parameters (e.g. flip angle, repetition time, echo time) the related inverse problem of identifying the tissue parameters sought can be solved.
 
-Quantitative MR typically suffers from an increased measurement time due to repeated imaging experiments. Therefore, methods to reduce scanning time by means of optimal scanning protocols and subsampled data acquisition have been extensively studied but these approaches are typically associated with a reduced SNR and can suffers from subsampling artifacts in the images. To address both aspects, it has been shown that the inclusion of the biophysical model in the reconstruction process leads to a much faster data acquisition while simultaneously improving image quality. The inverse problem associated with this special reconstruction approach requires dedicated numerical solution strategies [@Donoho2006; @Lustig2007; @Block2009; @Doneva2010; @Sumpf2012; @Roeloffs2016; @Maier2019c], commonly known as model-based reconstruction. Model-based reconstruction is based on variational modeling and combines parallel imaging and compressed sensing to achieve very high acceleration factors above ten compared to fully sampled acquisitions. The method directly solves for the unknown parameter maps from raw k-space data. The repeated transition from k-space to image-space combined with the involved non-linear iterative reconstruction techniques to identify the unknown parameters often leads to prolonged reconstruction times. An effect that gets even more demanding if 3D image volumes are of interest. 
+Quantitative MR typically suffers from an increased measurement time due to repeated imaging experiments. Therefore, methods to reduce scanning time by means of optimal scanning protocols and subsampled data acquisition have been extensively studied but these approaches are typically associated with a reduced SNR and can suffers from subsampling artifacts in the images. To address both aspects, it has been shown that the inclusion of the biophysical model in the reconstruction process leads to a much faster data acquisition while simultaneously improving image quality. The inverse problem associated with this special reconstruction approach requires dedicated numerical solution strategies [@Donoho2006; @Lustig2007; @Block2009; @Doneva2010; @Sumpf2012; @Roeloffs2016; @Maier2019c], commonly known as model-based reconstruction. Model-based reconstruction is based on variational modeling and combines parallel imaging and compressed sensing to achieve very high acceleration factors above ten, compared to fully sampled acquisitions. The method directly solves for the unknown parameter maps from raw k-space data. The repeated transition from k-space to image-space combined with the involved non-linear iterative reconstruction techniques to identify the unknown parameters often leads to prolonged reconstruction times. An effect that gets even more demanding if 3D image volumes are of interest. 
 
 In recent years the upsurge of computationally powerful GPUs has led to a variety of GPU based implementations to speed up computation time of highly parallelizeable operations 
 (e.g., the Fourier transformation in MRI [@Knoll2014g]). As model-based approaches possibly deal with hundred Gigabytes of data (e.g. diffusion tensor imaging), available memory on current GPUs (e.g. 12 GB) can be a limiting factor. Thus, most reconstruction and fitting algorithms are applied in a slice-by-slice fashion to the volumetric data by taking a Fourier transformation along a fully sampled acquisition direction, effectively yielding a set of 2D problems. Hence the additional information in form of the third dimension of volumetric data is neglected, leading to a loss in performance.
@@ -57,7 +57,7 @@ allows to overlap computation and memory transfer from/to the GPU, thus
 hiding the associated memory latency. By overlapping the transfered blocks
 it is possible to pass on 3D information utilizing finite differences based
 regularization strategies [@Maier2019d]. \autoref{fig:db} shows a schematic of the employed double-buffering scheme.
-To make sure that this asynchronous execution strategy yields the expected results unit-testing is emplyed.
+To make sure that this asynchronous execution strategy yields the expected results unit-testing is employed.
 
 ![Simple double-buffering scheme using two separate command queues and overlaping transfer/compute operations. \label{fig:db}](doublebuffering.png)
 
@@ -78,7 +78,7 @@ into a Python script. To the best of the authors knowledge `PyQMRI`
 is the only available Python toolbox that offers real 3D regularization 
 in an iterative solver for inverse quantitative MRI problems
 and for arbitrary large volumetric data while simultaneously utilizing the computation
-power of recent GPUs. Due to `PyQMRI`s OpenCL backend no vendor specific hardware restrictions are present, however,
+power of recent GPUs. Due to `PyQMRI`'s OpenCL backend no vendor specific hardware restrictions are present, however,
 current limitations of the `gpyfft` package used to wrap the `clfft`, constrain the use to GPU devices only.
 A switch to other `clfft` wrappers might solve this limitation in future releases but `gpyfft` is the only one that currently supports fast non-power-of-two transformations up to 13.
 
@@ -100,7 +100,7 @@ which includes a non-linear forward operator ($A$), mapping the parameters $u$ t
 the $L^1$-norms of the T(G)V functional [@Bredies2010; @Knoll2011]. Setting $\alpha_1=0$ and $v=0$ the problem
 becomes simple TV regularization [@Rudin1992]. The gradient&nbsp;$\nabla$ and symmetrized gradient&nbsp;$\mathcal{E}$ operators are implemented using finite differences.
 To further improve the quality of the reconstructed parameter maps `PyQMRI` uses a Frobenius norm to join spatial
-information from all maps in the T(G)V functionals [@Bredies2014; @Knoll2017a]. Box constraints, limiting each unknown parameter in $u$ to a physiological meaningful range,
+information from all maps in the T(G)V functionals [@Bredies2014; @Knoll2017a; @Maier2019c]. Box constraints, limiting each unknown parameter in $u$ to a physiological meaningful range,
 can be set in conjunction with real or complex value constraints.
 
 Following the Gauss-Newton approach a sequence $k$ of linearized sub-problems of the form
