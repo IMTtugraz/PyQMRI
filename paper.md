@@ -34,31 +34,17 @@ bibliography: paper.bib
 
 # Summary
 
-Quantitative MRI (qMRI) aims at identifying the underlying physical tissue parameters 
-that define the contrast in an imaging experiment. Additionally to structural information from conventional MRI examinations, qMRI
-offers insights into diseases based on absolut quantitative values. Thus, 
-potentially simplifying comparisons between different medical sites as well as giving the opprotunity to
-classify the severity or progression of diseases. Under particular assumptions
-analytical expressions are available, describing the relation between image
-intensity and physical properties of tissue. Using several measurements with 
-varying sequence settings (e.g. flip-angle, repetition time, echo time) it is possible to solve the associated inverse problem
-of identifying these tissue parameters.
+Quantitative MR imaging (qMRI) and the associated possibility of finding imaging biomarkers has gained considerably in importance with the development towards stratified and quantitative medicine. qMRI aims to identify the underlying bio-physical and tissue parameters that determine contrast in an imaging experiment. In addition to the contrast information from conventional MRI examinations, qMRI provides insights into diseases based on biophysical, microstructural, and also functional information in absolute quantitative values. For quantification, biophysical models are used, which describe the relationship between image intensity and physical properties of the tissue for certain scanning sequences and sequence parameters. By performing several measurements with different sequence parameters (e.g. flip angle, repetition time, echo time) the related inverse problem of identifying the tissue parameters sought can be solved.
 
-The increased measurement time due to the repeated imaging experiments of such studies can be tackeld by 
-subsampling the data acquisiton, i.e. acquiring less data than the Nyquist-Shannon theorem implies, combinaed with information from spatially independent recieve coils (parallel imaging). 
-However, the reduced amount of data as well as the typical non-linear structure of the associated inverse problem require dedicated numerical solution strategies [@Donoho2006; @Lustig2007; @Block2009; @Doneva2010; @Sumpf2012; @Roeloffs2016] wich are commonly known as model-based reconstruction. Model-based reconstruction can combine parallel imaging and compressed sensing to further reduce the amount of necessary data for reconstruction and fitting. The method directly solves for the unknown parameter maps from raw k-space data. The repeated transisition from k-space to image-space combined with the involved non-linear iterative reconstruction techniques to identify the unknown parameters often leads to prolonged reconstruction times. An effect that gets even more demanding if 3D image volumes are of interest. 
+Quantitative MR typically suffers from an increased measurement time due to repeated imaging experiments. Therefore, methods to reduce scanning time by means of optimal scanning protocols and subsampled data acquisition have been extensively studied but these approaches are typically associated with a reduced SNR and can suffers from subsampling artifacts in the images. To address both aspects, it has been shown that the inclusion of the biophysical model in the reconstruction process leads to a much faster data acquisition while simultaneously improving image quality. The inverse problem associated with this special reconstruction approach requires dedicated numerical solution strategies [@Donoho2006; @Lustig2007; @Block2009; @Doneva2010; @Sumpf2012; @Roeloffs2016; @Maier2019c], commonly known as model-based reconstruction. Model-based reconstruction is based on variational modeling and combines parallel imaging and compressed sensing to achieve very high acceleration factors above ten compared to fully sampled acquisitions. The method directly solves for the unknown parameter maps from raw k-space data. The repeated transition from k-space to image-space combined with the involved non-linear iterative reconstruction techniques to identify the unknown parameters often leads to prolonged reconstruction times. An effect that gets even more demanding if 3D image volumes are of interest. 
 
-In recent years the upsurge of computationally powerful GPUs has led to a variety of
-GPU based implementations to speed up computation time of highly parallelizeable operations 
-(e.g., the Fourier transformation in MRI [@Knoll2014g]). As model-based approaches make use of several measurements, memory on the GPU can be
-a scarce resource. Thus, most reconstruction and fitting algorithms are applied in a slice-by-slice fashion to 
-the volumetric data by taking a Fourier transformation along a fully sampled acquisition direction, effectively yielding a set of 2D problems.
-Hence the additional information in form of the third dimension of volumetric data is neglected, leading to a loss in performance.
+In recent years the upsurge of computationally powerful GPUs has led to a variety of GPU based implementations to speed up computation time of highly parallelizeable operations 
+(e.g., the Fourier transformation in MRI [@Knoll2014g]). As model-based approaches possibly deal with hundred Gigabytes of data (e.g. diffusion tensor imaging), available memory on current GPUs (e.g. 12 GB) can be a limiting factor. Thus, most reconstruction and fitting algorithms are applied in a slice-by-slice fashion to the volumetric data by taking a Fourier transformation along a fully sampled acquisition direction, effectively yielding a set of 2D problems. Hence the additional information in form of the third dimension of volumetric data is neglected, leading to a loss in performance.
 
 To utilize full 3D information in advanced reconstruction and fitting algorithms on memory limited GPUs, 
 special solutions strategies are necessary to leverage the speed advantage, e.g., hide memory latency of repeated transfers to/from the GPU to host memory.
 This can be achieved using asynchronous execution strategies but correct synchronization of critical operations can be error prone.
-To this end, we propose a simple to use toolbox for quantitative MRI.
+To this end, we propose `PyQMRI`, a simple to use python toolbox for quantitative MRI.
 
 # Statement of need 
 
@@ -89,7 +75,7 @@ of complex or real valued image data. The main advantage of fitting the complex 
 new models can be introduced via a simple text file, utilizing the power
 of `SymPy` to generate numerical models as well as their partial derivatives in Python. Fitting can be initiated via a command line interface (CLI) or by importing the package
 into a Python script. To the best of the authors knowledge `PyQMRI`
-is the only availabel Python toolbox that offers real 3D regularization 
+is the only available Python toolbox that offers real 3D regularization 
 in an iterative solver for inverse quantitative MRI problems
 and for arbitrary large volumetric data while simultaneously utilizing the computation
 power of recent GPUs. Due to `PyQMRI`s OpenCL backend no vendor specific hardware restrictions are present, however,
