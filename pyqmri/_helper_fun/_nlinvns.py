@@ -18,7 +18,7 @@ nlinvns
  Max-Planck-Institut fuer biophysikalische Chemie
 Adapted for Python by O. Maier
 """
-import time
+from time import perf_counter
 import numpy as np
 import pyfftw
 
@@ -87,7 +87,7 @@ def nlinvns(Y, n, *arg, DTYPE=np.complex64, DTYPE_real=np.float32):
     XT = np.zeros([c + 1, y, x], dtype=DTYPE)
     XN = np.copy(X0)
 
-    start = time.clock()
+    start = perf_counter()
     for i in range(0, n):
 
         # the application of the weights matrix to XN
@@ -145,7 +145,7 @@ def nlinvns(Y, n, *arg, DTYPE=np.complex64, DTYPE_real=np.float32):
         R[0, i, :, :] = (XN[0, :, :] * np.sqrt(C) / yscale)
         R[1, i, :, :] = np.copy(XN[0, :, :])
 
-    end = time.clock()
+    end = perf_counter()
     print('done in', round((end - start)), 's')
     return R
 

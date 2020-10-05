@@ -154,7 +154,7 @@ A default config file will be generated if no path to a config file is passed as
 - gamma: TGV weighting
 - delta: L2-step-penalty weighting (inversely weighted)
 - omega: optional H1 regularization (should be set to 0 if no H1 is used)
-- display_iterations: Flag for displaying grafical output
+- display_iterations: Flag for displaying graphical output
 - gamma_min: Minimum TGV weighting
 - delta_max: Maximum L2-step-penalty weighting
 - omega_min: Minimum H1 weighting (should be set to 0 if no H1 is used)
@@ -163,6 +163,19 @@ A default config file will be generated if no path to a config file is passed as
 - delta_inc: Increase factor for delta after each GN step
 - gamma_dec: Decrease factor for gamma after each GN step
 - omega_dec: Decrease factor for omega after each GN step
+
+
+Contributing
+------------
+If you want to contribute please make sure that all tests pass. 
+Prior to running the tests it is necessary to start an ipcluster. 
+An exemplary workflow would be:
+:bash:`ipcluster start &`
+followed by typing
+:bash:`pytest test`
+in the PyQMRI root folder. It is advised to run unit and integration tests after each other as OUT_OF_MEMORY exceptions can occur if both are in one session, e.g.:
+:bash:`pytest test/unittests`
+:bash:`pytest test/integrationtests`
 
 Limitations and known Issues:
 ------------------------------
