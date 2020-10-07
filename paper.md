@@ -1,5 +1,5 @@
 ---
-title: 'PyQMRI: An accelerated Python based Quantitative MRI Python toolbox'
+title: 'PyQMRI: An accelerated Python based Quantitative MRI toolbox'
 tags:
   - Python
   - MRI
