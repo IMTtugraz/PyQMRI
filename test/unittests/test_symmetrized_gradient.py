@@ -28,7 +28,7 @@ class tmpArgs():
 def setupPar(par):
     par["NScan"] = 10
     par["NC"] = 15
-    par["NSlice"] = 20
+    par["NSlice"] = 10
     par["dimX"] = 128
     par["dimY"] = 128
     par["Nproj"] = 21
@@ -37,14 +37,14 @@ def setupPar(par):
     par["unknowns_H1"] = 0
     par["unknowns"] = 2
     par["dz"] = 1
-    par["weights"] = [1, 1]
+    par["weights"] = np.array([1, 0.1])
 
 
 class SymmetrizedGradientTest(unittest.TestCase):
     def setUp(self):
         parser = tmpArgs()
         parser.streamed = False
-        parser.devices = [0]
+        parser.devices = -1
         parser.use_GPU = True
 
         par = {}
@@ -62,6 +62,8 @@ class SymmetrizedGradientTest(unittest.TestCase):
             par["ctx"][0],
             file.read())
         file.close()
+
+        self.weights = par["weights"]
 
         self.symgrad = pyqmri.operator.OperatorFiniteSymGradient(
             par, prg,
@@ -103,6 +105,7 @@ class SymmetrizedGradientTest(unittest.TestCase):
                             1/2 * (gradx[..., 2] + gradz[..., 0]/self.dz),
                             1/2 * (grady[..., 2] + gradz[..., 1]/self.dz)),
                            axis=-1)
+        symgrad *= self.weights[:, None, None, None, None]
 
         inp = clarray.to_device(self.queue, self.symgradin)
         outp = self.symgrad.fwdoop(inp)
@@ -132,7 +135,7 @@ class SymmetrizedGradientTest(unittest.TestCase):
                             1/2 * (gradx[..., 2] + gradz[..., 0]/self.dz),
                             1/2 * (grady[..., 2] + gradz[..., 1]/self.dz)),
                            axis=-1)
-
+        symgrad *= self.weights[:, None, None, None, None]
         inp = clarray.to_device(self.queue, self.symgradin)
         outp = clarray.to_device(self.queue, self.symdivin)
         self.symgrad.fwd(outp, inp)
@@ -159,7 +162,7 @@ class SymmetrizedGradientTest(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertAlmostEqual(a, b, places=12)
 
     def test_adj_inplace(self):
         inpgrad = clarray.to_device(self.queue, self.symgradin)
@@ -184,37 +187,36 @@ class SymmetrizedGradientTest(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertAlmostEqual(a, b, places=12)
 
 
 class SymmetrizedGradientStreamedTest(unittest.TestCase):
     def setUp(self):
         parser = tmpArgs()
         parser.streamed = True
-        parser.devices = [0]
+        parser.devices = -1
         parser.use_GPU = True
 
         par = {}
         pyqmri.pyqmri._setupOCL(parser, par)
         setupPar(par)
         if DTYPE == np.complex128:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_double_streamed.c'))
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels_double_streamed.c')
         else:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_streamed.c'))
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels_streamed.c')
 
         prg = []
-        for j in range(1):
-            prg.append(
-                Program(
-                    par["ctx"][0],
-                    file.read()))
-        file.close()
+        for j in range(len(par["ctx"])):
+          with open(file) as myfile:
+            prg.append(Program(
+                par["ctx"][j],
+                myfile.read()))
 
-        par["par_slices"] = 4
+        par["par_slices"] = 1
+
+        self.weights = par["weights"]
 
         self.symgrad = pyqmri.operator.OperatorFiniteSymGradientStreamed(
             par, prg,
@@ -255,7 +257,7 @@ class SymmetrizedGradientStreamedTest(unittest.TestCase):
                             1/2 * (gradx[..., 2] + gradz[..., 0]/self.dz),
                             1/2 * (grady[..., 2] + gradz[..., 1]/self.dz)),
                            axis=-1)
-
+        symgrad *= self.weights[None, :, None, None, None]
         outp = self.symgrad.fwdoop([[self.symgradin]])
 
         np.testing.assert_allclose(outp[..., :6], symgrad)
@@ -282,7 +284,7 @@ class SymmetrizedGradientStreamedTest(unittest.TestCase):
                             1/2 * (gradx[..., 2] + gradz[..., 0]/self.dz),
                             1/2 * (grady[..., 2] + gradz[..., 1]/self.dz)),
                            axis=-1)
-
+        symgrad *= self.weights[None, :, None, None, None]
         outp = np.zeros_like(self.symdivin)
 
         self.symgrad.fwd([outp], [[self.symgradin]])
@@ -304,7 +306,7 @@ class SymmetrizedGradientStreamedTest(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertAlmostEqual(a, b, places=12)
 
     def test_adj_inplace(self):
 
@@ -324,7 +326,7 @@ class SymmetrizedGradientStreamedTest(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertAlmostEqual(a, b, places=12)
 
 
 if __name__ == '__main__':

@@ -1,5 +1,19 @@
 Welcome to PyQMRI's documentation!
 ================================================================
+
+3D model based parameter quantification for MRI.
+
+PyQMRI is a Python module to quantify tissue parameters given a set of 
+MRI measurements, specifically desinged to quantify the parameter of interest. 
+Examples include T1 quantification from variable flip angle or 
+inversion-recovery Look-Locker data, T2 quantification using a 
+mono-exponential fit, or Diffusion Tensor quantification. 
+
+In addition, a Genereal Model exists that can be invoced 
+using a text file containing the analytical signal equation.
+
+Navigation
+----------
 .. toctree::
    :maxdepth: 6
    :caption: Contents:
@@ -9,9 +23,8 @@ Welcome to PyQMRI's documentation!
    ./_modules/streaming
    ./_modules/operator
    ./_modules/models
-   ./_modules/FFT
-   ./_modules/IRGN_RECO
-   ./_modules/IRGN_RECO_STREAMED
+   ./_modules/irgn
+   ./_modules/transforms
 
 
 Indices and tables
@@ -21,8 +34,8 @@ Indices and tables
 * :ref:`modindex`
 * :ref:`search`
 
-Quick Installing Guide:
-------------------------
+Quick Installing Guide
+----------------------
 .. role:: bash(code)
    :language: bash
    
@@ -80,6 +93,9 @@ can be done by:
 Sample Data
 -----------
 In-vivo datasets used in the original publication (doi: `[10.1002/mrm.27502]`_) can be found at zenodo_.
+As these data sets are from an older release, the coil sensitivity profiles saved within the .h5 files
+need to be deleted prior to reconstruction. This invokes a new conputation of coil sensitivity profiles,
+matching the data within the fitting.
 
 Prerequests on the .h5 file:
 -----------------------------

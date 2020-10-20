@@ -1,18 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Thu Jan 18 12:05:59 2018
-
-@author: omaier
-"""
+"""Density compensation for non-uniform acquried data."""
 import numpy as np
 
 
-def cmp(k, cmp_type=None):
+def cmp(k):
+    """Golden angle density compensation.
+
+    Simple linear ramp based density compensation function
+
+    Parameters
+    ----------
+      k : numpy.array
+        Trajectory which should be density compensated.
+
+    Returns
+    -------
+      numpy.array :
+          The density compensation array.
+    """
     if len(np.shape(k)) == 2:
         nspokes, N = np.shape(k)
     elif len(np.shape(k)) == 3:
-        NScan, nspokes, N = np.shape(k)
+        _, nspokes, N = np.shape(k)
     else:
         return -5
 
@@ -21,4 +31,4 @@ def cmp(k, cmp_type=None):
     w = np.repeat(w, nspokes, 0)
     w = np.reshape(w, (N, nspokes)).T
 
-    return w
+    return np.array(w)

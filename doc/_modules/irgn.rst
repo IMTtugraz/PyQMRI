@@ -1,5 +1,5 @@
-Recon
+IRGN
 =========
-.. automodule:: pyqmri.irgn.reco
+.. automodule:: pyqmri.irgn
    :members:
    :undoc-members:

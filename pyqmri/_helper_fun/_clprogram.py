@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Tue Jul 30 10:20:02 2019
-
-@author: omaier
-"""
-
+"""Base for PyOpenCL programs."""
 import pyopencl as cl
 
 
-class CLProgram(object):
+class CLProgram():
+    """Base class for PyOpenCL kernels.
+
+    Parameters
+    ----------
+      ctx : PyOpenCL.Context
+        The context to compile the code in.
+      code : string
+        The Kernel to compile
+    """
+
     def __init__(self, ctx, code):
         self._cl_prg = cl.Program(ctx, code)
         self._cl_prg.build("-cl-mad-enable -cl-fast-relaxed-math")
