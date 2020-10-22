@@ -7,51 +7,53 @@ Created on Mon Aug 12 11:26:41 2019
 """
 import pytest
 import os
+from os.path import join as pjoin
 import pyqmri
 import shutil
 import h5py
 import numpy as np
 
+data_dir = os.path.realpath(pjoin(os.path.dirname(__file__), '..'))
 
 @pytest.mark.integration_test
 def test_VFA_model_kspace_TGV():
-    assert pyqmri.run(data=os.getcwd()+'/test/smalltest.h5',
+    assert pyqmri.run(data=pjoin(data_dir, 'smalltest.h5'),
                       model='VFA',
-                      config=os.getcwd()+'/test/default.ini'
+                      config=pjoin(data_dir, 'default.ini')
                       ) is None
 
 
 @pytest.mark.integration_test
 def test_VFA_model_imagespace_TGV():
-    assert pyqmri.run(data=os.getcwd()+'/test/smalltest.h5',
+    assert pyqmri.run(data=pjoin(data_dir, 'smalltest.h5'),
                       model='VFA',
                       imagespace=True,
-                      config=os.getcwd()+'/test/default.ini'
+                      config=pjoin(data_dir, 'default.ini')
                       ) is None
 
 
 @pytest.mark.integration_test
 def test_General_model_kspace_TGV():
-    assert pyqmri.run(data=os.getcwd()+'/test/smalltest.h5',
-                      config=os.getcwd()+'/test/default.ini',
-                      modelfile=os.getcwd()+'/test/models.ini'
+    assert pyqmri.run(data=pjoin(data_dir, 'smalltest.h5'),
+                      config=pjoin(data_dir, 'default.ini'),
+                      modelfile=pjoin(data_dir, 'models.ini')
                       ) is None
 
 
 @pytest.mark.integration_test
 def test_VFA_model_kspace_TV():
-    assert pyqmri.run(data=os.getcwd()+'/test/smalltest.h5',
+    assert pyqmri.run(data=pjoin(data_dir, 'smalltest.h5'),
                       model='VFA',
-                      config=os.getcwd()+'/test/default.ini',
+                      config=pjoin(data_dir, 'default.ini'),
                       reg_type='TV'
                       ) is None
 
 
 @pytest.mark.integration_test
 def test_VFA_model_kspace_TGV_cart():
-    assert pyqmri.run(data=os.getcwd()+'/test/VFA_cart_smalltest.h5',
+    assert pyqmri.run(data=pjoin(data_dir, 'VFA_cart_smalltest.h5'),
                       model='VFA',
-                      config=os.getcwd()+'/test/default.ini',
+                      config=pjoin(data_dir, 'default.ini'),
                       trafo=False,
                       ) is None
 
@@ -59,9 +61,9 @@ def test_VFA_model_kspace_TGV_cart():
 @pytest.mark.integration_test
 def test_VFA_model_kspace_TGV_cart_imageguess_CG(
         gen_noimageguess):
-    assert pyqmri.run(data=os.getcwd()+'/test/VFA_cart_test_imageguess.h5',
+    assert pyqmri.run(data=pjoin(data_dir, 'VFA_cart_test_imageguess.h5'),
                       model='VFA',
-                      config=os.getcwd()+'/test/default.ini',
+                      config=pjoin(data_dir, 'default.ini'),
                       trafo=False,
                       ) is None
 
@@ -69,9 +71,9 @@ def test_VFA_model_kspace_TGV_cart_imageguess_CG(
 @pytest.mark.integration_test
 def test_VFA_model_kspace_TGV_cart_imageguess(
         gen_noimageguess):
-    assert pyqmri.run(data=os.getcwd()+'/test/VFA_cart_test_imageguess.h5',
+    assert pyqmri.run(data=pjoin(data_dir, 'VFA_cart_test_imageguess.h5'),
                       model='VFA',
-                      config=os.getcwd()+'/test/default.ini',
+                      config=pjoin(data_dir, 'default.ini'),
                       trafo=False,
                       useCGguess=False,
                       ) is None
@@ -80,9 +82,9 @@ def test_VFA_model_kspace_TGV_cart_imageguess(
 @pytest.mark.integration_test
 def test_VFA_model_kspace_TGV_cart_coilguess(
         gen_data_nocoils):
-    assert pyqmri.run(data=os.getcwd()+'/test/VFA_cart_test_coilguess.h5',
+    assert pyqmri.run(data=pjoin(data_dir, 'VFA_cart_test_coilguess.h5'),
                       model='VFA',
-                      config=os.getcwd()+'/test/default.ini',
+                      config=pjoin(data_dir, 'default.ini'),
                       trafo=False,
                       useCGguess=False,
                       ) is None
@@ -92,9 +94,9 @@ def test_VFA_model_kspace_TGV_cart_coilguess(
 def test_VFA_model_kspace_TGV_cart_coilguess_radial(
         gen_data_nocoils_radial):
     assert pyqmri.run(
-        data=os.getcwd()+'/test/VFA_radial_test_coilguess.h5',
+        data=pjoin(data_dir, 'VFA_radial_test_coilguess.h5'),
         model='VFA',
-        config=os.getcwd()+'/test/default.ini',
+        config=pjoin(data_dir, 'default.ini'),
         trafo=True,
         useCGguess=False,
         ) is None
@@ -102,7 +104,7 @@ def test_VFA_model_kspace_TGV_cart_coilguess_radial(
 
 @pytest.fixture(scope="function")
 def gen_noimageguess():
-    file = h5py.File(os.getcwd()+'/test/VFA_cart_smalltest.h5', 'r')
+    file = h5py.File(pjoin(data_dir, 'VFA_cart_smalltest.h5'), 'r')
 
     Coils = file["Coils"][()]
     real_dat = file["real_dat"][()]
@@ -113,7 +115,7 @@ def gen_noimageguess():
     fa = file.attrs["fa"][()]
     TR = file.attrs["TR"]
 
-    file_out = h5py.File(os.getcwd()+'/test/VFA_cart_test_imageguess.h5', 'w')
+    file_out = h5py.File(pjoin(data_dir, 'VFA_cart_test_imageguess.h5'), 'w')
 
     slices = 1
 
@@ -139,7 +141,7 @@ def gen_noimageguess():
 
 @pytest.fixture(scope="function")
 def gen_data_nocoils():
-    file = h5py.File(os.getcwd()+'/test/VFA_cart_smalltest.h5', 'r')
+    file = h5py.File(pjoin(data_dir, 'VFA_cart_smalltest.h5'), 'r')
 
     real_dat = file["real_dat"][()]
     imag_dat = file["imag_dat"][()]
@@ -149,7 +151,7 @@ def gen_data_nocoils():
     fa = file.attrs["fa"][()]
     TR = file.attrs["TR"]
 
-    file_out = h5py.File(os.getcwd()+'/test/VFA_cart_test_coilguess.h5', 'w')
+    file_out = h5py.File(pjoin(data_dir, 'VFA_cart_test_coilguess.h5'), 'w')
 
     slices = 1
 
@@ -173,7 +175,7 @@ def gen_data_nocoils():
 
 @pytest.fixture(scope="function")
 def gen_data_nocoils_radial():
-    file = h5py.File(os.getcwd()+'/test/smalltest.h5', 'r')
+    file = h5py.File(pjoin(data_dir, 'smalltest.h5'), 'r')
 
     real_dat = file["real_dat"][()]
     imag_dat = file["imag_dat"][()]
@@ -186,7 +188,7 @@ def gen_data_nocoils_radial():
     fa = file.attrs["fa"][()]
     TR = file.attrs["TR"]
 
-    file_out = h5py.File(os.getcwd()+'/test/VFA_radial_test_coilguess.h5', 'w')
+    file_out = h5py.File(pjoin(data_dir, 'VFA_radial_test_coilguess.h5'), 'w')
 
     slices = 1
 
@@ -215,6 +217,13 @@ def gen_data_nocoils_radial():
 def clean_up():
     yield
     try:
-        shutil.rmtree(os.getcwd()+'/test/PyQMRI_out')
+        if os.path.exists(pjoin(data_dir, 'PyQMRI_out')):
+            shutil.rmtree(pjoin(data_dir, 'PyQMRI_out'))
+        if os.path.isfile(pjoin(data_dir, 'VFA_cart_test_imageguess.h5')):
+            os.remove(pjoin(data_dir, 'VFA_cart_test_imageguess.h5'))
+        if os.path.isfile(pjoin(data_dir, 'VFA_cart_test_coilguess.h5')):
+            os.remove(pjoin(data_dir, 'VFA_cart_test_coilguess.h5'))
+        if os.path.isfile(pjoin(data_dir, 'VFA_radial_test_coilguess.h5')):
+            os.remove(pjoin(data_dir, 'VFA_radial_test_coilguess.h5'))
     except OSError as e:
         print("Error: %s - %s." % (e.filename, e.strerror))

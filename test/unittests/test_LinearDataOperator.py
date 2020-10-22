@@ -7,6 +7,8 @@ Created on Mon Aug 12 11:26:41 2019
 """
 
 import pyqmri
+import os
+from os.path import join as pjoin
 try:
     import unittest2 as unittest
 except ImportError:
@@ -21,7 +23,7 @@ import h5py
 
 DTYPE = np.complex128
 DTYPE_real = np.float64
-
+data_dir = os.path.realpath(pjoin(os.path.dirname(__file__), '..'))
 
 def setupPar(par):
     par["NScan"] = 10
@@ -37,7 +39,7 @@ def setupPar(par):
     par["dz"] = 1
     par["weights"] = np.array([1, 1])
     par["overlap"] = 1
-    file = h5py.File('./test/smalltest.h5', 'r')
+    file = h5py.File(pjoin(data_dir, 'smalltest.h5'), 'r')
 
     par["traj"] = file['real_traj'][()].astype(DTYPE) + \
         1j*file['imag_traj'][()].astype(DTYPE)
