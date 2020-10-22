@@ -381,8 +381,13 @@ class PDBaseSolver:
         self.min_const = None
         self.max_const = None
         self.real_const = None
-        self._kernelsize = (par["par_slices"] + par["overlap"], par["dimY"],
-                            par["dimX"])
+        self._kernelsize = (np.prod((par["par_slices"] + par["overlap"], 
+                                   par["dimY"],
+                                   par["dimX"])),)
+        self._kernelsize_uk = (np.prod((par["unknowns"], 
+                                       par["par_slices"] + par["overlap"], 
+                                       par["dimY"],
+                                       par["dimX"])),)
 
     @staticmethod
     def factory(
@@ -813,7 +818,7 @@ class PDBaseSolver:
             wait_for = []
         return self._prg[idx].update_primal_LM(
             self._queue[4*idx+idxq],
-            self._kernelsize, None,
+            self._kernelsize_uk, None,
             outp.data, inp[0].data, inp[1].data, inp[2].data, inp[3].data,
             self._DTYPE_real(par[0]),
             self._DTYPE_real(par[0]/par[1]),
@@ -1012,9 +1017,9 @@ class PDBaseSolver:
             wait_for = []
         return self._prg[idx].update_Kyk2(
             self._queue[4*idx+idxq],
-            self._kernelsize, None,
+            self._kernelsize_uk, None,
             outp.data, inp[0].data, inp[1].data,
-            np.int32(self.unknowns),
+            *np.int32(outp.shape[:-1]),
             par[idx].data,
             np.int32(bound_cond),
             self._DTYPE_real(self.dz),

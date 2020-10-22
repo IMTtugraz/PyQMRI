@@ -465,7 +465,7 @@ class OperatorImagespace(Operator):
         else:
             wait_for = []
         return self.prg.operator_fwd_imagespace(
-            self.queue, (self.NSlice, self.dimY, self.dimX), None,
+            self.queue, (np.prod((np.prod((self.NSlice, self.dimY, self.dimX)),)),), None,
             out.data, inp[0].data, inp[2].data,
             np.int32(self.NScan),
             np.int32(self.unknowns),
@@ -500,7 +500,7 @@ class OperatorImagespace(Operator):
             self.queue, (self.NScan, self.NSlice, self.dimY, self.dimX),
             self.DTYPE, "C")
         tmp_result.add_event(self.prg.operator_fwd_imagespace(
-            self.queue, (self.NSlice, self.dimY, self.dimX), None,
+            self.queue, (np.prod((np.prod((self.NSlice, self.dimY, self.dimX)),)),), None,
             tmp_result.data, inp[0].data, inp[2].data,
             np.int32(self.NScan),
             np.int32(self.unknowns),
@@ -533,7 +533,7 @@ class OperatorImagespace(Operator):
         else:
             wait_for = []
         return self.prg.operator_ad_imagespace(
-            out.queue, (self.NSlice, self.dimY, self.dimX), None,
+            out.queue, (np.prod((self.NSlice, self.dimY, self.dimX)),), None,
             out.data, inp[0].data, inp[2].data,
             np.int32(self.NScan),
             np.int32(self.unknowns),
@@ -568,7 +568,7 @@ class OperatorImagespace(Operator):
             self.queue, (self.unknowns, self.NSlice, self.dimY, self.dimX),
             dtype=self.DTYPE)
         self.prg.operator_ad_imagespace(
-            out.queue, (self.NSlice, self.dimY, self.dimX), None,
+            out.queue, (np.prod((self.NSlice, self.dimY, self.dimX)),), None,
             out.data, inp[0].data, inp[2].data,
             np.int32(self.NScan),
             np.int32(self.unknowns),
@@ -600,11 +600,11 @@ class OperatorImagespace(Operator):
         else:
             wait_for = []
         return self.prg.update_Kyk1_imagespace(
-            self.queue, (self.NSlice, self.dimY, self.dimX), None,
+            self.queue, (np.prod((self.NSlice, self.dimY, self.dimX)),), None,
             out.data, inp[0].data, inp[3].data, inp[1].data,
             np.int32(self.NScan),
             inp[4].data,
-            np.int32(self.unknowns),
+            *np.int32(out.shape),
             self.DTYPE_real(self._dz),
             wait_for=(inp[0].events + out.events
                       + inp[1].events + wait_for))
@@ -695,7 +695,7 @@ class OperatorKspace(Operator):
         self._tmp_result.add_event(
             self.prg.operator_fwd(
                 self.queue,
-                (self.NSlice, self.dimY, self.dimX),
+                (np.prod((self.NSlice, self.dimY, self.dimX)),),
                 None,
                 self._tmp_result.data, inp[0].data,
                 inp[1].data,
@@ -738,7 +738,7 @@ class OperatorKspace(Operator):
         self._tmp_result.add_event(
             self.prg.operator_fwd(
                 self.queue,
-                (self.NSlice, self.dimY, self.dimX),
+                (np.prod((self.NSlice, self.dimY, self.dimX)),),
                 None,
                 self._tmp_result.data, inp[0].data,
                 inp[1].data,
@@ -785,7 +785,7 @@ class OperatorKspace(Operator):
                 self._tmp_result, inp[0], wait_for=(wait_for
                                                     + inp[0].events)))
         return self.prg.operator_ad(
-            self.queue, (self.NSlice, self.dimY, self.dimX), None,
+            self.queue, (np.prod((self.NSlice, self.dimY, self.dimX)),), None,
             out.data, self._tmp_result.data, inp[1].data,
             inp[2].data, np.int32(self.NC),
             np.int32(self.NScan),
@@ -825,7 +825,7 @@ class OperatorKspace(Operator):
             self.queue, (self.unknowns, self.NSlice, self.dimY, self.dimX),
             dtype=self.DTYPE)
         self.prg.operator_ad(
-            out.queue, (self.NSlice, self.dimY, self.dimX), None,
+            out.queue, (np.prod((self.NSlice, self.dimY, self.dimX)),), None,
             out.data, self._tmp_result.data, inp[1].data,
             inp[2].data, np.int32(self.NC),
             np.int32(self.NScan),
@@ -862,12 +862,12 @@ class OperatorKspace(Operator):
                 self._tmp_result, inp[0], wait_for=(wait_for
                                                     + inp[0].events)))
         return self.prg.update_Kyk1(
-            self.queue, (self.NSlice, self.dimY, self.dimX), None,
+            self.queue, (np.prod((self.NSlice, self.dimY, self.dimX)),), None,
             out.data, self._tmp_result.data, inp[2].data,
             inp[3].data, inp[1].data, np.int32(self.NC),
             np.int32(self.NScan),
             inp[4].data,
-            np.int32(self.unknowns), self.DTYPE_real(self._dz),
+            *np.int32(out.shape), self.DTYPE_real(self._dz),
             wait_for=(self._tmp_result.events +
                       out.events + inp[1].events))
 
@@ -960,7 +960,7 @@ class OperatorKspaceSMS(Operator):
         self._tmp_result.add_event(
             self.prg.operator_fwd(
                 self.queue,
-                (self.NSlice, self.dimY, self.dimX),
+                (np.prod((self.NSlice, self.dimY, self.dimX)),),
                 None,
                 self._tmp_result.data, inp[0].data,
                 inp[1].data,
@@ -1002,7 +1002,7 @@ class OperatorKspaceSMS(Operator):
         self._tmp_result.add_event(
             self.prg.operator_fwd(
                 self.queue,
-                (self.NSlice, self.dimY, self.dimX),
+                (np.prod((self.NSlice, self.dimY, self.dimX)),),
                 None,
                 self._tmp_result.data, inp[0].data,
                 inp[1].data,
@@ -1049,7 +1049,7 @@ class OperatorKspaceSMS(Operator):
                 self._tmp_result, inp[0], wait_for=(wait_for
                                                     + inp[0].events)))
         return self.prg.operator_ad(
-            self.queue, (self.NSlice, self.dimY, self.dimX), None,
+            self.queue, (np.prod((self.NSlice, self.dimY, self.dimX)),), None,
             out.data, self._tmp_result.data, inp[1].data,
             inp[2].data, np.int32(self.NC),
             np.int32(self.NScan),
@@ -1089,7 +1089,7 @@ class OperatorKspaceSMS(Operator):
             self.queue, (self.unknowns, self.NSlice, self.dimY, self.dimX),
             dtype=self.DTYPE)
         self.prg.operator_ad(
-            out.queue, (self.NSlice, self.dimY, self.dimX), None,
+            out.queue, (np.prod((self.NSlice, self.dimY, self.dimX)),), None,
             out.data, self._tmp_result.data, inp[1].data,
             inp[2].data, np.int32(self.NC),
             np.int32(self.NScan),
@@ -1125,12 +1125,12 @@ class OperatorKspaceSMS(Operator):
                 self._tmp_result, inp[0], wait_for=(wait_for
                                                     + inp[0].events)))
         return self.prg.update_Kyk1(
-            self.queue, (self.NSlice, self.dimY, self.dimX), None,
+            self.queue, (np.prod((self.NSlice, self.dimY, self.dimX)),), None,
             out.data, self._tmp_result.data, inp[2].data,
             inp[3].data, inp[1].data, np.int32(self.NC),
             np.int32(self.NScan),
             inp[4].data,
-            np.int32(self.unknowns), self.DTYPE_real(self._dz),
+            *np.int32(out.shape), self.DTYPE_real(self._dz),
             wait_for=(self._tmp_result.events +
                       out.events + inp[1].events))
 
@@ -2124,8 +2124,8 @@ class OperatorFiniteGradient(Operator):
         else:
             wait_for = []
         return self.prg.gradient(
-            self.queue, inp.shape[1:], None, out.data, inp.data,
-            np.int32(self.unknowns),
+            self.queue, (inp.size,), None, out.data, inp.data,
+            *np.int32(inp.shape),
             self.ratio.data, self.DTYPE_real(self._dz),
             wait_for=out.events + inp.events + wait_for)
 
@@ -2159,8 +2159,8 @@ class OperatorFiniteGradient(Operator):
                          self.NSlice, self.dimY, self.dimX, 4),
             self.DTYPE, "C")
         tmp_result.add_event(self.prg.gradient(
-            self.queue, inp.shape[1:], None, tmp_result.data, inp.data,
-            np.int32(self.unknowns),
+            self.queue, (inp.size,), None, tmp_result.data, inp.data,
+            *np.int32(inp.shape),
             self.ratio.data, self.DTYPE_real(self._dz),
             wait_for=tmp_result.events + inp.events + wait_for))
         return tmp_result
@@ -2191,8 +2191,8 @@ class OperatorFiniteGradient(Operator):
         else:
             wait_for = []
         return self.prg.divergence(
-            self.queue, inp.shape[1:-1], None, out.data, inp.data,
-            np.int32(self.unknowns), self.ratio.data,
+            self.queue, (out.size,), None, out.data, inp.data,
+            *np.int32(out.shape), self.ratio.data,
             self.DTYPE_real(self._dz),
             wait_for=out.events + inp.events + wait_for)
 
@@ -2225,8 +2225,8 @@ class OperatorFiniteGradient(Operator):
             self.queue, (self.unknowns, self.NSlice, self.dimY, self.dimX),
             self.DTYPE, "C")
         tmp_result.add_event(self.prg.divergence(
-            self.queue, inp.shape[1:-1], None, tmp_result.data, inp.data,
-            np.int32(self.unknowns), self.ratio.data,
+            self.queue, (tmp_result.size,), None, tmp_result.data, inp.data,
+            *np.int32(tmp_result.shape), self.ratio.data,
             self.DTYPE_real(self._dz),
             wait_for=tmp_result.events + inp.events + wait_for))
         return tmp_result
@@ -2362,8 +2362,8 @@ class OperatorFiniteSymGradient(Operator):
         else:
             wait_for = []
         return self.prg.sym_grad(
-            self.queue, inp.shape[1:-1], None, out.data, inp.data,
-            np.int32(self.unknowns_TGV),
+            self.queue, (np.prod(inp.shape[:-1]),), None, out.data, inp.data,
+            *np.int32(inp.shape[:-1]),
             self.ratio.data,
             self.DTYPE_real(self._dz),
             wait_for=out.events + inp.events + wait_for)
@@ -2398,8 +2398,9 @@ class OperatorFiniteSymGradient(Operator):
                          self.NSlice, self.dimY, self.dimX, 8),
             self.DTYPE, "C")
         tmp_result.add_event(self.prg.sym_grad(
-            self.queue, inp.shape[1:-1], None, tmp_result.data, inp.data,
-            np.int32(self.unknowns_TGV),
+            self.queue, (np.prod(inp.shape[:-1]),), None, tmp_result.data, 
+            inp.data,
+            *np.int32(inp.shape[:-1]),
             self.ratio.data,
             self.DTYPE_real(self._dz),
             wait_for=tmp_result.events + inp.events + wait_for))
@@ -2431,8 +2432,8 @@ class OperatorFiniteSymGradient(Operator):
         else:
             wait_for = []
         return self.prg.sym_divergence(
-            self.queue, inp.shape[1:-1], None, out.data, inp.data,
-            np.int32(self.unknowns_TGV),
+            self.queue, (np.prod(inp.shape[:-1]),), None, out.data, inp.data,
+            *np.int32(inp.shape[:-1]),
             self.ratio.data,
             self.DTYPE_real(self._dz),
             wait_for=out.events + inp.events + wait_for)
@@ -2467,8 +2468,9 @@ class OperatorFiniteSymGradient(Operator):
                          self.NSlice, self.dimY, self.dimX, 4),
             self.DTYPE, "C")
         tmp_result.add_event(self.prg.sym_divergence(
-            self.queue, inp.shape[1:-1], None, tmp_result.data, inp.data,
-            np.int32(self.unknowns_TGV),
+            self.queue, (np.prod(inp.shape[:-1]),), None, tmp_result.data, 
+            inp.data,
+            *np.int32(inp.shape[:-1]),
             self.ratio.data,
             self.DTYPE_real(self._dz),
             wait_for=tmp_result.events + inp.events + wait_for))

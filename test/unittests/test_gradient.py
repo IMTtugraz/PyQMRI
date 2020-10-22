@@ -35,7 +35,7 @@ def setupPar(par):
     par["unknowns_TGV"] = 2
     par["unknowns_H1"] = 0
     par["unknowns"] = 2
-    par["dz"] = 1
+    par["dz"] = 3
     par["weights"] = np.array([1, 1])
 
 
@@ -99,7 +99,7 @@ class GradientTest(unittest.TestCase):
         outp = self.grad.fwdoop(inp)
         outp = outp.get()
 
-        np.testing.assert_allclose(outp[..., :-1], grad, rtol=0)
+        np.testing.assert_allclose(outp[..., :-1], grad, rtol=1e-15)
 
     def test_grad_inplace(self):
         gradx = np.zeros_like(self.gradin)
@@ -119,7 +119,7 @@ class GradientTest(unittest.TestCase):
         self.grad.fwd(outp, inp)
         outp = outp.get()
 
-        np.testing.assert_allclose(outp[..., :-1], grad, rtol=0)
+        np.testing.assert_allclose(outp[..., :-1], grad, rtol=1e-15)
 
     def test_adj_outofplace(self):
         inpgrad = clarray.to_device(self.queue, self.gradin)
@@ -219,7 +219,7 @@ class GradientStreamedTest(unittest.TestCase):
 
         outp = self.grad.fwdoop([[self.gradin]])
 
-        np.testing.assert_allclose(outp[..., :-1], grad, rtol=0)
+        np.testing.assert_allclose(outp[..., :-1], grad, rtol=1e-13)
 
     def test_grad_inplace(self):
         gradx = np.zeros_like(self.gradin)
@@ -238,7 +238,7 @@ class GradientStreamedTest(unittest.TestCase):
 
         self.grad.fwd([outp], [[self.gradin]])
 
-        np.testing.assert_allclose(outp[..., :-1], grad, rtol=0)
+        np.testing.assert_allclose(outp[..., :-1], grad, rtol=1e-13)
 
     def test_adj_outofplace(self):
 

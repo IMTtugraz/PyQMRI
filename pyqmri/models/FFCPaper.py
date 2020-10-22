@@ -35,7 +35,7 @@ class Model(BaseModel):
             self.uk_scale.append(1)
 
         self.constraints.append(
-            constraints(-1000,
+            constraints(0,
                         1000,
                         False))
         self.constraints.append(
@@ -51,8 +51,8 @@ class Model(BaseModel):
                 constraints(1,
                             2000,
                             True))
-        self._ind1 = 51
-        self._ind2 = 81
+        self._ind1 = 0
+        self._ind2 = 0
         self._labels = []
         for j in range(len(self.b)):
             self._labels.append(
@@ -341,13 +341,13 @@ class Model(BaseModel):
         test_Xi = 1*np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
         # self.constraints[1].update(1/args[1])
-        test_R1 = 200 * np.ones(
+        test_R1 = 300 * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
         test_Cx = []
         # self.b *= args[1]
         for j in range(self.numT1Scale):
             test_Cx.append(
-                100/(j+1) *
+                300/(j+1) *
                 np.ones(
                     (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE))
         self.guess = np.array(
