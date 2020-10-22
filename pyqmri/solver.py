@@ -388,6 +388,10 @@ class PDBaseSolver:
                                        par["par_slices"] + par["overlap"], 
                                        par["dimY"],
                                        par["dimX"])),)
+        self._unknown_size = (par["unknowns"], 
+                              par["par_slices"] + par["overlap"], 
+                              par["dimY"],
+                              par["dimX"])
 
     @staticmethod
     def factory(
@@ -608,7 +612,6 @@ class PDBaseSolver:
                 in_precomp_adj=tmp_results_adjoint,
                 tau=tau
                 )
-
             beta_new = beta_line * (1 + self.mu * tau)
             tau_new = tau * np.sqrt(beta_line / beta_new*(1 + theta_line))
             beta_line = beta_new
@@ -823,7 +826,8 @@ class PDBaseSolver:
             self._DTYPE_real(par[0]),
             self._DTYPE_real(par[0]/par[1]),
             self.min_const[idx].data, self.max_const[idx].data,
-            self.real_const[idx].data, np.int32(self.unknowns),
+            self.real_const[idx].data, 
+            *np.int32(self._unknown_size),
             wait_for=(outp.events +
                       inp[0].events+inp[1].events +
                       inp[2].events+wait_for))
@@ -857,7 +861,7 @@ class PDBaseSolver:
         if wait_for is None:
             wait_for = []
         return self._prg[idx].update_v(
-            self._queue[4*idx+idxq], (outp[..., 0].size,), None,
+            self._queue[4*idx+idxq], self._kernelsize_uk, None,
             outp.data, inp[0].data, inp[1].data, self._DTYPE_real(par[0]),
             wait_for=outp.events+inp[0].events+inp[1].events+wait_for)
 
@@ -896,8 +900,10 @@ class PDBaseSolver:
             outp.data, inp[0].data, inp[1].data,
             inp[2].data, inp[3].data, inp[4].data,
             self._DTYPE_real(par[0]), self._DTYPE_real(par[1]),
-            self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
+            self._DTYPE_real(1/par[2]), 
+            np.int32(self.unknowns_TGV),
             np.int32(self.unknowns_H1),
+            *np.int32(self._unknown_size[1:]),
             self._DTYPE_real(1 / (1 + par[0] / par[3])),
             wait_for=(outp.events+inp[0].events+inp[1].events +
                       inp[2].events+inp[3].events+inp[4].events+wait_for))
@@ -936,8 +942,10 @@ class PDBaseSolver:
             outp.data, inp[0].data, inp[1].data, inp[2].data,
             self._DTYPE_real(par[0]),
             self._DTYPE_real(par[1]),
-            self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
+            self._DTYPE_real(1/par[2]), 
+            np.int32(self.unknowns_TGV),
             np.int32(self.unknowns_H1),
+            *np.int32(self._unknown_size[1:]),
             self._DTYPE_real(1 / (1 + par[0] / par[3])),
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
@@ -976,7 +984,7 @@ class PDBaseSolver:
             outp.data, inp[0].data, inp[1].data, inp[2].data,
             self._DTYPE_real(par[0]),
             self._DTYPE_real(par[1]),
-            self._DTYPE_real(1/par[2]), np.int32(self.unknowns),
+            self._DTYPE_real(1/par[2]), *np.int32(self._unknown_size),
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
 
@@ -1057,7 +1065,8 @@ class PDBaseSolver:
             self._queue[4*idx+idxq], (outp.size,), None,
             outp.data, inp[0].data,
             inp[1].data, inp[2].data, inp[3].data,
-            self._DTYPE_real(par[0]), self._DTYPE_real(par[1]),
+            self._DTYPE_real(par[0]), 
+            self._DTYPE_real(par[1]),
             self._DTYPE_real(1/(1+par[0]/par[2])),
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))

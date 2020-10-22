@@ -133,11 +133,15 @@ class IRGNOptimizer:
         if imagespace:
             self._coils = []
             self.sliceaxis = 1
+            if self._streamed:
+                self._data_trans_axes = (1, 0, 2, 3)
+                self._grad_trans_axes = (2, 0, 1, 3, 4)
         else:
             self._data_shape = (par["NScan"], par["NC"],
                                 par["NSlice"], par["Nproj"], par["N"])
             if self._streamed:
                 self._data_trans_axes = (2, 0, 1, 3, 4)
+                self._grad_trans_axes = (2, 0, 1, 3, 4)
                 self._coils = np.require(
                     np.swapaxes(par["C"], 0, 1), requirements='C',
                     dtype=DTYPE)
@@ -277,7 +281,7 @@ class IRGNOptimizer:
                     self._step_val = np.require(
                         np.swapaxes(self._step_val, 0, 1), requirements='C')
                 self._modelgrad = np.require(
-                    np.transpose(self._modelgrad, self._data_trans_axes),
+                    np.transpose(self._modelgrad, self._grad_trans_axes),
                     requirements='C')
                 self._pdop.model = self._model
                 self._pdop.modelgrad = self._modelgrad
@@ -389,7 +393,6 @@ class IRGNOptimizer:
             res = data - b + self._MRI_operator.fwdoop(
                 [tmpx, self._coils, self._modelgrad]).get()
             del tmpx
-
         tmpres = self._pdop.run(x, res, iters)
         for key in tmpres:
             if key == 'x':

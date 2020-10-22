@@ -317,6 +317,8 @@ def _readInput(myargs, par):
             "PyQMRI_out" + \
             os.sep + myargs.sig_model + os.sep + \
             time.strftime("%Y-%m-%d  %H-%M-%S") + os.sep
+        if not os.sep.join(name.split(os.sep)[:-1]):
+            outdir = '.'+outdir
     else:
         outdir = myargs.outdir + os.sep + "PyQMRI_out" + \
             os.sep + myargs.sig_model + os.sep + par["fname"] + os.sep + \

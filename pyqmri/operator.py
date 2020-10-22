@@ -103,6 +103,10 @@ class Operator(ABC):
         self.DTYPE = DTYPE
         self.DTYPE_real = DTYPE_real
         self.par_slices = self.NSlice
+        self._unknown_shape = (self.unknowns, 
+                               self.NSlice, 
+                               self.dimY, 
+                               self.dimX)
         self._overlap = 0
 
     @abstractmethod
@@ -468,7 +472,7 @@ class OperatorImagespace(Operator):
             self.queue, (np.prod((np.prod((self.NSlice, self.dimY, self.dimX)),)),), None,
             out.data, inp[0].data, inp[2].data,
             np.int32(self.NScan),
-            np.int32(self.unknowns),
+            *np.int32(self._unknown_shape),
             wait_for=inp[0].events + out.events + wait_for)
 
     def fwdoop(self, inp, **kwargs):
@@ -503,7 +507,7 @@ class OperatorImagespace(Operator):
             self.queue, (np.prod((np.prod((self.NSlice, self.dimY, self.dimX)),)),), None,
             tmp_result.data, inp[0].data, inp[2].data,
             np.int32(self.NScan),
-            np.int32(self.unknowns),
+            *np.int32(self._unknown_shape),
             wait_for=inp[0].events + wait_for))
         return tmp_result
 
@@ -536,7 +540,7 @@ class OperatorImagespace(Operator):
             out.queue, (np.prod((self.NSlice, self.dimY, self.dimX)),), None,
             out.data, inp[0].data, inp[2].data,
             np.int32(self.NScan),
-            np.int32(self.unknowns),
+            *np.int32(self._unknown_shape),
             wait_for=wait_for + inp[0].events + out.events)
 
     def adjoop(self, inp, **kwargs):
@@ -571,7 +575,7 @@ class OperatorImagespace(Operator):
             out.queue, (np.prod((self.NSlice, self.dimY, self.dimX)),), None,
             out.data, inp[0].data, inp[2].data,
             np.int32(self.NScan),
-            np.int32(self.unknowns),
+            *np.int32(self._unknown_shape),
             wait_for=wait_for + inp[0].events + out.events).wait()
         return out
 
@@ -701,7 +705,7 @@ class OperatorKspace(Operator):
                 inp[1].data,
                 inp[2].data, np.int32(self.NC),
                 np.int32(self.NScan),
-                np.int32(self.unknowns),
+                *np.int32(self._unknown_shape),
                 wait_for=(self._tmp_result.events + inp[0].events
                           + wait_for)))
         return self.NUFFT.FFT(
@@ -744,7 +748,7 @@ class OperatorKspace(Operator):
                 inp[1].data,
                 inp[2].data, np.int32(self.NC),
                 np.int32(self.NScan),
-                np.int32(self.unknowns),
+                *np.int32(self._unknown_shape),
                 wait_for=(self._tmp_result.events + inp[0].events
                           + wait_for)))
         tmp_sino = clarray.empty(
@@ -789,7 +793,7 @@ class OperatorKspace(Operator):
             out.data, self._tmp_result.data, inp[1].data,
             inp[2].data, np.int32(self.NC),
             np.int32(self.NScan),
-            np.int32(self.unknowns),
+            *np.int32(self._unknown_shape),
             wait_for=self._tmp_result.events + out.events)
 
     def adjoop(self, inp, **kwargs):
@@ -829,7 +833,7 @@ class OperatorKspace(Operator):
             out.data, self._tmp_result.data, inp[1].data,
             inp[2].data, np.int32(self.NC),
             np.int32(self.NScan),
-            np.int32(self.unknowns),
+            *np.int32(self._unknown_shape),
             wait_for=(self._tmp_result.events
                       + out.events)).wait()
         return out
@@ -966,7 +970,7 @@ class OperatorKspaceSMS(Operator):
                 inp[1].data,
                 inp[2].data, np.int32(self.NC),
                 np.int32(self.NScan),
-                np.int32(self.unknowns),
+                *np.int32(self._unknown_shape),
                 wait_for=(self._tmp_result.events + inp[0].events
                           + wait_for)))
         return self.NUFFT.FFT(
@@ -1008,7 +1012,7 @@ class OperatorKspaceSMS(Operator):
                 inp[1].data,
                 inp[2].data, np.int32(self.NC),
                 np.int32(self.NScan),
-                np.int32(self.unknowns),
+                *np.int32(self._unknown_shape),
                 wait_for=(self._tmp_result.events + inp[0].events
                           + wait_for)))
         tmp_sino = clarray.empty(
@@ -1053,7 +1057,7 @@ class OperatorKspaceSMS(Operator):
             out.data, self._tmp_result.data, inp[1].data,
             inp[2].data, np.int32(self.NC),
             np.int32(self.NScan),
-            np.int32(self.unknowns),
+            *np.int32(self._unknown_shape),
             wait_for=self._tmp_result.events + out.events)
 
     def adjoop(self, inp, **kwargs):
@@ -1093,7 +1097,7 @@ class OperatorKspaceSMS(Operator):
             out.data, self._tmp_result.data, inp[1].data,
             inp[2].data, np.int32(self.NC),
             np.int32(self.NScan),
-            np.int32(self.unknowns),
+            *np.int32(self._unknown_shape),
             wait_for=self._tmp_result.events + out.events).wait()
         return out
 
@@ -1186,6 +1190,10 @@ class OperatorImagespaceStreamed(Operator):
         par["overlap"] = 1
         self._overlap = par["overlap"]
         self.par_slices = par["par_slices"]
+        self._unknown_shape = (self.unknowns, 
+                       self.par_slices+self._overlap, 
+                       self.dimY, 
+                       self.dimX)
         self.unknown_shape = (self.NSlice, self.unknowns, self.dimY, self.dimX)
         coil_shape = []
         model_grad_shape = (self.NSlice, self.unknowns,
@@ -1334,10 +1342,10 @@ class OperatorImagespaceStreamed(Operator):
             wait_for = []
         return (self.prg[idx].operator_fwd_imagespace(
             self.queue[4*idx+idxq],
-            (self.par_slices+self._overlap, self.dimY, self.dimX), None,
+            (np.prod(self._unknown_shape[1:]),), None,
             outp.data, inp[0].data,
             inp[2].data,
-            np.int32(self.NScan), np.int32(self.unknowns),
+            np.int32(self.NScan), *np.int32(self._unknown_shape),
             wait_for=outp.events+inp[0].events+inp[2].events+wait_for))
 
     def _adjstreamedKyk1(self, outp, inp, par=None, idx=0, idxq=0,
@@ -1346,12 +1354,12 @@ class OperatorImagespaceStreamed(Operator):
             wait_for = []
         return self.prg[idx].update_Kyk1_imagespace(
             self.queue[4*idx+idxq],
-            (self.par_slices+self._overlap, self.dimY, self.dimX), None,
+            (np.prod(self._unknown_shape[1:]),), None,
             outp.data, inp[0].data,
             inp[3].data,
             inp[1].data,
             np.int32(self.NScan),
-            par[0][idx].data, np.int32(self.unknowns),
+            par[0][idx].data, *np.int32(self._unknown_shape),
             np.int32(bound_cond), self.DTYPE_real(self._dz),
             wait_for=(outp.events+inp[0].events+inp[1].events +
                       inp[3].events+wait_for))
@@ -1362,10 +1370,10 @@ class OperatorImagespaceStreamed(Operator):
             wait_for = []
         return self.prg[idx].operator_ad_imagespace(
             self.queue[4*idx+idxq],
-            (self.par_slices+self._overlap, self.dimY, self.dimX), None,
+            (np.prod(self._unknown_shape[1:]),), None,
             outp.data, inp[0].data,
             inp[2].data,
-            np.int32(self.NScan), np.int32(self.unknowns),
+            np.int32(self.NScan), *np.int32(self._unknown_shape),
             wait_for=(outp.events+inp[0].events +
                       inp[2].events+wait_for))
 
@@ -1427,6 +1435,10 @@ class OperatorKspaceStreamed(Operator):
         super().__init__(par, prg, DTYPE, DTYPE_real)
         self._overlap = par["overlap"]
         self.par_slices = par["par_slices"]
+        self._unknown_shape = (self.unknowns, 
+                       self.par_slices+self._overlap, 
+                       self.dimY, 
+                       self.dimX)
         if not trafo:
             self.Nproj = self.dimY
             self.N = self.dimX
@@ -1602,12 +1614,12 @@ class OperatorKspaceStreamed(Operator):
             wait_for = []
         self._tmp_result[2*idx+idxq].add_event(self.prg[idx].operator_fwd(
             self.queue[4*idx+idxq],
-            (self.par_slices+self._overlap, self.dimY, self.dimX), None,
+            (np.prod(self._unknown_shape[1:]),), None,
             self._tmp_result[2*idx+idxq].data, inp[0].data,
             inp[1].data,
             inp[2].data,
             np.int32(self.NC),
-            np.int32(self.NScan), np.int32(self.unknowns),
+            np.int32(self.NScan), *np.int32(self._unknown_shape),
             wait_for=(self._tmp_result[2*idx+idxq].events +
                       inp[0].events+wait_for)))
         return self.NUFFT[2*idx+idxq].FFT(
@@ -1625,12 +1637,12 @@ class OperatorKspaceStreamed(Operator):
                           self._tmp_result[2*idx+idxq].events)))
         return self.prg[idx].update_Kyk1(
             self.queue[4*idx+idxq],
-            (self.par_slices+self._overlap, self.dimY, self.dimX), None,
+            (np.prod(self._unknown_shape[1:]),), None,
             outp.data, self._tmp_result[2*idx+idxq].data,
             inp[2].data,
             inp[3].data,
             inp[1].data, np.int32(self.NC), np.int32(self.NScan),
-            par[0][idx].data, np.int32(self.unknowns),
+            par[0][idx].data, *np.int32(self._unknown_shape),
             np.int32(bound_cond), self.DTYPE_real(self._dz),
             wait_for=(
                 self._tmp_result[2*idx+idxq].events +
@@ -1648,12 +1660,12 @@ class OperatorKspaceStreamed(Operator):
                           self._tmp_result[2*idx+idxq].events)))
         return self.prg[idx].operator_ad(
             self.queue[4*idx+idxq],
-            (self.par_slices+self._overlap, self.dimY, self.dimX), None,
+            (np.prod(self._unknown_shape[1:]),), None,
             outp.data, self._tmp_result[2*idx+idxq].data,
             inp[1].data,
             inp[2].data,
             np.int32(self.NC),
-            np.int32(self.NScan), np.int32(self.unknowns),
+            np.int32(self.NScan), *np.int32(self._unknown_shape),
             wait_for=(self._tmp_result[2*idx+idxq].events +
                       inp[1].events+inp[2].events+wait_for))
 
@@ -1723,7 +1735,10 @@ class OperatorKspaceSMSStreamed(Operator):
         self._overlap = par["overlap"]
         self.par_slices = par["par_slices"]
         self.packs = par["packs"]*par["numofpacks"]
-
+        self._unknown_shape = (self.unknowns, 
+                       self.par_slices+self._overlap, 
+                       self.dimY, 
+                       self.dimX)
         self.Nproj = self.dimY
         self.N = self.dimX
 
@@ -1981,12 +1996,12 @@ class OperatorKspaceSMSStreamed(Operator):
             wait_for = []
         return self.prg[idx].operator_fwd(
             self.queue[4*idx+idxq],
-            (self.par_slices+self._overlap, self.dimY, self.dimX), None,
+            (np.prod(self._unknown_shape[1:]),), None,
             outp.data, inp[0].data,
             inp[1].data,
             inp[2].data,
             np.int32(self.NC),
-            np.int32(self.NScan), np.int32(self.unknowns),
+            np.int32(self.NScan), *np.int32(self._unknown_shape),
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
 
@@ -1996,12 +2011,12 @@ class OperatorKspaceSMSStreamed(Operator):
             wait_for = []
         return self.prg[idx].operator_ad(
             self.queue[4*idx+idxq],
-            (self.par_slices+self._overlap, self.dimY, self.dimX), None,
+            (np.prod(self._unknown_shape[1:]),), None,
             outp.data, inp[0].data,
             inp[1].data,
             inp[2].data,
             np.int32(self.NC), np.int32(self.NScan),
-            np.int32(self.unknowns),
+            *np.int32(self._unknown_shape),
             wait_for=(
                 inp[0].events +
                 outp.events+inp[1].events +
@@ -2025,10 +2040,10 @@ class OperatorKspaceSMSStreamed(Operator):
             wait_for = []
         return self.prg[idx].update_Kyk1SMS(
             self.queue[4*idx+idxq],
-            (self.par_slices+self._overlap, self.dimY, self.dimX), None,
+            (np.prod(self._unknown_shape[1:]),), None,
             outp.data, inp[0].data,
             inp[1].data,
-            par[0][idx].data, np.int32(self.unknowns),
+            par[0][idx].data, *np.int32(self._unknown_shape),
             np.int32(bound_cond), self.DTYPE_real(self._dz),
             wait_for=(
                 inp[0].events +
@@ -2521,6 +2536,10 @@ class OperatorFiniteGradientStreamed(Operator):
         par["overlap"] = 1
         self._overlap = par["overlap"]
         self.par_slices = par["par_slices"]
+        self._unknown_shape = (self.unknowns, 
+               self.par_slices+self._overlap, 
+               self.dimY, 
+               self.dimX)
 
         self.ratio = []
         for j in range(self.num_dev):
@@ -2647,9 +2666,9 @@ class OperatorFiniteGradientStreamed(Operator):
             wait_for = []
         return self.prg[idx].gradient(
             self.queue[4*idx+idxq],
-            (self._overlap+self.par_slices, self.dimY, self.dimX),
+            (inp[0].size,),
             None, outp.data, inp[0].data,
-            np.int32(self.unknowns),
+            *np.int32(self._unknown_shape),
             self.ratio[idx].data, self.DTYPE_real(self._dz),
             wait_for=outp.events + inp[0].events + wait_for)
 
@@ -2659,9 +2678,11 @@ class OperatorFiniteGradientStreamed(Operator):
             wait_for = []
         return self.prg[idx].divergence(
             self.queue[4*idx+idxq],
-            (self._overlap+self.par_slices, self.dimY, self.dimX), None,
-            outp.data, inp[0].data, np.int32(self.unknowns),
-            self.ratio[idx].data, np.int32(bound_cond),
+            (outp.size,), None,
+            outp.data, inp[0].data, 
+            *np.int32(self._unknown_shape),
+            self.ratio[idx].data, 
+            np.int32(bound_cond),
             self.DTYPE_real(self._dz),
             wait_for=outp.events + inp[0].events + wait_for)
 
@@ -2761,6 +2782,10 @@ class OperatorFiniteSymGradientStreamed(Operator):
         par["overlap"] = 1
         self._overlap = par["overlap"]
         self.par_slices = par["par_slices"]
+        self._unknown_shape = (self.unknowns, 
+                       self.par_slices+self._overlap, 
+                       self.dimY, 
+                       self.dimX)
 
         unknown_shape = (self.NSlice, self.unknowns, self.dimY, self.dimX)
         self._grad_shape = unknown_shape + (4,)
@@ -2888,8 +2913,9 @@ class OperatorFiniteSymGradientStreamed(Operator):
             wait_for = []
         return self.prg[idx].sym_grad(
             self.queue[4*idx+idxq],
-            (self._overlap+self.par_slices, self.dimY, self.dimX), None,
-            outp.data, inp[0].data, np.int32(self.unknowns),
+            (np.prod(inp[0].shape[:-1]),), None,
+            outp.data, inp[0].data, 
+            *np.int32(self._unknown_shape),
             self.ratio[idx].data,
             self.DTYPE_real(self._dz),
             wait_for=outp.events + inp[0].events + wait_for)
@@ -2900,9 +2926,9 @@ class OperatorFiniteSymGradientStreamed(Operator):
             wait_for = []
         return self.prg[idx].sym_divergence(
             self.queue[4*idx+idxq],
-            (self._overlap+self.par_slices, self.dimY, self.dimX), None,
+            (np.prod(inp[0].shape[:-1]),), None,
             outp.data, inp[0].data,
-            np.int32(self.unknowns),
+            *np.int32(self._unknown_shape),
             self.ratio[idx].data,
             np.int32(bound_cond),
             self.DTYPE_real(self._dz),

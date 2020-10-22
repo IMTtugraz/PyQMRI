@@ -36,7 +36,7 @@ def setupPar(par):
     par["unknowns_H1"] = 0
     par["unknowns"] = 2
     par["dz"] = 3
-    par["weights"] = np.array([1, 1])
+    par["weights"] = np.array([1, 0.1])
 
 
 class GradientTest(unittest.TestCase):
@@ -81,6 +81,7 @@ class GradientTest(unittest.TestCase):
         self.divin = self.divin.astype(DTYPE)
         self.dz = par["dz"]
         self.queue = par["queue"][0]
+        self.weights = par["weights"]
 
     def test_grad_outofplace(self):
         gradx = np.zeros_like(self.gradin)
@@ -94,6 +95,8 @@ class GradientTest(unittest.TestCase):
         grad = np.stack((gradx,
                          grady,
                          gradz), axis=-1)
+        for j in range(grad.shape[0]):
+            grad[j] *= self.weights[j]
 
         inp = clarray.to_device(self.queue, self.gradin)
         outp = self.grad.fwdoop(inp)
@@ -113,7 +116,10 @@ class GradientTest(unittest.TestCase):
         grad = np.stack((gradx,
                          grady,
                          gradz), axis=-1)
-
+        
+        for j in range(grad.shape[0]):
+            grad[j] *= self.weights[j]
+            
         inp = clarray.to_device(self.queue, self.gradin)
         outp = clarray.to_device(self.queue, self.divin)
         self.grad.fwd(outp, inp)
@@ -203,6 +209,7 @@ class GradientStreamedTest(unittest.TestCase):
         self.gradin = self.gradin.astype(DTYPE)
         self.divin = self.divin.astype(DTYPE)
         self.dz = par["dz"]
+        self.weights = par["weights"]
 
     def test_grad_outofplace(self):
         gradx = np.zeros_like(self.gradin)
@@ -216,10 +223,13 @@ class GradientStreamedTest(unittest.TestCase):
         grad = np.stack((gradx,
                          grady,
                          gradz), axis=-1)
+        
+        for j in range(grad.shape[1]):
+            grad[:,j] *= self.weights[j]
 
         outp = self.grad.fwdoop([[self.gradin]])
 
-        np.testing.assert_allclose(outp[..., :-1], grad, rtol=1e-13)
+        np.testing.assert_allclose(outp[..., :-1], grad, rtol=1e-15)
 
     def test_grad_inplace(self):
         gradx = np.zeros_like(self.gradin)
@@ -233,12 +243,15 @@ class GradientStreamedTest(unittest.TestCase):
         grad = np.stack((gradx,
                          grady,
                          gradz), axis=-1)
+        
+        for j in range(grad.shape[1]):
+            grad[:,j] *= self.weights[j]
 
         outp = np.zeros_like(self.divin)
 
         self.grad.fwd([outp], [[self.gradin]])
 
-        np.testing.assert_allclose(outp[..., :-1], grad, rtol=1e-13)
+        np.testing.assert_allclose(outp[..., :-1], grad, rtol=1e-15)
 
     def test_adj_outofplace(self):
 

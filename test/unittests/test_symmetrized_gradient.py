@@ -111,7 +111,7 @@ class SymmetrizedGradientTest(unittest.TestCase):
         outp = self.symgrad.fwdoop(inp)
         outp = outp.get()
 
-        np.testing.assert_allclose(outp[..., :6], symgrad)
+        np.testing.assert_allclose(outp[..., :6], symgrad, rtol=1e-15)
 
     def test_sym_grad_inplace(self):
         gradx = np.zeros_like(self.symgradin)
@@ -141,7 +141,7 @@ class SymmetrizedGradientTest(unittest.TestCase):
         self.symgrad.fwd(outp, inp)
         outp = outp.get()
 
-        np.testing.assert_allclose(outp[..., :6], symgrad)
+        np.testing.assert_allclose(outp[..., :6], symgrad, rtol=1e-15)
 
     def test_adj_outofplace(self):
         inpgrad = clarray.to_device(self.queue, self.symgradin)

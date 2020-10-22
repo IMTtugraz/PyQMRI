@@ -34,7 +34,10 @@ __kernel void update_z2(
                 const double sigma,
                 const double theta,
                 const double alphainv,
-                const int NUk
+                const int NUk,
+                const int dimZ,
+                const int dimY,
+                const int dimX
                 )
 {
     size_t i = get_global_id(0);
@@ -109,6 +112,9 @@ __kernel void update_z1(
                 const double alphainv,
                 const int NUk_tgv,
                 const int NUk_H1,
+                const int dimZ,
+                const int dimY,
+                const int dimX,
                 const double h1inv
                 )
 {
@@ -164,8 +170,15 @@ __kernel void update_z1_tv(
                 __global double8 *z,
                 __global double8 *gx,
                 __global double8 *gx_,
-                const double sigma, const double theta, const double alphainv,
-                const int NUk_tgv, const int NUk_H1, const double h1inv
+                const double sigma, 
+                const double theta, 
+                const double alphainv,
+                const int NUk_tgv, 
+                const int NUk_H1, 
+                const int dimZ,
+                const int dimY,
+                const int dimX,
+                const double h1inv
                 )
 {
     size_t i = get_global_id(0);
@@ -228,7 +241,10 @@ __kernel void update_primal(
                 __global double* min,
                 __global double* max,
                 __global int* real, 
-                const int NUk
+                const int NUk,
+                const int dimZ,
+                const int dimY,
+                const int dimX
                 )
 {
     size_t i = get_global_id(0);
@@ -280,7 +296,10 @@ __kernel void update_primal_LM(
                 __global double* min,
                 __global double* max,
                 __global int* real,
-                const int NUk
+                const int NUk,
+                const int dimZ,
+                const int dimY,
+                const int dimX
                 )
 {
     size_t i = get_global_id(0);
@@ -547,7 +566,10 @@ __kernel void operator_fwd(
                 __global double2 *grad,
                 const int NCo,
                 const int NScan,
-                const int NUk
+                const int NUk,
+                const int dimZ,
+                const int dimY,
+                const int dimX
                 )
 {
     size_t i = get_global_id(0);
@@ -592,7 +614,10 @@ __kernel void operator_ad(
                 __global double2 *grad,
                 const int NCo,
                 const int NScan,
-                const int Nuk
+                const int NUk,
+                const int dimZ,
+                const int dimY,
+                const int dimX
                 )
 {
     size_t i = get_global_id(0);
@@ -605,7 +630,7 @@ __kernel void operator_ad(
     double2 conj_coils = 0.0f;
 
 
-    for (int uk=0; uk<Nuk; uk++)
+    for (int uk=0; uk<NUk; uk++)
     {
         double2 sum = (double2) 0.0f;
         for (int scan=0; scan<NScan; scan++)
@@ -714,7 +739,10 @@ __kernel void operator_fwd_imagespace(
                 __global double2 *in,
                 __global double2 *grad,
                 const int NScan,
-                const int Nuk
+                const int NUk,
+                const int dimZ,
+                const int dimY,
+                const int dimX
                 )
 {
     size_t i = get_global_id(0);
@@ -726,7 +754,7 @@ __kernel void operator_fwd_imagespace(
     for (int scan=0; scan<NScan; scan++)
     {
         double2 sum = 0.0f;
-        for (int uk=0; uk<Nuk; uk++)
+        for (int uk=0; uk<NUk; uk++)
         {
             tmp_grad = grad[uk*NScan*size+scan*size + i];
             tmp_in = in[uk*size + i];
@@ -746,7 +774,10 @@ __kernel void operator_ad_imagespace(
                 __global double2 *in,
                 __global double2 *grad,
                 const int NScan,
-                const int Nuk
+                const int NUk,
+                const int dimZ,
+                const int dimY,
+                const int dimX
                 )
 {
     size_t i = get_global_id(0);
@@ -758,7 +789,7 @@ __kernel void operator_ad_imagespace(
 
 
 
-    for (int uk=0; uk<Nuk; uk++)
+    for (int uk=0; uk<NUk; uk++)
     {
         double2 sum = (double2) 0.0f;
         for (int scan=0; scan<NScan; scan++)
