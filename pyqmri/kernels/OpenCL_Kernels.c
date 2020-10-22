@@ -678,6 +678,7 @@ __kernel void update_Kyk1(
 {
     size_t i = get_global_id(0);
     size_t size = get_global_size(0);
+    size_t ind = 0;
 
     float2 tmp_in = 0.0f;
     float2 tmp_mul = 0.0f;
@@ -712,24 +713,25 @@ __kernel void update_Kyk1(
         }
 
         // divergence
-        float8 val = p[i+uk*size];
+        ind = i+uk*size;
+        float8 val = p[ind];
         
-        if (!((i+1)%dimX))
+        if (!((ind+1)%dimX))
           val.s01 = 0.0f;
-        val.s01 = ( i % dimX) ? (val.s01 - p[i-1+uk*size].s01) : val.s01;
+        val.s01 = ( ind % dimX) ? (val.s01 - p[ind-1].s01) : val.s01;
     
-        if (!((i/dimX+1)%dimY))
+        if (!((ind/dimX+1)%dimY))
           val.s23 = 0.0f;
-        val.s23 = ( (i/dimX) % dimY) ? (val.s23 - p[i-dimX+uk*size].s23) : val.s23;
+        val.s23 = ( (ind/dimX) % dimY) ? (val.s23 - p[ind-dimX].s23) : val.s23;
         
-        if (!((i/(dimX*dimY)+1)%dimZ))
+        if (!((ind/(dimX*dimY)+1)%dimZ))
           val.s45 = 0.0f;
-        val.s45 = ( (i/(dimX*dimY)) % dimZ) ? (val.s45 - p[i-dimX*dimY+uk*size].s45) / dz : val.s45 / dz;
+        val.s45 = ( (ind/(dimX*dimY)) % dimZ) ? (val.s45 - p[i-dimX*dimY].s45) / dz : val.s45 / dz;
        
         // scale gradients
         val*=ratio[uk];
         
-        out[uk*size+i] = sum - (val.s01+val.s23+val.s45);
+        out[ind] = sum - (val.s01+val.s23+val.s45);
     }
 }
 
@@ -824,6 +826,7 @@ __kernel void update_Kyk1_imagespace(
 {
     size_t i = get_global_id(0);
     size_t size = get_global_size(0);
+    size_t ind = 0;
 
     float2 tmp_in = 0.0f;
     float2 conj_grad = 0.0f;
@@ -842,23 +845,24 @@ __kernel void update_Kyk1_imagespace(
                   tmp_in.x*conj_grad.y+tmp_in.y*conj_grad.x);
         }
         // divergence
-        float8 val = p[uk*size+i];
+        ind = uk*size+i;
+        float8 val = p[ind];
         
-        if (!((i+1)%dimX))
+        if (!((ind+1)%dimX))
           val.s01 = 0.0f;
-        val.s01 = ( i % dimX) ? (val.s01 - p[uk*size+i-1].s01) : val.s01;
+        val.s01 = ( ind % dimX) ? (val.s01 - p[ind-1].s01) : val.s01;
     
-        if (!((i/dimX+1)%dimY))
+        if (!((ind/dimX+1)%dimY))
           val.s23 = 0.0f;
-        val.s23 = ( (i/dimX) % dimY) ? (val.s23 - p[uk*size+i-dimX].s23) : val.s23;
+        val.s23 = ( (ind/dimX) % dimY) ? (val.s23 - p[ind-dimX].s23) : val.s23;
         
-        if (!((i/(dimX*dimY)+1)%dimZ))
+        if (!((ind/(dimX*dimY)+1)%dimZ))
           val.s45 = 0.0f;
-        val.s45 = ( (i/(dimX*dimY)) % dimZ) ? (val.s45 - p[uk*size+i-dimX*dimY].s45) / dz : val.s45 / dz;
+        val.s45 = ( (ind/(dimX*dimY)) % dimZ) ? (val.s45 - p[ind-dimX*dimY].s45) / dz : val.s45 / dz;
        
         // scale gradients
         val*=ratio[uk];
-        out[uk*size+i] = sum - (val.s01+val.s23+val.s45);
+        out[ind] = sum - (val.s01+val.s23+val.s45);
     }
 }
 

@@ -196,8 +196,8 @@ class CGSolver:
         if wait_for is None:
             wait_for = []
         return self._prg.operator_fwd_cg(self._queue,
-                                         (self._NSlice, self._dimY,
-                                          self._dimX),
+                                         (np.prod((self._NSlice, self._dimY,
+                                          self._dimX)),),
                                          None,
                                          y.data, x.data, self._coils,
                                          np.int32(self._NC),
@@ -252,8 +252,8 @@ class CGSolver:
             self._tmp_result, x, wait_for=wait_for+x.events,
             scan_offset=self._scan_offset))
         return self._prg.operator_ad_cg(self._queue,
-                                        (self._NSlice, self._dimY,
-                                         self._dimX),
+                                        (np.prod((self._NSlice, self._dimY,
+                                          self._dimX)),),
                                         None,
                                         out.data, self._tmp_result.data,
                                         self._coils, np.int32(self._NC),
@@ -365,7 +365,7 @@ class PDBaseSolver:
         self.display_iterations = irgn_par["display_iterations"]
         self.mu = 1 / self.delta
         self.tau = tau
-        self.beta_line = 1e2  # 1e10#1e12
+        self.beta_line = 1e3  # 1e10#1e12
         self.theta_line = DTYPE_real(1.0)
         self.unknowns_TGV = par["unknowns_TGV"]
         self.unknowns_H1 = par["unknowns_H1"]
