@@ -18,6 +18,9 @@ import pyqmri.operator as operator
 from pyqmri._helper_fun import CLProgram as Program
 import sys
 import pyqmri.streaming as streaming
+
+from pyqmri._my_helper_fun.display_data import *
+
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
@@ -425,6 +428,18 @@ class PDBaseSolver:
                     linops,
                     coils,
                     model)
+        elif reg_type == '':
+            pdop = PDSoftSenseSolver(
+                par,
+                irgn_par,
+                queue,
+                np.float32(1 / np.sqrt(8)),
+                init_fval,
+                prg,
+                linops,
+                coils,
+                model,
+                imagespace=imagespace)
         else:
             raise NotImplementedError
         return pdop
@@ -2308,3 +2323,2051 @@ class PDSolverStreamedTVSMS(PDSolverStreamedTV):
         lhs = np.sqrt(beta)*tau*np.abs(lhs1+lhs2+lhs3)**(1/2)
 
         return lhs, ynorm
+
+
+class PDSoftSenseBaseSolver:
+    """
+    Primal Dual splitting optimization.
+
+    This Class performs a primal-dual variable splitting based reconstruction
+    on single precission complex input data.
+    """
+
+    def __init__(self, par, irgn_par, queue, tau, fval, prg, coil, model):
+        """
+        PD reconstruction Object.
+
+        Args
+        ----
+          par (dict): A python dict containing the necessary information to
+            setup the object. Needs to contain the number of slices (NSlice),
+            number of scans (NScan), image dimensions (dimX, dimY), number of
+            coils (NC), sampling points (N) and read outs (NProj)
+            a PyOpenCL queue (queue) and the complex coil
+            sensitivities (C).
+          irgn_par (dict): A python dict containing the regularization
+            parameters for a given gauss newton step.
+          queue (list): A list of PyOpenCL queues to perform the optimization.
+          tau (float): Estimate of the initial step size based on the
+            operator norm of the linear operator.
+          fval (float): Estimate of the initial cost function value to
+            scale the displayed values.
+          prg (PyOpenCL Program): A PyOpenCL Program containing the
+            kernels for optimization.
+          reg_type (string): String to choose between "TV" and "TGV"
+            optimization.
+          data_operator (PyQMRI Operator): The operator to traverse from
+            parameter to data space.
+          coils (PyOpenCL Buffer or empty List): optional coil buffer.
+          NScan (int): Number of Scan which should be used internally. Do not
+            need to be the same number as in par["NScan"]
+          trafo (bool): Switch between radial (1) and Cartesian (0) fft.
+          and slice accelerated (1) reconstruction.
+        """
+        self.sigma = irgn_par["sigma"]
+        self.delta = irgn_par["delta"]
+        self.gamma = irgn_par["gamma"]
+        self.lambd = irgn_par["lambd"]
+        self.accelerated = irgn_par["accelerated"]
+        self.stag = irgn_par["stag"]
+        self.tol = irgn_par["tol"]
+        self.display_iterations = irgn_par["display_iterations"]
+        self.tau = tau
+        self.unknowns = par["unknowns"]
+        self.num_dev = len(par["num_dev"])
+        self.dz = par["dz"]
+        self._fval_init = fval
+        self._prg = prg
+        self._queue = queue
+        self._coils = coil
+        self.model = model
+
+    @staticmethod
+    def factory(
+            prg,
+            queue,
+            par,
+            irgn_par,
+            init_fval,
+            coils,
+            linops,
+            model=None,
+            reg_type='',
+            SMS=False,
+            streamed=False):
+        """
+        Generate a PDSolver object.
+
+        Args
+        ----
+          par (dict): A python dict containing the necessary information to
+            setup the object. Needs to contain the number of slices (NSlice),
+            number of scans (NScan), image dimensions (dimX, dimY), number of
+            coils (NC), sampling points (N) and read outs (NProj)
+            a PyOpenCL queue (queue) and the complex coil
+            sensitivities (C).
+          irgn_par (dict): A python dict containing the regularization
+            parameters for a given gauss newton step.
+          queue (list): A list of PyOpenCL queues to perform the optimization.
+          tau (float): Estimate of the initial step size based on the
+            operator norm of the linear operator.
+          fval (float): Estimate of the initial cost function value to
+            scale the displayed values.
+          prg (PyOpenCL Program): A PyOpenCL Program containing the
+            kernels for optimization.
+          reg_type (string): String to choose between "TV" and "TGV"
+            optimization.
+          data_operator (PyQMRI Operator): The operator to traverse from
+            parameter to data space.
+          coils (PyOpenCL Buffer or empty List): optional coil buffer.
+          NScan (int): Number of Scan which should be used internally. Do not
+            need to be the same number as in par["NScan"]
+          trafo (bool): Switch between radial (1) and Cartesian (0) fft.
+          and slice accelerated (1) reconstruction.
+        """
+        if reg_type == '':
+            if not streamed:
+                if not SMS:
+                    pdop = PDSoftSenseSolver(
+                        par,
+                        irgn_par,
+                        queue,
+                        np.float32(1 / np.sqrt(12)),
+                        init_fval,
+                        prg,
+                        linops,
+                        coils,
+                        model)
+        elif reg_type == 'TV':
+            if not streamed:
+                if not SMS:
+                    pdop = PDSoftSenseSolverTV(
+                        par,
+                        irgn_par,
+                        queue,
+                        np.float32(1 / np.sqrt(8)),
+                        init_fval,
+                        prg,
+                        linops,
+                        coils,
+                        model)
+        elif reg_type == 'TGV':
+            if not streamed:
+                if not SMS:
+                    pdop = PDSoftSenseSolverTGV(
+                        par,
+                        irgn_par,
+                        queue,
+                        np.float32(1 / np.sqrt(12)),
+                        init_fval,
+                        prg,
+                        linops,
+                        coils,
+                        model)
+        else:
+            raise NotImplementedError
+        return pdop
+
+    def __del__(self):
+        """
+        Destructor.
+
+        Releases GPU memory arrays.
+        """
+
+    def run(self, inp, data, iters):
+        """
+        Optimization with 3D T(G)V regularization.
+
+        Args
+        ----
+          inp (numpy.array):
+            Initial guess for the reconstruction
+          data (numpy.array):
+            The complex valued (undersampled) kspace data.
+          iters (int):
+            Number of primal-dual iterations to run
+        """
+
+        tau = self.tau
+        sigma = self.sigma
+        gamma = self.gamma
+        lambd = self.lambd
+        theta = np.float32(1.0)
+        primal = np.float32(0.0)
+        primal_new = np.float32(0)
+        dual = np.float32(0.0)
+        gap_init = np.float32(0.0)
+        gap_old = np.float32(0.0)
+        gap = np.float32(0.0)
+
+        (primal_vars,
+         primal_vars_new,
+         tmp_results_forward,
+         dual_vars,
+         dual_vars_new,
+         tmp_results_adjoint,
+         data) = self._setupVariables(inp, data)
+
+        self._updateInitial(
+            out_fwd=tmp_results_forward,
+            out_adj=tmp_results_adjoint,
+            in_primal=primal_vars,
+            in_dual=dual_vars
+            )
+
+        for i in range(iters):
+            self._updateDual(
+                out_dual=dual_vars_new,
+                out_adj=tmp_results_adjoint,
+                in_primal=primal_vars,
+                in_dual=dual_vars,
+                in_precomp_fwd=tmp_results_forward,
+                data=data,
+                sigma=sigma
+            )
+
+            if self.accelerated:
+                theta = 1 / np.sqrt(1 + 2*gamma*tau)
+                tau = theta * tau
+                sigma = sigma / theta
+
+            self._updatePrimal(
+                out_primal=primal_vars_new,
+                out_fwd=tmp_results_forward,
+                in_primal=primal_vars,
+                in_dual=dual_vars_new,
+                in_precomp_adj=tmp_results_adjoint,
+                tau=tau,
+                theta=theta
+                )
+
+            for j in primal_vars_new:
+                primal_vars[j] = primal_vars_new[j]
+
+            for k in dual_vars_new:
+                dual_vars[k] = dual_vars_new[k]
+
+            if not np.mod(i, 10):
+                if self.display_iterations:
+                    if type(primal_vars["x"]) is np.ndarray:
+                        self.model.plot_unknowns(
+                            np.swapaxes(primal_vars["x"], 0, 1))
+                    else:
+                        self.model.plot_unknowns(primal_vars["x"].get())
+                primal_new, dual, gap = self._calcResidual(
+                    in_primal=primal_vars,
+                    in_dual=dual_vars,
+                    in_precomp_fwd=tmp_results_forward,
+                    data=data)
+                print("Iteration: %i" %i)
+                print("Primal: %f" %primal_new)
+                # print("Dual: %f" %dual)
+                print("Gap: %f" %gap)
+                if i == 0:
+                    gap_init = gap
+                if np.abs(primal - primal_new)/self._fval_init <\
+                   self.tol:
+                    print("Terminated at iteration %d because the energy "
+                          "decrease in the primal problem was less than %.3e" %
+                          (i,
+                           np.abs(primal - primal_new)/self._fval_init))
+                    return primal_vars_new
+                # if gap > gap_old * self.stag and i > 1:
+                #     print("Terminated at iteration %d "
+                #           "because the method stagnated" % (i))
+                #     return primal_vars_new
+                if np.abs((gap - gap_old) / gap_init) < self.tol:
+                    print("Terminated at iteration %d because the "
+                          "relative energy decrease of the PD gap was "
+                          "less than %.3e"
+                          % (i, np.abs((gap - gap_old) / gap_init)))
+                    return primal_vars_new
+                primal = primal_new
+                gap_old = gap
+                sys.stdout.write(
+                    "Iteration: %04d ---- Primal: %2.2e, "
+                    "Dual: %2.2e, Gap: %2.2e \r" %
+                    (i, 1000*primal / self._fval_init,
+                     1000*dual / self._fval_init,
+                     1000*gap / self._fval_init))
+                sys.stdout.flush()
+
+        return primal_vars
+
+    def _updateInitial(self, outp, inp):
+        pass
+
+    def _updatePrimal(self, outp, inp, par):
+        pass
+
+    def _updateDual(self, outp, inp, par):
+        pass
+
+    def _calcResidual(
+                    in_primal,
+                    in_dual,
+                    in_precomp_fwd,
+                    data):
+        pass
+
+    def _setupVariables(inps, data):
+        pass
+
+    def _calcStepSize(self):
+        pass
+
+    def update_x(self, outp, inp, par=None, idx=0, idxq=0,
+                 bound_cond=0, wait_for=[]):
+        """
+        Primal update of the x variable in Primal-Dual Algorithm.
+
+        Args
+        ----
+          xn1 (PyOpenCL.Array): The result of the update step
+          xn (PyOpenCL.Array): The previous values of x
+          Kay (PyOpenCL.Array): x-Part of the precomputed result of
+            the adjoint linear operator applied to y
+          tau (float): Primal step size
+          theta (float): Variable controling the extrapolation step of the
+            PD-algorithm
+          wait_for (list): A optional list for PyOpenCL.events to wait for
+        """
+        return self._prg[idx].update_x(
+            self._queue[4 * idx + idxq], (outp.size,), None,
+            outp.data,
+            inp[0].data,
+            inp[1].data,
+            np.float32(par[0]),
+            np.float32(par[1]),
+            wait_for=outp.events + inp[0].events + inp[1].events + wait_for)
+
+    def update_x_tgv(self, outp, inp, par=None, idx=0, idxq=0,
+                 bound_cond=0, wait_for=[]):
+        """
+        Primal update of the v variable in Primal-Dual Algorithm.
+
+        Args
+        ----
+          xn1 (PyOpenCL.Array): The result of the update step
+          xn (PyOpenCL.Array): The previous values of x
+          Kay (PyOpenCL.Array): x-Part of the precomputed result of
+            the adjoint linear operator applied to y
+          divz (PyOpenCL.Array): x-Part of the precomputed result of
+            the divergence operator applied to z
+          tau (float): Primal step size
+          theta (float): Variable controling the extrapolation step of the
+            PD-algorithm
+          wait_for (list): A optional list for PyOpenCL.events to wait for
+        """
+        return self._prg[idx].update_x_tgv(
+            self._queue[4 * idx + idxq], (outp.size,), None,
+            outp.data,
+            inp[0].data,
+            inp[1].data,
+            inp[2].data,
+            np.float32(par[0]),         # tau
+            np.float32(par[1]),         # theta
+            wait_for=outp.events + inp[0].events +
+                     inp[1].events + inp[2].events + wait_for)
+
+    def update_y(self, outp, inp, par=None, idx=0, idxq=0,
+                 bound_cond=0, wait_for=[]):
+        """
+        Update the data dual variable y.
+
+        Args
+        ----
+           yn1 (PyOpenCL.Array): The result of the update step
+           yn (PyOpenCL.Array): The previous values of y
+           Kx (PyOpenCL.Array): y-Part of the precomputed result of
+            the linear operator applied to x
+          dx (PyOpenCL.Array): The original k-space data
+          sigma (float): Dual step size
+          lambdainv (float): Inverse regularization parameter in front of the
+            data fidelity term
+          wait_for (list): A optional list for PyOpenCL.events to wait for
+        """
+        return self._prg[idx].update_y(
+            self._queue[4*idx+idxq], (outp.size,), None,
+            outp.data,
+            inp[0].data,
+            inp[1].data,
+            inp[2].data,
+            np.float32(par[0]),           # sigma
+            np.float32(1 / par[1]),       # lambdainv
+            wait_for=(outp.events+inp[0].events +
+                      inp[1].events+wait_for))
+
+    def update_z_tv(self, outp, inp, par=None, idx=0, idxq=0,
+                     bound_cond=0, wait_for=[]):
+        """
+        Dual update of the z variable in Primal-Dual Algorithm for TV.
+
+        Args
+        ----
+          zn1 (PyOpenCL.Array): The result of the update step
+          zn (PyOpenCL.Array): The previous values of z
+          gx (PyOpenCL.Array): Linear gradient operator applied to x
+          sigma (float): Dual step size
+          wait_for (list): A optional list for PyOpenCL.events to wait for
+        """
+        return self._prg[idx].update_z_tv(
+            self._queue[4*idx+idxq],
+            np.shape(inp[0])[1:-1], None,
+            outp.data,
+            inp[0].data,
+            inp[1].data,
+            np.float32(par[0]),
+            np.int32(self.unknowns),
+            wait_for=(outp.events + inp[0].events +
+                      inp[1].events + wait_for))
+
+    def update_z1_tgv(self, outp, inp, par=None, idx=0, idxq=0,
+                      bound_cond=0, wait_for=[]):
+        """
+        Dual update of the z1 variable in Primal-Dual Algorithm for TGV.
+
+        Args
+        ----
+          zn1 (PyOpenCL.Array): The result of the update step
+          zn (PyOpenCL.Array): The previous values of z1
+          gx (PyOpenCL.Array): Linear gradient operator applied to x
+          v (PyOpenCL.Array): Primal variable v
+          sigma (float): Dual step size
+          alphainv (float): Inverse regularization parameter of the first
+            TGV functional
+          wait_for (list): A optional list for PyOpenCL.events to wait for
+        """
+        return self._prg[idx].update_z1_tgv(
+            self._queue[4*idx+idxq],
+            np.shape(inp[0]), None,
+            outp.data,
+            inp[0].data,
+            inp[1].data,
+            inp[2].data,
+            np.float32(par[0]),
+            np.float32(1 / par[1]),
+            np.int32(self.unknowns),
+            wait_for=(outp.events + inp[0].events + inp[1].events +
+                      inp[2].events + wait_for))
+
+    def update_z2_tgv(self, outp, inp, par=None, idx=0, idxq=0,
+                      bound_cond=0, wait_for=[]):
+        """
+        Dual update of the z2 variable in Primal-Dual Algorithm for TGV.
+
+        Args
+        ----
+          zn1 (PyOpenCL.Array): The result of the update step
+          zn (PyOpenCL.Array): The previous values of z2
+          gx (PyOpenCL.Array): Linear gradient operator applied to x
+          symgv (PyOpenCL.Array): Linear symmetrized gradient operator
+            applied to v
+          sigma (float): Dual step size
+          alphainv (float): Inverse regularization parameter of the second
+            TGV functional
+          wait_for (list): A optional list for PyOpenCL.events to wait for
+        """
+        return self._prg[idx].update_z2_tgv(
+            self._queue[4*idx+idxq],
+            np.shape(inp[0]), None,
+            outp.data,
+            inp[0].data,
+            inp[1].data,
+            np.float32(par[0]),
+            np.float32(1 / par[1]),
+            np.int32(self.unknowns),
+            wait_for=(outp.events + inp[0].events +
+                      inp[1].events + wait_for))
+
+    def update_v(self, outp, inp, par=None, idx=0, idxq=0,
+                 bound_cond=0, wait_for=[]):
+        """
+        Primal update of the v variable in Primal-Dual Algorithm.
+
+        Args
+        ----
+          vn1 (PyOpenCL.Array): The result of the update step
+          vn (PyOpenCL.Array): The previous values of v
+          z1 (PyOpenCL.Array): Dual variable z1
+          ez2 (PyOpenCL.Array): Linear adjoint symmetrized gradient operator
+            applied to z2
+          tau (float): Primal step size
+          theta (float): Variable controling the extrapolation step of the
+            PD-algorithm
+          wait_for (list): A optional list for PyOpenCL.events to wait for
+        """
+        return self._prg[idx].update_v_tgv(
+            self._queue[4*idx+idxq], (outp[..., 0].size,), None,
+            outp.data, inp[0].data, inp[1].data, inp[2].data,
+            np.float32(par[0]), np.float32(par[1]),
+            wait_for=outp.events+inp[0].events+inp[1].events+inp[2].events+wait_for)
+
+
+class PDSoftSenseSolver(PDSoftSenseBaseSolver):
+    """
+    PD Algorithm for Soft Sense reconstruction without regularization
+    """
+    def __init__(self, par, irgn_par, queue, tau, fval, prg,
+                 linop, coils, model):
+
+        super().__init__(
+            par,
+            irgn_par,
+            queue,
+            tau,
+            fval,
+            prg,
+            coils,
+            model)
+        self._op = linop[0]
+
+    def _setupVariables(self, inp, data):
+        data = clarray.to_device(self._queue[0], data.astype(DTYPE))
+
+        primal_vars = {}
+        primal_vars_new = {}
+        tmp_results_adjoint = {}
+
+        primal_vars["x"] = clarray.to_device(self._queue[0], inp)
+        primal_vars_new["x"] = clarray.empty_like(primal_vars["x"])
+
+        tmp_results_adjoint["Kay"] = clarray.empty_like(primal_vars["x"])
+
+        dual_vars = {}
+        dual_vars_new = {}
+        tmp_results_forward = {}
+
+        dual_vars["y"] = clarray.zeros(
+            self._queue[0],
+            data.shape,
+            dtype=DTYPE
+        )
+        dual_vars_new["y"] = clarray.zeros_like(dual_vars["y"])
+
+        tmp_results_forward["Kx"] = clarray.empty_like(data)
+
+        return (primal_vars,
+                primal_vars_new,
+                tmp_results_forward,
+                dual_vars,
+                dual_vars_new,
+                tmp_results_adjoint,
+                data)
+
+    def _updateInitial(self,
+                       out_fwd, out_adj,
+                       in_primal, in_dual):
+        out_adj["Kay"].add_event(self._op.adj(
+                out_adj["Kay"], [in_dual["y"], self._coils]))
+
+        out_fwd["Kx"].add_event(self._op.fwd(
+                out_fwd["Kx"], [in_primal["x"], self._coils]))
+
+    def _updatePrimal(self,
+                      out_primal, out_fwd,
+                      in_primal, in_dual, in_precomp_adj,
+                      tau, theta):
+        out_primal["x"].add_event(self.update_x(
+            outp=out_primal["x"],
+            inp=(in_primal["x"], in_precomp_adj["Kay"]),
+            par=(tau, theta)))  # 2nd parameter is theta, set to 1
+
+        out_fwd["Kx"].add_event(self._op.fwd(
+            out_fwd["Kx"], [out_primal["x"], self._coils]))
+
+    def _updateDual(self,
+                    out_dual,
+                    out_adj,
+                    in_primal,
+                    in_dual,
+                    in_precomp_fwd,
+                    data,
+                    sigma):
+        out_dual["y"].add_event(
+            self.update_y(
+                outp=out_dual["y"],
+                inp=(in_dual["y"], in_precomp_fwd["Kx"], data),
+                par=(sigma, self.lambd)))
+
+        out_adj["Kay"].add_event(
+            self._op.adj(
+                out_adj["Kay"],
+                [out_dual["y"],
+                 self._coils],
+               ))
+
+    def _calcResidual(self,
+                    in_primal,
+                    in_dual,
+                    in_precomp_fwd,
+                    data):
+
+        primal = (
+            clarray.vdot(
+                (in_precomp_fwd["Kx"] - data),
+                (in_precomp_fwd["Kx"] - data)
+            )
+        ).real
+
+        dual = (
+            clarray.vdot(
+                in_dual["y"],
+                in_dual["y"]
+            )
+        ).real
+
+        gap = np.abs(primal - dual)
+        return primal.get(), dual.get(), gap.get()
+
+    def _calcStepSize(self):
+        pass
+
+
+class PDSoftSenseSolverTV(PDSoftSenseBaseSolver):
+    """
+    PD Algorithm for Soft Sense reconstruction with TV regularization
+    """
+    def __init__(self, par, irgn_par, queue, tau, fval, prg,
+                 linop, coils, model):
+
+        super().__init__(
+            par,
+            irgn_par,
+            queue,
+            tau,
+            fval,
+            prg,
+            coils,
+            model)
+        self._op = linop[0]
+        self._grad_op = linop[1]
+
+    def _setupVariables(self, inp, data):
+        data = clarray.to_device(self._queue[0], data.astype(DTYPE))
+
+        primal_vars = {}
+        primal_vars_new = {}
+        tmp_results_adjoint = {}
+
+        primal_vars["x"] = clarray.to_device(self._queue[0], inp)
+        primal_vars_new["x"] = clarray.empty_like(primal_vars["x"])
+
+        tmp_results_adjoint["Kay"] = clarray.empty_like(primal_vars["x"])
+        tmp_results_adjoint["divz"] = clarray.empty_like(primal_vars["x"])
+
+        dual_vars = {}
+        dual_vars_new = {}
+        tmp_results_forward = {}
+
+        dual_vars["y"] = clarray.zeros(
+            self._queue[0],
+            data.shape,
+            dtype=DTYPE
+        )
+        dual_vars["z"] = clarray.zeros(self._queue[0],
+                                       primal_vars["x"].shape+(4,),
+                                       dtype=DTYPE)
+
+        dual_vars_new["y"] = clarray.zeros_like(dual_vars["y"])
+        dual_vars_new["z"] = clarray.zeros_like(dual_vars["z"])
+
+        tmp_results_forward["Kx"] = clarray.empty_like(data)
+        tmp_results_forward["gradx"] = clarray.empty_like(dual_vars["z"])
+
+        return (primal_vars,
+                primal_vars_new,
+                tmp_results_forward,
+                dual_vars,
+                dual_vars_new,
+                tmp_results_adjoint,
+                data)
+
+    def _updateInitial(self,
+                       out_fwd, out_adj,
+                       in_primal, in_dual):
+        out_adj["Kay"].add_event(self._op.adj(
+                out_adj["Kay"], [in_dual["y"], self._coils]))
+
+        out_fwd["Kx"].add_event(self._op.fwd(
+                out_fwd["Kx"], [in_primal["x"], self._coils]))
+
+        out_fwd["gradx"].add_event(self._grad_op.fwd(
+            out_fwd["gradx"], in_primal["x"]))
+
+    def _updatePrimal(self,
+                      out_primal, out_fwd,
+                      in_primal, in_dual, in_precomp_adj,
+                      tau, theta):
+        out_primal["x"].add_event(self.update_x_tgv(
+            outp=out_primal["x"],
+            inp=(in_primal["x"], in_precomp_adj["Kay"], in_precomp_adj["divz"]),
+            par=(tau, theta)))
+
+        out_fwd["Kx"].add_event(self._op.fwd(
+            out_fwd["Kx"], [out_primal["x"], self._coils]))
+
+        out_fwd["gradx"].add_event(self._grad_op.fwd(
+            out_fwd["gradx"], out_primal["x"]))
+
+    def _updateDual(self,
+                    out_dual,
+                    out_adj,
+                    in_primal,
+                    in_dual,
+                    in_precomp_fwd,
+                    data,
+                    sigma):
+        out_dual["y"].add_event(
+            self.update_y(
+                outp=out_dual["y"],
+                inp=(in_dual["y"], in_precomp_fwd["Kx"], data),
+                par=(sigma, self.lambd)))
+
+        out_adj["Kay"].add_event(
+            self._op.adj(
+                out_adj["Kay"],
+                [out_dual["y"],
+                 self._coils],))
+
+        out_dual["z"].add_event(
+            self.update_z_tv(
+                outp=out_dual["z"],
+                inp=(in_dual["z"], in_precomp_fwd["gradx"]),
+                par=(sigma, self.lambd)))
+
+        out_adj["divz"].add_event(
+            self._grad_op.adj(
+                out_adj["divz"],
+                out_dual["z"]))
+
+    def _calcResidual(self,
+                    in_primal,
+                    in_dual,
+                    in_precomp_fwd,
+                    data):
+
+        primal = (
+            self.lambd / 2 * clarray.vdot(
+                in_precomp_fwd["Kx"] - data,
+                in_precomp_fwd["Kx"] - data)
+            + clarray.sum(
+                abs(in_precomp_fwd["gradx"])
+                )
+        ).real
+
+        dual = (
+            1 / (2 * self.lambd) * clarray.vdot(
+                in_dual["y"],
+                in_dual["y"]
+            )
+        ).real
+
+        gap = np.abs(primal - dual)
+        return primal.get(), dual.get(), gap.get()
+
+
+class PDSoftSenseSolverTGV(PDSoftSenseBaseSolver):
+    """
+    PD Algorithm for Soft Sense reconstruction with TGV regularization
+    """
+
+    def __init__(self, par, irgn_par, queue, tau, fval, prg,
+                 linop, coils, model):
+
+        super().__init__(
+            par,
+            irgn_par,
+            queue,
+            tau,
+            fval,
+            prg,
+            coils,
+            model)
+        self.alpha_0 = irgn_par["alpha0"]      # alpha_0
+        self.alpha_1 = irgn_par["alpha1"]      # alpha_1
+        self._op = linop[0]
+        self._grad_op = linop[1]
+        self._symgrad_op = linop[2]
+
+    def _setupVariables(self, inp, data):
+        data = clarray.to_device(self._queue[0], data.astype(DTYPE))
+
+        primal_vars = {}
+        primal_vars_new = {}
+        tmp_results_adjoint = {}
+
+        primal_vars["x"] = clarray.to_device(self._queue[0], inp)
+        primal_vars["v"] = clarray.zeros(self._queue[0],
+                                         primal_vars["x"].shape+(4,),
+                                         dtype=DTYPE)
+        primal_vars_new["x"] = clarray.empty_like(primal_vars["x"])
+        primal_vars_new["v"] = clarray.empty_like(primal_vars["v"])
+
+        tmp_results_adjoint["Kay"] = clarray.empty_like(primal_vars["x"])
+        tmp_results_adjoint["divz1"] = clarray.empty_like(primal_vars["x"])
+        tmp_results_adjoint["asymgradz2"] = clarray.empty_like(primal_vars["v"])
+
+        dual_vars = {}
+        dual_vars_new = {}
+        tmp_results_forward = {}
+
+        dual_vars["y"] = clarray.zeros(
+            self._queue[0],
+            data.shape,
+            dtype=DTYPE
+        )
+        dual_vars["z1"] = clarray.zeros(self._queue[0],
+                                        primal_vars["x"].shape+(4,),
+                                        dtype=DTYPE)
+
+        dual_vars["z2"] = clarray.zeros(self._queue[0],
+                                        primal_vars["x"].shape+(8,),
+                                        dtype=DTYPE)
+
+        dual_vars_new["y"] = clarray.empty_like(dual_vars["y"])
+        dual_vars_new["z1"] = clarray.empty_like(dual_vars["z1"])
+        dual_vars_new["z2"] = clarray.empty_like(dual_vars["z2"])
+
+        tmp_results_forward["Kx"] = clarray.empty_like(data)
+        tmp_results_forward["gradx"] = clarray.empty_like(dual_vars["z1"])
+        tmp_results_forward["symgradv"] = clarray.empty_like(dual_vars["z2"])
+
+        return (primal_vars,
+                primal_vars_new,
+                tmp_results_forward,
+                dual_vars,
+                dual_vars_new,
+                tmp_results_adjoint,
+                data)
+
+    def _updateInitial(self,
+                       out_fwd, out_adj,
+                       in_primal, in_dual):
+        out_adj["Kay"].add_event(self._op.adj(
+                out_adj["Kay"], [in_dual["y"], self._coils]))
+
+        out_fwd["Kx"].add_event(self._op.fwd(
+                out_fwd["Kx"], [in_primal["x"], self._coils]))
+
+        out_fwd["gradx"].add_event(self._grad_op.fwd(
+            out_fwd["gradx"], in_primal["x"]))
+
+        out_fwd["symgradv"].add_event(self._symgrad_op.fwd(
+            out_fwd["symgradv"], in_primal["v"]
+        ))
+
+    def _updatePrimal(self,
+                      out_primal,
+                      out_fwd,
+                      in_primal,
+                      in_dual,
+                      in_precomp_adj,
+                      tau, theta):
+        out_primal["x"].add_event(self.update_x_tgv(
+            outp=out_primal["x"],
+            inp=(in_primal["x"], in_precomp_adj["Kay"], in_precomp_adj["divz1"]),
+            par=(tau, theta)))
+
+        out_fwd["Kx"].add_event(self._op.fwd(
+            out_fwd["Kx"], [out_primal["x"], self._coils]))
+
+        out_fwd["gradx"].add_event(self._grad_op.fwd(
+            out_fwd["gradx"], out_primal["x"]))
+
+        out_primal["v"].add_event(self.update_v(
+            outp=out_primal["v"],
+            inp=(in_primal["v"], in_dual["z1"], in_precomp_adj["asymgradz2"]),
+            par=(tau, theta)))
+
+        out_fwd["symgradv"].add_event(self._symgrad_op.fwd(
+            out_fwd["symgradv"], out_primal["v"]))
+
+    def _updateDual(self,
+                    out_dual,
+                    out_adj,
+                    in_primal,
+                    in_dual,
+                    in_precomp_fwd,
+                    data,
+                    sigma):
+
+        out_dual["y"].add_event(
+            self.update_y(
+                outp=out_dual["y"],
+                inp=(
+                    in_dual["y"],
+                    in_precomp_fwd["Kx"],
+                    data),
+                par=(sigma, self.lambd)))
+
+        out_adj["Kay"].add_event(
+            self._op.adj(
+                out_adj["Kay"],
+                [out_dual["y"],
+                 self._coils],))
+
+        out_dual["z1"].add_event(
+            self.update_z1_tgv(
+                outp=out_dual["z1"],
+                inp=(
+                    in_dual["z1"],
+                    in_precomp_fwd["gradx"],
+                    in_primal["v"]),
+                par=(sigma, self.alpha_0)))
+
+        out_dual["z2"].add_event(
+            self.update_z2_tgv(
+                outp=out_dual["z2"],
+                inp=(in_dual["z2"], in_precomp_fwd["symgradv"]),
+                par=(sigma, self.alpha_1)))
+
+        out_adj["divz1"].add_event(
+            self._grad_op.adj(
+                out_adj["divz1"],
+                out_dual["z1"]))
+
+        out_adj["asymgradz2"].add_event(
+            self._symgrad_op.adj(
+                out_adj["asymgradz2"],
+                out_dual["z2"]))
+
+    def _calcResidual(
+            self,
+            in_primal,
+            in_dual,
+            in_precomp_fwd,
+            data):
+
+        primal = (
+            self.lambd / 2 * clarray.vdot(
+                in_precomp_fwd["Kx"] - data,
+                in_precomp_fwd["Kx"] - data)
+            + self.alpha_0 * clarray.sum(
+                abs(in_precomp_fwd["gradx"] - in_primal["v"])
+                )
+            + self.alpha_1 * clarray.sum(
+                abs(in_precomp_fwd["symgradv"])
+                )
+        ).real
+
+        dual = (
+            1 / (2 * self.lambd) * clarray.vdot(
+                in_dual["y"],
+                in_dual["y"]
+            )
+        ).real
+
+        gap = np.abs(primal - dual)
+        return primal.get(), dual.get(), gap.get()
+
+
+class PDALSoftSenseBaseSolver:
+    """
+    Primal Dual splitting optimization.
+
+    This Class performs a primal-dual variable splitting based reconstruction
+    on single precission complex input data.
+    """
+
+    def __init__(self, par, irgn_par, queue, tau, fval, prg, coil, model):
+        """
+        PD reconstruction Object.
+
+        Args
+        ----
+          par (dict): A python dict containing the necessary information to
+            setup the object. Needs to contain the number of slices (NSlice),
+            number of scans (NScan), image dimensions (dimX, dimY), number of
+            coils (NC), sampling points (N) and read outs (NProj)
+            a PyOpenCL queue (queue) and the complex coil
+            sensitivities (C).
+          irgn_par (dict): A python dict containing the regularization
+            parameters for a given gauss newton step.
+          queue (list): A list of PyOpenCL queues to perform the optimization.
+          tau (float): Estimate of the initial step size based on the
+            operator norm of the linear operator.
+          fval (float): Estimate of the initial cost function value to
+            scale the displayed values.
+          prg (PyOpenCL Program): A PyOpenCL Program containing the
+            kernels for optimization.
+          reg_type (string): String to choose between "TV" and "TGV"
+            optimization.
+          data_operator (PyQMRI Operator): The operator to traverse from
+            parameter to data space.
+          coils (PyOpenCL Buffer or empty List): optional coil buffer.
+          NScan (int): Number of Scan which should be used internally. Do not
+            need to be the same number as in par["NScan"]
+          trafo (bool): Switch between radial (1) and Cartesian (0) fft.
+          and slice accelerated (1) reconstruction.
+        """
+        self.sigma = irgn_par["sigma"]
+        self.delta = irgn_par["delta"]
+        self.lambd = irgn_par["lambd"]
+        self.stag = irgn_par["stag"]
+        self.tol = irgn_par["tol"]
+        self.display_iterations = irgn_par["display_iterations"]
+        self.mu = 1 / self.delta
+        self.tau = tau
+        self.beta_line = 1
+        self.theta_line = np.float32(1)
+        self.unknowns = par["unknowns"]
+        self.num_dev = len(par["num_dev"])
+        self.dz = par["dz"]
+        self._fval_init = fval
+        self._prg = prg
+        self._queue = queue
+        self._coils = coil
+        self.model = model
+
+    @staticmethod
+    def factory(
+            prg,
+            queue,
+            par,
+            irgn_par,
+            init_fval,
+            coils,
+            linops,
+            model=None,
+            reg_type='',
+            SMS=False,
+            streamed=False):
+        """
+        Generate a PDSolver object.
+
+        Args
+        ----
+          par (dict): A python dict containing the necessary information to
+            setup the object. Needs to contain the number of slices (NSlice),
+            number of scans (NScan), image dimensions (dimX, dimY), number of
+            coils (NC), sampling points (N) and read outs (NProj)
+            a PyOpenCL queue (queue) and the complex coil
+            sensitivities (C).
+          irgn_par (dict): A python dict containing the regularization
+            parameters for a given gauss newton step.
+          queue (list): A list of PyOpenCL queues to perform the optimization.
+          tau (float): Estimate of the initial step size based on the
+            operator norm of the linear operator.
+          fval (float): Estimate of the initial cost function value to
+            scale the displayed values.
+          prg (PyOpenCL Program): A PyOpenCL Program containing the
+            kernels for optimization.
+          reg_type (string): String to choose between "TV" and "TGV"
+            optimization.
+          data_operator (PyQMRI Operator): The operator to traverse from
+            parameter to data space.
+          coils (PyOpenCL Buffer or empty List): optional coil buffer.
+          NScan (int): Number of Scan which should be used internally. Do not
+            need to be the same number as in par["NScan"]
+          trafo (bool): Switch between radial (1) and Cartesian (0) fft.
+          and slice accelerated (1) reconstruction.
+        """
+        if reg_type == '':
+            if not streamed:
+                if not SMS:
+                    pdop = PDALSoftSenseSolver(
+                        par,
+                        irgn_par,
+                        queue,
+                        np.float32(1 / np.sqrt(12)),
+                        init_fval,
+                        prg,
+                        linops,
+                        coils,
+                        model)
+        elif reg_type == 'TV':
+            if not streamed:
+                if not SMS:
+                    pdop = PDALSoftSenseSolverTV(
+                        par,
+                        irgn_par,
+                        queue,
+                        np.float32(1 / np.sqrt(8)),
+                        init_fval,
+                        prg,
+                        linops,
+                        coils,
+                        model)
+        elif reg_type == 'TGV':
+            if not streamed:
+                if not SMS:
+                    pdop = PDALSoftSenseSolverTGV(
+                        par,
+                        irgn_par,
+                        queue,
+                        np.float32(1 / np.sqrt(12)),
+                        init_fval,
+                        prg,
+                        linops,
+                        coils,
+                        model)
+        else:
+            raise NotImplementedError
+        return pdop
+
+    def __del__(self):
+        """
+        Destructor.
+
+        Releases GPU memory arrays.
+        """
+
+    def run(self, inp, data, iters):
+        """
+        Optimization with 3D T(G)V regularization.
+
+        Args
+        ----
+          inp (numpy.array):
+            Initial guess for the reconstruction
+          data (numpy.array):
+            The complex valued (undersampled) kspace data.
+          iters (int):
+            Number of primal-dual iterations to run
+        """
+        tau = self.tau
+        tau_new = np.float32(0)
+
+        theta_line = self.theta_line
+        beta_line = self.beta_line
+        beta_new = np.float32(0)
+        mu_line = np.float32(0.5)
+        delta_line = np.float32(1)
+        ynorm = np.float32(0)
+        lhs = np.float32(0.0)
+        sigma = self.sigma
+        lambd = self.lambd
+        primal = np.float32(0.0)
+        primal_new = np.float32(0)
+        dual = np.float32(0.0)
+        gap_init = np.float32(0.0)
+        gap_old = np.float32(0.0)
+        gap = np.float32(0.0)
+
+        (primal_vars,
+         primal_vars_new,
+         tmp_results_forward,
+         tmp_results_forward_new,
+         dual_vars,
+         dual_vars_new,
+         tmp_results_adjoint,
+         tmp_results_adjoint_new,
+         data) = self._setupVariables(inp, data)
+
+        self._updateInitial(
+            out_fwd=tmp_results_forward,
+            out_adj=tmp_results_adjoint,
+            in_primal=primal_vars,
+            in_dual=dual_vars
+            )
+
+        for i in range(iters):
+            self._updatePrimal(
+                out_primal=primal_vars_new,
+                out_fwd=tmp_results_forward_new,
+                in_primal=primal_vars,
+                in_dual=dual_vars,
+                in_precomp_adj=tmp_results_adjoint,
+                tau=tau
+                )
+
+            beta_new = beta_line * (1 + self.mu * tau)
+            # tau_new = tau * np.sqrt(beta_line / beta_new)
+            tau_new = tau * np.sqrt(beta_line / beta_new * (1 + theta_line))
+            beta_line = beta_new
+
+            while True:
+                theta_line = tau_new / tau
+                lhs, ynorm = self._updateDual(
+                    out_dual=dual_vars_new,
+                    out_adj=tmp_results_adjoint_new,
+                    in_primal=primal_vars,
+                    in_primal_new=primal_vars_new,
+                    in_dual=dual_vars,
+                    in_precomp_fwd=tmp_results_forward,
+                    in_precomp_fwd_new=tmp_results_forward_new,
+                    in_precomp_adj=tmp_results_adjoint,
+                    data=data,
+                    beta=beta_line,
+                    tau=tau_new,
+                    theta=theta_line
+                    )
+                if lhs <= ynorm * delta_line:
+                    break
+                else:
+                    tau_new = tau_new * mu_line
+
+            tau = tau_new
+
+            for j, k in zip(primal_vars_new,
+                            tmp_results_adjoint_new):
+                (primal_vars[j],
+                 primal_vars_new[j],
+                 tmp_results_adjoint[k],
+                 tmp_results_adjoint_new[k]) = (
+                    primal_vars_new[j],
+                    primal_vars[j],
+                    tmp_results_adjoint_new[k],
+                    tmp_results_adjoint[k],
+                )
+
+            for j, k in zip(dual_vars_new,
+                            tmp_results_forward_new):
+                (dual_vars[j],
+                 dual_vars_new[j],
+                 tmp_results_forward[k],
+                 tmp_results_forward_new[k]) = (
+                    dual_vars_new[j],
+                    dual_vars[j],
+                    tmp_results_forward_new[k],
+                    tmp_results_forward[k]
+                )
+
+            if not np.mod(i, 10):
+                if self.display_iterations:
+                    if type(primal_vars["x"]) is np.ndarray:
+                        self.model.plot_unknowns(
+                            np.swapaxes(primal_vars["x"], 0, 1))
+                    else:
+                        self.model.plot_unknowns(primal_vars["x"].get())
+                primal_new, dual, gap = self._calcResidual(
+                    in_primal=primal_vars,
+                    in_dual=dual_vars,
+                    in_precomp_fwd=tmp_results_forward,
+                    data=data)
+                print("Iteration: %i" %i)
+                print("Primal: %f" %primal_new)
+                # print("Dual: %f" %dual)
+                print("Gap: %f" %gap)
+                if i == 0:
+                    gap_init = gap
+                if np.abs(primal - primal_new)/self._fval_init <\
+                   self.tol:
+                    print("Terminated at iteration %d because the energy "
+                          "decrease in the primal problem was less than %.3e" %
+                          (i,
+                           np.abs(primal - primal_new)/self._fval_init))
+                    return primal_vars_new
+                # if gap > gap_old * self.stag and i > 1:
+                #     print("Terminated at iteration %d "
+                #           "because the method stagnated" % (i))
+                #     return primal_vars_new
+                if np.abs((gap - gap_old) / gap_init) < self.tol:
+                    print("Terminated at iteration %d because the "
+                          "relative energy decrease of the PD gap was "
+                          "less than %.3e"
+                          % (i, np.abs((gap - gap_old) / gap_init)))
+                    return primal_vars_new
+                primal = primal_new
+                gap_old = gap
+                sys.stdout.write(
+                    "Iteration: %04d ---- Primal: %2.2e, "
+                    "Dual: %2.2e, Gap: %2.2e, Beta: %2.2e \r" %
+                    (i, 1000*primal / self._fval_init,
+                     1000*dual / self._fval_init,
+                     1000*gap / self._fval_init,
+                     beta_line))
+                sys.stdout.flush()
+
+        return primal_vars
+
+    def _updateInitial(self, outp, inp):
+        pass
+
+    def _updatePrimal(self, outp, inp, par):
+        pass
+
+    def _updateDual(self, outp, inp, par):
+        pass
+
+    def _updateDualLine(self, outp, inp, par):
+        pass
+
+    def _calcResidual(
+                    in_primal,
+                    in_dual,
+                    in_precomp_fwd,
+                    data):
+        pass
+
+    def _setupVariables(inps, data):
+        pass
+
+    def update_x(self, outp, inp, par=None, idx=0, idxq=0,
+                 bound_cond=0, wait_for=[]):
+        """
+        Primal update of the x variable in Primal-Dual Algorithm.
+
+        Args
+        ----
+          xn1 (PyOpenCL.Array): The result of the update step
+          xn (PyOpenCL.Array): The previous values of x
+          Kay (PyOpenCL.Array): x-Part of the precomputed result of
+            the adjoint linear operator applied to y
+          tau (float): Primal step size
+          theta (float): Variable controling the extrapolation step of the
+            PD-algorithm
+          wait_for (list): A optional list for PyOpenCL.events to wait for
+        """
+        return self._prg[idx].update_x(
+            self._queue[4 * idx + idxq], (outp.size,), None,
+            outp.data,
+            inp[0].data,
+            inp[1].data,
+            np.float32(par[0]),
+            np.float32(par[1]),
+            wait_for=outp.events + inp[0].events + inp[1].events + wait_for)
+
+    def update_x_tgv(self, outp, inp, par=None, idx=0, idxq=0,
+                 bound_cond=0, wait_for=[]):
+        """
+        Primal update of the v variable in Primal-Dual Algorithm.
+
+        Args
+        ----
+          xn1 (PyOpenCL.Array): The result of the update step
+          xn (PyOpenCL.Array): The previous values of x
+          Kay (PyOpenCL.Array): x-Part of the precomputed result of
+            the adjoint linear operator applied to y
+          divz (PyOpenCL.Array): x-Part of the precomputed result of
+            the divergence operator applied to z
+          tau (float): Primal step size
+          theta (float): Variable controling the extrapolation step of the
+            PD-algorithm
+          wait_for (list): A optional list for PyOpenCL.events to wait for
+        """
+        return self._prg[idx].update_x_tgv(
+            self._queue[4 * idx + idxq], (outp.size,), None,
+            outp.data,
+            inp[0].data,
+            inp[1].data,
+            inp[2].data,
+            np.float32(par[0]),         # tau
+            np.float32(par[1]),         # theta
+            wait_for=outp.events + inp[0].events +
+                     inp[1].events + inp[2].events + wait_for)
+
+    def update_y(self, outp, inp, par=None, idx=0, idxq=0,
+                 bound_cond=0, wait_for=[]):
+        """
+        Update the data dual variable y according to line search derivation.
+
+        Args
+        ----
+          r_new (PyOpenCL.Array): New value of the data dual variable
+          r (PyOpenCL.Array): Old value of the data dual variable
+          A (PyOpenCL.Array): Precomputed Linear Operator applied to the new x
+          A_ (PyOpenCL.Array):Precomputed Linear Operator applied to the old x
+          res (PyOpenCL.Array): Precomputed data to compare to
+          sigma (float): Dual step size
+          theta (float): Variable controling the extrapolation step of the
+            PD-algorithm
+          lambd (float): Regularization parameter in front of the data fidelity
+            term
+          wait_for (list): A optional list for PyOpenCL.events to wait for
+        """
+        return self._prg[idx].update_r(
+            self._queue[4*idx+idxq], (outp.size,), None,
+            outp.data, inp[0].data,
+            inp[1].data, inp[2].data, inp[3].data,
+            np.float32(par[0]), np.float32(par[1]),
+            np.float32(1/(1+par[0]/par[2])),
+            wait_for=(outp.events+inp[0].events +
+                      inp[1].events+inp[2].events+wait_for))
+
+    def update_z_tv(self, outp, inp, par=None, idx=0, idxq=0,
+                     bound_cond=0, wait_for=[]):
+        """
+        Dual update of the z variable in Primal-Dual Algorithm for TV including line search.
+
+        Args
+        ----
+          z_new (PyOpenCL.Array): The result of the update step
+          z (PyOpenCL.Array): The previous values of z
+          gx (PyOpenCL.Array): Linear Operator applied to the new x
+          gx_ (PyOpenCL.Array): Linear Operator applied to the previous x
+          sigma (float): Dual step size
+          theta (float): Variable controling the extrapolation step of the
+            PD-algorithm
+          alpha (float): Regularization parameter of the first TGV functional
+          wait_for (list): A optional list for PyOpenCL.events to wait for
+        """
+        return self._prg[idx].update_z_tv_line(
+            self._queue[4*idx+idxq],
+            np.shape(inp[0])[1:-1], None,
+            outp.data, inp[0].data, inp[1].data, inp[2].data,
+            np.float32(par[0]),
+            np.float32(par[1]),
+            np.int32(self.unknowns),
+            wait_for=(outp.events+inp[0].events +
+                      inp[1].events+inp[2].events+wait_for))
+
+    def update_z1_tgv(self, outp, inp, par=None, idx=0, idxq=0,
+                      bound_cond=0, wait_for=[]):
+        """
+        Dual update of the z1 variable in Primal-Dual Algorithm for TGV.
+
+        Args
+        ----
+          zn1 (PyOpenCL.Array): The result of the update step
+          zn (PyOpenCL.Array): The previous values of z1
+          gx (PyOpenCL.Array): Linear gradient operator applied to x
+          v (PyOpenCL.Array): Primal variable v
+          sigma (float): Dual step size
+          alphainv (float): Inverse regularization parameter of the first
+            TGV functional
+          wait_for (list): A optional list for PyOpenCL.events to wait for
+        """
+        return self._prg[idx].update_z1_tgv_line(
+            self._queue[4*idx+idxq],
+            np.shape(inp[0]), None,
+            outp.data,
+            inp[0].data,
+            inp[1].data,
+            inp[2].data,
+            inp[3].data,
+            inp[4].data,
+            np.float32(par[0]),
+            np.float32(par[1]),
+            np.float32(1 / par[2]),
+            np.int32(self.unknowns),
+            wait_for=(outp.events+inp[0].events+inp[1].events+inp[2].events+inp[3].events+inp[4].events+wait_for))
+
+    def update_z2_tgv(self, outp, inp, par=None, idx=0, idxq=0,
+                      bound_cond=0, wait_for=[]):
+        """
+        Dual update of the z2 variable in Primal-Dual Algorithm for TGV.
+
+        Args
+        ----
+          zn1 (PyOpenCL.Array): The result of the update step
+          zn (PyOpenCL.Array): The previous values of z2
+          gx (PyOpenCL.Array): Linear gradient operator applied to x
+          symgv (PyOpenCL.Array): Linear symmetrized gradient operator
+            applied to v
+          sigma (float): Dual step size
+          alphainv (float): Inverse regularization parameter of the second
+            TGV functional
+          wait_for (list): A optional list for PyOpenCL.events to wait for
+        """
+        return self._prg[idx].update_z2_tgv_line(
+            self._queue[4*idx+idxq],
+            np.shape(inp[0]), None,
+            outp.data,
+            inp[0].data,
+            inp[1].data,
+            inp[2].data,
+            np.float32(par[0]),
+            np.float32(par[1]),
+            np.float32(1 / par[1]),
+            np.int32(self.unknowns),
+            wait_for=(outp.events+inp[0].events+inp[1].events+inp[2].events+wait_for))
+
+    def update_v(self, outp, inp, par=None, idx=0, idxq=0,
+                 bound_cond=0, wait_for=[]):
+        """
+        Primal update of the v variable in Primal-Dual Algorithm.
+
+        Args
+        ----
+          vn1 (PyOpenCL.Array): The result of the update step
+          vn (PyOpenCL.Array): The previous values of v
+          z1 (PyOpenCL.Array): Dual variable z1
+          ez2 (PyOpenCL.Array): Linear adjoint symmetrized gradient operator
+            applied to z2
+          tau (float): Primal step size
+          theta (float): Variable controling the extrapolation step of the
+            PD-algorithm
+          wait_for (list): A optional list for PyOpenCL.events to wait for
+        """
+        return self._prg[idx].update_v_tgv(
+            self._queue[4*idx+idxq], (outp[..., 0].size,), None,
+            outp.data, inp[0].data, inp[1].data, inp[2].data,
+            np.float32(par[0]), np.float32(par[1]),
+            wait_for=outp.events+inp[0].events+inp[1].events+inp[2].events+wait_for)
+
+
+class PDALSoftSenseSolver(PDALSoftSenseBaseSolver):
+    """
+    PD Algorithm for Soft Sense reconstruction without regularization
+    """
+    def __init__(self, par, irgn_par, queue, tau, fval, prg,
+                 linop, coils, model):
+
+        super().__init__(
+            par,
+            irgn_par,
+            queue,
+            tau,
+            fval,
+            prg,
+            coils,
+            model)
+        self._op = linop[0]
+
+    def _setupVariables(self, inp, data):
+        data = clarray.to_device(self._queue[0], data.astype(DTYPE))
+
+        primal_vars = {}
+        primal_vars_new = {}
+        tmp_results_adjoint = {}
+        tmp_results_adjoint_new = {}
+
+        primal_vars["x"] = clarray.to_device(self._queue[0], inp)
+        primal_vars_new["x"] = clarray.empty_like(primal_vars["x"])
+
+        tmp_results_adjoint["Kay"] = clarray.empty_like(primal_vars["x"])
+        tmp_results_adjoint_new["Kay"] = clarray.empty_like(primal_vars["x"])
+
+        dual_vars = {}
+        dual_vars_new = {}
+        tmp_results_forward = {}
+        tmp_results_forward_new = {}
+
+        dual_vars["y"] = clarray.zeros(
+            self._queue[0],
+            data.shape,
+            dtype=DTYPE
+        )
+        dual_vars_new["y"] = clarray.zeros_like(dual_vars["y"])
+
+        tmp_results_forward["Kx"] = clarray.empty_like(data)
+        tmp_results_forward_new["Kx"] = clarray.empty_like(data)
+
+        return (primal_vars,
+                primal_vars_new,
+                tmp_results_forward,
+                tmp_results_forward_new,
+                dual_vars,
+                dual_vars_new,
+                tmp_results_adjoint,
+                tmp_results_adjoint_new,
+                data)
+
+    def _updateInitial(self,
+                       out_fwd, out_adj,
+                       in_primal, in_dual):
+        out_adj["Kay"].add_event(self._op.adj(
+                out_adj["Kay"], [in_dual["y"], self._coils]))
+
+        out_fwd["Kx"].add_event(self._op.fwd(
+                out_fwd["Kx"], [in_primal["x"], self._coils]))
+
+    def _updatePrimal(self,
+                      out_primal,
+                      out_fwd,
+                      in_primal,
+                      in_dual,
+                      in_precomp_adj,
+                      tau):
+        out_primal["x"].add_event(self.update_x(
+            outp=out_primal["x"],
+            inp=(in_primal["x"], in_precomp_adj["Kay"]),
+            par=(tau, 1)))  # 2nd parameter is theta, set to 1
+
+        out_fwd["Kx"].add_event(self._op.fwd(
+            out_fwd["Kx"], [out_primal["x"], self._coils]))
+
+    def _updateDual(self,
+                    out_dual,
+                    out_adj,
+                    in_primal,
+                    in_primal_new,
+                    in_dual,
+                    in_precomp_fwd,
+                    in_precomp_fwd_new,
+                    in_precomp_adj,
+                    data,
+                    beta,
+                    tau,
+                    theta):
+        out_dual["y"].add_event(
+            self.update_y(
+                outp=out_dual["y"],
+                inp=(
+                    in_dual["y"],
+                    in_precomp_fwd_new["Kx"],
+                    in_precomp_fwd["Kx"],
+                    data),
+                par=(beta*tau, theta, self.lambd)))
+
+        out_adj["Kay"].add_event(
+            self._op.adj(
+                out_adj["Kay"],
+                [out_dual["y"],
+                 self._coils],
+               ))
+
+        ynorm = (
+            (
+                clarray.vdot(
+                    out_dual["y"] - in_dual["y"],
+                    out_dual["y"] - in_dual["y"]
+                    )
+            ) ** (1 / 2)).real
+        lhs = np.sqrt(beta) * tau * (
+                (
+                    clarray.vdot(
+                        out_adj["Kay"] - in_precomp_adj["Kay"],
+                        out_adj["Kay"] - in_precomp_adj["Kay"]
+                    )
+                ) ** (1 / 2)).real
+        return lhs.get(), ynorm.get()
+
+    def _calcResidual(self,
+                    in_primal,
+                    in_dual,
+                    in_precomp_fwd,
+                    data):
+
+        primal = (
+            clarray.vdot(
+                (in_precomp_fwd["Kx"] - data),
+                (in_precomp_fwd["Kx"] - data)
+            )
+        ).real
+
+        dual = (
+            clarray.vdot(
+                in_dual["y"],
+                in_dual["y"]
+            )
+        ).real
+
+        gap = np.abs(primal - dual)
+        return primal.get(), dual.get(), gap.get()
+
+
+class PDALSoftSenseSolverTV(PDALSoftSenseBaseSolver):
+    """
+    PD Algorithm for Soft Sense reconstruction with TV regularization
+    """
+    def __init__(self, par, irgn_par, queue, tau, fval, prg,
+                 linop, coils, model):
+
+        super().__init__(
+            par,
+            irgn_par,
+            queue,
+            tau,
+            fval,
+            prg,
+            coils,
+            model)
+        self._op = linop[0]
+        self._grad_op = linop[1]
+
+    def _setupVariables(self, inp, data):
+        data = clarray.to_device(self._queue[0], data.astype(DTYPE))
+
+        primal_vars = {}
+        primal_vars_new = {}
+        tmp_results_adjoint = {}
+        tmp_results_adjoint_new = {}
+
+        primal_vars["x"] = clarray.to_device(self._queue[0], inp)
+        primal_vars_new["x"] = clarray.empty_like(primal_vars["x"])
+
+        tmp_results_adjoint["Kay"] = clarray.empty_like(primal_vars["x"])
+        tmp_results_adjoint["divz"] = clarray.empty_like(primal_vars["x"])
+        tmp_results_adjoint_new["Kay"] = clarray.empty_like(primal_vars["x"])
+        tmp_results_adjoint_new["divz"] = clarray.empty_like(primal_vars["x"])
+
+        dual_vars = {}
+        dual_vars_new = {}
+        tmp_results_forward = {}
+        tmp_results_forward_new = {}
+
+        dual_vars["y"] = clarray.zeros(
+            self._queue[0],
+            data.shape,
+            dtype=DTYPE
+        )
+        dual_vars["z"] = clarray.zeros(self._queue[0],
+                                       primal_vars["x"].shape+(4,),
+                                       dtype=DTYPE)
+
+        dual_vars_new["y"] = clarray.zeros_like(dual_vars["y"])
+        dual_vars_new["z"] = clarray.zeros_like(dual_vars["z"])
+
+        tmp_results_forward["Kx"] = clarray.empty_like(data)
+        tmp_results_forward["gradx"] = clarray.empty_like(dual_vars["z"])
+        tmp_results_forward_new["Kx"] = clarray.empty_like(data)
+        tmp_results_forward_new["gradx"] = clarray.empty_like(dual_vars["z"])
+
+        return (primal_vars,
+                primal_vars_new,
+                tmp_results_forward,
+                tmp_results_forward_new,
+                dual_vars,
+                dual_vars_new,
+                tmp_results_adjoint,
+                tmp_results_adjoint_new,
+                data)
+
+    def _updateInitial(self,
+                       out_fwd, out_adj,
+                       in_primal, in_dual):
+        out_adj["Kay"].add_event(self._op.adj(
+                out_adj["Kay"], [in_dual["y"], self._coils]))
+
+        out_fwd["Kx"].add_event(self._op.fwd(
+                out_fwd["Kx"], [in_primal["x"], self._coils]))
+
+        out_fwd["gradx"].add_event(self._grad_op.fwd(
+            out_fwd["gradx"], in_primal["x"]))
+
+    def _updatePrimal(self,
+                      out_primal,
+                      out_fwd,
+                      in_primal,
+                      in_dual,
+                      in_precomp_adj,
+                      tau):
+        out_primal["x"].add_event(self.update_x_tgv(
+            outp=out_primal["x"],
+            inp=(in_primal["x"], in_precomp_adj["Kay"], in_precomp_adj["divz"]),
+            par=(tau, 1)))
+
+        out_fwd["Kx"].add_event(self._op.fwd(
+            out_fwd["Kx"], [out_primal["x"], self._coils]))
+
+        out_fwd["gradx"].add_event(self._grad_op.fwd(
+            out_fwd["gradx"], out_primal["x"]))
+
+    def _updateDual(self,
+                    out_dual,
+                    out_adj,
+                    in_primal,
+                    in_primal_new,
+                    in_dual,
+                    in_precomp_fwd,
+                    in_precomp_fwd_new,
+                    in_precomp_adj,
+                    data,
+                    beta,
+                    tau,
+                    theta):
+        out_dual["y"].add_event(
+            self.update_y(
+                outp=out_dual["y"],
+                inp=(
+                    in_dual["y"],
+                    in_precomp_fwd_new["Kx"],
+                    in_precomp_fwd["Kx"],
+                    data),
+                par=(beta*tau, theta, self.lambd)))
+
+        out_adj["Kay"].add_event(
+            self._op.adj(
+                out_adj["Kay"],
+                [out_dual["y"],
+                 self._coils],))
+
+        out_dual["z"].add_event(
+            self.update_z_tv(
+                outp=out_dual["z"],
+                inp=(in_dual["z"], in_precomp_fwd_new["gradx"], in_precomp_fwd["gradx"]),
+                par=(beta*tau, theta, self.lambd)))
+
+        out_adj["divz"].add_event(
+            self._grad_op.adj(
+                out_adj["divz"],
+                out_dual["z"]))
+
+        ynorm = (
+            (
+                clarray.vdot(
+                    out_dual["y"] - in_dual["y"],
+                    out_dual["y"] - in_dual["y"]
+                    )
+                + clarray.vdot(
+                    out_dual["z"] - in_dual["z"],
+                    out_dual["z"] - in_dual["z"]
+                    )
+            ) ** (1 / 2)).real
+        lhs = np.sqrt(beta) * tau * (
+                (
+                    clarray.vdot(
+                        (out_adj["Kay"] - out_adj["divz"]) - (in_precomp_adj["Kay"] - in_precomp_adj["divz"]),
+                        (out_adj["Kay"] - out_adj["divz"]) - (in_precomp_adj["Kay"] - in_precomp_adj["divz"])
+                    )
+                ) ** (1 / 2)).real
+        return lhs.get(), ynorm.get()
+
+    def _calcResidual(self,
+                    in_primal,
+                    in_dual,
+                    in_precomp_fwd,
+                    data):
+
+        primal = (
+            self.lambd / 2 * clarray.vdot(
+                in_precomp_fwd["Kx"] - data,
+                in_precomp_fwd["Kx"] - data)
+            + clarray.sum(
+                abs(in_precomp_fwd["gradx"])
+                )
+        ).real
+
+        dual = (
+            1 / (2 * self.lambd) * clarray.vdot(
+                in_dual["y"],
+                in_dual["y"]
+            )
+        ).real
+
+        gap = np.abs(primal - dual)
+        return primal.get(), dual.get(), gap.get()
+
+
+class PDALSoftSenseSolverTGV(PDALSoftSenseBaseSolver):
+    """
+    PD Algorithm for Soft Sense reconstruction with TGV regularization
+    """
+
+    def __init__(self, par, irgn_par, queue, tau, fval, prg,
+                 linop, coils, model):
+
+        super().__init__(
+            par,
+            irgn_par,
+            queue,
+            tau,
+            fval,
+            prg,
+            coils,
+            model)
+        self.alpha_0 = irgn_par["alpha0"]
+        self.alpha_1 = irgn_par["alpha1"]
+        self._op = linop[0]
+        self._grad_op = linop[1]
+        self._symgrad_op = linop[2]
+
+    def _setupVariables(self, inp, data):
+        data = clarray.to_device(self._queue[0], data.astype(DTYPE))
+
+        primal_vars = {}
+        primal_vars_new = {}
+        tmp_results_adjoint = {}
+        tmp_results_adjoint_new = {}
+
+        primal_vars["x"] = clarray.to_device(self._queue[0], inp)
+        primal_vars["v"] = clarray.zeros(self._queue[0],
+                                         primal_vars["x"].shape+(4,),
+                                         dtype=DTYPE)
+        primal_vars_new["x"] = clarray.empty_like(primal_vars["x"])
+        primal_vars_new["v"] = clarray.empty_like(primal_vars["v"])
+
+        tmp_results_adjoint["Kay"] = clarray.empty_like(primal_vars["x"])
+        tmp_results_adjoint["divz1"] = clarray.empty_like(primal_vars["x"])
+        tmp_results_adjoint["asymgradz2"] = clarray.empty_like(primal_vars["v"])
+        tmp_results_adjoint_new["Kay"] = clarray.empty_like(primal_vars["x"])
+        tmp_results_adjoint_new["divz1"] = clarray.empty_like(primal_vars["x"])
+        tmp_results_adjoint_new["asymgradz2"] = clarray.empty_like(primal_vars["v"])
+
+        dual_vars = {}
+        dual_vars_new = {}
+        tmp_results_forward = {}
+        tmp_results_forward_new = {}
+
+        dual_vars["y"] = clarray.zeros(
+            self._queue[0],
+            data.shape,
+            dtype=DTYPE
+        )
+        dual_vars["z1"] = clarray.zeros(self._queue[0],
+                                        primal_vars["x"].shape+(4,),
+                                        dtype=DTYPE)
+
+        dual_vars["z2"] = clarray.zeros(self._queue[0],
+                                        primal_vars["x"].shape+(8,),
+                                        dtype=DTYPE)
+
+        dual_vars_new["y"] = clarray.empty_like(dual_vars["y"])
+        dual_vars_new["z1"] = clarray.empty_like(dual_vars["z1"])
+        dual_vars_new["z2"] = clarray.empty_like(dual_vars["z2"])
+
+        tmp_results_forward["Kx"] = clarray.empty_like(data)
+        tmp_results_forward["gradx"] = clarray.empty_like(dual_vars["z1"])
+        tmp_results_forward["symgradv"] = clarray.empty_like(dual_vars["z2"])
+        tmp_results_forward_new["Kx"] = clarray.empty_like(data)
+        tmp_results_forward_new["gradx"] = clarray.empty_like(dual_vars["z1"])
+        tmp_results_forward_new["symgradv"] = clarray.empty_like(dual_vars["z2"])
+
+        return (primal_vars,
+                primal_vars_new,
+                tmp_results_forward,
+                tmp_results_forward_new,
+                dual_vars,
+                dual_vars_new,
+                tmp_results_adjoint,
+                tmp_results_adjoint_new,
+                data)
+
+    def _updateInitial(self,
+                       out_fwd, out_adj,
+                       in_primal, in_dual):
+        out_adj["Kay"].add_event(self._op.adj(
+                out_adj["Kay"], [in_dual["y"], self._coils]))
+
+        out_fwd["Kx"].add_event(self._op.fwd(
+                out_fwd["Kx"], [in_primal["x"], self._coils]))
+
+        out_fwd["gradx"].add_event(self._grad_op.fwd(
+            out_fwd["gradx"], in_primal["x"]))
+
+        out_fwd["symgradv"].add_event(self._symgrad_op.fwd(
+            out_fwd["symgradv"], in_primal["v"]
+        ))
+
+    def _updatePrimal(self,
+                      out_primal,
+                      out_fwd,
+                      in_primal,
+                      in_dual,
+                      in_precomp_adj,
+                      tau):
+        out_primal["x"].add_event(self.update_x_tgv(
+            outp=out_primal["x"],
+            inp=(
+                in_primal["x"],
+                in_precomp_adj["Kay"],
+                in_precomp_adj["divz1"]),
+            par=(tau, 1)))
+
+        out_fwd["Kx"].add_event(self._op.fwd(
+            out_fwd["Kx"], [out_primal["x"], self._coils]))
+
+        out_fwd["gradx"].add_event(self._grad_op.fwd(
+            out_fwd["gradx"], out_primal["x"]))
+
+        out_primal["v"].add_event(self.update_v(
+            outp=out_primal["v"],
+            inp=(
+                in_primal["v"],
+                in_dual["z1"],
+                in_precomp_adj["asymgradz2"]),
+            par=(tau, 1)))
+
+        out_fwd["symgradv"].add_event(self._symgrad_op.fwd(
+            out_fwd["symgradv"], out_primal["v"]))
+
+    def _updateDual(self,
+                    out_dual,
+                    out_adj,
+                    in_primal,
+                    in_primal_new,
+                    in_dual,
+                    in_precomp_fwd,
+                    in_precomp_fwd_new,
+                    in_precomp_adj,
+                    data,
+                    beta,
+                    tau,
+                    theta):
+
+        out_dual["y"].add_event(
+            self.update_y(
+                outp=out_dual["y"],
+                inp=(
+                    in_dual["y"],
+                    in_precomp_fwd_new["Kx"],
+                    in_precomp_fwd["Kx"],
+                    data),
+                par=(beta*tau, theta, self.lambd)))
+
+        out_adj["Kay"].add_event(
+            self._op.adj(
+                out_adj["Kay"],
+                [out_dual["y"],
+                 self._coils],))
+
+        out_dual["z1"].add_event(
+            self.update_z1_tgv(
+                outp=out_dual["z1"],
+                inp=(
+                    in_dual["z1"],
+                    in_precomp_fwd_new["gradx"],
+                    in_precomp_fwd["gradx"],
+                    in_primal_new["v"],
+                    in_primal["v"]),
+                par=(beta*tau, theta, self.alpha_1)))
+
+        out_adj["divz1"].add_event(
+            self._grad_op.adj(
+                out_adj["divz1"],
+                out_dual["z1"]))
+
+        out_dual["z2"].add_event(
+            self.update_z2_tgv(
+                outp=out_dual["z2"],
+                inp=(
+                    in_dual["z2"],
+                    in_precomp_fwd_new["symgradv"],
+                    in_precomp_fwd["symgradv"]),
+                par=(beta*tau, theta, self.alpha_0)))
+
+        out_adj["asymgradz2"].add_event(
+            self._symgrad_op.adj(
+                out_adj["asymgradz2"],
+                out_dual["z2"]))
+
+        ynorm = (
+            (
+                clarray.vdot(
+                    out_dual["y"] - in_dual["y"],
+                    out_dual["y"] - in_dual["y"]
+                    )
+                + clarray.vdot(
+                    out_dual["z1"] - in_dual["z1"],
+                    out_dual["z1"] - in_dual["z1"]
+                    )
+                + clarray.vdot(
+                    out_dual["z2"] - in_dual["z2"],
+                    out_dual["z2"] - in_dual["z2"]
+                    )
+            )**(1 / 2)).real
+        lhs = np.sqrt(beta) * tau * (
+            (
+                clarray.vdot(
+                    (out_adj["Kay"] - out_adj["divz1"]) - (in_precomp_adj["Kay"] - in_precomp_adj["divz1"]),
+                    (out_adj["Kay"] - out_adj["divz1"]) - (in_precomp_adj["Kay"] - in_precomp_adj["divz1"])
+                    )
+                + clarray.vdot(
+                    (out_adj["asymgradz2"] - out_dual["z1"]) - (in_precomp_adj["asymgradz2"] - in_dual["z1"]),
+                    (out_adj["asymgradz2"] - out_dual["z1"]) - (in_precomp_adj["asymgradz2"] - in_dual["z1"])
+                    )
+            )**(1 / 2)).real
+        return lhs.get(), ynorm.get()
+
+    def _calcResidual(
+            self,
+            in_primal,
+            in_dual,
+            in_precomp_fwd,
+            data):
+
+        primal = (
+            self.lambd / 2 * clarray.vdot(
+                in_precomp_fwd["Kx"] - data,
+                in_precomp_fwd["Kx"] - data)
+            + self.alpha_1 * clarray.sum(
+                abs(in_precomp_fwd["gradx"] - in_primal["v"])
+                )
+            + self.alpha_0 * clarray.sum(
+                abs(in_precomp_fwd["symgradv"])
+                )
+        ).real
+
+        dual = (
+            1 / (2 * self.lambd) * clarray.vdot(
+                in_dual["y"],
+                in_dual["y"]
+            )
+        ).real
+
+        gap = np.abs(primal - dual)
+        return primal.get(), dual.get(), gap.get()

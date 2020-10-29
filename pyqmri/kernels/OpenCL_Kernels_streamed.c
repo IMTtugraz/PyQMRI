@@ -1,3 +1,254 @@
+/*__kernel void update_x(global float2 *xn1, __global float2 *xn, __global float2 *Kyn1, const float tau,
+                        const float Nmaps)
+{
+    size_t i = get_global_id(1);
+    size_t m = get_global_id(0);
+
+    size_t I = get_global_size(1);
+
+    xn1[m*I + i] = xn[m*I + i] - tau * Kyn1[m*I + i];
+}*/
+
+__kernel void update_x(global float2 *xn1, __global float2 *xn, __global float2 *Kay, const float tau,
+                        const float theta)
+{
+    size_t i = get_global_id(0);
+    xn1[i] = xn[i] - tau * (1 + theta) * Kay[i];
+}
+
+/*__kernel void update_x_tgv(global float2 *xn1, __global float2 *xn, __global float2 *Kyn1,
+                          __global float2 *divz, const float tau, const float theta)
+{
+    size_t i = get_global_id(1);
+    size_t m = get_global_id(0);
+
+    size_t I = get_global_size(1);
+
+    xn1[m*I + i] = xn[m*I + i] - tau * (1 + theta) * (Kyn1[m*I + i] - divz[m*I + i]);
+}*/
+
+__kernel void update_x_tgv(global float2 *xn1, __global float2 *xn, __global float2 *Kay,
+                             __global float2 *divz, const float tau, const float theta)
+{
+    size_t i = get_global_id(0);
+    xn1[i] = xn[i] - tau * (1 + theta) * (Kay[i] - divz[i]);
+}
+
+__kernel void update_y(global float2 *yn1, __global float2 *yn, __global float2 *Kx, __global float2 *dx,
+                        const float sigma, const float lambdainv)
+{
+    size_t i = get_global_id(0);
+    float prox = 1.0 / (1.0 + sigma * lambdainv);
+    yn1[i] = prox * (yn[i] + sigma * (Kx[i] - dx[i]));
+}
+
+__kernel void update_z_tv(__global float8 *zn1, __global float8 *zn, __global float8 *gx,
+                          const float sigma, const float NUk)
+{
+  size_t Nx = get_global_size(2), Ny = get_global_size(1);
+  size_t NSl = get_global_size(0);
+  size_t x = get_global_id(2), y = get_global_id(1);
+  size_t k = get_global_id(0);
+  size_t i = k*Nx*Ny+Nx*y + x;
+
+  float abs_val = 0.0f;
+
+  for (int uk=0; uk<NUk; uk++)
+  {
+     zn1[i] = zn[i] + sigma * gx[i];
+
+     abs_val = hypot(abs_val,hypot(hypot(zn1[i].s0,zn1[i].s1), hypot(hypot(zn1[i].s2,zn1[i].s3),hypot(zn1[i].s4,zn1[i].s5))));
+
+     if (abs_val > 1.0f) zn1[i] /=abs_val;
+
+     i += NSl*Nx*Ny;
+  }
+}
+
+__kernel void update_z_tv_line(__global float8 *zn1, __global float8 *zn, __global float8 *gx,
+                               __global float8 *gx_, const float sigma, const float theta, const float NUk)
+{
+  size_t Nx = get_global_size(2), Ny = get_global_size(1);
+  size_t NSl = get_global_size(0);
+  size_t x = get_global_id(2), y = get_global_id(1);
+  size_t k = get_global_id(0);
+  size_t i = k*Nx*Ny+Nx*y + x;
+
+  float abs_val = 0.0f;
+
+  for (int uk=0; uk<NUk; uk++)
+  {
+     zn1[i] = zn[i] + sigma * (gx[i] * (1 + theta) - theta * gx_[i]);
+
+     abs_val = hypot(abs_val,hypot(hypot(zn1[i].s0,zn1[i].s1), hypot(hypot(zn1[i].s2,zn1[i].s3),hypot(zn1[i].s4,zn1[i].s5))));
+
+     if (abs_val > 1.0f) zn1[i] /=abs_val;
+
+     i += NSl*Nx*Ny;
+  }
+}
+
+__kernel void update_v_tgv(global float2 *vn1, __global float2 *vn, __global float2 *z1,
+                             __global float2 *ez2, const float tau, const float theta)
+{
+    size_t i = get_global_id(0);
+    vn1[i] = vn[i] - tau * (1 + theta) * (ez2[i] - z1[i]);
+}
+
+__kernel void update_z1_tgv(__global float8 *zn1, __global float8 *zn, __global float8 *gx, __global float8 *v,
+                          const float sigma, const float alphainv, const float NUk)
+{
+  size_t Nx = get_global_size(2), Ny = get_global_size(1);
+  size_t NSl = get_global_size(0);
+  size_t x = get_global_id(2), y = get_global_id(1);
+  size_t k = get_global_id(0);
+  size_t i = k*Nx*Ny+Nx*y + x;
+
+  float fac = 0.0f;
+
+  for (int uk=0; uk<NUk; uk++)
+  {
+     zn1[i] = zn[i] + sigma * (gx[i] - v[i]);
+
+     fac = alphainv * hypot(fac,hypot(hypot(zn1[i].s0,zn1[i].s1), hypot(hypot(zn1[i].s2,zn1[i].s3),hypot(zn1[i].s4,zn1[i].s5))));
+
+     if (fac > 1.0f) zn1[i] /= fac;
+
+     i += NSl*Nx*Ny;
+  }
+}
+
+__kernel void update_z2_tgv(__global float16 *zn1, __global float16 *zn, __global float16 *symgv,
+                          const float sigma, const float alphainv, const int NUk) {
+  size_t Nx = get_global_size(2), Ny = get_global_size(1);
+  size_t NSl = get_global_size(0);
+  size_t x = get_global_id(2), y = get_global_id(1);
+  size_t k = get_global_id(0);
+  size_t i = k*Nx*Ny+Nx*y + x;
+
+  float fac = 0.0f;
+
+  for (int uk=0; uk<NUk; uk++)
+  {
+     zn1[i] = zn[i] + sigma * symgv[i];
+
+     fac = alphainv * hypot(fac,hypot(
+     hypot(hypot(hypot(zn1[i].s0,zn1[i].s1), hypot(zn1[i].s2,zn1[i].s3)),hypot(zn1[i].s4,zn1[i].s5)),
+     hypot(hypot(2.0f*hypot(zn1[i].s6,zn1[i].s7),2.0f*hypot(zn1[i].s8,zn1[i].s9)),2.0f*hypot(zn1[i].sa,zn1[i].sb))));
+
+     if (fac > 1.0f) zn1[i] /=fac;
+
+     i += NSl*Nx*Ny;
+   }
+}
+
+__kernel void update_z1_tgv_line(__global float8 *zn1, __global float8 *zn, __global float8 *gx, __global float8 *gx_,
+                                 __global float8 *v, __global float8 *v_, const float sigma, const float theta,
+                                 const float alphainv, const float NUk)
+{
+  size_t Nx = get_global_size(2), Ny = get_global_size(1);
+  size_t NSl = get_global_size(0);
+  size_t x = get_global_id(2), y = get_global_id(1);
+  size_t k = get_global_id(0);
+  size_t i = k*Nx*Ny+Nx*y + x;
+
+  float fac = 0.0f;
+
+  for (int uk=0; uk<NUk; uk++)
+  {
+     zn1[i] = zn[i] + sigma * ((1 + theta) * gx[i] - theta * gx_[i] - (1 + theta) * v[i] + theta * v_[i]);
+
+     fac = alphainv * hypot(fac,hypot(hypot(zn1[i].s0,zn1[i].s1), hypot(hypot(zn1[i].s2,zn1[i].s3),hypot(zn1[i].s4,zn1[i].s5))));
+
+     if (fac > 1.0f) zn1[i] /= fac;
+
+     i += NSl*Nx*Ny;
+  }
+}
+
+__kernel void update_z2_tgv_line(__global float16 *zn1, __global float16 *zn, __global float16 *symgv,
+                                 __global float16 *symgv_, const float sigma, const float theta,
+                                 const float alphainv, const int NUk) {
+  size_t Nx = get_global_size(2), Ny = get_global_size(1);
+  size_t NSl = get_global_size(0);
+  size_t x = get_global_id(2), y = get_global_id(1);
+  size_t k = get_global_id(0);
+  size_t i = k*Nx*Ny+Nx*y + x;
+
+  float fac = 0.0f;
+
+  for (int uk=0; uk<NUk; uk++)
+  {
+     zn1[i] = zn[i] + sigma * ((1 + theta) * symgv[i] - theta * symgv_[i]);
+
+     fac = alphainv * hypot(fac,hypot(
+     hypot(hypot(hypot(zn1[i].s0,zn1[i].s1), hypot(zn1[i].s2,zn1[i].s3)),hypot(zn1[i].s4,zn1[i].s5)),
+     hypot(hypot(2.0f*hypot(zn1[i].s6,zn1[i].s7),2.0f*hypot(zn1[i].s8,zn1[i].s9)),2.0f*hypot(zn1[i].sa,zn1[i].sb))));
+
+     if (fac > 1.0f) zn1[i] /=fac;
+
+     i += NSl*Nx*Ny;
+   }
+}
+
+__kernel void operator_fwd_ssense(__global float2 *out, __global float2 *in,
+                       __global float2 *coils, const int NCo,
+                       const int Nmaps)
+{
+  size_t X = get_global_size(2);
+  size_t Y = get_global_size(1);
+  size_t NSl = get_global_size(0);
+
+  size_t x = get_global_id(2);
+  size_t y = get_global_id(1);
+  size_t k = get_global_id(0);
+
+  float2 tmp_in = 0.0f;
+  float2 tmp_coil = 0.0f;
+
+  for (int coil=0; coil < NCo; coil++)
+  {
+    float2 f_sum = 0.0f;
+    for (int map=0; map < Nmaps; map++)
+    {
+      tmp_in = in[map*NSl*X*Y + k*X*Y+ y*X + x];
+      tmp_coil = (float2) coils[map*NCo*NSl*X*Y + coil*NSl*X*Y + k*X*Y + y*X + x];
+      f_sum += (float2)(tmp_in.x * tmp_coil.x - tmp_in.y * tmp_coil.y,
+                        tmp_in.x * tmp_coil.y + tmp_in.y * tmp_coil.x);
+    }
+    out[coil*NSl*X*Y+ k*X*Y + y*X + x] = f_sum;
+  }
+}
+
+__kernel void operator_ad_ssense(__global float2 *out, __global float2 *in,
+                       __global float2 *coils, const int NCo,
+                       const int Nmaps)
+{
+  size_t X = get_global_size(2);
+  size_t Y = get_global_size(1);
+  size_t NSl = get_global_size(0);
+  size_t x = get_global_id(2);
+  size_t y = get_global_id(1);
+  size_t k = get_global_id(0);
+
+  float2 tmp_in = 0.0f;
+  float2 conj_coils = 0.0f;
+
+  for (int map=0; map < Nmaps; map++)
+  {
+    float2 f_sum = 0.0f;
+    for (int coil=0; coil < NCo; coil++)
+    {
+      tmp_in = in[coil*NSl*X*Y + k*X*Y+ y*X + x];
+      conj_coils = (float2) (coils[map*NCo*NSl*X*Y + coil*NSl*X*Y + k*X*Y + y*X + x].x,
+                            -coils[map*NCo*NSl*X*Y + coil*NSl*X*Y + k*X*Y + y*X + x].y);
+
+      f_sum += (float2)(tmp_in.x*conj_coils.x-tmp_in.y*conj_coils.y,
+                        tmp_in.x*conj_coils.y+tmp_in.y*conj_coils.x);
+    }
+    out[map*NSl*X*Y + k*X*Y + y*X + x] = f_sum;
+  }
+}
 
 __kernel void update_v(__global float8 *v,__global float8 *v_, __global float8 *Kyk2, const float tau) {
   size_t i = get_global_id(0);

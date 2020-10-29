@@ -276,6 +276,26 @@ class Operator(ABC):
                                            DTYPE_real)
         return op
 
+    @staticmethod
+    def SoftSenseOperatorFactory(par,
+                                prg,
+                                DTYPE,
+                                DTYPE_real,
+                                streamed=False):
+        """Sense forward/adjoint operator factory method."""
+        if streamed:
+            op = OperatorSoftSenseStreamed(par,
+                                           prg,
+                                           DTYPE,
+                                           DTYPE_real
+            )
+        else:
+            op = OperatorSoftSense(par,
+                                   prg[0],
+                                   DTYPE,
+                                   DTYPE_real)
+        return op
+
     def _defineoperator(self,
                         functions,
                         outp,
@@ -1942,3 +1962,396 @@ class OperatorFiniteSymGradientStreamed(Operator):
             self._ratio[idx].data,
             self.DTYPE_real(self._dz),
             wait_for=outp.events + inp[0].events + wait_for)
+
+
+class OperatorSoftSense(Operator):
+    """ Soft Sense Operator
+    """
+
+    def __init__(self, par, prg, DTYPE=np.complex64,
+                 DTYPE_real=np.float32, trafo=False):
+        super().__init__(par, prg, DTYPE, DTYPE_real)
+        self.queue = self.queue[0]
+        self.ctx = self.ctx[0]
+        self.NMaps = par["NMaps"]
+        self.NScan = 1
+        self.tmp_result = clarray.empty(
+            self.queue, (self.NScan, self.NC,
+                         self.NSlice, self.dimY, self.dimX),
+            self.DTYPE, "C")
+        if not trafo:
+            self.Nproj = self.dimY
+            self.N = self.dimX
+
+        self.NUFFT = CLnuFFT.create(self.ctx,
+                                    self.queue,
+                                    par,
+                                    radial=trafo,
+                                    DTYPE=DTYPE,
+                                    DTYPE_real=DTYPE_real)
+
+        self._check = np.ones((self.NScan, self.NC, self.NSlice, self.dimY, self.dimX), dtype=DTYPE_real)
+        self._check[..., ::2] = -1
+        self._check[..., 1::2, :] *= -1
+        if np.size(par["fft_dim"]) == 3:
+            self._check[..., 1::2, :, :] *= -1
+        self._check = clarray.to_device(self.queue, self._check)
+
+    def fwd(self, out, inp, wait_for=[]):
+        self.tmp_result.add_event(
+            self.prg.operator_fwd_ssense(
+                self.queue,
+                (self.NSlice, self.dimY, self.dimX),
+                None,
+                self.tmp_result.data,
+                inp[0].data,
+                inp[1].data,
+                np.int32(self.NC),
+                np.int32(self.NMaps),
+                wait_for=self.tmp_result.events + inp[0].events + wait_for))
+        self.tmp_result.add_event(
+            self.NUFFT.prg.masking(
+                self.queue,
+                (self.tmp_result.size,),
+                None,
+                self.tmp_result.data,
+                self._check.data,
+                wait_for=wait_for + self.tmp_result.events))
+        out.add_event(self.NUFFT.FFT(
+                out,
+                self.tmp_result,
+                wait_for=wait_for + out.events + self.tmp_result.events))
+        return self.NUFFT.prg.masking(
+            self.queue,
+            (out.size,),
+            None,
+            out.data,
+            self._check.data,
+            wait_for=wait_for + out.events)
+
+    def fwdoop(self, inp, wait_for=[]):
+        self.tmp_result.add_event(
+            self.prg.operator_fwd_ssense(
+                self.queue,
+                (self.NSlice, self.dimY, self.dimX),
+                None,
+                self.tmp_result.data,
+                inp[0].data,
+                inp[1].data,
+                np.int32(self.NC),
+                np.int32(self.NMaps),
+                wait_for=self.tmp_result.events + inp[0].events + wait_for))
+        self.tmp_result.add_event(
+            self.NUFFT.prg.masking(
+                self.queue,
+                (self.tmp_result.size,),
+                None,
+                self.tmp_result.data,
+                self._check.data,
+                wait_for=wait_for + self.tmp_result.events))
+        tmp_sino = clarray.empty(
+            self.queue,
+            (self.NScan, self.NC, self.NSlice, self.Nproj, self.N),
+            self.DTYPE, "C")
+        tmp_sino.add_event(
+            self.NUFFT.FFT(
+                tmp_sino,
+                self.tmp_result))
+        tmp_sino.add_event(
+            self.NUFFT.prg.masking(
+                self.queue,
+                (tmp_sino.size,),
+                None,
+                tmp_sino.data,
+                self._check.data,
+                wait_for=wait_for + tmp_sino.events))
+        return tmp_sino
+
+    def adj(self, out, inp, wait_for=[]):
+        inp[0].add_event(
+            self.NUFFT.prg.masking(
+                self.queue,
+                (inp[0].size,),
+                None,
+                inp[0].data,
+                self._check.data,
+                wait_for=wait_for + inp[0].events))
+        self.tmp_result.add_event(
+            self.NUFFT.FFTH(
+                self.tmp_result,
+                inp[0],
+                wait_for=wait_for + inp[0].events + self.tmp_result.events))
+        self.tmp_result.add_event(
+            self.NUFFT.prg.masking(
+                self.queue,
+                (self.tmp_result.size,),
+                None,
+                self.tmp_result.data,
+                self._check.data,
+                wait_for=wait_for + inp[0].events))
+        return self.prg.operator_ad_ssense(
+            self.queue,
+            (self.NSlice, self.dimY, self.dimX),
+            None,
+            out.data,
+            self.tmp_result.data,
+            inp[1].data,
+            np.int32(self.NC),
+            np.int32(self.NMaps),
+            wait_for=wait_for + self.tmp_result.events + out.events)
+
+    def adjoop(self, inp, wait_for=[]):
+        inp[0].add_event(
+            self.NUFFT.prg.masking(
+                self.queue,
+                (inp[0].size,),
+                None,
+                inp[0].data,
+                self._check.data,
+                wait_for=wait_for + inp[0].events))
+        self.tmp_result.add_event(
+            self.NUFFT.FFTH(
+                self.tmp_result,
+                inp[0],
+                wait_for=wait_for + inp[0].events + self.tmp_result.events))
+        self.tmp_result.add_event(
+            self.NUFFT.prg.masking(
+                self.queue,
+                (self.tmp_result.size,),
+                None,
+                self.tmp_result.data,
+                self._check.data,
+                wait_for=wait_for + inp[0].events))
+        out = clarray.empty(
+            self.queue,
+            (self.NMaps, self.NSlice, self.dimY, self.dimX),
+            dtype=self.DTYPE)
+        self.prg.operator_ad_ssense(
+            out.queue,
+            (self.NSlice, self.dimY, self.dimX),
+            None,
+            out.data,
+            self.tmp_result.data,
+            inp[1].data,
+            np.int32(self.NC),
+            np.int32(self.NMaps),
+            wait_for=wait_for + self.tmp_result.events + out.events).wait()
+        return out
+
+
+class OperatorSoftSenseStreamed(Operator):
+    """ The streamed version of the k-space based Operator
+
+    This class serves as linear operator between parameter and k-space.
+    All calculations are performed in a streamed fashion.
+
+    Use this operator if you want to perform complex parameter fitting from
+    complex k-space data without the need of performing FFTs.
+    In contrast to non-streaming classes no out of place operations
+    are implemented.
+
+    Attributes:
+      overlap (int):
+        Number of slices that overlap between adjacent blocks.
+      par_slices (int):
+        Number of slices per streamed block
+      fwdstr (PyQMRI.Stream):
+        The streaming object to perform the forward evaluation
+      adjstr (PyQMRI.Stream):
+        The streaming object to perform the adjoint evaluation
+      NUFFT (list of PyQMRI.transforms.PyOpenCLnuFFT):
+        A list of NUFFT objects. One for each context.
+      FTstr (PyQMRI.Stream):
+        A streamed version of the used (non-uniform) FFT, applied forward.
+    """
+
+    def __init__(self, par, prg,
+                 DTYPE=np.complex64, DTYPE_real=np.float32, trafo=False):
+        super().__init__(par, prg, DTYPE, DTYPE_real)
+        self.overlap = par["overlap"]
+        self.par_slices = par["par_slices"]
+        self.NMaps = par["NMaps"]
+        if not trafo:
+            self.Nproj = self.dimY
+            self.N = self.dimX
+        for j in range(self.num_dev):
+            for i in range(2):
+                self.tmp_result.append(
+                    clarray.empty(
+                        self.queue[4*j+i],
+                        (self.par_slices+self.overlap, self.NMaps,
+                         self.NC, self.dimY, self.dimX),
+                        self.DTYPE, "C"))
+                self.NUFFT.append(
+                    CLnuFFT.create(self.ctx[j],
+                                 self.queue[4*j+i], par,
+                                 radial=trafo,
+                                 streamed=True,
+                                 DTYPE=DTYPE,
+                                 DTYPE_real=DTYPE_real))
+
+        # self._check = np.ones((self.NSlice, self.NMaps, self.NC, self.dimY, self.dimX), dtype=DTYPE_real)
+        # self._check[..., ::2] = -1
+        # self._check[..., 1::2, :] *= -1
+        # if np.size(par["fft_dim"]) == 3:
+        #     self._check[1::2, ...] *= -1
+        # self._check = clarray.to_device(self.queue[0], self._check)
+
+        self.unknown_shape = (self.NSlice, self.NMaps, self.dimY, self.dimX)
+        coil_shape = (self.NSlice, self.NC, self.dimY, self.dimX)
+        # model_grad_shape = (self.NSlice, self.unknowns,
+        #                     self.NScan, self.dimY, self.dimX)
+        self.data_shape = (self.NSlice, self.NMaps, self.NC, self.Nproj,
+                           self.N)
+        trans_shape = (self.NSlice, self.NMaps,
+                       self.NC, self.dimY, self.dimX)
+        # grad_shape = self.unknown_shape + (4,)
+
+        self.fwdstr = self._defineoperator(
+            [self._fwdstreamed],
+            [self.data_shape],
+            [[self.unknown_shape,
+              coil_shape]])
+
+        # self.adjstrKyk1 = self._defineoperator(
+        #     [self._adjstreamedKyk1],
+        #     [self.unknown_shape],
+        #     [[self.data_shape,
+        #       grad_shape,
+        #       coil_shape,
+        #       model_grad_shape,
+        #       self.unknown_shape]])
+
+        self.adjstr = self._defineoperator(
+            [self._adjstreamed],
+            [self.unknown_shape],
+            [[self.unknown_shape,
+              coil_shape]])
+
+        self.FTstr = self._defineoperator(
+            [self.FT],
+            [self.data_shape],
+            [[trans_shape]])
+
+    def fwd(self, out, inp, wait_for=[]):
+        self.fwdstr.eval(out, inp)
+
+    def fwdoop(self, inp, wait_for=[]):
+        tmp_result = np.zeros(self.data_shape, dtype=self.DTYPE)
+        self.fwdstr.eval([tmp_result], inp)
+        return tmp_result
+
+    def adj(self, out, inp, wait_for=[]):
+        self.adjstr.eval(out, inp)
+
+    def adjoop(self, inp, wait_for=[]):
+        tmp_result = np.zeros(self.unknown_shape, dtype=self.DTYPE)
+        self.adjstr.eval([tmp_result], inp)
+        return tmp_result
+
+    # def adjKyk1(self, out, inp):
+    #     """ Apply the linear operator from parameter space to k-space
+    #
+    #     This method fully implements the combined linear operator
+    #     consisting of the data part as well as the TGV regularization part.
+    #
+    #     Args:
+    #       out (Numpy.Array):
+    #         The complex parameter space data which is used as input.
+    #       inp (Numpy.Array):
+    #         The complex parameter space data which is used as input.
+    #     """
+    #     self.adjstrKyk1.eval(out, inp)
+
+    def _fwdstreamed(self, out, inp, par=None, idx=0, idxq=0,
+                     bound_cond=0, wait_for=[]):
+        self.tmp_result[2*idx+idxq].add_event(
+            self.prg[idx].operator_fwd_ssense(
+                self.queue[4*idx+idxq],
+                (self.par_slices+self.overlap, self.dimY, self.dimX), None,
+                self.tmp_result[2*idx+idxq].data,
+                inp[0].data,
+                inp[1].data,
+                np.int32(self.NC),
+                np.int32(self.NMaps),
+                wait_for=(self.tmp_result[2*idx+idxq].events +
+                          inp[0].events+wait_for)))
+        # self.tmp_result[2*idx+idxq].add_event(
+        #     self.NUFFT[2*idx+idxq].prg.masking(
+        #         self.queue[4*idx+idxq],
+        #         ((self.par_slices+self.overlap)*self.dimY*self.dimX,),
+        #         None,
+        #         self.tmp_result[2*idx+idxq].data,
+        #         self._check.data,
+        #         wait_for=wait_for + self.tmp_result[2*idx+idxq].events))
+        return out.add_event(self.NUFFT[2*idx+idxq].FFT(
+            out,
+            self.tmp_result[2*idx+idxq],
+            wait_for=out.events+wait_for+self.tmp_result[2*idx+idxq].events))
+        # return self.tmp_result[2*idx+idxq].add_event(
+        #     self.NUFFT[2*idx+idxq].prg.masking(
+        #         self.queue[4*idx+idxq],
+        #         ((self.par_slices+self.overlap)*self.dimY*self.dimX,),
+        #         None,
+        #         self.tmp_result[2*idx+idxq].data,
+        #         self._check.data,
+        #         wait_for=wait_for + self.tmp_result[2*idx+idxq].events))
+
+    # def _adjstreamedKyk1(self, outp, inp, par=None, idx=0, idxq=0,
+    #                      bound_cond=0, wait_for=[]):
+    #     self.tmp_result[2*idx+idxq].add_event(
+    #         self.NUFFT[2*idx+idxq].FFTH(
+    #             self.tmp_result[2*idx+idxq], inp[0],
+    #             wait_for=(wait_for+inp[0].events +
+    #                       self.tmp_result[2*idx+idxq].events)))
+    #     return self.prg[idx].update_Kyk1(
+    #         self.queue[4*idx+idxq],
+    #         (self.par_slices+self.overlap, self.dimY, self.dimX), None,
+    #         outp.data, self.tmp_result[2*idx+idxq].data,
+    #         inp[2].data,
+    #         inp[3].data,
+    #         inp[1].data, np.int32(self.NC), np.int32(self.NScan),
+    #         par[0][idx].data, np.int32(self.unknowns),
+    #         np.int32(bound_cond), self.DTYPE_real(self._dz),
+    #         wait_for=(
+    #             self.tmp_result[2*idx+idxq].events +
+    #             outp.events+inp[1].events +
+    #             inp[2].events + inp[3].events + wait_for))
+
+    def _adjstreamed(self, outp, inp, par=None, idx=0, idxq=0,
+                     bound_cond=0, wait_for=[]):
+        # inp[0].add_event(
+        #     self.NUFFT[2*idx+idxq].prg.masking(
+        #         self.queue[4*idx+idxq],
+        #         (inp[0].size,),
+        #         None,
+        #         inp[0].data,
+        #         self._check.data,
+        #         wait_for=wait_for + inp[0].events))
+        self.tmp_result[2*idx+idxq].add_event(
+            self.NUFFT[2*idx+idxq].FFTH(
+                self.tmp_result[2*idx+idxq], inp[0],
+                wait_for=(wait_for+inp[0].events +
+                          self.tmp_result[2*idx+idxq].events)))
+        # self.tmp_result[2*idx+idxq].add_event(
+        #     self.NUFFT[2*idx+idxq].prg.masking(
+        #         self.queue[4*idx+idxq],
+        #         ((self.par_slices+self.overlap)*self.dimY*self.dimX,),
+        #         None,
+        #         self.tmp_result[2*idx+idxq].data,
+        #         self._check.data,
+        #         wait_for=wait_for + self.tmp_result[2*idx+idxq].events))
+        return self.prg[idx].operator_ad_ssense(
+            self.queue[4*idx+idxq],
+            (self.par_slices+self.overlap, self.dimY, self.dimX),
+            None,
+            outp.data,
+            self.tmp_result[2*idx+idxq].data,
+            inp[1].data,
+            np.int32(self.NC),
+            np.int32(self.NMaps),
+            wait_for=(self.tmp_result[2*idx+idxq].events + inp[1].events+wait_for))
+
+    def FT(self, outp, inp, par=None, idx=0, idxq=0,
+           bound_cond=0, wait_for=[]):
+        return self.NUFFT[2*idx+idxq].FFT(outp, inp[0])
