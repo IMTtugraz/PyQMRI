@@ -50,7 +50,6 @@ class Model(BaseModel):
     """ Test """
     def __init__(self, par):
         super().__init__(par)
-        self.images = images
 
         self.b = np.ones((self.NScan, 1, 1, 1))
         self.dir = par["DWI_dir"].T
@@ -66,10 +65,11 @@ class Model(BaseModel):
         self.dircub = self.dir**3
         self.dir4th = self.dir**4
 
-        par["unknowns_TGV"] = 7
-        par["unknowns_H1"] = 0 
+        par["unknowns_TGV"] = 22
+        par["unknowns_H1"] = 0
+        par["unknowns"] = par["unknowns_TGV"] + par["unknowns_H1"]
         self.uk_scale = []
-        for j in range(unknowns_TGV + unknowns_H1):
+        for j in range(par["unknowns_TGV"] + par["unknowns_H1"]):
             self.uk_scale.append(1)
 
         self.unknowns = par["unknowns_TGV"] + par["unknowns_H1"]
@@ -77,12 +77,8 @@ class Model(BaseModel):
             self.b0 = np.flip(
                 np.transpose(par["file"]["b0"][()], (0, 2, 1)), 0)
         except KeyError:
-            if par["imagespace"] is True:
-                self.b0 = images
-            else:
-                self.b0 = images
-        self.phase = np.exp(1j*(np.angle(images)-np.angle(images[0])))
-        self.guess = self._set_init_scales(images)
+            print("No b0 image provided")
+            self.b0 = None
 
         self.constraints.append(
             constraints(
@@ -827,8 +823,12 @@ class Model(BaseModel):
                 plt.draw()
                 plt.pause(1e-10)
 
-    def _set_init_scales(self, images):
-        test_M0 = self.b0
+    def computeInitialGuess(self, *args):
+        self.phase = np.exp(1j*(np.angle(args[0])-np.angle(args[0][0])))
+        if self.b0 is not None:
+            test_M0 = self.b0
+        else:
+            test_M0 = args[0][0]
 
         ADC_x = 1 * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
@@ -837,9 +837,9 @@ class Model(BaseModel):
         kurt_xxxx = 0 * np.ones((self.NSlice, self.dimY,
                                  self.dimX), dtype=DTYPE)
 
-        x = np.array(
+        self.guess = np.array(
                 [
-                    test_M0[0],
+                    test_M0,
                     ADC_x,
                     0 * ADC_x,
                     ADC_x,
@@ -862,4 +862,3 @@ class Model(BaseModel):
                     kurt_xxxx,
                     kurt_xxxx],
                 dtype=DTYPE)
-        return x

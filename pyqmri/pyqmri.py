@@ -81,6 +81,12 @@ def _precoompFFT(data, par):
         par["mask"] = np.require(
             np.moveaxis(par["mask"], -1, -2),
             requirements='C')
+        dimX = par["dimX"]
+        dimY = par["dimY"]
+        par["dimX"] = dimY
+        par["dimY"] = dimX
+        par["N"] = dimY
+        par["Nproj"] = dimX
         par["transpXY"] = True
         par["fft_dim"] = [-1]
 
@@ -253,7 +259,6 @@ def _estScaleNorm(myargs, par, images, data):
         ind[int(par["N"]/2-center):int(par["N"]/2+center)] = 1
         inds = np.fft.fftshift(ind)
         dims = tuple(range(data.ndim - 3)) + (-2,)
-        print(dims)
         sig = np.max(
             np.sum(data[..., ind], dims) *
             np.conj(np.sum(data[..., ind], dims)))
@@ -398,8 +403,13 @@ def _start_recon(myargs):
 
     dimreduction = 0
     if myargs.trafo:
-        par["traj"] = par["file"]['real_traj'][()].astype(DTYPE) + \
-                      1j*par["file"]['imag_traj'][()].astype(DTYPE)
+        par["traj"] = np.zeros((par["file"]['real_traj'].shape+(4,)),
+                               dtype=DTYPE_real)
+        par["traj"][..., 0] = par["file"]['real_traj'][()]
+        par["traj"][..., 1] = par["file"]['imag_traj'][()]
+
+        if np.max(np.linalg.norm(par["traj"], axis=-1)) <= 0.5:
+            par["traj"] *= np.maximum(dimX, dimY)
 
         par["dcf"] = np.sqrt(np.array(goldcomp.cmp(
                          par["traj"]), dtype=DTYPE_real)).astype(DTYPE_real)
@@ -452,7 +462,7 @@ def _start_recon(myargs):
                   int(NSlice_fa/2)-int(np.floor((reco_Slices)/2)):
                   int(NSlice_fa/2)+int(np.ceil(reco_Slices/2)),
                   ...]
-        par["fa_corr"][par["fa_corr"] == 0] = 0
+        par["fa_corr"][par["fa_corr"] == 0] = 1
         par["fa_corr"] = par["fa_corr"][
            ...,
            int(dimreduction/2):par["fa_corr"].shape[-2]-int(dimreduction/2),
@@ -506,8 +516,11 @@ def _start_recon(myargs):
                                       dtype=DTYPE_real)).astype(DTYPE_real)
         par["dcf"] = np.require(np.abs(par["dcf"]), DTYPE_real,
                                 requirements='C')
+    elif data.ndim == 4 and "ImageReco" in myargs.sig_model:
+        data = data[None]
+        [NScan, NC, reco_Slices, Nproj, N] = data.shape
     else:
-        print("Wrong data dimension / model inkompatible. Returning")
+        print("Wrong data dimension / model incompatible. Returning")
         return
 
 ###############################################################################

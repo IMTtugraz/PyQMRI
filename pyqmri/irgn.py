@@ -226,6 +226,8 @@ class IRGNOptimizer:
 
             self._balanceModelGradients(result)
             # self.pdop.grad_op.updateRatio(result)
+            # if self.reg_type == 'TGV':
+            #     self.pdop.symgrad_op.updateRatio(self.pdop.grad_op._ratio)
 
             self.step_val = np.nan_to_num(self.model.execute_forward(result))
 
@@ -238,13 +240,21 @@ class IRGNOptimizer:
                     requirements='C')
                 self.pdop.model = self.model
                 self.pdop.modelgrad = self.modelgrad
+                self.pdop.jacobi = np.sum(
+                    np.abs(self.modelgrad)**2, 2).astype(DTYPE_real)
+                self.pdop.jacobi[self.pdop.jacobi == 0] = 1e-8
             else:
+                self.jacobi = np.sum(
+                    np.abs(self.modelgrad)**2, 1).astype(DTYPE_real)
+                self.jacobi[self.jacobi == 0] = 1e-8
                 self.modelgrad = clarray.to_device(
                     self._queue[0],
                     self.modelgrad)
                 self.pdop.model = self.model
                 self.pdop.modelgrad = self.modelgrad
-
+                self.pdop.jacobi = clarray.to_device(
+                    self._queue[0],
+                    self.jacobi)
             self._updateIRGNRegPar(result, ign)
             self.pdop.updateRegPar(self.irgn_par)
 
@@ -284,6 +294,7 @@ class IRGNOptimizer:
         print("Initial Ratio: ", scale)
         scale /= np.linalg.norm(scale)/np.sqrt(self.par["unknowns"])
         scale = 1 / scale
+        scale[~np.isfinite(scale)] = 1
         for uk in range(self.par["unknowns"]):
             self.model.constraints[uk].update(scale[uk])
             result[uk, ...] *= self.model.uk_scale[uk]

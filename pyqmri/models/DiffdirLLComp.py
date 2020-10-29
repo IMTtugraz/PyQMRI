@@ -5,8 +5,6 @@ import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 plt.ion()
-unknowns_TGV = 14
-unknowns_H1 = 0
 
 
 class Model(BaseModel):
@@ -14,7 +12,8 @@ class Model(BaseModel):
         super().__init__(par)
         self.NSlice = par['NSlice']
 
-        self.figuref = None
+        self.figure_ref = None
+        self.figure = None
 
         self.b = np.ones((self.NScan, 1, 1, 1))
         self.dir = par["DWI_dir"].T
@@ -26,7 +25,7 @@ class Model(BaseModel):
 
         self.dir = self.dir[:, None, None, None, :]
         par["unknowns_TGV"] = 14
-        par["unknowns_H1"] = 0 
+        par["unknowns_H1"] = 0
         par["unknowns"] = par["unknowns_TGV"] + par["unknowns_H1"]
         self.uk_scale = []
         for j in range(par["unknowns"]):
@@ -38,7 +37,7 @@ class Model(BaseModel):
                 np.transpose(par["file"]["b0"][()], (0, 2, 1)), 0)
         except KeyError:
             print("No b0 image provided")
-            self.b0 =  None
+            self.b0 = None
 
         self.constraints.append(
             constraints(
@@ -362,7 +361,7 @@ class Model(BaseModel):
             [z, y, x] = M0.shape
             self.ax = []
             self.axf = []
-            if not self.figure:
+            if not self.figure and not self.figure_ref:
                 plt.ion()
                 self.figure = plt.figure(figsize=(12, 6))
                 self.figure.subplots_adjust(hspace=0, wspace=0)
@@ -509,10 +508,10 @@ class Model(BaseModel):
                 plt.pause(1e-10)
                 self.figure.canvas.draw_idle()
 
-            if not self.figuref:
+            # if not self.figuref:
                 plt.ion()
-                self.figuref = plt.figure(figsize=(12, 6))
-                self.figuref.subplots_adjust(hspace=0, wspace=0)
+                self.figure_ref = plt.figure(figsize=(12, 6))
+                self.figure_ref.subplots_adjust(hspace=0, wspace=0)
                 self.gs = gridspec.GridSpec(8,
                                             10,
                                             width_ratios=[x / (20 * z),
@@ -533,8 +532,8 @@ class Model(BaseModel):
                                                            1,
                                                            x / z,
                                                            1])
-                self.figuref.tight_layout()
-                self.figuref.patch.set_facecolor(plt.cm.viridis.colors[0])
+                self.figure_ref.tight_layout()
+                self.figure_ref.patch.set_facecolor(plt.cm.viridis.colors[0])
                 for grid in self.gs:
                     self.axf.append(plt.subplot(grid))
                     self.axf[-1].axis('off')
@@ -567,7 +566,7 @@ class Model(BaseModel):
                 self.axf[4].set_anchor('SW')
                 self.axf[13].set_anchor('NE')
                 cax = plt.subplot(self.gs[:2, 5])
-                cbar = self.figure.colorbar(self.ADCf_x_plot, cax=cax)
+                cbar = self.figure_ref.colorbar(self.ADCf_x_plot, cax=cax)
                 cbar.ax.tick_params(labelsize=12, colors='white')
                 for spine in cbar.ax.spines:
                     cbar.ax.spines[spine].set_color('white')
@@ -583,7 +582,7 @@ class Model(BaseModel):
                 self.axf[8].set_anchor('SW')
                 self.axf[17].set_anchor('NE')
                 cax = plt.subplot(self.gs[:2, 9])
-                cbar = self.figure.colorbar(self.ADCf_xy_plot, cax=cax)
+                cbar = self.figure_ref.colorbar(self.ADCf_xy_plot, cax=cax)
                 cbar.ax.tick_params(labelsize=12, colors='white')
                 for spine in cbar.ax.spines:
                     cbar.ax.spines[spine].set_color('white')
@@ -599,7 +598,7 @@ class Model(BaseModel):
                 self.axf[24].set_anchor('SW')
                 self.axf[33].set_anchor('NE')
                 cax = plt.subplot(self.gs[2:4, 5])
-                cbar = self.figure.colorbar(self.ADCf_y_plot, cax=cax)
+                cbar = self.figure_ref.colorbar(self.ADCf_y_plot, cax=cax)
                 cbar.ax.tick_params(labelsize=12, colors='white')
                 for spine in cbar.ax.spines:
                     cbar.ax.spines[spine].set_color('white')
@@ -615,7 +614,7 @@ class Model(BaseModel):
                 self.axf[28].set_anchor('SW')
                 self.axf[37].set_anchor('NE')
                 cax = plt.subplot(self.gs[2:4, 9])
-                cbar = self.figure.colorbar(self.ADCf_xz_plot, cax=cax)
+                cbar = self.figure_ref.colorbar(self.ADCf_xz_plot, cax=cax)
                 cbar.ax.tick_params(labelsize=12, colors='white')
                 for spine in cbar.ax.spines:
                     cbar.ax.spines[spine].set_color('white')
@@ -631,7 +630,7 @@ class Model(BaseModel):
                 self.axf[44].set_anchor('SW')
                 self.axf[53].set_anchor('NE')
                 cax = plt.subplot(self.gs[4:6, 5])
-                cbar = self.figure.colorbar(self.ADCf_z_plot, cax=cax)
+                cbar = self.figure_ref.colorbar(self.ADCf_z_plot, cax=cax)
                 cbar.ax.tick_params(labelsize=12, colors='white')
                 for spine in cbar.ax.spines:
                     cbar.ax.spines[spine].set_color('white')
@@ -647,14 +646,14 @@ class Model(BaseModel):
                 self.axf[48].set_anchor('SW')
                 self.axf[57].set_anchor('NE')
                 cax = plt.subplot(self.gs[4:6, 9])
-                cbar = self.figure.colorbar(self.ADCf_yz_plot, cax=cax)
+                cbar = self.figure_ref.colorbar(self.ADCf_yz_plot, cax=cax)
                 cbar.ax.tick_params(labelsize=12, colors='white')
                 for spine in cbar.ax.spines:
                     cbar.ax.spines[spine].set_color('white')
 
                 plt.draw()
                 plt.pause(1e-10)
-                self.figure.canvas.draw_idle()
+                self.figure_ref.canvas.draw_idle()
 
             else:
                 self.M0_plot.set_data((M0[int(self.NSlice / 2), ...]))
@@ -789,7 +788,7 @@ class Model(BaseModel):
                 self.ADCf_yz_plot_cor.set_clim([ADCf_yz_min, ADCf_yz_max])
 
                 self.figure.canvas.draw_idle()
-
+                self.figure_ref.canvas.draw_idle()
                 plt.draw()
                 plt.pause(1e-10)
 

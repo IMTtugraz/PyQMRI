@@ -1794,6 +1794,9 @@ class OperatorFiniteSymGradient(Operator):
             wait_for=tmp_result.events + inp.events + wait_for))
         return tmp_result
 
+    def updateRatio(self, inp):
+        for i in range(len(inp)):
+            self._ratio[i] = inp[i]
 
 class OperatorFiniteGradientStreamed(Operator):
     def __init__(self, par, prg, DTYPE=np.complex64, DTYPE_real=np.float32):
@@ -1851,27 +1854,43 @@ class OperatorFiniteGradientStreamed(Operator):
         self.fwd([grad], [[x]])
         grad = np.require(np.swapaxes(grad, 0, 1),
                           requirements='C')
-        del x
+
         scale = np.reshape(
             inp, (self.unknowns,
-                self.NSlice * self.dimY * self.dimX))
+                  self.NSlice * self.dimY * self.dimX))
         grad = np.reshape(
             grad, (self.unknowns,
                    self.NSlice *
                    self.dimY *
                    self.dimX * 4))
+
+        print("Total Norm of grad x pre: ", np.sum(np.abs(grad)))
         gradnorm = np.sum(np.abs(grad), axis=-1)
-        gradnorm /= np.sum(gradnorm)
-        scale = 1 / gradnorm
+        print("Norm of grad x pre: ", gradnorm)
+        gradnorm /= np.sum(gradnorm)/self.unknowns
+        scale = 1/gradnorm
         scale[~np.isfinite(scale)] = 1
-        sum_scale = 1
 
         for i in range(self.num_dev):
             for j in range(inp.shape[0])[:self.unknowns_TGV]:
-                self._ratio[i][j] = scale[j] / sum_scale * self._weights[j]
+                self._ratio[i][j] = scale[j] * self._weights[j]
         for i in range(self.num_dev):
             for j in range(inp.shape[0])[self.unknowns_TGV:]:
-                self._ratio[i][j] = scale[j] / sum_scale * self._weights[j]
+                self._ratio[i][j] = scale[j] * self._weights[j]
+
+        grad = np.zeros(x.shape + (4,), dtype=self.DTYPE)
+        self.fwd([grad], [[x]])
+        grad = np.require(np.swapaxes(grad, 0, 1),
+                          requirements='C')
+
+        grad = np.reshape(
+            grad, (self.unknowns,
+                   self.NSlice *
+                   self.dimY *
+                   self.dimX * 4))
+        print("Norm of grad x post: ",  np.sum(np.abs(grad), axis=-1))
+        print("Total Norm of grad x post: ",  np.sum(np.abs(grad)))
+
 
     def _grad(self, outp, inp, par=None, idx=0, idxq=0,
               bound_cond=0, wait_for=[]):
@@ -1958,8 +1977,8 @@ class OperatorFiniteSymGradientStreamed(Operator):
             (self.overlap+self.par_slices, self.dimY, self.dimX), None,
             outp.data, inp[0].data,
             np.int32(self.unknowns),
-            np.int32(bound_cond),
             self._ratio[idx].data,
+            np.int32(bound_cond),
             self.DTYPE_real(self._dz),
             wait_for=outp.events + inp[0].events + wait_for)
 

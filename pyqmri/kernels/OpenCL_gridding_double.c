@@ -63,7 +63,7 @@ void AtomicAdd(__global double *val, double delta) {
 
   }
 
-  __kernel void grid_lut(__global double *sg, __global double2 *s, __global double2 *kpos, const int gridsize, const double kwidth, __global double *dcf, __constant double* kerneltable, const int nkernelpts, const int scanoffset  )
+  __kernel void grid_lut(__global double *sg, __global double2 *s, __global double3 *kpos, const int gridsize, const double kwidth, __global double *dcf, __constant double* kerneltable, const int nkernelpts, const int scanoffset  )
   {
     size_t k = get_global_id(2);
     size_t kDim = get_global_size(2);
@@ -86,10 +86,10 @@ void AtomicAdd(__global double *val, double delta) {
     ky = (kpos[k+kDim*(scan+scanoffset)]).s1;
 
 
-    ixmin =  (int)((kx-kwidth)*gridsize +gridcenter);
-    ixmax = (int)((kx+kwidth)*gridsize +gridcenter)+1;
-    iymin = (int)((ky-kwidth)*gridsize +gridcenter);
-    iymax =  (int)((ky+kwidth)*gridsize +gridcenter)+1;
+    ixmin =  (int)((kx-kwidth) +gridcenter);
+    ixmax = (int)((kx+kwidth) +gridcenter)+1;
+    iymin = (int)((ky-kwidth) +gridcenter);
+    iymax =  (int)((ky+kwidth) +gridcenter)+1;
 
   	for (int gcount1 = ixmin; gcount1 <= ixmax; gcount1++)
     {
@@ -121,7 +121,7 @@ void AtomicAdd(__global double *val, double delta) {
   }
 
 
-  __kernel void invgrid_lut(__global double2 *s, __global double2 *sg, __global double2 *kpos, const int gridsize, const double kwidth, __global double *dcf, __constant double* kerneltable, const int nkernelpts, const int scanoffset  )
+  __kernel void invgrid_lut(__global double2 *s, __global double2 *sg, __global double3 *kpos, const int gridsize, const double kwidth, __global double *dcf, __constant double* kerneltable, const int nkernelpts, const int scanoffset  )
   {
     size_t k = get_global_id(2);
     size_t kDim = get_global_size(2);
@@ -140,10 +140,10 @@ void AtomicAdd(__global double *val, double delta) {
     kx = (kpos[k+kDim*(scan+scanoffset)]).s0;
     ky = (kpos[k+kDim*(scan+scanoffset)]).s1;
 
-    ixmin =  (int)((kx-kwidth)*gridsize +gridcenter);
-    ixmax = (int)((kx+kwidth)*gridsize +gridcenter)+1;
-    iymin = (int)((ky-kwidth)*gridsize +gridcenter);
-    iymax =  (int)((ky+kwidth)*gridsize +gridcenter)+1;
+    ixmin =  (int)((kx-kwidth) +gridcenter);
+    ixmax = (int)((kx+kwidth) +gridcenter)+1;
+    iymin = (int)((ky-kwidth) +gridcenter);
+    iymax =  (int)((ky+kwidth) +gridcenter)+1;
 
   	for (int gcount1 = ixmin; gcount1 <= ixmax; gcount1++)
     {
