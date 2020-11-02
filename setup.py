@@ -6,14 +6,14 @@ with open(path.join(this_directory, 'README.rst'), encoding='utf-8') as f:
     long_description = f.read()
 
 setup(name='pyqmri',
-      version='0.3.2',
+      version='0.3.2.1',
       description='Model-based parameter quantification using OpenCL and Python',
       long_description=long_description,
       long_description_content_type="text/x-rst",
       url='https://github.com/IMTtugraz/PyQMRI',
       author='Oliver Maier',
       author_email='oliver.maier@tugraz.at',
-      download_url='https://github.com/IMTtugraz/PyQMRI/archive/0.3.1.tar.gz',
+      download_url='https://github.com/IMTtugraz/PyQMRI/archive/0.3.2.1.tar.gz',
       license='Apache-2.0',
       package_data={'pyqmri': ['kernels/*.c']},
       include_package_data=True,
