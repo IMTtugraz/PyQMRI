@@ -318,10 +318,15 @@ class IRGNOptimizer:
         self._calcResidual(result, data, ign+1)
 
     def _updateIRGNRegPar(self, ign):
-        self.irgn_par["delta"] = np.minimum(
-            self._delta
-            * self.irgn_par["delta_inc"]**ign,
-            self.irgn_par["delta_max"])
+        try:
+            self.irgn_par["delta"] = np.minimum(
+                self._delta
+                * self.irgn_par["delta_inc"]**ign,
+                self.irgn_par["delta_max"])
+        except OverflowError:
+            self.irgn_par["delta"] = np.minimum(
+                np.finfo(self._delta).max,
+                self.irgn_par["delta_max"])
         self.irgn_par["gamma"] = np.maximum(
             self._gamma * self.irgn_par["gamma_dec"]**ign,
             self.irgn_par["gamma_min"])
