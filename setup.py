@@ -32,7 +32,7 @@ setup(name='pyqmri',
         'pyfftw',
         'pyqt5',
         'numexpr',
-        'sympy'],
+        'sympy>=1.6.2'],
       entry_points={
         'console_scripts': ['pyqmri = pyqmri.pyqmri:run'],
         },
