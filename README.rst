@@ -149,7 +149,7 @@ or by fewing the documentation of pyqmri.pyqmri in python.
 
 If reconstructing fewer slices from the volume than acquired, slices will be picked symmetrically from the center of the volume. E.g. reconstructing only a single slice will reconstruct the center slice of the volume. 
 
-An example script, showing how to use PyQMRI based on an exmaple VFA data set can be found on _GoogleColab.
+An example script, showing how to use PyQMRI based on an exmaple VFA data set can be found on GoogleColab_.
 
 The config file (\*.ini):
 -------------------------   
@@ -185,7 +185,7 @@ in the PyQMRI root folder. It is advised to run unit and integration tests after
 :bash:`pytest test/unittests`
 :bash:`pytest test/integrationtests`
 
-For more detailed instructions on how to contribute have a look at _contributing.
+For more detailed instructions on how to contribute have a look at contributing_.
 
 Limitations and known Issues:
 ------------------------------
