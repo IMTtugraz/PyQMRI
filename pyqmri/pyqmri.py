@@ -597,7 +597,7 @@ def _start_recon(myargs):
 # Scale data norm  ############################################################
 ###############################################################################
     data, images = _estScaleNorm(myargs, par, images, data)
-    if myargs.weights is -1:
+    if np.allclose(myargs.weights, -1):
         par["weights"] = np.ones((par["unknowns"]), dtype=par["DTYPE_real"])
     else:
         par["weights"] = np.array(myargs.weights, dtype=par["DTYPE_real"])
