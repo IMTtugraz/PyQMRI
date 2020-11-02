@@ -147,7 +147,7 @@ class Model(BaseModel):
         """
         test_T1 = 1500 * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
-        test_M0 = 1e-1*np.ones(
+        test_M0 = np.ones(
             (self.NSlice, self.dimY, self.dimX),
             dtype=self._DTYPE)
         test_T1 = np.exp(-self.TR / (test_T1))
