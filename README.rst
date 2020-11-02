@@ -8,7 +8,13 @@
     
 PyQMRI - Model-Based Parameter Quantification
 =============================================
+PyQMRI is a Python based toolbox for quantitative Magnetic Resonance Imaging (MRI). Utilizing _PyOpenCL and a double-buffering scheme, 
+it enables the accelerated reconsruction and fitting of arbitrary large datasets on memory limited GPUs.
+Currently, PyQMRI supports the processing of 3D Cartesian and non-Cartesian (stack-of-) data.
+In addition to the currently existing models, new models can be added using a simple text-based model-file.
 
+Prerequests:
+------------------------
 * Requires OpenCL_ >= 1.2
 * Requires clfft_
 * Requires gpyfft_
@@ -143,6 +149,8 @@ or by fewing the documentation of pyqmri.pyqmri in python.
 
 If reconstructing fewer slices from the volume than acquired, slices will be picked symmetrically from the center of the volume. E.g. reconstructing only a single slice will reconstruct the center slice of the volume. 
 
+An example script, showing how to start and use PyQMRI can be found on _GoogleColab.
+
 The config file (\*.ini):
 -------------------------   
 A default config file will be generated if no path to a config file is passed as an argument or if no default.ini file is present in the current working directory. After the initial generation the values can be altered to influence regularization or the number of iterations. Seperate values for TV and TGV regularization can be used. 
@@ -177,6 +185,8 @@ in the PyQMRI root folder. It is advised to run unit and integration tests after
 :bash:`pytest test/unittests`
 :bash:`pytest test/integrationtests`
 
+For more detailed instructions on how to contribute have a look at _contributing.
+
 Limitations and known Issues:
 ------------------------------
 Currently runs only on GPUs due to having only basic CPU support for the clfft_.
@@ -202,3 +212,6 @@ at `[v0.1.0] <https://github.com/IMTtugraz/PyQMRI/tree/v.0.1.0>`_
 .. _`[10.1002/mrm.27502]`: http://onlinelibrary.wiley.com/doi/10.1002/mrm.27502/full
 .. _zenodo: https://doi.org/10.5281/zenodo.1410918
 .. _NLINV: https://doi.org/10.1002/mrm.21691
+.. _PyOpenCL: https://github.com/inducer/pyopencl
+.. _contributing: CONTRIBUTING.rst
+
