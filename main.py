@@ -56,7 +56,7 @@ def _setup_irgn_par(irgn_par):
     irgn_par["tol"] = 1e-8
     irgn_par["stag"] = 1000
     irgn_par["sigma"] = 1
-    irgn_par["lambd"] = 0.1
+    irgn_par["lambd"] = 1
     irgn_par["alpha0"] = np.sqrt(2)  # 2D --> np.sqrt(2), 3D --> np.sqrt(3)
     irgn_par["alpha1"] = 1   # 1
     irgn_par["delta"] = 2
@@ -206,10 +206,10 @@ if __name__ == '__main__':
     args.use_GPU = True
     args.streamed = False
     args.devices = 0
-    args.kspfile = Path.cwd() / 'data' / 'kspace.mat'
-    args.csfile = Path.cwd() / 'data' / 'sensitivities_ecalib.mat'
+    args.kspfile = Path.cwd() / 'data_soft_sense_test' / 'kspace.mat'
+    args.csfile = Path.cwd() / 'data_soft_sense_test' / 'sensitivities_ecalib.mat'
 
-    args.reg_type = 'TGV'  # '', 'TV', or 'TGV'
+    args.reg_type = ''  # '', 'TV', or 'TGV'
     args.linesearch = False
     args.undersampling = True
     args.dim_us = 'y'
