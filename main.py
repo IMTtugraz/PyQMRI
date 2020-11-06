@@ -1,4 +1,4 @@
-import time
+import argparse
 import pyopencl.array as cla
 import pyqmri.operator as pyqmirop
 import pyqmri.solver as pyqmrisl
@@ -14,10 +14,6 @@ from pyqmri._helper_fun import CLProgram as Program
 
 DTYPE = np.complex64
 DTYPE_real = np.float32
-
-
-class Args:
-    pass
 
 
 def _setup_par(par, myargs, ksp_data):
@@ -50,13 +46,13 @@ def _setup_par(par, myargs, ksp_data):
         par["overlap"] = 1
 
 
-def _setup_irgn_par(irgn_par):
+def _setup_irgn_par(irgn_par, myargs):
     irgn_par["display_iterations"] = False
     irgn_par["accelerated"] = False
     irgn_par["tol"] = 1e-8
     irgn_par["stag"] = 1000
     irgn_par["sigma"] = 1
-    irgn_par["lambd"] = 1
+    irgn_par["lambd"] = myargs.lamda
     irgn_par["alpha0"] = np.sqrt(2)  # 2D --> np.sqrt(2), 3D --> np.sqrt(3)
     irgn_par["alpha1"] = 1   # 1
     irgn_par["delta"] = 2
@@ -71,7 +67,7 @@ def _pda_soft_sense_solver(myargs, par, ksp, cmaps, imgs, imgs_us, reg_type=''):
     file.close()
 
     irgn_par = {}
-    _setup_irgn_par(irgn_par)
+    _setup_irgn_par(irgn_par, myargs)
     op = pyqmirop.OperatorSoftSense(par, prg)
     grad_op = pyqmirop.OperatorFiniteGradient(par, prg)
     symgrad_op = pyqmirop.OperatorFiniteSymGradient(par, prg)
@@ -118,11 +114,13 @@ def _3d_recon(imgs, ksp_data, cmaps, par, myargs):
 
     out_pd = _pda_soft_sense_solver(myargs, par, ksp_data, cmaps, imgs, out)
 
-    img_montage(np.abs(np.squeeze(out_pd[0])), '3D reconstruction of undersampled data with PD algorithm')
-    img_montage(np.abs(np.squeeze(out_pd[1])), '3D reconstruction of undersampled data with PD algorithm and TV')
-    img_montage(np.abs(np.squeeze(out_pd[2])), '3D reconstruction of undersampled data with PD algorithm and TGV')
+    # img_montage(np.abs(np.squeeze(out_pd[0])), '3D reconstruction of undersampled data with PD algorithm')
+    # img_montage(np.abs(np.squeeze(out_pd[1])), '3D reconstruction of undersampled data with PD algorithm and TV')
+    # img_montage(np.abs(np.squeeze(out_pd[2])), '3D reconstruction of undersampled data with PD algorithm and TGV')
 
-    return imgs, out, out_pd[0], out_pd[1], out_pd[2]
+    x_ssense = np.sqrt(np.abs(out_pd[0]) ** 2 + np.abs(out_pd[1]) ** 2)
+
+    return x_ssense
 
 
 def _2d_recon(imgs, ksp_data, cmaps, par, myargs):
@@ -190,18 +188,35 @@ def _main(myargs):
     imgs = phase_recon_cl_3d(ksp_data, cmaps, par)
     img_montage(np.abs(np.squeeze(imgs)), 'Phase sensitive reconstruction 3D')
 
-    out2d = _2d_recon(imgs, ksp_data, cmaps, par, myargs)
+    if myargs.type == '2D':
+        out = _2d_recon(imgs, ksp_data, cmaps, par, myargs)
+    elif myargs.type == '3D':
+        out = _3d_recon(imgs, ksp_data, cmaps, par, myargs)
+    else:
+        print("Invalid type. Use 2D or 3D.")
+        return 0
 
-    # par = {}
-    # _setup_par(par, ksp_data)
-    # _setupOCL(myargs, par)
-    #
-    # out3d = _3d_recon(ksp_data, cmaps, par, myargs)
+    save_imgs(out, myargs.type + '_recon_' + args.reg_type)
 
 
 if __name__ == '__main__':
 
-    args = Args
+    args = argparse.ArgumentParser(
+        description="Soft Sense reconstruction.")
+    args.add_argument(
+      '--recon_type', default='2D', dest='type',
+      help='Choose reconstruction type, 2D or 3D')
+    args.add_argument(
+      '--reg_type', default='', dest='reg_type',
+      help="Choose regularization type (default: without regularization) "
+           "options are: 'TGV', 'TV', ''")
+    args.add_argument(
+        '--lambda', default=1, dest='lamda',
+        help="Regularization parameter (default: 1)"
+    )
+
+    args = args.parse_args()
+
     args.trafo = False
     args.use_GPU = True
     args.streamed = False
@@ -209,6 +224,7 @@ if __name__ == '__main__':
     args.kspfile = Path.cwd() / 'data_soft_sense_test' / 'kspace.mat'
     args.csfile = Path.cwd() / 'data_soft_sense_test' / 'sensitivities_ecalib.mat'
 
+    # args.type = '3D'
     args.reg_type = ''  # '', 'TV', or 'TGV'
     args.linesearch = False
     args.undersampling = True
