@@ -112,7 +112,7 @@ def _3d_recon(imgs, ksp_data, cmaps, par, myargs):
     out = soft_sense_recon_cl(myargs, par, ksp_data, cmaps)
     img_montage(np.abs(np.squeeze(out)), '3D reconstruction of undersampled data with adjoint operator')
 
-    out_pd = _pda_soft_sense_solver(myargs, par, ksp_data, cmaps, imgs, out)
+    out_pd = _pda_soft_sense_solver(myargs, par, ksp_data, cmaps, imgs, out, myargs.reg_type)
 
     # img_montage(np.abs(np.squeeze(out_pd[0])), '3D reconstruction of undersampled data with PD algorithm')
     # img_montage(np.abs(np.squeeze(out_pd[1])), '3D reconstruction of undersampled data with PD algorithm and TV')
@@ -193,10 +193,10 @@ def _main(myargs):
     elif myargs.type == '3D':
         out = _3d_recon(imgs, ksp_data, cmaps, par, myargs)
     else:
-        print("Invalid type. Use 2D or 3D.")
+        print("Invalid recon type. Use 2D or 3D.")
         return 0
 
-    save_imgs(out, myargs.type + '_recon_' + args.reg_type)
+    save_imgs(out, myargs.type + '_recon_' + args.reg_type + '_lambda_' + str(myargs.lamda))
 
 
 if __name__ == '__main__':
@@ -212,7 +212,7 @@ if __name__ == '__main__':
            "options are: 'TGV', 'TV', ''")
     args.add_argument(
         '--lambda', default=1, dest='lamda',
-        help="Regularization parameter (default: 1)"
+        help="Regularization parameter (default: 1)", type=int
     )
 
     args = args.parse_args()
@@ -225,7 +225,7 @@ if __name__ == '__main__':
     args.csfile = Path.cwd() / 'data_soft_sense_test' / 'sensitivities_ecalib.mat'
 
     # args.type = '3D'
-    args.reg_type = ''  # '', 'TV', or 'TGV'
+    # args.reg_type = 'TV'  # '', 'TV', or 'TGV'
     args.linesearch = False
     args.undersampling = True
     args.dim_us = 'y'
