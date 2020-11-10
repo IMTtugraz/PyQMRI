@@ -19,11 +19,11 @@ pipeline {
     }
     stage('Unittests') {
       steps {
-        sh 'pytest --junitxml results_unittests_LinOp.xml --cov=pyqmri test/unittests/test_LinearDataOperator'
+        sh 'pytest --junitxml results_unittests_LinOp.xml --cov=pyqmri test/unittests/test_LinearDataOperator.py'
         sh 'coverage xml -o coverage_unittest_LinOp.xml'
-        sh 'pytest --junitxml results_unittests_grad.xml --cov=pyqmri test/unittests/test_gradient'
+        sh 'pytest --junitxml results_unittests_grad.xml --cov=pyqmri test/unittests/test_gradient.py'
         sh 'coverage xml -o coverage_unittest_grad.xml'
-        sh 'pytest --junitxml results_unittests_symgrad.xml --cov=pyqmri test/unittests/test_symmetrized_gradient'
+        sh 'pytest --junitxml results_unittests_symgrad.xml --cov=pyqmri test/unittests/test_symmetrized_gradient.py'
         sh 'coverage xml -o coverage_unittest_symgrad.xml'
       }
     }
