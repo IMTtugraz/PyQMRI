@@ -72,7 +72,7 @@ def gen_default_config():
     config['TGV']["tol"] = '1e-6'
     config['TGV']["stag"] = '1e10'
     config['TGV']["delta_inc"] = '10'
-    config['TGV']["gamma_dec"] = '0.7'
+    config['TGV']["gamma_dec"] = '0.5'
     config['TGV']["omega_dec"] = '0.5'
 
     config['TV'] = {}
@@ -90,7 +90,7 @@ def gen_default_config():
     config['TV']["tol"] = '1e-6'
     config['TV']["stag"] = '1e10'
     config['TV']["delta_inc"] = '10'
-    config['TV']["gamma_dec"] = '0.7'
+    config['TV']["gamma_dec"] = '0.5'
     config['TV']["omega_dec"] = '0.5'
 
     with open('default.ini', 'w') as configfile:
