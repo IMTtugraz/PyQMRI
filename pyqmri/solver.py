@@ -580,12 +580,9 @@ class PDBaseSolver:
         delta_line = self._DTYPE_real(1)
         ynorm = self._DTYPE_real(0.0)
         lhs = self._DTYPE_real(0.0)
-        primal = self._DTYPE_real(0.0)
-        primal_new = self._DTYPE_real(0)
-        dual = self._DTYPE_real(0.0)
-        gap_init = self._DTYPE_real(0.0)
-        gap_old = self._DTYPE_real(0.0)
-        gap = self._DTYPE_real(0.0)
+        primal = []
+        dual = []
+        gap = []
 
         (primal_vars,
          primal_vars_new,
@@ -660,52 +657,71 @@ class PDBaseSolver:
                          tmp_results_forward_new[k],
                          tmp_results_forward[k]
                          )
-
-            if not np.mod(i, 10):
+                     
+            primal_val, dual_val, gap_val = self._calcResidual(
+                in_primal=primal_vars,
+                in_dual=dual_vars,
+                in_precomp_fwd=tmp_results_forward,
+                in_precomp_adj=tmp_results_adjoint,
+                data=data)
+            primal.append(primal_val)
+            dual.append(dual_val)
+            gap.append(gap_val)
+                
+            if not np.mod(i+1, 100):
                 if self.display_iterations:
                     if isinstance(primal_vars["x"], np.ndarray):
                         self.model.plot_unknowns(
                             np.swapaxes(primal_vars["x"], 0, 1))
                     else:
                         self.model.plot_unknowns(primal_vars["x"].get())
-                primal_new, dual, gap = self._calcResidual(
-                    in_primal=primal_vars,
-                    in_dual=dual_vars,
-                    in_precomp_fwd=tmp_results_forward,
-                    in_precomp_adj=tmp_results_adjoint,
-                    data=data)
-
-                if i == 0:
-                    gap_init = gap
-                if np.abs(primal - primal_new)/self._fval_init <\
+                if np.abs(primal[-2] - primal[-1])/primal[0] <\
                    self.tol:
-                    print("Terminated at iteration %d because the energy "
-                          "decrease in the primal problem was less than %.3e" %
-                          (i,
-                           np.abs(primal - primal_new)/self._fval_init))
-                    return primal_vars_new
-                if gap > gap_old * self.stag and i > 1:
-                    print("Terminated at iteration %d "
-                          "because the method stagnated" % (i))
-                    return primal_vars_new
-                if np.abs((gap - gap_old) / gap_init) < self.tol:
-                    print("Terminated at iteration %d because the "
-                          "relative energy decrease of the PD gap was "
-                          "less than %.3e"
-                          % (i, np.abs((gap - gap_old) / gap_init)))
-                    return primal_vars_new
-                primal = primal_new
-                gap_old = gap
-                sys.stdout.write(
-                    "Iteration: %04d ---- Primal: %2.2e, "
-                    "Dual: %2.2e, Gap: %2.2e, Beta: %2.2e \r" %
-                    (i, 1000*primal / self._fval_init,
-                     1000*dual / self._fval_init,
-                     1000*gap / self._fval_init,
-                     beta_line))
-                sys.stdout.flush()
-        # self.beta_line = beta_line
-        # self.tau = tau
+                    print(
+            "Terminated at iteration %d because the energy "
+            "decrease in the primal problem was %.3e which is below the "
+            "relative tolerance of %.3e" %
+            (i+1,
+             np.abs(primal[-2] - primal[-1])/primal[0],
+             self.tol))
+                    return primal_vars
+                if np.abs(np.abs(dual[-2] - dual[-1])/dual[0]) <\
+                   self.tol:
+                    print(
+            "Terminated at iteration %d because the energy "
+            "decrease in the dual problem was %.3e which is below the "
+            "relative tolerance of %.3e" %
+            (i+1,
+             np.abs(np.abs(dual[-2] - dual[-1])/dual[0]),
+             self.tol))
+                    return primal_vars
+                if (
+                    len(gap)>40 and 
+                    np.abs(np.mean(gap[-40:-20]) - np.mean(gap[-20:]))
+                     /np.mean(gap[-40:]) < self.stag
+                    ):
+                    print(
+            "Terminated at iteration %d "
+            "because the method stagnated. Relative difference: %.3e" % 
+            (i+1, np.abs(np.mean(gap[-20:-10]) - np.mean(gap[-10:]))
+                     /np.mean(gap[-20:-10])))
+                    return primal_vars
+                if np.abs((gap[-1] - gap[-2]) / gap[0]) < self.tol:
+                    print(
+            "Terminated at iteration %d because the energy "
+            "decrease in the PD-gap was %.3e which is below the "
+            "relative tolerance of %.3e" 
+            % (i+1, np.abs((gap[-1] - gap[-2]) / gap[0]), self.tol))
+                    return primal_vars
+            sys.stdout.write(
+                "Iteration: %04d ---- Primal: %2.2e, "
+                "Dual: %2.2e, Gap: %2.2e, Beta: %2.2e \r" %
+                (i+1, 1000*primal[-1] / gap[0],
+                 1000*dual[-1] / gap[0],
+                 1000*gap[-1] / gap[0],
+                 beta_line))
+            sys.stdout.flush()
+
         return primal_vars
 
     def _updateInitial(

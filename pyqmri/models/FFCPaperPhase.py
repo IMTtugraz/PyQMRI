@@ -344,25 +344,25 @@ class Model(BaseModel):
         self.dscale = args[1]
         self.images = np.reshape(np.abs(args[0]/args[1]),
                                  self.t.shape+args[0].shape[-3:])
-        test_M0 = 1e-1*np.ones(
+        test_M0 = 1*np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
         self.constraints[0].update(1/args[1])
         test_Xi = 1*np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
         # self.constraints[1].update(1/args[1])
-        test_R1 = 200 * np.ones(
+        test_R1 = 300 * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
         test_Cx = []
         # self.b *= args[1]
         for j in range(self.numT1Scale):
             test_Cx.append(
-                100/(j+1) *
+                300/(j+1) *
                 np.ones(
                     (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE))
         test_Ca = []
         # self.b *= args[1]
         for j in range(self.numT1Scale):
-            test_Cx.append(
+            test_Ca.append(
                 1 *
                 np.ones(
                     (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE))

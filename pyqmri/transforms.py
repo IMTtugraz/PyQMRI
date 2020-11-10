@@ -58,8 +58,8 @@ class PyOpenCLnuFFT():
     def create(ctx,
                queue,
                par,
-               kwidth=5,
-               klength=200,
+               kwidth=9,
+               klength=1000,
                DTYPE=np.complex64,
                DTYPE_real=np.float32,
                radial=False,
@@ -271,8 +271,8 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
             ctx,
             queue,
             par,
-            kwidth=5,
-            klength=200,
+            kwidth=9,
+            klength=1000,
             DTYPE=np.complex64,
             DTYPE_real=np.float32):
         super().__init__(ctx, queue, par["fft_dim"], DTYPE, DTYPE_real)

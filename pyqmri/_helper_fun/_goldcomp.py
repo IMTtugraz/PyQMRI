@@ -31,4 +31,4 @@ def cmp(k):
     w = np.repeat(w, nspokes, 0)
     w = np.reshape(w, (N, nspokes)).T
 
-    return np.array(w)
+    return np.ones_like(np.array(w))
