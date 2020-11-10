@@ -26,9 +26,9 @@ DTYPE_real = np.float64
 data_dir = os.path.realpath(pjoin(os.path.dirname(__file__), '..'))
 
 def setupPar(par):
-    par["NScan"] = 10
+    par["NScan"] = 6
     par["NC"] = 8
-    par["NSlice"] = 12
+    par["NSlice"] = 6
     par["dimX"] = 128
     par["dimY"] = 128
     par["Nproj"] = 34
