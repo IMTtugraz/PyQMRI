@@ -8,6 +8,7 @@ Thank you for taking your time to consider to contribute to PyQMRI, whether it's
 * Proposing new features
 
 If you want to contribute please first contact the owner of this repository (e.g. via opening an Issue) and discuss the changes you want to change.
+By contributing you accept and adhere to our `Code of Conduct`_
 
 Found a Bug?
 ------------
@@ -55,4 +56,4 @@ This document was adapted from the open-source contribution guidelines for `Face
 .. _PEP8 : https://www.python.org/dev/peps/pep-0008/
 .. _`Facebook's Draft` : https://github.com/facebook/draft-js/blob/a9316a723f9e918afde44dea68b5f9f39b7d9b00/CONTRIBUTING.md
 .. _`Apache-2` : LICENSE
-
+.. _`Code of Conduct` : CODE_OF_CONDUCT.rst

@@ -5,7 +5,11 @@
 .. image:: https://readthedocs.org/projects/pyqmri/badge/?version=latest
     :target: https://pyqmri.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
-    
+.. role:: bash(code)
+   :language: bash
+.. role:: python(code)
+   :language: python
+   
 PyQMRI - Model-Based Parameter Quantification
 =============================================
 PyQMRI is a Python based toolbox for quantitative Magnetic Resonance Imaging (MRI). Utilizing _PyOpenCL and a double-buffering scheme, 
@@ -33,7 +37,7 @@ entry in the .h5 to force a recomputation of the receive coil sensitivities as t
 
 Contributing
 ------------
-If you want to contribute please make sure that all tests pass. 
+If you want to contribute please make sure that all tests pass and adhere to our `Code of Conduct`_. 
 Prior to running the tests it is necessary to start an ipcluster. 
 An exemplary workflow would be:
 :bash:`ipcluster start &`
@@ -44,6 +48,7 @@ in the PyQMRI root folder. It is advised to run unit and integration tests after
 :bash:`pytest test/integrationtests`
 
 For more detailed instructions on how to contribute have a look at contributing_.
+
 
 Limitations and known Issues:
 ------------------------------
@@ -75,3 +80,4 @@ at `[v0.1.0] <https://github.com/IMTtugraz/PyQMRI/tree/v.0.1.0>`_
 .. _contributing: CONTRIBUTING.rst
 .. _`Quickstart Guide` : https://pyqmri.readthedocs.io/en/latest/quickstart.html
 .. _Documentation : https://pyqmri.readthedocs.io/en/latest/?badge=latest
+.. _`Code of Conduct` : CODE_OF_CONDUCT.rst
