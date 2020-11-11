@@ -30,15 +30,17 @@ pipeline {
     stage('Integrationtests') {
       steps {
         sh 'ipcluster start&'
-        sh 'pytest --junitxml results_integrationtests.xml --cov=pyqmri --integration-cover test/integrationtests/'
-        sh 'coverage xml -o coverage_integrationtest.xml'
+        sh 'pytest --junitxml results_integrationtests_single_slice.xml --cov=pyqmri --integration-cover test/integrationtests/test_integration_test_single_slice.py'
+        sh 'coverage xml -o coverage_integrationtest_single_slice.xml'
+        sh 'pytest --junitxml results_integrationtests_single_slice.xml --cov=pyqmri --integration-cover test/integrationtests/test_integration_test_multi_slice.py'
+        sh 'coverage xml -o coverage_integrationtest_multi_slice.xml'
         sh 'ipcluster stop&'
       }
     }
   }
   post {
       always {
-          cobertura coberturaReportFile: 'coverage_unittest_LinOp.xml, coverage_unittest_grad.xml, coverage_unittest_symgrad.xml, coverage_integrationtest.xml', enableNewApi: true
+          cobertura coberturaReportFile: 'coverage_unittest_LinOp.xml, coverage_unittest_grad.xml, coverage_unittest_symgrad.xml, coverage_integrationtest_single_slice.xml, coverage_integrationtest_multi_slice.xml', enableNewApi: true
           junit 'results*.xml'
           recordIssues enabledForFailure: true, tool: pyLint(pattern: 'pylint.log')
           cleanWs()
