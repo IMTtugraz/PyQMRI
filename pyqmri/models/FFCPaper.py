@@ -43,12 +43,12 @@ class Model(BaseModel):
                         1,
                         True))
         self.constraints.append(
-            constraints(1e-10,
+            constraints(10,
                         2000,
                         True))
         for j in range(self.numT1Scale):
             self.constraints.append(
-                constraints(1e-10,
+                constraints(10,
                             2000,
                             True))
         self._ind1 = 0
@@ -335,7 +335,7 @@ class Model(BaseModel):
         self.dscale = args[1]
         self.images = np.reshape(np.abs(args[0]/args[1]),
                                  self.t.shape+args[0].shape[-3:])
-        test_M0 = 1*np.ones(
+        test_M0 = np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
         self.constraints[0].update(1/args[1])
         test_Xi = 1*np.ones(
