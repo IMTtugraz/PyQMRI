@@ -286,7 +286,7 @@ if __name__ == '__main__':
            "options are: 'TGV', 'TV', ''")
     args.add_argument(
         '--lambda', default=1, dest='lamda',
-        help="Regularization parameter (default: 1)", type=int
+        help="Regularization parameter (default: 1)", type=float
     )
 
     args = args.parse_args()
@@ -299,9 +299,9 @@ if __name__ == '__main__':
     args.csfile = Path.cwd() / 'data_soft_sense_test' / 'sensitivities_ecalib.mat'
 
     # args.type = '3D'
-    # args.reg_type = ''  # '', 'TV', or 'TGV'
+    # args.reg_type = 'TV'  # '', 'TV', or 'TGV'
     args.linesearch = False
-    args.lamda = 8
+    # args.lamda = 0.1
     args.undersampling = True
     args.dim_us = 'y'
     args.acceleration_factor = 4
