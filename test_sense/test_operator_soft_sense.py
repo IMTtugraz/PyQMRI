@@ -41,84 +41,84 @@ def _setup_par(par):
     par["mask"][:, ::2, :] = 0
 
 
-# class OperatorSoftSenseTest(unittest.TestCase):
-#     def setUp(self):
-#         args = Args
-#         args.trafo = False
-#         args.use_GPU = True
-#         args.streamed = False
-#         args.devices = 0
-#
-#         par = {}
-#         _setupOCL(args, par)
-#         _setup_par(par)
-#
-#         if DTYPE == np.complex128:
-#             file = open(
-#                     resource_filename(
-#                         'pyqmri', 'kernels/OpenCL_Kernels_double.c'))
-#         else:
-#             file = open(
-#                     resource_filename(
-#                         'pyqmri', 'kernels/OpenCL_Kernels.c'))
-#         prg = Program(
-#             par["ctx"][0],
-#             file.read())
-#         file.close()
-#
-#         self.op = pyqmirop.OperatorSoftSense(par, prg)
-#
-#         self.opinfwd = np.random.randn(par["NMaps"], par["NSlice"], par["dimY"], par["dimX"]) +\
-#             1j * np.random.randn(par["NMaps"], par["NSlice"],  par["dimY"], par["dimX"])
-#
-#         self.opinadj = np.random.randn(par["NScan"], par["NC"], par["NSlice"], par["dimY"], par["dimX"]) +\
-#             1j * np.random.randn(par["NScan"], par["NC"], par["NSlice"], par["dimY"], par["dimX"])
-#
-#         self.C = np.random.randn(par["NMaps"], par["NC"], par["NSlice"], par["dimY"], par["dimX"]) + \
-#             1j * np.random.randn(par["NMaps"], par["NC"], par["NSlice"], par["dimY"], par["dimX"])
-#
-#         self.C = self.C.astype(DTYPE)
-#         self.opinfwd = self.opinfwd.astype(DTYPE)
-#         self.opinadj = self.opinadj.astype(DTYPE)
-#         self.queue = par["queue"][0]
-#         self.coil_buf = cla.to_device(self.queue, self.C)
-#
-#     def test_outofplace(self):
-#         inpfwd = cla.to_device(self.queue, self.opinfwd)
-#         inpadj = cla.to_device(self.queue, self.opinadj)
-#
-#         outfwd = self.op.fwdoop([inpfwd, self.coil_buf])
-#         outadj = self.op.adjoop([inpadj, self.coil_buf])
-#
-#         outfwd = outfwd.get()
-#         outadj = outadj.get()
-#
-#         a = np.vdot(outfwd.flatten(), self.opinadj.flatten())/self.opinadj.size
-#         b = np.vdot(self.opinfwd.flatten(), outadj.flatten())/self.opinadj.size
-#
-#         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
-#
-#         self.assertAlmostEqual(a, b, places=6)
-#
-#     def test_inplace(self):
-#         inpfwd = cla.to_device(self.queue, self.opinfwd)
-#         inpadj = cla.to_device(self.queue, self.opinadj)
-#
-#         outfwd = cla.zeros_like(inpadj)
-#         outadj = cla.zeros_like(inpfwd)
-#
-#         self.op.fwd(outfwd, [inpfwd, self.coil_buf])
-#         self.op.adj(outadj, [inpadj, self.coil_buf])
-#
-#         outfwd = outfwd.get()
-#         outadj = outadj.get()
-#
-#         a = np.vdot(outfwd.flatten(), self.opinadj.flatten()) / self.opinadj.size
-#         b = np.vdot(self.opinfwd.flatten(), outadj.flatten()) / self.opinadj.size
-#
-#         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
-#
-#         self.assertAlmostEqual(a, b, places=6)
+class OperatorSoftSenseTest(unittest.TestCase):
+    def setUp(self):
+        args = Args
+        args.trafo = False
+        args.use_GPU = True
+        args.streamed = False
+        args.devices = 0
+
+        par = {}
+        _setupOCL(args, par)
+        _setup_par(par)
+
+        if DTYPE == np.complex128:
+            file = open(
+                    resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels_double.c'))
+        else:
+            file = open(
+                    resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels.c'))
+        prg = Program(
+            par["ctx"][0],
+            file.read())
+        file.close()
+
+        self.op = pyqmirop.OperatorSoftSense(par, prg)
+
+        self.opinfwd = np.random.randn(par["NMaps"], par["NSlice"], par["dimY"], par["dimX"]) +\
+            1j * np.random.randn(par["NMaps"], par["NSlice"],  par["dimY"], par["dimX"])
+
+        self.opinadj = np.random.randn(par["NScan"], par["NC"], par["NSlice"], par["dimY"], par["dimX"]) +\
+            1j * np.random.randn(par["NScan"], par["NC"], par["NSlice"], par["dimY"], par["dimX"])
+
+        self.C = np.random.randn(par["NMaps"], par["NC"], par["NSlice"], par["dimY"], par["dimX"]) + \
+            1j * np.random.randn(par["NMaps"], par["NC"], par["NSlice"], par["dimY"], par["dimX"])
+
+        self.C = self.C.astype(DTYPE)
+        self.opinfwd = self.opinfwd.astype(DTYPE)
+        self.opinadj = self.opinadj.astype(DTYPE)
+        self.queue = par["queue"][0]
+        self.coil_buf = cla.to_device(self.queue, self.C)
+
+    def test_outofplace(self):
+        inpfwd = cla.to_device(self.queue, self.opinfwd)
+        inpadj = cla.to_device(self.queue, self.opinadj)
+
+        outfwd = self.op.fwdoop([inpfwd, self.coil_buf])
+        outadj = self.op.adjoop([inpadj, self.coil_buf])
+
+        outfwd = outfwd.get()
+        outadj = outadj.get()
+
+        a = np.vdot(outfwd.flatten(), self.opinadj.flatten())/self.opinadj.size
+        b = np.vdot(self.opinfwd.flatten(), outadj.flatten())/self.opinadj.size
+
+        print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
+
+        self.assertAlmostEqual(a, b, places=6)
+
+    def test_inplace(self):
+        inpfwd = cla.to_device(self.queue, self.opinfwd)
+        inpadj = cla.to_device(self.queue, self.opinadj)
+
+        outfwd = cla.zeros_like(inpadj)
+        outadj = cla.zeros_like(inpfwd)
+
+        self.op.fwd(outfwd, [inpfwd, self.coil_buf])
+        self.op.adj(outadj, [inpadj, self.coil_buf])
+
+        outfwd = outfwd.get()
+        outadj = outadj.get()
+
+        a = np.vdot(outfwd.flatten(), self.opinadj.flatten()) / self.opinadj.size
+        b = np.vdot(self.opinfwd.flatten(), outadj.flatten()) / self.opinadj.size
+
+        print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
+
+        self.assertAlmostEqual(a, b, places=6)
 
 
 class OperatorSoftSenseStreamedTest(unittest.TestCase):

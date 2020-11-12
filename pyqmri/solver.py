@@ -2747,7 +2747,7 @@ class PDSoftSenseBaseSolver:
         """
         return self._prg[idx].update_z1_tgv(
             self._queue[4*idx+idxq],
-            np.shape(inp[0]), None,
+            np.shape(inp[0])[1:-1], None,
             outp.data,
             inp[0].data,
             inp[1].data,
@@ -2777,7 +2777,7 @@ class PDSoftSenseBaseSolver:
         """
         return self._prg[idx].update_z2_tgv(
             self._queue[4*idx+idxq],
-            np.shape(inp[0]), None,
+            np.shape(inp[0])[1:-1], None,
             outp.data,
             inp[0].data,
             inp[1].data,
@@ -2895,7 +2895,7 @@ class PDSoftSenseSolver(PDSoftSenseBaseSolver):
             self.update_y(
                 outp=out_dual["y"],
                 inp=(in_dual["y"], in_precomp_fwd["Kx"], data),
-                par=(sigma, self.lambd)))
+                par=(sigma, 1.0)))  # without regularization lambda set to 1
 
         out_adj["Kay"].add_event(
             self._op.adj(
@@ -3728,7 +3728,7 @@ class PDALSoftSenseBaseSolver:
         """
         return self._prg[idx].update_z1_tgv_line(
             self._queue[4*idx+idxq],
-            np.shape(inp[0]), None,
+            np.shape(inp[0])[1:-1], None,
             outp.data,
             inp[0].data,
             inp[1].data,
@@ -3760,7 +3760,7 @@ class PDALSoftSenseBaseSolver:
         """
         return self._prg[idx].update_z2_tgv_line(
             self._queue[4*idx+idxq],
-            np.shape(inp[0]), None,
+            np.shape(inp[0])[1:-1], None,
             outp.data,
             inp[0].data,
             inp[1].data,
@@ -3897,7 +3897,7 @@ class PDALSoftSenseSolver(PDALSoftSenseBaseSolver):
                     in_precomp_fwd_new["Kx"],
                     in_precomp_fwd["Kx"],
                     data),
-                par=(beta*tau, theta, self.lambd)))
+                par=(beta*tau, theta, 1.0)))  # without regularization lambda set to 1
 
         out_adj["Kay"].add_event(
             self._op.adj(

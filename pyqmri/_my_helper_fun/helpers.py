@@ -48,6 +48,18 @@ def undersample_kspace(par, ksp_data, acc=2, dim='y'):
     return ksp_data * mask
 
 
+def sum_of_squares(x):
+    return np.sqrt(np.abs(x[0])**2 + np.abs(x[1])**2)
+
+
+def normalize_imgs(x):
+    for i in range(x.shape[0]):
+        img = x[i]
+        i_min = np.min(img)
+        i_max = np.max(img)
+        x[i] = (img - i_min) / (i_max - i_min)
+    return x
+
 def prepare_data(ksp, par):
     check = np.ones_like(ksp)
     check[..., 1::2] = -1

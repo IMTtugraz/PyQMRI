@@ -4,6 +4,7 @@ import pyqmri.operator as pyqmirop
 
 from pyqmri._my_helper_fun.display_data import *
 from pyqmri._my_helper_fun.export_data import *
+from pyqmri._my_helper_fun.helpers import create_mask
 from pyqmri.transforms import PyOpenCLnuFFT
 from pkg_resources import resource_filename
 from pyqmri._helper_fun import CLProgram as Program
@@ -212,6 +213,41 @@ def _gradient(x):
                      gradz), axis=-1)
 
 
+def _sym_grad(f):
+    dfx_dx = np.zeros(np.shape(f)[0:-1], dtype=DTYPE)
+    dfy_dy = np.zeros_like(dfx_dx)
+    dfz_dz = np.zeros_like(dfx_dx)
+
+    dfy_dx = np.zeros_like(dfx_dx)
+    dfz_dx = np.zeros_like(dfx_dx)
+    dfz_dy = np.zeros_like(dfx_dx)
+    dfx_dy = np.zeros_like(dfx_dx)
+    dfx_dz = np.zeros_like(dfx_dx)
+    dfy_dz = np.zeros_like(dfx_dx)
+
+    dfx_dx[..., :-1] = np.diff(f[..., 0], axis=-1)
+    dfy_dy[..., :-1, :] = np.diff(f[..., 1], axis=-2)
+    dfz_dz[:, :-1, ...] = np.diff(f[..., 2], axis=-3)
+
+    dfy_dx[..., :-1] = np.diff(f[..., 1], axis=-1)
+    dfz_dx[..., :-1] = np.diff(f[..., 2], axis=-1)
+    dfz_dy[..., :-1, :] = np.diff(f[..., 2], axis=-2)
+
+    dfx_dy[..., :-1, :] = np.diff(f[..., 0], axis=-2)
+    dfx_dz[..., :-1, :, :] = np.diff(f[..., 0], axis=-3)
+    dfy_dz[..., :-1, :, :] = np.diff(f[..., 1], axis=-3)
+
+    return np.stack(
+        (
+            dfx_dx,
+            dfy_dy,
+            dfz_dz,
+            (dfy_dx + dfx_dy) / 2,
+            (dfz_dx + dfx_dz) / 2,
+            (dfz_dy + dfy_dz) / 2
+        ), axis=-1
+    )
+
 def _proximal_op(xi, sigma):
     return xi / (1 + sigma)
 
@@ -286,21 +322,25 @@ def _primal_dual_solver_np(ksp, cmaps):
 #             img_montage(np.abs(grad), 'Numpy Gradients')
 #             img_montage(np.abs(div_p[0]), 'Numpy Divergence')
 #             img_montage(np.abs(xn1_[0]), 'X')
-#
+#.flatten()
 #         yn = yn1.copy()
 #         xn = xn1_.copy()
 #         pn = pn1.copy()
 #
 #     img_montage(np.real(xn), 'PD numpy recon')
 
-def calculate_cost(x, ksp, cmaps, mask, reg_type=''):
+def calculate_cost(myargs, par, x, v, ksp, cmaps, reg_type=''):
+    mask = create_mask(np.shape(ksp), myargs.acceleration_factor, myargs.dim_us)
     out_fwd = _operator_fwd_np(x, cmaps, mask)
-    cost = np.linalg.norm(out_fwd - ksp)
+    cost = np.linalg.norm(out_fwd - ksp)**2
+    # cost = np.vdot((out_fwd - ksp), (out_fwd - ksp)).real
 
     reg_cost = 0
     if reg_type == 'TV':
+        cost *= myargs.lamda * 0.5
         reg_cost = np.sum(np.abs(_gradient(x)))
     if reg_type == 'TGV':
-        pass
+        cost *= myargs.lamda * 0.5
+        reg_cost = par['alpha1'] * np.sum(np.abs(_gradient(x) - v)) + par['alpha0'] * np.sum(np.abs(_sym_grad(v)))
 
     return cost + reg_cost

@@ -59,7 +59,90 @@ def _setup_irgn_par(irgn_par, myargs):
     irgn_par["gamma"] = 1
 
 
+def _power_iterations(par, x, cmaps, op, iters=100):
+    queue = par["queue"][0]
+    x = x.astype(DTYPE)
+    x = cla.to_device(queue, x)
+
+    if len(cmaps) > 0:
+        cmaps = cmaps.astype(DTYPE)
+        cmaps = cla.to_device(queue, cmaps)
+        y = op.adjoop([op.fwdoop([x, cmaps]), cmaps]).get()
+    else:
+        y = op.adjoop(op.fwdoop(x)).get()
+
+    for i in range(iters):
+        y_norm = np.linalg.norm(y)
+        x = y / y_norm if y_norm != 0 else y
+        x = cla.to_device(queue, x)
+        y = op.adjoop([op.fwdoop([x, cmaps]), cmaps]).get() if len(cmaps) > 0 else op.adjoop(op.fwdoop(x)).get()
+        x = x.get()
+        l1 = np.vdot(y, x)
+
+    return np.sqrt(np.max(np.abs(l1)))
+
+
+def _calc_step_size(args, par, ksp, cmaps):
+
+    if DTYPE == np.complex128:
+        file = open(
+            resource_filename(
+                'pyqmri', 'kernels/OpenCL_Kernels_double.c'))
+    else:
+        file = open(
+            resource_filename(
+                'pyqmri', 'kernels/OpenCL_Kernels.c'))
+    prg = Program(
+        par["ctx"][0],
+        file.read())
+    file.close()
+
+    op = pyqmirop.OperatorSoftSense(par, prg)
+    grad_op = pyqmirop.OperatorFiniteGradient(par, prg)
+    symgrad_op = pyqmirop.OperatorFiniteSymGradient(par, prg)
+
+    x = np.random.randn(1, par["NSlice"], par["dimY"], par["dimX"]) + \
+        1j * np.random.randn(1, par["NSlice"], par["dimY"], par["dimX"])
+
+    opnorm_1 = _power_iterations(par, x, cmaps[0], op)
+
+    x = np.random.randn(1, par["NSlice"], par["dimY"], par["dimX"]) + \
+        1j * np.random.randn(1, par["NSlice"], par["dimY"], par["dimX"])
+
+    opnorm_2 = _power_iterations(par, x, cmaps[1], op)
+
+    opnorm_grad = _power_iterations(par, x, [], grad_op)
+
+    x_symgrad = np.random.randn(1, par["NSlice"], par["dimY"], par["dimX"], 4) + \
+        1j * np.random.randn(1, par["NSlice"], par["dimY"], par["dimX"], 4)
+
+    opnorm_symgrad = _power_iterations(par, x_symgrad, [], symgrad_op)
+
+    K_ssense = np.array([opnorm_1, opnorm_2])
+    K_ssense_tv = np.array([[opnorm_1,      opnorm_2],
+                            [opnorm_grad,   0],
+                            [0,             opnorm_grad]])
+
+    K_ssense_tgv = np.array([[opnorm_1,     opnorm_2,       0,              0],
+                             [opnorm_grad,  0,              1,              0],
+                             [0,            0,              opnorm_symgrad, 0],
+                             [0,            opnorm_grad,    0,              1],
+                             [0,            0,              0,              opnorm_symgrad]])
+
+    if args.reg_type == '':
+        tau = 1 / np.sqrt(np.vdot(K_ssense, K_ssense))
+    if args.reg_type == 'TV':
+        tau = 1 / np.sqrt(np.vdot(K_ssense_tv, K_ssense_tv))
+    if args.reg_type == 'TGV':
+        tau = 1 / np.sqrt(np.vdot(K_ssense_tgv, K_ssense_tgv))
+    sigma = tau
+    return tau, sigma
+
+
 def _pda_soft_sense_solver(myargs, par, ksp, cmaps, imgs, imgs_us, reg_type=''):
+
+    # _calc_step_size(myargs, par, ksp, cmaps)
+
     file = open(resource_filename('pyqmri', 'kernels/OpenCL_Kernels.c'))
     prg = Program(
         par["ctx"][0],
@@ -85,17 +168,16 @@ def _pda_soft_sense_solver(myargs, par, ksp, cmaps, imgs, imgs_us, reg_type=''):
         1j * np.zeros((par["NMaps"], par["NSlice"], par["dimY"], par["dimX"]))
     inp = inp.astype(DTYPE)
 
-    if reg_type != '':
-        irgn_par["sigma"] = np.float32(1 / np.sqrt(12))
+    # if reg_type != '':
+    irgn_par["sigma"] = np.float32(1 / np.sqrt(12))
 
-    fval = 1.0
-    # fval = calculate_cost(imgs_us, ksp, cmaps, create_mask(np.shape(ksp), myargs.acceleration_factor, myargs.dim_us), reg_type)
+    fval = calculate_cost(myargs, irgn_par, inp, np.zeros(inp.shape+(3,)), ksp, cmaps, reg_type)
 
     cmaps = cla.to_device(op.queue, cmaps)
 
     if myargs.linesearch:
         pd = pyqmrisl.PDALSoftSenseBaseSolver.factory((prg,), par["queue"], par, irgn_par,
-                                                    1.0, cmaps, (op, grad_op, symgrad_op), None, reg_type)
+                                                    fval, cmaps, (op, grad_op, symgrad_op), None, reg_type)
     else:
         pd = pyqmrisl.PDSoftSenseBaseSolver.factory((prg,), par["queue"], par, irgn_par,
                                                     fval, cmaps, (op, grad_op, symgrad_op), None, reg_type)
@@ -110,17 +192,15 @@ def _3d_recon(imgs, ksp_data, cmaps, par, myargs):
         ksp_data = undersample_kspace(par, ksp_data, acc=myargs.acceleration_factor, dim=myargs.dim_us)
 
     out = soft_sense_recon_cl(myargs, par, ksp_data, cmaps)
-    img_montage(np.abs(np.squeeze(out)), '3D reconstruction of undersampled data with adjoint operator')
+    img_montage(sum_of_squares(out), '3D reconstruction of undersampled data with adjoint operator')
 
     out_pd = _pda_soft_sense_solver(myargs, par, ksp_data, cmaps, imgs, out, myargs.reg_type)
 
-    # img_montage(np.abs(np.squeeze(out_pd[0])), '3D reconstruction of undersampled data with PD algorithm')
-    # img_montage(np.abs(np.squeeze(out_pd[1])), '3D reconstruction of undersampled data with PD algorithm and TV')
-    # img_montage(np.abs(np.squeeze(out_pd[2])), '3D reconstruction of undersampled data with PD algorithm and TGV')
+    x_orig = normalize_imgs(sum_of_squares(imgs))
+    x_ssense = normalize_imgs(sum_of_squares(out_pd))
+    x_diff = normalize_imgs(x_orig - x_ssense)
 
-    x_ssense = np.sqrt(np.abs(out_pd[0]) ** 2 + np.abs(out_pd[1]) ** 2)
-
-    return x_ssense
+    return x_ssense, x_orig, x_diff
 
 
 def _2d_recon(imgs, ksp_data, cmaps, par, myargs):
@@ -139,26 +219,17 @@ def _2d_recon(imgs, ksp_data, cmaps, par, myargs):
     #cmaps = np.expand_dims(cmaps, axis=0)
     imgs = imgs[:, 21:21+NSlice, ...]
     #imgs = np.expand_dims(imgs, axis=0)
-    img_montage(np.abs(np.squeeze(imgs)), 'Original selected images')
 
     out_undersampled = soft_sense_recon_cl(myargs, par, ksp_data2d, cmaps)
-    img_montage(np.abs(np.squeeze(out_undersampled)), '2D reconstruction of undersampled data with adjoint operator')
+    img_montage(sum_of_squares(out_undersampled), '2D reconstruction of undersampled data with adjoint operator')
 
     out_pd = _pda_soft_sense_solver(myargs, par, ksp_data2d, cmaps, imgs, out_undersampled, reg_type=myargs.reg_type)
 
-    # img_montage(np.abs(np.squeeze(out_pd[0])), '2D reconstruction of undersampled data with PD algorithm')
-    # img_montage(np.abs(np.squeeze(out_pd[1])), '2D reconstruction of undersampled data with PD algorithm and TV')
-    # img_montage(np.abs(np.squeeze(out_pd[2])), '2D reconstruction of undersampled data with PD algorithm and TGV')
+    x_orig = normalize_imgs(sum_of_squares(imgs))
+    x_ssense = normalize_imgs(sum_of_squares(out_pd))
+    x_diff = normalize_imgs(x_orig - x_ssense)
 
-    x_orig = np.sqrt(np.abs(imgs[0])**2 + np.abs(imgs[1])**2)
-    x_ssense = np.sqrt(np.abs(out_pd[0]) ** 2 + np.abs(out_pd[1]) ** 2)
-
-    img_montage(np.abs(np.squeeze(x_ssense)), 'Softsense recon ' + myargs.reg_type)
-
-    #img_montage(np.abs(np.squeeze(x_orig)) / np.max(np.abs(x_orig)) - np.abs(np.squeeze(x_ssense)) / np.max(np.abs(x_ssense)), 'Diff Images Softsense recon')
-    #img_montage(np.abs(np.squeeze(x_orig)) / np.max(np.abs(x_orig)) - np.abs(np.squeeze(x_ssense_tgv)) / np.max(np.abs(x_ssense_tgv)), 'Diff Images Softsense recon TGV')
-
-    return x_ssense
+    return x_ssense, x_orig, x_diff
 
 
 def _main(myargs):
@@ -186,17 +257,20 @@ def _main(myargs):
     _setupOCL(myargs, par)
 
     imgs = phase_recon_cl_3d(ksp_data, cmaps, par)
-    img_montage(np.abs(np.squeeze(imgs)), 'Phase sensitive reconstruction 3D')
+    img_montage(sum_of_squares(imgs), 'Phase sensitive reconstruction 3D')
 
     if myargs.type == '2D':
-        out = _2d_recon(imgs, ksp_data, cmaps, par, myargs)
+        out_ssense, out_orig, out_diff = _2d_recon(imgs, ksp_data, cmaps, par, myargs)
     elif myargs.type == '3D':
-        out = _3d_recon(imgs, ksp_data, cmaps, par, myargs)
+        out_ssense, out_orig, out_diff = _3d_recon(imgs, ksp_data, cmaps, par, myargs)
     else:
-        print("Invalid recon type. Use 2D or 3D.")
-        return 0
+        raise ValueError("Invalid recon type. Must be 2D or 3D.")
 
-    save_imgs(out, myargs.type + '_recon_' + args.reg_type + '_lambda_' + str(myargs.lamda))
+    img_montage(out_orig, 'Original selected images')
+    img_montage(out_ssense, 'Softsense recon ' + myargs.reg_type)
+    # img_montage(out_diff, 'Diffs')
+
+    save_imgs(out_ssense, myargs.type + '_recon_' + args.reg_type + '_lambda_' + str(myargs.lamda))
 
 
 if __name__ == '__main__':
@@ -225,8 +299,9 @@ if __name__ == '__main__':
     args.csfile = Path.cwd() / 'data_soft_sense_test' / 'sensitivities_ecalib.mat'
 
     # args.type = '3D'
-    # args.reg_type = 'TV'  # '', 'TV', or 'TGV'
+    # args.reg_type = ''  # '', 'TV', or 'TGV'
     args.linesearch = False
+    args.lamda = 8
     args.undersampling = True
     args.dim_us = 'y'
     args.acceleration_factor = 4
