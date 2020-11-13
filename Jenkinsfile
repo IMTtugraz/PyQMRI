@@ -40,11 +40,11 @@ pipeline {
   }
   post {
       always {
-          sh '../../testquality-linux results_unittests_LinOp.xml --project_name=PyQMRI --plan_name=LinearOperator'
-          sh '../../testquality-linux results_unittests_grad.xml --project_name=PyQMRI --plan_name=Gradient'
-          sh '../../testquality-linux results_unittests_symgrad.xml --project_name=PyQMRI --plan_name=Symmetrizded\ Gradient'
-          sh '../../testquality-linux results_integrationtests_single_slice.xml --project_name=PyQMRI --plan_name=Single\ Slice\ Reconstruction'
-          sh '../../testquality-linux results_integrationtests_multi_slice.xml --project_name=PyQMRI --plan_name=Multi\ Slice\ Reconstruction'
+          sh '../../testquality-linux results_unittests_LinOp.xml --project_name=PyQMRI --plan_name="LinearOperator"'
+          sh '../../testquality-linux results_unittests_grad.xml --project_name=PyQMRI --plan_name="Gradient"'
+          sh '../../testquality-linux results_unittests_symgrad.xml --project_name=PyQMRI --plan_name="Symmetrizded Gradient"'
+          sh '../../testquality-linux results_integrationtests_single_slice.xml --project_name=PyQMRI --plan_name="Single Slice Reconstruction"'
+          sh '../../testquality-linux results_integrationtests_multi_slice.xml --project_name=PyQMRI --plan_name="Multi Slice Reconstruction"'
           cobertura coberturaReportFile: 'coverage_unittest_LinOp.xml, coverage_unittest_grad.xml, coverage_unittest_symgrad.xml, coverage_integrationtest_single_slice.xml, coverage_integrationtest_multi_slice.xml', enableNewApi: true
           junit 'results*.xml'
           recordIssues enabledForFailure: true, tool: pyLint(pattern: 'pylint.log')
