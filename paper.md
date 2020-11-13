@@ -89,7 +89,7 @@ The increased importance of qMRI is reflected by a multitude of open-source tool
 Most tools show a strong focus on neurological applications but are usually not limited to brain (this apllication area) data.
 hMRI [@hMRI] is a Matlab based tool that builds upon SPM [@SPM]. It extends the spatial registration and statistical inference capabilities of SPM by relaxometry and quantification of the magnetisation transfer effect.
 mrQ [@mrQ] offers relaxometry combined with the ability to quantify the macromolecular tissue volume, apparent volume of interacting water protons and the water-surface interaction rate completely written in Matlab.
-Another Matlab based project is qMRlab [@qMRlab] which offers a multitude of quantification algorithms including relaxometry, diffusion imaging, quantitative susceptibility mapping, field mapping, and quantitative magnetization transfer.
+Another Matlab based project is qMRlab [@qMRLab] which offers a multitude of quantification algorithms including relaxometry, diffusion imaging, quantitative susceptibility mapping, field mapping, and quantitative magnetization transfer.
 It further offers routines for visualization, simulation, and protocol optimization of quantitative MRI examinations.
 Another Matlab based tools is qmap [@QMAP] which offers a collection of tools for quantitative MRI. 
 
