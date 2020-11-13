@@ -5,6 +5,7 @@
 .. image:: https://readthedocs.org/projects/pyqmri/badge/?version=latest
     :target: https://pyqmri.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
+
 .. |Colab| image:: https://colab.research.google.com/assets/colab-badge.svg
     :target: https://colab.research.google.com/drive/19BfSJmDPinZDY0m1sMAhETutIiJG3b33?usp=sharing
     :alt: Open in Colab  
