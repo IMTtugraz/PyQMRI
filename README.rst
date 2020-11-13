@@ -5,6 +5,11 @@
 .. image:: https://readthedocs.org/projects/pyqmri/badge/?version=latest
     :target: https://pyqmri.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
+.. |Colab| image:: https://colab.research.google.com/assets/colab-badge.svg
+    :target: https://colab.research.google.com/drive/19BfSJmDPinZDY0m1sMAhETutIiJG3b33?usp=sharing
+    :alt: Open in Colab  
+    
+    
 .. role:: bash(code)
    :language: bash
 .. role:: python(code)
@@ -24,7 +29,7 @@ In addition, a Genereal Model exists that can be invoced
 using a text file containing the analytical signal equation.
 
 For a real world usage example have a look at the `Quickstart Guide`_.
-The example can also be run interactively using GoogleColab_.
+The example can also be run interactively using |Colab|.
 
 Installation and usage guides, as well as API documentaiton, can be found in the Documentation_
 
