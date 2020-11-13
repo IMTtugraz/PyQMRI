@@ -105,7 +105,9 @@ The approach utilizes a model-based reconstruction approach to estimate $T_1$ di
 To the best of the authors knowledge `PyQMRI`is the only available Python toolbox that offers real 3D regularization 
 in an iterative solver for model-based qMRI problems and for arbitrary large volumetric data, while simultaneously utilizing the computation
 power of recent GPUs. Further, the ability to use symbolic equations to generate new models seems to be unique as other tools require modifications of the code to include new qunatification models.
+
 \pagebreak
+
 # Algorithmic
 `PyQMRI` deals with the following general problem structure:
 
