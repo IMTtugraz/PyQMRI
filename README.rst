@@ -1,12 +1,16 @@
 Travis:
+
 .. image:: https://travis-ci.com/IMTtugraz/PyQMRI.svg?branch=master
     :target: https://travis-ci.com/IMTtugraz/PyQMRI
+    
 Jenkins:
+
 .. image:: https://00c8da69b5ae.ngrok.io/buildStatus/icon?job=PyQMRI_public%2Fmaster
    :target: https://00c8da69b5ae.ngrok.io/job/PyQMRI_public/job/master/
    
 .. image:: https://badge.fury.io/py/pyqmri.svg
     :target: https://pypi.org/project/pyqmri
+    
 .. image:: https://readthedocs.org/projects/pyqmri/badge/?version=latest
     :target: https://pyqmri.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
