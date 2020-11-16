@@ -43,6 +43,7 @@ pipeline {
           cobertura coberturaReportFile: 'coverage_unittest_LinOp.xml, coverage_unittest_grad.xml, coverage_unittest_symgrad.xml, coverage_integrationtest_single_slice.xml, coverage_integrationtest_multi_slice.xml', enableNewApi: true
           junit 'results*.xml'
           recordIssues enabledForFailure: true, tool: pyLint(pattern: 'pylint.log')
+          step([$class: 'TestQualityNotifier', project: 'P2 PyQMRI', plan: 'TP2 LinearOperator', testResults:'coverage_unittest_LinOp.xml'])
           cleanWs()
       }
   }
