@@ -21,10 +21,10 @@ pipeline {
       steps {
         sh 'pytest --junitxml results_unittests_LinOp.xml --cov=pyqmri test/unittests/test_LinearDataOperator.py'
         sh 'coverage xml -o coverage_unittest_LinOp.xml'
-        sh 'pytest --junitxml results_unittests_grad.xml --cov=pyqmri test/unittests/test_gradient.py'
-        sh 'coverage xml -o coverage_unittest_grad.xml'
-        sh 'pytest --junitxml results_unittests_symgrad.xml --cov=pyqmri test/unittests/test_symmetrized_gradient.py'
-        sh 'coverage xml -o coverage_unittest_symgrad.xml'
+//        sh 'pytest --junitxml results_unittests_grad.xml --cov=pyqmri test/unittests/test_gradient.py'
+//        sh 'coverage xml -o coverage_unittest_grad.xml'
+//        sh 'pytest --junitxml results_unittests_symgrad.xml --cov=pyqmri test/unittests/test_symmetrized_gradient.py'
+//        sh 'coverage xml -o coverage_unittest_symgrad.xml'
       }
     }
 //    stage('Integrationtests') {
@@ -43,7 +43,7 @@ pipeline {
 //          cobertura coberturaReportFile: 'coverage_unittest_LinOp.xml, coverage_unittest_grad.xml, coverage_unittest_symgrad.xml, coverage_integrationtest_single_slice.xml, coverage_integrationtest_multi_slice.xml', enableNewApi: true
           junit 'results*.xml'
           recordIssues enabledForFailure: true, tool: pyLint(pattern: 'pylint.log')
-          testquality-updater project: 'P2 PyQMRI', plan: 'TP2 LinearOperator', testResults:'coverage_unittest_LinOp.xml'])
+          step([$class: 'testquality-updater', project: 'P2 PyQMRI', plan: 'TP2 LinearOperator', testResults:'coverage_unittest_LinOp.xml'])
           cleanWs()
       }
   }
