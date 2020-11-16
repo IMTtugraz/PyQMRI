@@ -43,7 +43,7 @@ pipeline {
 //          cobertura coberturaReportFile: 'coverage_unittest_LinOp.xml, coverage_unittest_grad.xml, coverage_unittest_symgrad.xml, coverage_integrationtest_single_slice.xml, coverage_integrationtest_multi_slice.xml', enableNewApi: true
           junit 'results*.xml'
           recordIssues enabledForFailure: true, tool: pyLint(pattern: 'pylint.log')
-          sh 'ls /var/lib/jenkins'
+          sh 'ls /home/omaier/Downloads'
           cleanWs()
       }
   }
