@@ -43,6 +43,7 @@ pipeline {
           cobertura coberturaReportFile: 'coverage_unittest_LinOp.xml, coverage_unittest_grad.xml, coverage_unittest_symgrad.xml, coverage_integrationtest_single_slice.xml, coverage_integrationtest_multi_slice.xml', enableNewApi: true
           junit 'results*.xml'
           recordIssues enabledForFailure: true, tool: pyLint(pattern: 'pylint.log')
+          step([$class: 'GitHubCommitStatusSetter', statusBackrefSource: [$class: 'ManuallyEnteredBackrefSource', backref: 'https://00c8da69b5ae.ngrok.io:8090/job/PyQMRI_public/job/JOSS_pub/42/display/redirect']])
           cleanWs()
       }
   }
