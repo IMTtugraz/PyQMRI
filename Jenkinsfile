@@ -12,17 +12,17 @@ pipeline {
         sh 'pip3 install -e .'
       }
     }
-    stage('Pylint') {
-      steps {
-        sh 'pylint -ry --output-format=parseable --exit-zero ./pyqmri > pylint.log'
-      }
-    }
+//    stage('Pylint') {
+//      steps {
+//        sh 'pylint -ry --output-format=parseable --exit-zero ./pyqmri > pylint.log'
+//      }
+//    }
     stage('Unittests') {
       steps {
-        sh 'pytest --junitxml results_unittests_LinOp.xml --cov=pyqmri test/unittests/test_LinearDataOperator.py'
-        sh 'coverage xml -o coverage_unittest_LinOp.xml'
-//        sh 'pytest --junitxml results_unittests_grad.xml --cov=pyqmri test/unittests/test_gradient.py'
-//        sh 'coverage xml -o coverage_unittest_grad.xml'
+//        sh 'pytest --junitxml results_unittests_LinOp.xml --cov=pyqmri test/unittests/test_LinearDataOperator.py'
+//        sh 'coverage xml -o coverage_unittest_LinOp.xml'
+        sh 'pytest --junitxml results_unittests_grad.xml --cov=pyqmri test/unittests/test_gradient.py'
+        sh 'coverage xml -o coverage_unittest_grad.xml'
 //        sh 'pytest --junitxml results_unittests_symgrad.xml --cov=pyqmri test/unittests/test_symmetrized_gradient.py'
 //        sh 'coverage xml -o coverage_unittest_symgrad.xml'
       }
@@ -40,13 +40,10 @@ pipeline {
   }
   post {
       always {
-          cobertura coberturaReportFile: 'coverage_unittest_LinOp.xml, coverage_unittest_grad.xml, coverage_unittest_symgrad.xml, coverage_integrationtest_single_slice.xml, coverage_integrationtest_multi_slice.xml', enableNewApi: true
+//          cobertura coberturaReportFile: 'coverage_unittest_LinOp.xml, coverage_unittest_grad.xml, coverage_unittest_symgrad.xml, coverage_integrationtest_single_slice.xml, coverage_integrationtest_multi_slice.xml', enableNewApi: true
           junit 'results*.xml'
           recordIssues enabledForFailure: true, tool: pyLint(pattern: 'pylint.log')
-          steps{
-          sh 'cd /var/lib/jenkins'
-          sh 'ls'          
-          }
+          sh 'ls /var/lib/jenkins'
           cleanWs()
       }
   }
