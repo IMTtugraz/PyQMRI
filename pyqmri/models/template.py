@@ -183,9 +183,6 @@ class BaseModel(ABC):
         [dimZ, dimY, dimX] = unknowns["data"].shape[1:]
 
         if not self._figure:
-            self._ax_trans = []
-            self._ax_sag = []
-            self._ax_cor = []
             plot_dim_x = int(np.ceil(np.sqrt(numunknowns)))
             plot_dim_y = int(np.round(np.sqrt(numunknowns)))
             plt.ion()
@@ -217,10 +214,6 @@ class BaseModel(ABC):
                     ax_trans.set_anchor('SE')
                     ax_sag.set_anchor('SW')
                     ax_cor.set_anchor('NE')
-                    
-                    self._ax_trans.append(ax_trans)
-                    self._ax_sag.append(ax_sag)
-                    self._ax_cor.append(ax_cor)
 
                     if unknowns["real_valued"][i*plot_dim_x+j]:
                         def mytrafo(x):
@@ -233,26 +226,14 @@ class BaseModel(ABC):
                         ax_trans.imshow(
                             mytrafo(unknowns["data"][i*plot_dim_x+j,
                                                      int(NSlice / 2), ...])))
-                    self._ax_trans[-1].volume = unknowns["data"][
-                        i*plot_dim_x+j]
-                    self._ax_trans[-1].index = int(NSlice / 2)
-                    
                     self._plot_cor.append(
                         ax_cor.imshow(
                             mytrafo(unknowns["data"][i*plot_dim_x+j,
                                                      ..., int(dimY / 2), :])))
-                    self._ax_cor[-1].volume = np.swapaxes(
-                            unknowns["data"][i*plot_dim_x+j], 0, 1)
-                    self._ax_cor[-1].index = int(dimY / 2)
-                    
                     self._plot_sag.append(
                         ax_sag.imshow(
                             mytrafo(unknowns["data"][i*plot_dim_x+j,
                                                      ..., int(dimX / 2)].T)))
-                    self._ax_sag[-1].volume = unknowns["data"][
-                        i*plot_dim_x+j].T
-                    self._ax_sag[-1].index = int(dimX / 2)
-                    
                     ax_trans.set_title(
                         unknowns["unknown_name"][i*plot_dim_x+j],
                         color='white')
@@ -264,10 +245,6 @@ class BaseModel(ABC):
                         cbar.ax.spines[spine].set_color('white')
             plt.draw()
             plt.pause(1e-10)
-            
-            self._figure.canvas.mpl_connect(
-                'scroll_event',
-                self.onscroll)
 
         else:
             for j in range(numunknowns):
@@ -277,55 +254,22 @@ class BaseModel(ABC):
                 else:
                     def mytrafo(x):
                         return np.abs(x)
-                    
-                self._ax_trans[j].volume = mytrafo(unknowns["data"][j])
-                self._ax_cor[j].volume = mytrafo(np.swapaxes(
-                    unknowns["data"][j], 0, 1))
-                self._ax_sag[j].volume = mytrafo(unknowns["data"][j].T)
-                
-                self._ax_trans[j].images[0].set_array(
-                    self._ax_trans[j].volume[self._ax_trans[j].index])
-                self._ax_cor[j].images[0].set_array(
-                    self._ax_cor[j].volume[self._ax_cor[j].index])
-                self._ax_sag[j].images[0].set_array(
-                    self._ax_sag[j].volume[self._ax_sag[j].index])
-                
+                self._plot_trans[j].set_data(
+                    mytrafo(unknowns["data"][j,
+                                             int(NSlice / 2), ...]))
+                self._plot_cor[j].set_data(
+                    mytrafo(unknowns["data"][j,
+                                             ..., int(dimY / 2), :]))
+                self._plot_sag[j].set_data(
+                    mytrafo(unknowns["data"][j,
+                                             ..., int(dimX / 2)].T))
                 minval = mytrafo(unknowns["data"][j]).min()
                 maxval = mytrafo(unknowns["data"][j]).max()
-                
                 self._plot_trans[j].set_clim([minval, maxval])
                 self._plot_cor[j].set_clim([minval, maxval])
                 self._plot_sag[j].set_clim([minval, maxval])
             plt.draw()
             plt.pause(1e-10)
-            
-    def onscroll(self, event):
-        if event.inaxes in self._ax_trans:
-            fig = event.canvas.figure
-            ax = self._ax_trans
-        
-        elif event.inaxes in self._ax_cor:
-            fig = event.canvas.figure
-            ax = self._ax_cor
-                        
-        elif event.inaxes in self._ax_sag:
-            fig = event.canvas.figure
-            ax = self._ax_sag
-        else:
-            return
-        
-        for i, axes in enumerate(ax):
-            if axes.index is not None:
-                volume = axes.volume
-                if (int((axes.index - event.step) >= volume.shape[0]) or
-                        int((axes.index - event.step) < 0)):
-                    pass
-                else:
-                    ax[i].index = int((axes.index - event.step) % volume.shape[0])
-                    ax[i].images[0].set_array(volume[ax[i].index])
-                    fig.canvas.draw()
-        plt.draw()
-        plt.pause(1e-10)
 
     @abstractmethod
     def computeInitialGuess(self, *args):

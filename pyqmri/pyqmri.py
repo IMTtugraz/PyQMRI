@@ -23,6 +23,7 @@ from pyqmri._helper_fun._est_coils import est_coils
 from pyqmri._helper_fun import _utils as utils
 from pyqmri.solver import CGSolver
 from pyqmri.irgn import IRGNOptimizer
+np.seterr(divide='ignore', invalid='ignore')
 
 np.seterr(divide='ignore')
 
@@ -135,7 +136,7 @@ def _setupOCL(myargs, par):
                    properties=(
                      cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE)
                    )
-                )        
+                )
 
 
 def _genImages(myargs, par, data, off):
@@ -277,8 +278,7 @@ def _estScaleNorm(myargs, par, images, data):
     par["SNR_est"] = SNR_est
     print("Estimated SNR from kspace", SNR_est)
 
-    dscale = par["DTYPE_real"](np.sqrt(par["NSlice"]) 
-                               / np.linalg.norm(np.abs(data)))
+    dscale = par["DTYPE_real"](1 / np.linalg.norm(np.abs(data)))
     print("Data scale: ", dscale)
     par["dscale"] = dscale
     images = images*dscale
@@ -317,6 +317,8 @@ def _readInput(myargs, par):
             "PyQMRI_out" + \
             os.sep + myargs.sig_model + os.sep + \
             time.strftime("%Y-%m-%d  %H-%M-%S") + os.sep
+        if not os.sep.join(name.split(os.sep)[:-1]):
+            outdir = '.'+outdir
     else:
         outdir = myargs.outdir + os.sep + "PyQMRI_out" + \
             os.sep + myargs.sig_model + os.sep + par["fname"] + os.sep + \
@@ -660,7 +662,7 @@ def run(reg_type='TGV',
         sms=False,
         devices=0,
         dz=1,
-        weights=-1.0,
+        weights=-1,
         useCGguess=True,
         out='',
         modelfile="models.ini",
@@ -748,7 +750,7 @@ def run(reg_type='TGV',
               ('--model', str(model)),
               ('--modelfile', str(modelfile)),
               ('--modelname', str(modelname)),
-              ('--outdir', str(out)),
+              ('--out', str(out)),
               ('--double_precision', str(double_precision))
               ]
 
@@ -839,9 +841,6 @@ def _parseArguments(args):
     argparmain.add_argument(
       '--modelname', dest='modelname', type=str,
       help="Name of the model to use.")
-    argparmain.add_argument('--outdir', dest='outdir', type=str,
-                            help="The path to the output directory. Defaults "
-                            "to the location of the input.")
     argparmain.add_argument(
       '--double_precision', dest='double_precision', type=_str2bool,
       help="Switch between single (False, default) and double "
