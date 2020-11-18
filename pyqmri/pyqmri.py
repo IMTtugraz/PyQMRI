@@ -27,7 +27,6 @@ from pyqmri.irgn import IRGNOptimizer
 np.seterr(divide='ignore')
 
 #debug
-import ipdb
 
 
 
