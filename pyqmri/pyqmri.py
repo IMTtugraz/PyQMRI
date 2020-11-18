@@ -24,6 +24,11 @@ from pyqmri.irgn import IRGNOptimizer
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
+#debug
+import ipdb
+
+
+
 
 def _choosePlatform(myargs, par):
     platforms = cl.get_platforms()
@@ -177,6 +182,7 @@ def _genImages(myargs, par, data, off):
             end = time.time()-start
             print("FT took %f s" % end)
             return result
+        
         images = np.require(np.sum(nFTH(data, FFT, par) *
                                    (np.conj(par["C"])), axis=1),
                             requirements='C')

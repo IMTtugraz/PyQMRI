@@ -187,13 +187,14 @@ class Model(BaseModel):
                 plt.pause(1e-10)
 
 
-    def computeInitialGuess(self, *args):
+    def computeInitialGuess(self, *args):       
         self.phase = np.exp(1j*(np.angle(args[0])-np.angle(args[0][0])))
         if self.b0 is not None:
             test_M0 = self.b0
         else:
             test_M0 = args[0][0]
-        ADC = np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+        #ADC = np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
+        ADC = np.ones((self.NSlice, self.dimX, self.dimY), dtype = DTYPE)   # SR
 
         x = np.array((test_M0, ADC))
         self.guess = x
