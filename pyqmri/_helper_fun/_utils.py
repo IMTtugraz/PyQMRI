@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Wed Jan 30 11:10:07 2019
-
-@author: omaier
-"""
-import numpy as np
+"""Utility functions for PyQMRI fitting."""
 import configparser
 import os
 from pyqmri.transforms import PyOpenCLnuFFT
-DTYPE = np.complex64
-DTYPE_real = np.float32
 
 
 def prime_factors(n):
+    """Prime factorication.
+
+    Parameters
+    ----------
+      n : int
+        Value which should be factorized into primes.
+    """
     i = 2
     factors = []
     while i * i <= n:
@@ -28,28 +28,33 @@ def prime_factors(n):
 
 
 def NUFFT(par, trafo=True, SMS=False):
+    """NUFFT for image guess.
+
+    Parameters
+    ----------
+      par : dict
+        Parameter struct to setup the NUFFT
+      trafo : bool, True
+        Radial (True) or Cartesian (False) FFT.
+      SMS : bool, False
+        SMS (True) or normal FFT (False, default).
+    """
     NC = par["NC"]
     NScan = par["NScan"]
     par["NC"] = 1
     par["NScan"] = 1
-#    if SMS:
-#        packs = par["packs"]
-#        par["packs"] = 1
-#        par["NSlice"] = 2
 
     FFT = (PyOpenCLnuFFT.create(
         par["ctx"][0], par["queue"][0], par,
-        radial=trafo, SMS=SMS, fft_dim=par["fft_dim"]))
+        radial=trafo, SMS=SMS))
     par["NC"] = NC
     par["NScan"] = NScan
 
-#    if SMS:
-#        par["packs"] = packs
     return FFT
 
 
 def gen_default_config():
-
+    """Generate default config file."""
     config = configparser.ConfigParser()
 
     config['TGV'] = {}
@@ -58,16 +63,16 @@ def gen_default_config():
     config['TGV']["max_gn_it"] = '7'
     config['TGV']["lambd"] = '1e0'
     config['TGV']["gamma"] = '1e-3'
-    config['TGV']["delta"] = '1e-4'
+    config['TGV']["delta"] = '1e-2'
     config['TGV']["omega"] = '0'
     config['TGV']["display_iterations"] = '0'
     config['TGV']["gamma_min"] = '3e-4'
-    config['TGV']["delta_max"] = '1e-1'
+    config['TGV']["delta_max"] = '1e2'
     config['TGV']["omega_min"] = '0'
     config['TGV']["tol"] = '1e-6'
     config['TGV']["stag"] = '1e10'
     config['TGV']["delta_inc"] = '10'
-    config['TGV']["gamma_dec"] = '0.7'
+    config['TGV']["gamma_dec"] = '0.5'
     config['TGV']["omega_dec"] = '0.5'
 
     config['TV'] = {}
@@ -76,26 +81,38 @@ def gen_default_config():
     config['TV']["max_gn_it"] = '7'
     config['TV']["lambd"] = '1e0'
     config['TV']["gamma"] = '1e-3'
-    config['TV']["delta"] = '1e-4'
+    config['TV']["delta"] = '1e-2'
     config['TV']["omega"] = '0'
     config['TV']["display_iterations"] = '0'
     config['TV']["gamma_min"] = '3e-4'
-    config['TV']["delta_max"] = '1e-1'
+    config['TV']["delta_max"] = '1e2'
     config['TV']["omega_min"] = '0'
     config['TV']["tol"] = '1e-6'
     config['TV']["stag"] = '1e10'
     config['TV']["delta_inc"] = '10'
-    config['TV']["gamma_dec"] = '0.7'
+    config['TV']["gamma_dec"] = '0.5'
     config['TV']["omega_dec"] = '0.5'
 
     with open('default.ini', 'w') as configfile:
         config.write(configfile)
 
 
-def read_config(conf_file, reg_type="DEFAULT"):
+def read_config(conf_file, reg_type="TGV"):
+    """Config file reader.
+
+    Parameters
+    ----------
+      conf_file : str
+        Path to config file
+      reg_type : str, TGV
+        Select witch regularization parameters from the file should be used.
+    """
     config = configparser.ConfigParser()
+
+    if not conf_file.endswith('.ini'):
+        conf_file += '.ini'
     try:
-        with open(conf_file + '.ini', 'r') as f:
+        with open(conf_file, 'r') as f:
             config.read_file(f)
     except BaseException:
         print("Config file not readable or not found. "
@@ -114,7 +131,21 @@ def read_config(conf_file, reg_type="DEFAULT"):
                 params[key] = float(config[reg_type][key])
         return params
 
-def save_config(conf, path, reg_type="DEFAULT"):
+
+def save_config(conf, path, reg_type="TGV"):
+    """Config file writer.
+
+    Save the used config alongside the results.
+
+    Parameters
+    ----------
+      conf : str
+        Path to config file
+      path : str
+        Output path
+      reg_type : str, TGV
+        Select witch regularization parameters from the file should be used.
+    """
     tmp_dict = {}
     tmp_dict[reg_type] = conf
     config = configparser.ConfigParser()

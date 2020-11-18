@@ -8,4 +8,5 @@ ipyparallel
 pyfftw
 pyqt5<5.13
 numexpr
-sympy
+sympy>=1.6.2
+nbsphinx

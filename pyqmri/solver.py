@@ -1,25 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-""" This module holds the classes for different numerical Optimizer.
-
-Attribues:
-  DTYPE (complex64):
-    Complex working precission. Currently single precission only.
-  DTYPE_real (float32):
-    Real working precission. Currently single precission only.
-"""
+"""Module holding the classes for different numerical Optimizer."""
 
 from __future__ import division
+import sys
 import numpy as np
 from pkg_resources import resource_filename
 import pyopencl as cl
 import pyopencl.array as clarray
 import pyqmri.operator as operator
 from pyqmri._helper_fun import CLProgram as Program
-import sys
 import pyqmri.streaming as streaming
-DTYPE = np.complex64
-DTYPE_real = np.float32
 
 
 class CGSolver:
@@ -28,26 +19,27 @@ class CGSolver:
 
     This Class performs a CG reconstruction on single precission complex input
     data.
+
+    Parameters
+    ----------
+      par : dict
+        A python dict containing the necessary information to
+        setup the object. Needs to contain the number of slices (NSlice),
+        number of scans (NScan), image dimensions (dimX, dimY), number of
+        coils (NC), sampling points (N) and read outs (NProj)
+        a PyOpenCL queue (queue) and the complex coil
+        sensitivities (C).
+      NScan : int
+        Number of Scan which should be used internally. Do not
+        need to be the same number as in par["NScan"]
+      trafo : bool
+        Switch between radial (1) and Cartesian (0) fft.
+      SMS : bool
+        Simultaneouos Multi Slice. Switch between noraml (0)
+        and slice accelerated (1) reconstruction.
     """
 
     def __init__(self, par, NScan=1, trafo=1, SMS=0):
-        """
-        CG reconstruction Object.
-
-        Args
-        ----
-          par (dict): A python dict containing the necessary information to
-            setup the object. Needs to contain the number of slices (NSlice),
-            number of scans (NScan), image dimensions (dimX, dimY), number of
-            coils (NC), sampling points (N) and read outs (NProj)
-            a PyOpenCL queue (queue) and the complex coil
-            sensitivities (C).
-          NScan (int): Number of Scan which should be used internally. Do not
-            need to be the same number as in par["NScan"]
-          trafo (bool): Switch between radial (1) and Cartesian (0) fft.
-          SMS (bool): Simultaneouos Multi Slice. Switch between noraml (0)
-          and slice accelerated (1) reconstruction.
-        """
         self._NSlice = par["NSlice"]
         NScan_save = par["NScan"]
         par["NScan"] = NScan
@@ -67,32 +59,42 @@ class CGSolver:
                                 cl.mem_flags.READ_ONLY |
                                 cl.mem_flags.COPY_HOST_PTR,
                                 hostbuf=par["C"].data)
+        self._DTYPE = par["DTYPE"]
+        self._DTYPE_real = par["DTYPE_real"]
+
+        self.__op, FT = operator.Operator.MRIOperatorFactory(
+            par,
+            [self._prg],
+            self._DTYPE,
+            self._DTYPE_real,
+            trafo=trafo,
+            SMS=SMS
+            )
+
         if SMS:
-            self._op = operator.OperatorKspaceSMS(par, self._prg, trafo=trafo)
             self._tmp_sino = clarray.empty(
                 self._queue,
                 (self._NScan, self._NC,
                  int(self._NSlice/par["MB"]), par["Nproj"], par["N"]),
-                DTYPE, "C")
+                self._DTYPE, "C")
         else:
-            self._op = operator.OperatorKspace(par, self._prg, trafo=trafo)
             self._tmp_sino = clarray.empty(
                 self._queue,
                 (self._NScan, self._NC,
                  self._NSlice, par["Nproj"], par["N"]),
-                DTYPE, "C")
-        self._FT = self._op.NUFFT.FFT
-        self._FTH = self._op.NUFFT.FFTH
+                self._DTYPE, "C")
+        self._FT = FT.FFT
+        self._FTH = FT.FFTH
         self._tmp_result = clarray.empty(
             self._queue,
             (self._NScan, self._NC,
              self._NSlice, self._dimY, self._dimX),
-            DTYPE, "C")
+            self._DTYPE, "C")
         par["NScan"] = NScan_save
+        self._scan_offset = 0
 
     def __del__(self):
-        """
-        Destructor.
+        """Destructor.
 
         Releases GPU memory arrays.
         """
@@ -110,44 +112,47 @@ class CGSolver:
 
         All attributes after data are considered keyword only.
 
-        Args
-        ----
-          data (complex64):
+        Parameters
+        ----------
+          data : numpy.array
             The complex k-space data which serves as the basis for the images.
-          iters (int):
+          iters : int
             Maximum number of CG iterations
-          lambd (float):
+          lambd : float
             Weighting parameter for the Tikhonov regularization
-          tol (float):
+          tol : float
             Termination criterion. If the energy decreases below this
             threshold the algorithm is terminated.
-          guess (complex64):
+          guess : numpy.array
             An optional initial guess for the images. If None, zeros is used.
+
+        Returns
+        -------
+          numpy.Array:
+              The result of the image reconstruction.
         """
-        self.scan_offset = scan_offset
+        self._scan_offset = scan_offset
         if guess is not None:
             x = clarray.to_device(self._queue, guess)
         else:
             x = clarray.zeros(self._queue,
                               (self._NScan, 1,
                                self._NSlice, self._dimY, self._dimX),
-                              DTYPE, "C")
+                              self._DTYPE, "C")
         b = clarray.empty(self._queue,
                           (self._NScan, 1,
                            self._NSlice, self._dimY, self._dimX),
-                          DTYPE, "C")
+                          self._DTYPE, "C")
         Ax = clarray.empty(self._queue,
                            (self._NScan, 1,
                             self._NSlice, self._dimY, self._dimX),
-                           DTYPE, "C")
+                           self._DTYPE, "C")
 
         data = clarray.to_device(self._queue, data)
         self._operator_rhs(b, data)
         res = b
         p = res
         delta = np.linalg.norm(res.get())**2/np.linalg.norm(b.get())**2
-
-#        print("Initial Residuum: ", delta)
 
         for i in range(iters):
             self._operator_lhs(Ax, p)
@@ -164,7 +169,6 @@ class CGSolver:
                 del Ax, \
                     b, res, p, data, res_new
                 return np.squeeze(x.get())
-#            print("Res after iteration %i: %1.3e." % (i, delta))
             beta = (clarray.vdot(res_new, res_new) /
                     clarray.vdot(res, res)).real.get()
             p = res_new+beta*p
@@ -172,19 +176,25 @@ class CGSolver:
         del Ax, b, res, p, data, res_new
         return np.squeeze(x.get())
 
-    def eval_fwd_kspace_cg(self, y, x, wait_for=[]):
-        """
-        Apply forward operator for image reconstruction.
+    def eval_fwd_kspace_cg(self, y, x, wait_for=None):
+        """Apply forward operator for image reconstruction.
 
-        Args
-        ----
-          y (PyOpenCL.Array):
+        Parameters
+        ----------
+          y : PyOpenCL.Array
             The result of the computation
-          x (PyOpenCL.Array):
+          x : PyOpenCL.Array
             The input array
-          wait_for (list of PyopenCL.Event):
+          wait_for : list of PyopenCL.Event, None
             A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+            PyOpenCL.Event:
+                A PyOpenCL.Event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg.operator_fwd_cg(self._queue,
                                          (self._NSlice, self._dimY,
                                           self._dimX),
@@ -194,41 +204,53 @@ class CGSolver:
                                          np.int32(self._NScan),
                                          wait_for=wait_for)
 
-    def _operator_lhs(self, out, x, wait_for=[]):
-        """
-        Compute the left hand side of the CG equation.
+    def _operator_lhs(self, out, x, wait_for=None):
+        """Compute the left hand side of the CG equation.
 
-        Args
-        ----
-          out (PyOpenCL.Array):
+        Parameters
+        ----------
+          out : PyOpenCL.Array
             The result of the computation
-          x (PyOpenCL.Array):
+          x : PyOpenCL.Array
             The input array
-          wait_for (list of PyopenCL.Event):
+          wait_for : list of PyopenCL.Event, None
             A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+            PyOpenCL.Event:
+                A PyOpenCL.Event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         self._tmp_result.add_event(self.eval_fwd_kspace_cg(
             self._tmp_result, x, wait_for=self._tmp_result.events+x.events))
         self._tmp_sino.add_event(self._FT(
-            self._tmp_sino, self._tmp_result, scan_offset=self.scan_offset))
+            self._tmp_sino, self._tmp_result, scan_offset=self._scan_offset))
         return self._operator_rhs(out, self._tmp_sino)
 
-    def _operator_rhs(self, out, x, wait_for=[]):
-        """
-        Compute the right hand side of the CG equation.
+    def _operator_rhs(self, out, x, wait_for=None):
+        """Compute the right hand side of the CG equation.
 
-        Args
-        ----
-          out (PyOpenCL.Array):
+        Parameters
+        ----------
+          out : PyOpenCL.Array
             The result of the computation
-          x (PyOpenCL.Array):
+          x : PyOpenCL.Array
             The input array
-          wait_for (list of PyopenCL.Event):
+          wait_for : list of PyopenCL.Event
             A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+            PyOpenCL.Event:
+                A PyOpenCL.Event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         self._tmp_result.add_event(self._FTH(
             self._tmp_result, x, wait_for=wait_for+x.events,
-            scan_offset=self.scan_offset))
+            scan_offset=self._scan_offset))
         return self._prg.operator_ad_cg(self._queue,
                                         (self._NSlice, self._dimY,
                                          self._dimX),
@@ -241,45 +263,100 @@ class CGSolver:
 
 
 class PDBaseSolver:
-    """
-    Primal Dual splitting optimization.
+    """Primal Dual splitting optimization.
 
     This Class performs a primal-dual variable splitting based reconstruction
     on single precission complex input data.
+
+    Parameters
+    ----------
+      par : dict
+        A python dict containing the necessary information to
+        setup the object. Needs to contain the number of slices (NSlice),
+        number of scans (NScan), image dimensions (dimX, dimY), number of
+        coils (NC), sampling points (N) and read outs (NProj)
+        a PyOpenCL queue (queue) and the complex coil
+        sensitivities (C).
+      irgn_par : dict
+        A python dict containing the regularization
+        parameters for a given gauss newton step.
+      queue : list of PyOpenCL.Queues
+        A list of PyOpenCL queues to perform the optimization.
+      tau : float
+        Estimate of the initial step size based on the
+        operator norm of the linear operator.
+      fval : float
+        Estimate of the initial cost function value to
+        scale the displayed values.
+      prg : PyOpenCL Program A PyOpenCL Program containing the
+        kernels for optimization.
+      reg_type : string String to choose between "TV" and "TGV"
+        optimization.
+      data_operator : PyQMRI Operator The operator to traverse from
+        parameter to data space.
+      coil : PyOpenCL Buffer or empty list
+        coil buffer, empty list if image based fitting is used.
+      model : PyQMRI.Model
+        Instance of a PyQMRI.Model to perform plotting
+
+    Attributes
+    ----------
+      delta : float
+        Regularization parameter for L2 penalty on linearization point.
+      omega : float
+        Not used. Should be set to 0
+      lambd : float
+        Regularization parameter in front of data fidelity term.
+      tol : float
+        Relative toleraze to stop iterating
+      stag : float
+        Stagnation detection parameter
+      display_iterations : bool
+        Switch between plotting (true) of intermediate results
+      mu : float
+        Strong convecity parameter (inverse of delta).
+      tau : float
+        Estimated step size based on operator norm of regularization.
+      beta_line : float
+        Ratio between dual and primal step size
+      theta_line : float
+        Line search parameter
+      unknwons_TGV : int
+        Number of T(G)V unknowns
+      unknowns_H1 : int
+        Number of H1 unknowns (should be 0 for now)
+      unknowns : int
+        Total number of unknowns (T(G)V+H1)
+      num_dev : int
+        Total number of compute devices
+      dz : float
+        Ratio between 3rd dimension and isotropic 1st and 2nd image dimension.
+      model : PyQMRI.Model
+        The model which should be fitted
+      modelgrad : PyOpenCL.Array or numpy.Array
+        The partial derivatives evaluated at the linearization point.
+        This variable is set in the PyQMRI.irgn Class.
+      min_const : list of float
+        list of minimal values, one for each unknown
+      max_const : list of float
+        list of maximal values, one for each unknown
+      real_const : list of int
+        list if a unknown is constrained to real values only. (1 True, 0 False)
     """
 
-    def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 coil, model):
-        """
-        PD reconstruction Object.
-
-        Args
-        ----
-          par (dict): A python dict containing the necessary information to
-            setup the object. Needs to contain the number of slices (NSlice),
-            number of scans (NScan), image dimensions (dimX, dimY), number of
-            coils (NC), sampling points (N) and read outs (NProj)
-            a PyOpenCL queue (queue) and the complex coil
-            sensitivities (C).
-          irgn_par (dict): A python dict containing the regularization
-            parameters for a given gauss newton step.
-          queue (list): A list of PyOpenCL queues to perform the optimization.
-          tau (float): Estimate of the initial step size based on the
-            operator norm of the linear operator.
-          fval (float): Estimate of the initial cost function value to
-            scale the displayed values.
-          prg (PyOpenCL Program): A PyOpenCL Program containing the
-            kernels for optimization.
-          reg_type (string): String to choose between "TV" and "TGV"
-            optimization.
-          data_operator (PyQMRI Operator): The operator to traverse from
-            parameter to data space.
-          coils (PyOpenCL Buffer or empty List): optional coil buffer.
-          NScan (int): Number of Scan which should be used internally. Do not
-            need to be the same number as in par["NScan"]
-          trafo (bool): Switch between radial (1) and Cartesian (0) fft.
-          and slice accelerated (1) reconstruction.
-        """
+    def __init__(self,
+                 par,
+                 irgn_par,
+                 queue,
+                 tau,
+                 fval,
+                 prg,
+                 coil,
+                 model,
+                 DTYPE=np.complex64,
+                 DTYPE_real=np.float32):
+        self._DTYPE = DTYPE
+        self._DTYPE_real = DTYPE_real
         self.delta = irgn_par["delta"]
         self.omega = irgn_par["omega"]
         self.lambd = irgn_par["lambd"]
@@ -288,8 +365,8 @@ class PDBaseSolver:
         self.display_iterations = irgn_par["display_iterations"]
         self.mu = 1 / self.delta
         self.tau = tau
-        self.beta_line = 1e3#1e10#1e12
-        self.theta_line = np.float32(1.0)
+        self.beta_line = 1e3  # 1e10#1e12
+        self.theta_line = DTYPE_real(1.0)
         self.unknowns_TGV = par["unknowns_TGV"]
         self.unknowns_H1 = par["unknowns_H1"]
         self.unknowns = par["unknowns"]
@@ -320,36 +397,51 @@ class PDBaseSolver:
             reg_type='TGV',
             SMS=False,
             streamed=False,
-            imagespace=False):
+            imagespace=False,
+            DTYPE=np.complex64,
+            DTYPE_real=np.float32):
         """
         Generate a PDSolver object.
 
-        Args
-        ----
-          par (dict): A python dict containing the necessary information to
+        Parameters
+        ----------
+          prg : PyOpenCL.Program
+            A PyOpenCL Program containing the
+            kernels for optimization.
+          queue : list of PyOpenCL.Queues
+            A list of PyOpenCL queues to perform the optimization.
+          par : dict
+            A python dict containing the necessary information to
             setup the object. Needs to contain the number of slices (NSlice),
             number of scans (NScan), image dimensions (dimX, dimY), number of
             coils (NC), sampling points (N) and read outs (NProj)
             a PyOpenCL queue (queue) and the complex coil
             sensitivities (C).
-          irgn_par (dict): A python dict containing the regularization
+          irgn_par : dict
+            A python dict containing the regularization
             parameters for a given gauss newton step.
-          queue (list): A list of PyOpenCL queues to perform the optimization.
-          tau (float): Estimate of the initial step size based on the
-            operator norm of the linear operator.
-          fval (float): Estimate of the initial cost function value to
+          init_fval : float
+            Estimate of the initial cost function value to
             scale the displayed values.
-          prg (PyOpenCL Program): A PyOpenCL Program containing the
-            kernels for optimization.
-          reg_type (string): String to choose between "TV" and "TGV"
+          coils : PyOpenCL Buffer or empty list
+            The coils used for reconstruction.
+          linops : list of PyQMRI Operator
+            The linear operators used for fitting.
+          model : PyQMRI.Model
+            The model which should be fitted
+          reg_type : string, "TGV"
+            String to choose between "TV" and "TGV"
             optimization.
-          data_operator (PyQMRI Operator): The operator to traverse from
-            parameter to data space.
-          coils (PyOpenCL Buffer or empty List): optional coil buffer.
-          NScan (int): Number of Scan which should be used internally. Do not
-            need to be the same number as in par["NScan"]
-          trafo (bool): Switch between radial (1) and Cartesian (0) fft.
-          and slice accelerated (1) reconstruction.
+          SMS : bool, false
+            Switch between standard (false) and SMS (True) fitting.
+          streamed : bool, false
+            Switch between streamed (1) and normal (0) reconstruction.
+          imagespace : bool, false
+            Switch between k-space (false) and imagespace based fitting (true).
+          DTYPE : numpy.dtype, numpy.complex64
+             Complex working precission.
+          DTYPE_real : numpy.dtype, numpy.float32
+            Real working precission.
         """
         if reg_type == 'TV':
             if streamed:
@@ -358,80 +450,92 @@ class PDBaseSolver:
                         par,
                         irgn_par,
                         queue,
-                        np.float32(1 / np.sqrt(8)),
+                        DTYPE_real(1 / np.sqrt(8)),
                         init_fval,
                         prg,
                         linops,
                         coils,
                         model,
-                        imagespace=imagespace)
+                        imagespace=imagespace,
+                        DTYPE=DTYPE,
+                        DTYPE_real=DTYPE_real)
                 else:
                     pdop = PDSolverStreamedTV(
                         par,
                         irgn_par,
                         queue,
-                        np.float32(1 / np.sqrt(8)),
+                        DTYPE_real(1 / np.sqrt(8)),
                         init_fval,
                         prg,
                         linops,
                         coils,
                         model,
-                        imagespace=imagespace)
+                        imagespace=imagespace,
+                        DTYPE=DTYPE,
+                        DTYPE_real=DTYPE_real)
             else:
                 pdop = PDSolverTV(par,
                                   irgn_par,
                                   queue,
-                                  np.float32(1 / np.sqrt(8)),
+                                  DTYPE_real(1 / np.sqrt(8)),
                                   init_fval, prg,
                                   linops,
                                   coils,
-                                  model)
+                                  model,
+                                  DTYPE=DTYPE,
+                                  DTYPE_real=DTYPE_real
+                                  )
 
         elif reg_type == 'TGV':
-            L = np.float32(0.5 * (18.0 + np.sqrt(33)))
+            L = DTYPE_real(0.5 * (18.0 + np.sqrt(33)))
             if streamed:
                 if SMS:
                     pdop = PDSolverStreamedTGVSMS(
                         par,
                         irgn_par,
                         queue,
-                        np.float32(1 / np.sqrt(L)),
+                        DTYPE_real(1 / np.sqrt(L)),
                         init_fval,
                         prg,
                         linops,
                         coils,
                         model,
-                        imagespace=imagespace)
+                        imagespace=imagespace,
+                        DTYPE=DTYPE,
+                        DTYPE_real=DTYPE_real)
                 else:
                     pdop = PDSolverStreamedTGV(
                         par,
                         irgn_par,
                         queue,
-                        np.float32(1 / np.sqrt(L)),
+                        DTYPE_real(1 / np.sqrt(L)),
                         init_fval,
                         prg,
                         linops,
                         coils,
                         model,
-                        imagespace=imagespace)
+                        imagespace=imagespace,
+                        DTYPE=DTYPE,
+                        DTYPE_real=DTYPE_real)
             else:
                 pdop = PDSolverTGV(
                     par,
                     irgn_par,
                     queue,
-                    np.float32(1 / np.sqrt(L)),
+                    DTYPE_real(1 / np.sqrt(L)),
                     init_fval,
                     prg,
                     linops,
                     coils,
-                    model)
+                    model,
+                    DTYPE=DTYPE,
+                    DTYPE_real=DTYPE_real)
         else:
             raise NotImplementedError
         return pdop
 
     def __del__(self):
-        """
-        Destructor.
+        """Destructor.
 
         Releases GPU memory arrays.
         """
@@ -440,32 +544,39 @@ class PDBaseSolver:
         """
         Optimization with 3D T(G)V regularization.
 
-        Args
-        ----
+        Parameters
+        ----------
           x (numpy.array):
             Initial guess for the unknown parameters
           x (numpy.array):
             The complex valued data to fit.
-          iters (int):
+          iters : int
             Number of primal-dual iterations to run
+
+        Returns
+        -------
+          tupel:
+            A tupel of all primal variables (x,v in the Paper). If no
+            streaming is used, the two entries are opf class PyOpenCL.Array,
+            otherwise Numpy.Array.
         """
         self._updateConstraints()
         tau = self.tau
-        tau_new = np.float32(0)
+        tau_new = self._DTYPE_real(0)
 
         theta_line = self.theta_line
         beta_line = self.beta_line
-        beta_new = np.float32(0)
-        mu_line = np.float32(0.5)
-        delta_line = np.float32(1)
-        ynorm = np.float32(0.0)
-        lhs = np.float32(0.0)
-        primal = np.float32(0.0)
-        primal_new = np.float32(0)
-        dual = np.float32(0.0)
-        gap_init = np.float32(0.0)
-        gap_old = np.float32(0.0)
-        gap = np.float32(0.0)
+        beta_new = self._DTYPE_real(0)
+        mu_line = self._DTYPE_real(0.5)
+        delta_line = self._DTYPE_real(1)
+        ynorm = self._DTYPE_real(0.0)
+        lhs = self._DTYPE_real(0.0)
+        primal = self._DTYPE_real(0.0)
+        primal_new = self._DTYPE_real(0)
+        dual = self._DTYPE_real(0.0)
+        gap_init = self._DTYPE_real(0.0)
+        gap_old = self._DTYPE_real(0.0)
+        gap = self._DTYPE_real(0.0)
 
         (primal_vars,
          primal_vars_new,
@@ -494,10 +605,8 @@ class PDBaseSolver:
                 )
 
             beta_new = beta_line * (1 + self.mu * tau)
-            # tau_new = tau * np.sqrt(beta_line / beta_new)
             tau_new = tau * np.sqrt(beta_line / beta_new*(1 + theta_line))
             beta_line = beta_new
-            # tau_new = tau*np.sqrt(1+theta_line)
 
             while True:
                 theta_line = tau_new / tau
@@ -517,12 +626,9 @@ class PDBaseSolver:
                     )
                 if lhs <= ynorm * delta_line:
                     break
-                else:
-                    tau_new = tau_new * mu_line
+                tau_new = tau_new * mu_line
 
             tau = tau_new
-            # self.beta_line = beta_line
-            # self.tau = tau
             for j, k in zip(primal_vars_new,
                             tmp_results_adjoint_new):
                 (primal_vars[j],
@@ -549,7 +655,7 @@ class PDBaseSolver:
 
             if not np.mod(i, 10):
                 if self.display_iterations:
-                    if type(primal_vars["x"]) is np.ndarray:
+                    if isinstance(primal_vars["x"], np.ndarray):
                         self.model.plot_unknowns(
                             np.swapaxes(primal_vars["x"], 0, 1))
                     else:
@@ -593,34 +699,59 @@ class PDBaseSolver:
 
         return primal_vars
 
-    def _updateInitial(self, outp, inp):
+    def _updateInitial(
+            self,
+            out_fwd,
+            out_adj,
+            in_primal,
+            in_dual):
         pass
 
-    def _updatePrimal(self, outp, inp, tau):
+    def _updatePrimal(
+            self,
+            out_primal,
+            out_fwd,
+            in_primal,
+            in_precomp_adj,
+            tau):
         pass
 
-    def _updateDual(self, outp, inp, par):
-        pass
+    def _updateDual(self,
+                    out_dual,
+                    out_adj,
+                    in_primal,
+                    in_primal_new,
+                    in_dual,
+                    in_precomp_fwd,
+                    in_precomp_fwd_new,
+                    in_precomp_adj,
+                    data,
+                    beta,
+                    tau,
+                    theta
+                    ):
+        return ({}, {})
 
     def _calcResidual(
-                    primal_vars,
-                    dual_vars,
-                    Axold,
-                    tmp_results_adjoint,
-                    tmp_results_forward):
-        pass
+                    self,
+                    in_primal,
+                    in_dual,
+                    in_precomp_fwd,
+                    in_precomp_adj,
+                    data):
+        return ({}, {}, {})
 
-    def _setupVariables(inps, data):
-        pass
+    def _setupVariables(self, inp, data):
+        return ({}, {}, {}, {}, {}, {}, {}, {}, {})
 
     def _updateConstraints(self):
         num_const = (len(self.model.constraints))
-        min_const = np.zeros((num_const), dtype=np.float32)
-        max_const = np.zeros((num_const), dtype=np.float32)
+        min_const = np.zeros((num_const), dtype=self._DTYPE_real)
+        max_const = np.zeros((num_const), dtype=self._DTYPE_real)
         real_const = np.zeros((num_const), dtype=np.int32)
         for j in range(num_const):
-            min_const[j] = np.float32(self.model.constraints[j].min)
-            max_const[j] = np.float32(self.model.constraints[j].max)
+            min_const[j] = self._DTYPE_real(self.model.constraints[j].min)
+            max_const[j] = self._DTYPE_real(self.model.constraints[j].max)
             real_const[j] = np.int32(self.model.constraints[j].real)
 
         self.min_const = []
@@ -635,14 +766,13 @@ class PDBaseSolver:
                 clarray.to_device(self._queue[4*j], real_const))
 
     def updateRegPar(self, irgn_par):
-        """
-        Update the regularization parameters.
+        """Update the regularization parameters.
 
           Performs an update of the regularization parameters as these usually
           vary from one to another Gauss-Newton step.
 
-        Args
-        ----
+        Parameters
+        ----------
           irgn_par (dic): A dictionary containing the new parameters.
         """
         self.alpha = irgn_par["gamma"]
@@ -652,28 +782,40 @@ class PDBaseSolver:
         self.lambd = irgn_par["lambd"]
         self.mu = 1/self.delta
 
-    def update_primal(self, outp, inp, par=None, idx=0, idxq=0,
-                      bound_cond=0, wait_for=[]):
-        """
-        Primal update of the x variable in the Primal-Dual Algorithm.
+    def update_primal(self, outp, inp, par, idx=0, idxq=0,
+                      bound_cond=0, wait_for=None):
+        """Primal update of the x variable in the Primal-Dual Algorithm.
 
-        Args
-        ----
-          x_new (PyOpenCL.Array): The result of the update step
-          x (PyOpenCL.Array): The previous values of x
-          Kyk (PyOpenCL.Array): x-Part of the precomputed result of
-            the adjoint linear operator applied to y
-          xk (PyOpenCL.Array): The linearization point of the Gauss-Newton step
-          tau (float): Primal step size
-          delta (float): Regularization parameter for the step-size constrained
-          wait_for (list): A optional list for PyOpenCL.events to wait for
+        Parameters
+        ----------
+          outp : PyOpenCL.Array
+            The result of the update step
+          inp : PyOpenCL.Array
+            The previous values of x
+          par : list
+            List of necessary parameters for the update
+          idx : int
+            Index of the device to use
+          idxq : int
+            Index of the queue to use
+          bound_cond : int
+            Apply boundary condition (1) or not (0).
+          wait_for : list of PyOpenCL.Events, None
+            A optional list for PyOpenCL.Events to wait for
+
+        Returns
+        -------
+            PyOpenCL.Event:
+                A PyOpenCL.Event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_primal_LM(
             self._queue[4*idx+idxq],
             self._kernelsize, None,
             outp.data, inp[0].data, inp[1].data, inp[2].data, inp[3].data,
-            np.float32(par[0]),
-            np.float32(par[0]/par[1]),
+            self._DTYPE_real(par[0]),
+            self._DTYPE_real(par[0]/par[1]),
             self.min_const[idx].data, self.max_const[idx].data,
             self.real_const[idx].data, np.int32(self.unknowns),
             wait_for=(outp.events +
@@ -681,123 +823,192 @@ class PDBaseSolver:
                       inp[2].events+wait_for))
 
     def update_v(self, outp, inp, par=None, idx=0, idxq=0,
-                 bound_cond=0, wait_for=[]):
-        """
-        Primal update of the v variable in Primal-Dual Algorithm.
+                 bound_cond=0, wait_for=None):
+        """Primal update of the v variable in Primal-Dual Algorithm.
 
-        Args
-        ----
-          v_new (PyOpenCL.Array): The result of the update step
-          v (PyOpenCL.Array): The previous values of v
-          Kyk2 (PyOpenCL.Array): v-Part of the precomputed result of
-            the adjoint linear operator applied to y
-          tau (float): Primal step size
-          wait_for (list): A optional list for PyOpenCL.events to wait for
+        Parameters
+        ----------
+          outp : PyOpenCL.Array
+            The result of the update step
+          inp : PyOpenCL.Array
+            The previous values of x
+          par : list
+            List of necessary parameters for the update
+          idx : int
+            Index of the device to use
+          idxq : int
+            Index of the queue to use
+          bound_cond : int
+            Apply boundary condition (1) or not (0).
+          wait_for : list of PyOpenCL.Events, None
+            A optional list for PyOpenCL.Events to wait for
+
+        Returns
+        -------
+            PyOpenCL.Event:
+                A PyOpenCL.Event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_v(
             self._queue[4*idx+idxq], (outp[..., 0].size,), None,
-            outp.data, inp[0].data, inp[1].data, np.float32(par[0]),
+            outp.data, inp[0].data, inp[1].data, self._DTYPE_real(par[0]),
             wait_for=outp.events+inp[0].events+inp[1].events+wait_for)
 
     def update_z1(self, outp, inp, par=None, idx=0, idxq=0,
-                  bound_cond=0, wait_for=[]):
-        """
-        Dual update of the z1 variable in Primal-Dual Algorithm for TGV.
+                  bound_cond=0, wait_for=None):
+        """Dual update of the z1 variable in Primal-Dual Algorithm for TGV.
 
-        Args
-        ----
-          z_new (PyOpenCL.Array): The result of the update step
-          z (PyOpenCL.Array): The previous values of z
-          gx (PyOpenCL.Array): Linear Operator applied to the new x
-          gx_ (PyOpenCL.Array): Linear Operator applied to the previous x
-          vx (PyOpenCL.Array): Linear Operator applied to the new v
-          vx_ (PyOpenCL.Array): Linear Operator applied to the previous v
-          sigma (float): Dual step size
-          theta (float): Variable controling the extrapolation step of the
-            PD-algorithm
-          alpha (float): Regularization parameter of the first TGV functional
-          omega (float): Optimal regularization parameter for H1 regularization
-          wait_for (list): A optional list for PyOpenCL.events to wait for
+        Parameters
+        ----------
+          outp : PyOpenCL.Array
+            The result of the update step
+          inp : PyOpenCL.Array
+            The previous values of x
+          par : list
+            List of necessary parameters for the update
+          idx : int
+            Index of the device to use
+          idxq : int
+            Index of the queue to use
+          bound_cond : int
+            Apply boundary condition (1) or not (0).
+          wait_for : list of PyOpenCL.Events, None
+            A optional list for PyOpenCL.Events to wait for
+
+        Returns
+        -------
+            PyOpenCL.Event:
+                A PyOpenCL.Event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
+
         return self._prg[idx].update_z1(
             self._queue[4*idx+idxq],
             self._kernelsize, None,
             outp.data, inp[0].data, inp[1].data,
             inp[2].data, inp[3].data, inp[4].data,
-            np.float32(par[0]), np.float32(par[1]),
-            np.float32(1/par[2]), np.int32(self.unknowns_TGV),
-            np.int32(self.unknowns_H1), np.float32(1 / (1 + par[0] / par[3])),
+            self._DTYPE_real(par[0]), self._DTYPE_real(par[1]),
+            self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
+            np.int32(self.unknowns_H1),
+            self._DTYPE_real(1 / (1 + par[0] / par[3])),
             wait_for=(outp.events+inp[0].events+inp[1].events +
                       inp[2].events+inp[3].events+inp[4].events+wait_for))
 
     def update_z1_tv(self, outp, inp, par=None, idx=0, idxq=0,
-                     bound_cond=0, wait_for=[]):
-        """
-        Dual update of the z1 variable in Primal-Dual Algorithm for TV.
+                     bound_cond=0, wait_for=None):
+        """Dual update of the z1 variable in Primal-Dual Algorithm for TV.
 
-        Args
-        ----
-          z_new (PyOpenCL.Array): The result of the update step
-          z (PyOpenCL.Array): The previous values of z
-          gx (PyOpenCL.Array): Linear Operator applied to the new x
-          gx_ (PyOpenCL.Array): Linear Operator applied to the previous x
-          sigma (float): Dual step size
-          theta (float): Variable controling the extrapolation step of the
-            PD-algorithm
-          alpha (float): Regularization parameter of the first TGV functional
-          omega (float): Optimal regularization parameter for H1 regularization
-          wait_for (list): A optional list for PyOpenCL.events to wait for
+        Parameters
+        ----------
+          outp : PyOpenCL.Array
+            The result of the update step
+          inp : PyOpenCL.Array
+            The previous values of x
+          par : list
+            List of necessary parameters for the update
+          idx : int
+            Index of the device to use
+          idxq : int
+            Index of the queue to use
+          bound_cond : int
+            Apply boundary condition (1) or not (0).
+          wait_for : list of PyOpenCL.Events, None
+            A optional list for PyOpenCL.Events to wait for
+
+        Returns
+        -------
+            PyOpenCL.Event:
+                A PyOpenCL.Event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_z1_tv(
             self._queue[4*idx+idxq],
             self._kernelsize, None,
             outp.data, inp[0].data, inp[1].data, inp[2].data,
-            np.float32(par[0]),
-            np.float32(par[1]),
-            np.float32(1/par[2]), np.int32(self.unknowns_TGV),
-            np.int32(self.unknowns_H1), np.float32(1 / (1 + par[0] / par[3])),
+            self._DTYPE_real(par[0]),
+            self._DTYPE_real(par[1]),
+            self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
+            np.int32(self.unknowns_H1),
+            self._DTYPE_real(1 / (1 + par[0] / par[3])),
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
 
     def update_z2(self, outp, inp, par=None, idx=0, idxq=0,
-                  bound_cond=0, wait_for=[]):
-        """
-        Dual update of the z2 variable in Primal-Dual Algorithm for TGV.
+                  bound_cond=0, wait_for=None):
+        """Dual update of the z2 variable in Primal-Dual Algorithm for TGV.
 
-        Args
-        ----
-          z_new (PyOpenCL.Array): The result of the update step
-          z (PyOpenCL.Array): The previous values of z
-          gx (PyOpenCL.Array): Linear Operator applied to the new x
-          gx_ (PyOpenCL.Array): Linear Operator applied to the previous x
-          sigma (float): Dual step size
-          theta (float): Variable controling the extrapolation step of the
-            PD-algorithm
-          beta (float): Regularization parameter of the second TGV functional
-          wait_for (list): A optional list for PyOpenCL.events to wait for
+        Parameters
+        ----------
+          outp : PyOpenCL.Array
+            The result of the update step
+          inp : PyOpenCL.Array
+            The previous values of x
+          par : list
+            List of necessary parameters for the update
+          idx : int
+            Index of the device to use
+          idxq : int
+            Index of the queue to use
+          bound_cond : int
+            Apply boundary condition (1) or not (0).
+          wait_for : list of PyOpenCL.Events, None
+            A optional list for PyOpenCL.Events to wait for
+
+        Returns
+        -------
+            PyOpenCL.Event:
+                A PyOpenCL.Event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_z2(
             self._queue[4*idx+idxq],
             self._kernelsize, None,
             outp.data, inp[0].data, inp[1].data, inp[2].data,
-            np.float32(par[0]),
-            np.float32(par[1]),
-            np.float32(1/par[2]), np.int32(self.unknowns),
+            self._DTYPE_real(par[0]),
+            self._DTYPE_real(par[1]),
+            self._DTYPE_real(1/par[2]), np.int32(self.unknowns),
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
 
-    def update_Kyk2(self, outp, inp, par=None, idx=0, idxq=0,
-                    bound_cond=0, wait_for=[]):
-        """
-        Precompute the v-part of the Adjoint Linear operator.
+    def update_Kyk2(self,
+                    outp,
+                    inp,
+                    par=None,
+                    idx=0,
+                    idxq=0,
+                    bound_cond=0,
+                    wait_for=None
+                    ):
+        """Precompute the v-part of the Adjoint Linear operator.
 
-        Args
-        ----
-          div (PyOpenCL.Array): The result of the computation
-          u (PyOpenCL.Array): Dual Variable of the symmetrized gradient of TGV
-          z (PyOpenCL.Array): Dual Variable of the gradient of TGV
-          wait_for (list): A optional list for PyOpenCL.events to wait for
+        Parameters
+        ----------
+          outp : PyOpenCL.Array
+            The result of the update step
+          inp : PyOpenCL.Array
+            The previous values of x
+          par : list
+            List of necessary parameters for the update
+          idx : int
+            Index of the device to use
+          idxq : int
+            Index of the queue to use
+          bound_cond : int
+            Apply boundary condition (1) or not (0).
+          wait_for : list of PyOpenCL.Events, None
+            A optional list for PyOpenCL.Events to wait for
+
+        Returns
+        -------
+            PyOpenCL.Event:
+                A PyOpenCL.Event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_Kyk2(
             self._queue[4*idx+idxq],
             self._kernelsize, None,
@@ -805,106 +1016,110 @@ class PDBaseSolver:
             np.int32(self.unknowns),
             par[idx].data,
             np.int32(bound_cond),
-            np.float32(self.dz),
+            self._DTYPE_real(self.dz),
             wait_for=outp.events + inp[0].events + inp[1].events+wait_for)
 
     def update_r(self, outp, inp, par=None, idx=0, idxq=0,
-                 bound_cond=0, wait_for=[]):
-        """
-        Update the data dual variable r.
+                 bound_cond=0, wait_for=None):
+        """Update the data dual variable r.
 
-        Args
-        ----
-          r_new (PyOpenCL.Array): New value of the data dual variable
-          r (PyOpenCL.Array): Old value of the data dual variable
-          A (PyOpenCL.Array): Precomputed Linear Operator applied to the new x
-          A_ (PyOpenCL.Array):Precomputed Linear Operator applied to the old x
-          res (PyOpenCL.Array): Precomputed data to compare to
-          sigma (float): Dual step size
-          theta (float): Variable controling the extrapolation step of the
-            PD-algorithm
-          lambd (float): Regularization parameter in fron tof the data fidelity
-            term
-          wait_for (list): A optional list for PyOpenCL.events to wait for
+        Parameters
+        ----------
+          outp : PyOpenCL.Array
+            The result of the update step
+          inp : PyOpenCL.Array
+            The previous values of x
+          par : list
+            List of necessary parameters for the update
+          idx : int
+            Index of the device to use
+          idxq : int
+            Index of the queue to use
+          bound_cond : int
+            Apply boundary condition (1) or not (0).
+          wait_for : list of PyOpenCL.Events, None
+            A optional list for PyOpenCL.Events to wait for
+
+        Returns
+        -------
+            PyOpenCL.Event:
+                A PyOpenCL.Event to wait for.
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_r(
             self._queue[4*idx+idxq], (outp.size,), None,
             outp.data, inp[0].data,
             inp[1].data, inp[2].data, inp[3].data,
-            np.float32(par[0]), np.float32(par[1]),
-            np.float32(1/(1+par[0]/par[2])),
+            self._DTYPE_real(par[0]), self._DTYPE_real(par[1]),
+            self._DTYPE_real(1/(1+par[0]/par[2])),
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
 
-    def update_primal_explicit(self, x_new, x, Kyk, xk, ATd,
-                               tau, delta, lambd, wait_for=[]):
-        """
-        Explicit update of the primal variable.
+    def setFvalInit(self, fval):
+        """Set the initial value of the cost function.
 
-        Args
-        ----
-          x_new (PyOpenCL.Array): The result of the update step
-          x (PyOpenCL.Array): The previous values of x
-          Kyk (PyOpenCL.Array): x-Part of the precomputed result of
-            the adjoint linear operator applied to y
-          xk (PyOpenCL.Array): The linearization point of the Gauss-Newton step
-          ATd (PyOpenCL.Array): Precomputed result of the adjoint linear
-            operator applied to the data
-          tau (float): Primal step size
-          delta (float): Regularization parameter for the step-size constrained
-          wait_for (list): A optional list for PyOpenCL.events to wait for
+        Parameters
+        ----------
+          fval : float
+            The initial cost of the optimization problem
         """
-        return self._prg.update_primal_explicit(
-            self._queue, x.shape[1:], None, x_new.data, x.data, Kyk.data,
-            xk.data, ATd.data, np.float32(tau),
-            np.float32(1 / delta), np.float32(lambd), self.min_const.data,
-            self.max_const.data,
-            self.real_const.data, np.int32(self.unknowns),
-            wait_for=(
-                x_new.events + x.events + Kyk.events +
-                xk.events + ATd.events + wait_for))
+        self._fval_init = fval
 
 
 class PDSolverTV(PDBaseSolver):
-    """
-    Primal Dual splitting optimization for TV.
+    """Primal Dual splitting optimization for TV.
 
     This Class performs a primal-dual variable splitting based reconstruction
     on single precission complex input data.
+
+    Parameters
+    ----------
+        par : dict
+          A python dict containing the necessary information to
+          setup the object. Needs to contain the number of slices (NSlice),
+          number of scans (NScan), image dimensions (dimX, dimY), number of
+          coils (NC), sampling points (N) and read outs (NProj)
+          a PyOpenCL queue (queue) and the complex coil
+          sensitivities (C).
+        irgn_par : dict
+          A python dict containing the regularization
+          parameters for a given gauss newton step.
+        queue : list of PyOpenCL.Queues
+          A list of PyOpenCL queues to perform the optimization.
+        tau : float
+          Estimated step size based on operator norm of regularization.
+        fval : float
+          Estimate of the initial cost function value to
+          scale the displayed values.
+        prg : PyOpenCL.Program
+          A PyOpenCL Program containing the
+          kernels for optimization.
+        linops : list of PyQMRI Operator
+          The linear operators used for fitting.
+        coils : PyOpenCL Buffer or empty list
+          The coils used for reconstruction.
+        model : PyQMRI.Model
+          The model which should be fitted
+
+    Attributes
+    ----------
+      alpha : float
+        TV regularization weight
     """
 
-    def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model):
-        """
-        TV PD reconstruction Object.
-
-        Args
-        ----
-          par (dict): A python dict containing the necessary information to
-            setup the object. Needs to contain the number of slices (NSlice),
-            number of scans (NScan), image dimensions (dimX, dimY), number of
-            coils (NC), sampling points (N) and read outs (NProj)
-            a PyOpenCL queue (queue) and the complex coil
-            sensitivities (C).
-          irgn_par (dict): A python dict containing the regularization
-            parameters for a given gauss newton step.
-          queue (list): A list of PyOpenCL queues to perform the optimization.
-          tau (float): Estimate of the initial step size based on the
-            operator norm of the linear operator.
-          fval (float): Estimate of the initial cost function value to
-            scale the displayed values.
-          prg (PyOpenCL Program): A PyOpenCL Program containing the
-            kernels for optimization.
-          reg_type (string): String to choose between "TV" and "TGV"
-            optimization.
-          data_operator (PyQMRI Operator): The operator to traverse from
-            parameter to data space.
-          coils (PyOpenCL Buffer or empty List): optional coil buffer.
-          NScan (int): Number of Scan which should be used internally. Do not
-            need to be the same number as in par["NScan"]
-          trafo (bool): Switch between radial (1) and Cartesian (0) fft.
-          and slice accelerated (1) reconstruction.
-        """
+    def __init__(self,
+                 par,
+                 irgn_par,
+                 queue,
+                 tau,
+                 fval,
+                 prg,
+                 linop,
+                 coils,
+                 model,
+                 **kwargs
+                 ):
         super().__init__(
             par,
             irgn_par,
@@ -913,14 +1128,15 @@ class PDSolverTV(PDBaseSolver):
             fval,
             prg,
             coils,
-            model)
+            model,
+            **kwargs)
         self.alpha = irgn_par["gamma"]
         self._op = linop[0]
-        self.grad_op = linop[1]
+        self._grad_op = linop[1]
 
     def _setupVariables(self, inp, data):
 
-        data = clarray.to_device(self._queue[0], data.astype(DTYPE))
+        data = clarray.to_device(self._queue[0], data.astype(self._DTYPE))
 
         primal_vars = {}
         primal_vars_new = {}
@@ -941,12 +1157,12 @@ class PDSolverTV(PDBaseSolver):
         dual_vars["r"] = clarray.zeros(
             self._queue[0],
             data.shape,
-            dtype=DTYPE)
+            dtype=self._DTYPE)
         dual_vars_new["r"] = clarray.empty_like(dual_vars["r"])
 
         dual_vars["z1"] = clarray.zeros(self._queue[0],
                                         primal_vars["x"].shape+(4,),
-                                        dtype=DTYPE)
+                                        dtype=self._DTYPE)
         dual_vars_new["z1"] = clarray.empty_like(dual_vars["z1"])
 
         tmp_results_forward["gradx"] = clarray.empty_like(
@@ -974,12 +1190,12 @@ class PDSolverTV(PDBaseSolver):
                              [in_dual["r"], in_dual["z1"],
                               self._coils,
                               self.modelgrad,
-                              self.grad_op._ratio]))
+                              self._grad_op.ratio]))
 
         out_fwd["Ax"].add_event(self._op.fwd(
             out_fwd["Ax"], [in_primal["x"], self._coils, self.modelgrad]))
         out_fwd["gradx"].add_event(
-            self.grad_op.fwd(out_fwd["gradx"], in_primal["x"]))
+            self._grad_op.fwd(out_fwd["gradx"], in_primal["x"]))
 
     def _updatePrimal(self,
                       out_primal, out_fwd,
@@ -992,7 +1208,7 @@ class PDSolverTV(PDBaseSolver):
             par=(tau, self.delta)))
 
         out_fwd["gradx"].add_event(
-            self.grad_op.fwd(
+            self._grad_op.fwd(
                 out_fwd["gradx"], out_primal["x"]))
 
         out_fwd["Ax"].add_event(
@@ -1044,7 +1260,7 @@ class PDSolverTV(PDBaseSolver):
                 [out_dual["r"], out_dual["z1"],
                  self._coils,
                  self.modelgrad,
-                 self.grad_op._ratio]))
+                 self._grad_op.ratio]))
 
         ynorm = (
             (
@@ -1120,45 +1336,50 @@ class PDSolverTV(PDBaseSolver):
 
 
 class PDSolverTGV(PDBaseSolver):
-    """
-    TGV Primal Dual splitting optimization.
+    """TGV Primal Dual splitting optimization.
 
     This Class performs a primal-dual variable splitting based reconstruction
     on single precission complex input data.
+
+    Parameters
+    ----------
+        par : dict
+          A python dict containing the necessary information to
+          setup the object. Needs to contain the number of slices (NSlice),
+          number of scans (NScan), image dimensions (dimX, dimY), number of
+          coils (NC), sampling points (N) and read outs (NProj)
+          a PyOpenCL queue (queue) and the complex coil
+          sensitivities (C).
+        irgn_par : dict
+          A python dict containing the regularization
+          parameters for a given gauss newton step.
+        queue : list of PyOpenCL.Queues
+          A list of PyOpenCL queues to perform the optimization.
+        tau : float
+          Estimated step size based on operator norm of regularization.
+        fval : float
+          Estimate of the initial cost function value to
+          scale the displayed values.
+        prg : PyOpenCL.Program
+          A PyOpenCL Program containing the
+          kernels for optimization.
+        linops : list of PyQMRI Operator
+          The linear operators used for fitting.
+        coils : PyOpenCL Buffer or empty list
+          The coils used for reconstruction.
+        model : PyQMRI.Model
+          The model which should be fitted
+
+    Attributes
+    ----------
+      alpha : float
+        alpha0 parameter for TGV regularization weight
+      beta : float
+        alpha1 parameter for TGV regularization weight
     """
 
     def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model):
-        """
-        TGV PD reconstruction Object.
-
-        Args
-        ----
-          par (dict): A python dict containing the necessary information to
-            setup the object. Needs to contain the number of slices (NSlice),
-            number of scans (NScan), image dimensions (dimX, dimY), number of
-            coils (NC), sampling points (N) and read outs (NProj)
-            a PyOpenCL queue (queue) and the complex coil
-            sensitivities (C).
-          irgn_par (dict): A python dict containing the regularization
-            parameters for a given gauss newton step.
-          queue (list): A list of PyOpenCL queues to perform the optimization.
-          tau (float): Estimate of the initial step size based on the
-            operator norm of the linear operator.
-          fval (float): Estimate of the initial cost function value to
-            scale the displayed values.
-          prg (PyOpenCL Program): A PyOpenCL Program containing the
-            kernels for optimization.
-          reg_type (string): String to choose between "TV" and "TGV"
-            optimization.
-          data_operator (PyQMRI Operator): The operator to traverse from
-            parameter to data space.
-          coils (PyOpenCL Buffer or empty List): optional coil buffer.
-          NScan (int): Number of Scan which should be used internally. Do not
-            need to be the same number as in par["NScan"]
-          trafo (bool): Switch between radial (1) and Cartesian (0) fft.
-          and slice accelerated (1) reconstruction.
-        """
+                 linop, coils, model, **kwargs):
         super().__init__(
             par,
             irgn_par,
@@ -1167,16 +1388,17 @@ class PDSolverTGV(PDBaseSolver):
             fval,
             prg,
             coils,
-            model)
+            model,
+            **kwargs)
         self.alpha = irgn_par["gamma"]
         self.beta = irgn_par["gamma"] * 2
         self._op = linop[0]
-        self.grad_op = linop[1]
-        self.symgrad_op = linop[2]
+        self._grad_op = linop[1]
+        self._symgrad_op = linop[2]
 
     def _setupVariables(self, inp, data):
 
-        data = clarray.to_device(self._queue[0], data.astype(DTYPE))
+        data = clarray.to_device(self._queue[0], data.astype(self._DTYPE))
 
         primal_vars = {}
         primal_vars_new = {}
@@ -1188,7 +1410,7 @@ class PDSolverTGV(PDBaseSolver):
         primal_vars_new["x"] = clarray.empty_like(primal_vars["x"])
         primal_vars["v"] = clarray.zeros(self._queue[0],
                                          primal_vars["x"].shape+(4,),
-                                         dtype=DTYPE)
+                                         dtype=self._DTYPE)
         primal_vars_new["v"] = clarray.empty_like(primal_vars["v"])
 
         tmp_results_adjoint["Kyk1"] = clarray.empty_like(primal_vars["x"])
@@ -1203,16 +1425,16 @@ class PDSolverTGV(PDBaseSolver):
         dual_vars["r"] = clarray.zeros(
             self._queue[0],
             data.shape,
-            dtype=DTYPE)
+            dtype=self._DTYPE)
         dual_vars_new["r"] = clarray.empty_like(dual_vars["r"])
 
         dual_vars["z1"] = clarray.zeros(self._queue[0],
                                         primal_vars["x"].shape+(4,),
-                                        dtype=DTYPE)
+                                        dtype=self._DTYPE)
         dual_vars_new["z1"] = clarray.empty_like(dual_vars["z1"])
         dual_vars["z2"] = clarray.zeros(self._queue[0],
                                         primal_vars["x"].shape+(8,),
-                                        dtype=DTYPE)
+                                        dtype=self._DTYPE)
         dual_vars_new["z2"] = clarray.empty_like(dual_vars["z2"])
 
         tmp_results_forward["gradx"] = clarray.empty_like(
@@ -1244,20 +1466,20 @@ class PDSolverTGV(PDBaseSolver):
                              [in_dual["r"], in_dual["z1"],
                               self._coils,
                               self.modelgrad,
-                              self.grad_op._ratio]))
+                              self._grad_op.ratio]))
 
         out_adj["Kyk2"].add_event(
             self.update_Kyk2(
                 outp=out_adj["Kyk2"],
                 inp=(in_dual["z2"], in_dual["z1"]),
-                par=[self.symgrad_op._ratio]))
+                par=[self._symgrad_op.ratio]))
 
         out_fwd["Ax"].add_event(self._op.fwd(
             out_fwd["Ax"], [in_primal["x"], self._coils, self.modelgrad]))
         out_fwd["gradx"].add_event(
-            self.grad_op.fwd(out_fwd["gradx"], in_primal["x"]))
+            self._grad_op.fwd(out_fwd["gradx"], in_primal["x"]))
         out_fwd["symgradx"].add_event(
-            self.symgrad_op.fwd(out_fwd["symgradx"], in_primal["v"]))
+            self._symgrad_op.fwd(out_fwd["symgradx"], in_primal["v"]))
 
     def _updatePrimal(self,
                       out_primal, out_fwd,
@@ -1275,11 +1497,11 @@ class PDSolverTGV(PDBaseSolver):
             par=(tau,)))
 
         out_fwd["gradx"].add_event(
-            self.grad_op.fwd(
+            self._grad_op.fwd(
                 out_fwd["gradx"], out_primal["x"]))
 
         out_fwd["symgradx"].add_event(
-            self.symgrad_op.fwd(
+            self._symgrad_op.fwd(
                 out_fwd["symgradx"], out_primal["v"]))
         out_fwd["Ax"].add_event(
             self._op.fwd(out_fwd["Ax"],
@@ -1340,12 +1562,12 @@ class PDSolverTGV(PDBaseSolver):
                 [out_dual["r"], out_dual["z1"],
                  self._coils,
                  self.modelgrad,
-                 self.grad_op._ratio]))
+                 self._grad_op.ratio]))
         out_adj["Kyk2"].add_event(
             self.update_Kyk2(
                 outp=out_adj["Kyk2"],
                 inp=(out_dual["z2"], out_dual["z1"]),
-                par=[self.symgrad_op._ratio]))
+                par=[self._symgrad_op.ratio]))
 
         ynorm = (
             (
@@ -1433,15 +1655,61 @@ class PDSolverTGV(PDBaseSolver):
 
 
 class PDSolverStreamed(PDBaseSolver):
-    """
-    Streamed version of the PD Solver.
+    """Streamed version of the PD Solver.
 
     This class is the base class for the streamed array optimization.
+
+    Parameters
+    ----------
+        par : dict
+          A python dict containing the necessary information to
+          setup the object. Needs to contain the number of slices (NSlice),
+          number of scans (NScan), image dimensions (dimX, dimY), number of
+          coils (NC), sampling points (N) and read outs (NProj)
+          a PyOpenCL queue (queue) and the complex coil
+          sensitivities (C).
+        irgn_par : dict
+          A python dict containing the regularization
+          parameters for a given gauss newton step.
+        queue : list of PyOpenCL.Queues
+          A list of PyOpenCL queues to perform the optimization.
+        tau : float
+          Estimated step size based on operator norm of regularization.
+        fval : float
+          Estimate of the initial cost function value to
+          scale the displayed values.
+        prg : PyOpenCL.Program
+          A PyOpenCL Program containing the
+          kernels for optimization.
+        coils : PyOpenCL Buffer or empty list
+          The coils used for reconstruction.
+        model : PyQMRI.Model
+          The model which should be fitted
+        imagespace : bool, false
+          Switch between imagespace (True) and k-space (false) based
+          fitting.
+
+    Attributes
+    ----------
+      unknown_shape : tuple of int
+        Size of the unknown array
+      model_deriv_shape : tuple of int
+        Size of the partial derivative array of the unknowns
+      grad_shape : tuple of int
+        Size of the finite difference based gradient
+      symgrad_shape : tuple of int, None
+        Size of the finite difference based symmetrized gradient. Defaults
+        to None in TV based optimization.
+      data_shape : tuple of int
+        Size of the data to be fitted
+      data_trans_axes : list of int
+        Order of transpose of data axis, requried for streaming
+      data_shape_T : tuple of int
+        Size of transposed data.
     """
 
     def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model, imagespace=False):
-
+                 coils, model, imagespace=False, **kwargs):
         super().__init__(
             par,
             irgn_par,
@@ -1450,7 +1718,13 @@ class PDSolverStreamed(PDBaseSolver):
             fval,
             prg,
             coils,
-            model)
+            model,
+            **kwargs)
+
+        self._op = None
+        self.symgrad_shape = None
+        self._packs = None
+        self._numofpacks = None
 
         self.unknown_shape = (par["NSlice"], par["unknowns"],
                               par["dimY"], par["dimX"])
@@ -1460,9 +1734,12 @@ class PDSolverStreamed(PDBaseSolver):
 
         self.grad_shape = self.unknown_shape + (4,)
 
-        self.NSlice = par["NSlice"]
-        self.par_slices = par["par_slices"]
-        self.overlap = par["overlap"]
+        self._NSlice = par["NSlice"]
+        self._par_slices = par["par_slices"]
+        self._overlap = par["overlap"]
+
+        self._symgrad_op = None
+        self._grad_op = None
 
         if imagespace:
             self.data_shape = (par["NSlice"], par["NScan"],
@@ -1482,20 +1759,20 @@ class PDSolverStreamed(PDBaseSolver):
         elif reg_type == 'TGV':
             self.v = np.zeros(
                 self.grad_shape,
-                dtype=DTYPE)
+                dtype=self._DTYPE)
             self.z2 = np.zeros(
                 self.symgrad_shape,
-                dtype=DTYPE)
+                dtype=self._DTYPE)
         else:
             raise NotImplementedError("Not implemented")
         self._setupstreamingops(reg_type, SMS=SMS)
 
         self.r = np.zeros(
                 self.data_shape,
-                dtype=DTYPE)
+                dtype=self._DTYPE)
         self.z1 = np.zeros(
             self.grad_shape,
-            dtype=DTYPE)
+            dtype=self._DTYPE)
 
     def _setupstreamingops(self, reg_type, SMS=False):
         if not SMS:
@@ -1507,7 +1784,8 @@ class PDSolverStreamed(PDBaseSolver):
             self.stream_initial_1 += self._op.fwdstr
             self.stream_initial_1 += self._op.adjstrKyk1
             if reg_type == 'TGV':
-                self.stream_initial_1 += self.symgrad_op._stream_symgrad
+                self.stream_initial_1 += \
+                    self._symgrad_op.getStreamedSymGradientObject()
 
         if reg_type == 'TGV':
             self.stream_Kyk2 = self._defineoperator(
@@ -1522,7 +1800,7 @@ class PDSolverStreamed(PDBaseSolver):
                 [],
                 [[]])
 
-            self.stream_initial_2 += self.grad_op._stream_grad
+            self.stream_initial_2 += self._grad_op.getStreamedGradientObject()
             self.stream_initial_2 += self.stream_Kyk2
 
         self.stream_primal = self._defineoperator(
@@ -1539,7 +1817,7 @@ class PDSolverStreamed(PDBaseSolver):
             [[]])
 
         self.update_primal_1 += self.stream_primal
-        self.update_primal_1 += self.grad_op._stream_grad
+        self.update_primal_1 += self._grad_op.getStreamedGradientObject()
         self.update_primal_1.connectouttoin(0, (1, 0))
 
         if not SMS:
@@ -1560,7 +1838,8 @@ class PDSolverStreamed(PDBaseSolver):
                 reverse_dir=True)
 
             self.update_primal_2 += self.stream_update_v
-            self.update_primal_2 += self.symgrad_op._stream_symgrad
+            self.update_primal_2 += \
+                self._symgrad_op.getStreamedSymGradientObject()
             self.update_primal_2.connectouttoin(0, (1, 0))
             self.stream_update_z1 = self._defineoperator(
                 [self.update_z1],
@@ -1611,7 +1890,7 @@ class PDSolverStreamed(PDBaseSolver):
                   self.data_shape,
                   self.data_shape,
                   self.data_shape]],
-                slices=self.packs*self.numofpacks,
+                slices=self._packs*self._numofpacks,
                 reverse_dir=True,
                 posofnorm=[False])
             del self.stream_primal
@@ -1639,25 +1918,72 @@ class PDSolverStreamed(PDBaseSolver):
                         outp,
                         inp,
                         reverse_dir=False,
-                        posofnorm=[],
+                        posofnorm=None,
                         slices=None):
         if slices is None:
-            slices = self.NSlice
+            slices = self._NSlice
         return streaming.Stream(
             functions,
             outp,
             inp,
-            self.par_slices,
-            self.overlap,
+            self._par_slices,
+            self._overlap,
             slices,
             self._queue,
             self.num_dev,
             reverse_dir,
-            posofnorm)
+            posofnorm,
+            DTYPE=self._DTYPE)
 
 
 class PDSolverStreamedTGV(PDSolverStreamed):
-    """Streamed TGV optimization."""
+    """Streamed TGV optimization.
+
+    This class performes streamd TGV optimization.
+
+    Parameters
+    ----------
+        par : dict
+          A python dict containing the necessary information to
+          setup the object. Needs to contain the number of slices (NSlice),
+          number of scans (NScan), image dimensions (dimX, dimY), number of
+          coils (NC), sampling points (N) and read outs (NProj)
+          a PyOpenCL queue (queue) and the complex coil
+          sensitivities (C).
+        irgn_par : dict
+          A python dict containing the regularization
+          parameters for a given gauss newton step.
+        queue : list of PyOpenCL.Queues
+          A list of PyOpenCL queues to perform the optimization.
+        tau : float
+          Estimated step size based on operator norm of regularization.
+        fval : float
+          Estimate of the initial cost function value to
+          scale the displayed values.
+        prg : PyOpenCL.Program
+          A PyOpenCL Program containing the
+          kernels for optimization.
+        linops : list of PyQMRI Operator
+          The linear operators used for fitting.
+        coils : PyOpenCL Buffer or empty list
+          The coils used for reconstruction.
+        model : PyQMRI.Model
+          The model which should be fitted
+        imagespace : bool, false
+          Switch between imagespace (True) and k-space (false) based
+          fitting.
+        SMS : bool, false
+          Switch between SMS (True) and standard (false) reconstruction.
+
+    Attributes
+    ----------
+      alpha : float
+        alpha0 parameter for TGV regularization weight
+      beta : float
+        alpha1 parameter for TGV regularization weight
+      symgrad_shape : tuple of int
+        Size of the symmetrized gradient
+    """
 
     def __init__(self,
                  par,
@@ -1670,7 +1996,8 @@ class PDSolverStreamedTGV(PDSolverStreamed):
                  coils,
                  model,
                  imagespace=False,
-                 SMS=False):
+                 SMS=False,
+                 **kwargs):
 
         super().__init__(
             par,
@@ -1679,16 +2006,16 @@ class PDSolverStreamedTGV(PDSolverStreamed):
             tau,
             fval,
             prg,
-            linop,
             coils,
             model,
-            imagespace=imagespace)
+            imagespace=imagespace,
+            **kwargs)
 
         self.alpha = irgn_par["gamma"]
         self.beta = irgn_par["gamma"] * 2
         self._op = linop[0]
-        self.grad_op = linop[1]
-        self.symgrad_op = linop[2]
+        self._grad_op = linop[1]
+        self._symgrad_op = linop[2]
 
         self.symgrad_shape = self.unknown_shape + (8,)
 
@@ -1706,7 +2033,7 @@ class PDSolverStreamedTGV(PDSolverStreamed):
         primal_vars_new["x"] = np.zeros_like(primal_vars["x"])
         primal_vars["v"] = np.zeros(
                                         primal_vars["x"].shape+(4,),
-                                        dtype=DTYPE)
+                                        dtype=self._DTYPE)
         primal_vars_new["v"] = np.zeros_like(primal_vars["v"])
 
         tmp_results_adjoint["Kyk1"] = np.zeros_like(primal_vars["x"])
@@ -1720,16 +2047,16 @@ class PDSolverStreamedTGV(PDSolverStreamed):
         tmp_results_forward_new = {}
         dual_vars["r"] = np.zeros(
             data.shape,
-            dtype=DTYPE)
+            dtype=self._DTYPE)
         dual_vars_new["r"] = np.zeros_like(dual_vars["r"])
 
         dual_vars["z1"] = np.zeros(
                                             primal_vars["x"].shape+(4,),
-                                            dtype=DTYPE)
+                                            dtype=self._DTYPE)
         dual_vars_new["z1"] = np.zeros_like(dual_vars["z1"])
         dual_vars["z2"] = np.zeros(
                                             primal_vars["x"].shape+(8,),
-                                            dtype=DTYPE)
+                                            dtype=self._DTYPE)
         dual_vars_new["z2"] = np.zeros_like(dual_vars["z2"])
 
         tmp_results_forward["gradx"] = np.zeros_like(
@@ -1767,7 +2094,7 @@ class PDSolverStreamedTGV(PDSolverStreamed):
                  self._coils, self.modelgrad, []],
                 [in_primal["v"]]],
             [[],
-             [self.grad_op._ratio],
+             [self._grad_op.ratio],
              []])
 
         self.stream_initial_2.eval(
@@ -1776,7 +2103,7 @@ class PDSolverStreamedTGV(PDSolverStreamed):
             [[in_primal["x"]],
              [in_dual["z2"], in_dual["z1"], []]],
             [[],
-             self.symgrad_op._ratio])
+             self._symgrad_op.ratio])
 
     def _updatePrimal(self,
                       out_primal, out_fwd,
@@ -1829,7 +2156,7 @@ class PDSolverStreamedTGV(PDSolverStreamed):
             [
                 [beta*tau, theta, self.alpha, self.omega],
                 [beta * tau, theta, self.lambd],
-                [self.grad_op._ratio]
+                [self._grad_op.ratio]
             ])
         (lhs2, ynorm2) = self.update_dual_2.evalwithnorm(
             [out_dual["z2"],
@@ -1838,7 +2165,7 @@ class PDSolverStreamedTGV(PDSolverStreamed):
               in_precomp_fwd["symgradx"]],
              [[], out_dual["z1"], in_precomp_adj["Kyk2"]]],
             [[beta*tau, theta, self.beta],
-             self.symgrad_op._ratio])
+             self._symgrad_op.ratio])
 
         ynorm = np.abs(ynorm1 + ynorm2)**(1/2)
         lhs = np.sqrt(beta) * tau * np.abs(lhs1 + lhs2)**(1/2)
@@ -1902,17 +2229,61 @@ class PDSolverStreamedTGV(PDSolverStreamed):
 
 
 class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
-    """Streamed TGV optimization for SMS data."""
+    """Streamed TGV optimization for SMS data.
+
+    Parameters
+    ----------
+        par : dict
+          A python dict containing the necessary information to
+          setup the object. Needs to contain the number of slices (NSlice),
+          number of scans (NScan), image dimensions (dimX, dimY), number of
+          coils (NC), sampling points (N) and read outs (NProj)
+          a PyOpenCL queue (queue) and the complex coil
+          sensitivities (C).
+        irgn_par : dict
+          A python dict containing the regularization
+          parameters for a given gauss newton step.
+        queue : list of PyOpenCL.Queues
+          A list of PyOpenCL queues to perform the optimization.
+        tau : float
+          Estimated step size based on operator norm of regularization.
+        fval : float
+          Estimate of the initial cost function value to
+          scale the displayed values.
+        prg : PyOpenCL.Program
+          A PyOpenCL Program containing the
+          kernels for optimization.
+        linops : list of PyQMRI Operator
+          The linear operators used for fitting.
+        coils : PyOpenCL Buffer or empty list
+          The coils used for reconstruction.
+        model : PyQMRI.Model
+          The model which should be fitted
+        imagespace : bool, false
+          Switch between imagespace (True) and k-space (false) based
+          fitting.
+        SMS : bool, false
+          Switch between SMS (True) and standard (false) reconstruction.
+
+    Attributes
+    ----------
+      alpha : float
+        alpha0 parameter for TGV regularization weight
+      beta : float
+        alpha1 parameter for TGV regularization weight
+      symgrad_shape : tuple of int
+        Size of the symmetrized gradient
+    """
 
     def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model, imagespace=False):
+                 linop, coils, model, imagespace=False, **kwargs):
 
-        self.packs = par["packs"]
-        self.numofpacks = par["numofpacks"]
-        self.data_shape = (self.packs*self.numofpacks, par["NScan"],
+        self._packs = par["packs"]
+        self._numofpacks = par["numofpacks"]
+        self.data_shape = (self._packs*self._numofpacks, par["NScan"],
                            par["NC"], par["dimY"], par["dimX"])
         self.data_shape_T = (par["NScan"], par["NC"],
-                             self.packs*self.numofpacks,
+                             self._packs*self._numofpacks,
                              par["dimY"], par["dimX"])
         self._expdim_dat = 1
         self._expdim_C = 0
@@ -1928,7 +2299,8 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
             coils,
             model,
             imagespace=imagespace,
-            SMS=True)
+            SMS=True,
+            **kwargs)
 
     def _updateInitial(self,
                        out_fwd, out_adj,
@@ -1938,9 +2310,9 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
         self._op.adjKyk1(
             [out_adj["Kyk1"]],
             [[in_dual["r"], in_dual["z1"], self._coils, self.modelgrad, []]],
-            [[self.grad_op._ratio]])
+            [[self._grad_op.ratio]])
 
-        self.symgrad_op.fwd(
+        self._symgrad_op.fwd(
             [out_fwd["symgradx"]],
             [[in_primal["v"]]])
 
@@ -1950,7 +2322,7 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
             [[in_primal["x"]],
              [in_dual["z2"], in_dual["z1"], []]],
             [[],
-             self.symgrad_op._ratio])
+             self._symgrad_op.ratio])
 
     def _updatePrimal(self,
                       out_primal, out_fwd,
@@ -2009,7 +2381,7 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
             [[out_dual["r"],
               out_dual["z1"],
               self._coils, self.modelgrad, in_precomp_adj["Kyk1"]]],
-            [[self.grad_op._ratio]])
+            [[self._grad_op.ratio]])
 
         (lhs4, ynorm4) = self.update_dual_2.evalwithnorm(
             [out_dual["z2"],
@@ -2018,7 +2390,7 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
               in_precomp_fwd["symgradx"]],
              [[], out_dual["z1"], in_precomp_adj["Kyk2"]]],
             [[beta*tau, theta, self.beta],
-             self.symgrad_op._ratio])
+             self._symgrad_op.ratio])
 
         ynorm = np.abs(ynorm1+ynorm2+ynorm3+ynorm4)**(1/2)
         lhs = np.sqrt(beta)*tau*np.abs(lhs1+lhs2+lhs3+lhs4)**(1/2)
@@ -2027,10 +2399,52 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
 
 
 class PDSolverStreamedTV(PDSolverStreamed):
-    """Streamed TV optimization."""
+    """Streamed TV optimization.
+
+    Parameters
+    ----------
+        par : dict
+          A python dict containing the necessary information to
+          setup the object. Needs to contain the number of slices (NSlice),
+          number of scans (NScan), image dimensions (dimX, dimY), number of
+          coils (NC), sampling points (N) and read outs (NProj)
+          a PyOpenCL queue (queue) and the complex coil
+          sensitivities (C).
+        irgn_par : dict
+          A python dict containing the regularization
+          parameters for a given gauss newton step.
+        queue : list of PyOpenCL.Queues
+          A list of PyOpenCL queues to perform the optimization.
+        tau : float
+          Estimated step size based on operator norm of regularization.
+        fval : float
+          Estimate of the initial cost function value to
+          scale the displayed values.
+        prg : PyOpenCL.Program
+          A PyOpenCL Program containing the
+          kernels for optimization.
+        linops : list of PyQMRI Operator
+          The linear operators used for fitting.
+        coils : PyOpenCL Buffer or empty list
+          The coils used for reconstruction.
+        model : PyQMRI.Model
+          The model which should be fitted
+        imagespace : bool, false
+          Switch between imagespace (True) and k-space (false) based
+          fitting.
+        SMS : bool, false
+          Switch between SMS (True) and standard (false) reconstruction.
+
+    Attributes
+    ----------
+      alpha : float
+        alpha0 parameter for TGV regularization weight
+      symgrad_shape : tuple of int
+        Size of the symmetrized gradient
+    """
 
     def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model, imagespace=False, SMS=False):
+                 linop, coils, model, imagespace=False, SMS=False, **kwargs):
 
         super().__init__(
             par,
@@ -2039,18 +2453,15 @@ class PDSolverStreamedTV(PDSolverStreamed):
             tau,
             fval,
             prg,
-            linop,
             coils,
             model,
-            imagespace=imagespace)
+            imagespace=imagespace,
+            **kwargs)
 
         self.alpha = irgn_par["gamma"]
-        self.beta = irgn_par["gamma"] * 2
         self._op = linop[0]
-        self.grad_op = linop[1]
-        self.symgrad_op = linop[2]
-
-        self.symgrad_shape = self.unknown_shape + (8,)
+        self._grad_op = linop[1]
+        self._symgrad_op = linop[2]
 
         self._setup_reg_tmp_arrays("TV", SMS=SMS)
 
@@ -2074,11 +2485,11 @@ class PDSolverStreamedTV(PDSolverStreamed):
         tmp_results_forward_new = {}
         dual_vars["r"] = np.zeros(
             data.shape,
-            dtype=DTYPE)
+            dtype=self._DTYPE)
         dual_vars_new["r"] = np.zeros_like(dual_vars["r"])
 
         dual_vars["z1"] = np.zeros(primal_vars["x"].shape+(4,),
-                                   dtype=DTYPE)
+                                   dtype=self._DTYPE)
         dual_vars_new["z1"] = np.zeros_like(dual_vars["z1"])
 
         tmp_results_forward["gradx"] = np.zeros_like(
@@ -2110,7 +2521,7 @@ class PDSolverStreamedTV(PDSolverStreamed):
                 [in_dual["r"], in_dual["z1"],
                  self._coils, self.modelgrad, []]],
             [[],
-             [self.grad_op._ratio]])
+             [self._grad_op.ratio]])
 
     def _updatePrimal(self,
                       out_primal, out_fwd,
@@ -2155,7 +2566,7 @@ class PDSolverStreamedTV(PDSolverStreamed):
             [
                 [beta*tau, theta, self.alpha, self.omega],
                 [beta * tau, theta, self.lambd],
-                [self.grad_op._ratio]
+                [self._grad_op.ratio]
             ])
 
         ynorm = np.abs(ynorm1)**(1/2)
@@ -2217,22 +2628,57 @@ class PDSolverStreamedTV(PDSolverStreamed):
 
 
 class PDSolverStreamedTVSMS(PDSolverStreamedTV):
-    """Streamed TGV optimization for SMS data."""
+    """Streamed TV optimization for SMS data.
+
+    Parameters
+    ----------
+        par : dict
+          A python dict containing the necessary information to
+          setup the object. Needs to contain the number of slices (NSlice),
+          number of scans (NScan), image dimensions (dimX, dimY), number of
+          coils (NC), sampling points (N) and read outs (NProj)
+          a PyOpenCL queue (queue) and the complex coil
+          sensitivities (C).
+        irgn_par : dict
+          A python dict containing the regularization
+          parameters for a given gauss newton step.
+        queue : list of PyOpenCL.Queues
+          A list of PyOpenCL queues to perform the optimization.
+        tau : float
+          Estimated step size based on operator norm of regularization.
+        fval : float
+          Estimate of the initial cost function value to
+          scale the displayed values.
+        prg : PyOpenCL.Program
+          A PyOpenCL Program containing the
+          kernels for optimization.
+        linops : list of PyQMRI Operator
+          The linear operators used for fitting.
+        coils : PyOpenCL Buffer or empty list
+          The coils used for reconstruction.
+        model : PyQMRI.Model
+          The model which should be fitted
+        imagespace : bool, false
+          Switch between imagespace (True) and k-space (false) based
+          fitting.
+
+    Attributes
+    ----------
+      alpha : float
+        alpha0 parameter for TGV regularization weight
+      symgrad_shape : tuple of int
+        Size of the symmetrized gradient
+    """
 
     def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model, imagespace=False):
-
-
-
-        self.packs = par["packs"]
-        self.numofpacks = par["numofpacks"]
-        self.data_shape = (self.packs*self.numofpacks, par["NScan"],
+                 linop, coils, model, imagespace=False, **kwargs):
+        self._packs = par["packs"]
+        self._numofpacks = par["numofpacks"]
+        self.data_shape = (self._packs*self._numofpacks, par["NScan"],
                            par["NC"], par["dimY"], par["dimX"])
         self.data_shape_T = (par["NScan"], par["NC"],
-                             self.packs*self.numofpacks,
+                             self._packs*self._numofpacks,
                              par["dimY"], par["dimX"])
-
-        self._setupstreamingops = self._setupstreamingopsSMS
 
         self._expdim_dat = 1
         self._expdim_C = 0
@@ -2248,7 +2694,8 @@ class PDSolverStreamedTVSMS(PDSolverStreamedTV):
             coils,
             model,
             imagespace=imagespace,
-            SMS=True)
+            SMS=True,
+            **kwargs)
 
     def _updateInitial(self,
                        out_fwd, out_adj,
@@ -2258,7 +2705,7 @@ class PDSolverStreamedTVSMS(PDSolverStreamedTV):
         self._op.adjKyk1(
             [out_adj["Kyk1"]],
             [[in_dual["r"], in_dual["z1"], self._coils, self.modelgrad, []]],
-            [[self.grad_op._ratio]])
+            [[self._grad_op.ratio]])
 
     def _updatePrimal(self,
                       out_primal, out_fwd,
@@ -2308,7 +2755,7 @@ class PDSolverStreamedTVSMS(PDSolverStreamedTV):
             [[out_dual["r"],
               out_dual["z1"],
               self._coils, self.modelgrad, in_precomp_adj["Kyk1"]]],
-            [[self.grad_op._ratio]])
+            [[self._grad_op.ratio]])
 
         ynorm = np.abs(ynorm1+ynorm2+ynorm3)**(1/2)
         lhs = np.sqrt(beta)*tau*np.abs(lhs1+lhs2+lhs3)**(1/2)
