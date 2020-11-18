@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from pyqmri.models.template import BaseModel, constraints, DTYPE
+from pyqmri.models.template import BaseModel, constraints
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
@@ -88,7 +88,7 @@ class Model(BaseModel):
                 * np.exp(-(x[3, ...] * self.uk_scale[3]) * self.b)
                 + (1-x[2, ...] * self.uk_scale[2])
                 * np.exp(- ADC * self.b)
-             )).astype(DTYPE)
+             )).astype(self.DTYPE)
 
         S *= self.phase
         S[~np.isfinite(S)] = 0
@@ -123,7 +123,7 @@ class Model(BaseModel):
             [grad_M0,
              grad_ADC,
              grad_f,
-             grad_ADC_ivim], dtype=DTYPE)
+             grad_ADC_ivim], dtype=self.DTYPE)
         grad[~np.isfinite(grad)] = 0
         grad *= self.phase
         return grad
@@ -323,9 +323,9 @@ class Model(BaseModel):
             test_M0 = self.b0
         else:
             test_M0 = args[0][0]
-        ADC = 1 * np.ones(args[0].shape[-3:], dtype=DTYPE)
-        f = 0.2 * np.ones(args[0].shape[-3:], dtype=DTYPE)
-        ADC_ivim = 50 * np.ones(args[0].shape[-3:], dtype=DTYPE)
+        ADC = 1 * np.ones(args[0].shape[-3:], dtype=self.DTYPE)
+        f = 0.2 * np.ones(args[0].shape[-3:], dtype=self.DTYPE)
+        ADC_ivim = 50 * np.ones(args[0].shape[-3:], dtype=self.DTYPE)
 
         x = np.array(
                 [
@@ -333,5 +333,5 @@ class Model(BaseModel):
                     ADC,
                     f,
                     ADC_ivim],
-                dtype=DTYPE)
+                dtype=self.DTYPE)
         self.guess = x
