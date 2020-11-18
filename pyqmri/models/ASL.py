@@ -110,7 +110,7 @@ class Model(BaseModel):
                         True))
         self.constraints.append(
             constraints(0.01/60,
-                        self.t[-3],
+                        5/60,
                         True))
         self._ind1 = 35
         self._ind2 = 46
@@ -446,7 +446,7 @@ class Model(BaseModel):
         self.images = args[0]/args[1]
         test_f = 30 * self.dscale * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
-        test_del_t = 0.6/60 * np.ones(
+        test_del_t = 1/60 * np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
         x = np.array([test_f,
                       test_del_t], dtype=self._DTYPE)
