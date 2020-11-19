@@ -86,27 +86,54 @@ class Model(BaseModel):
                 True))
 
     def rescale(self, x):
-        M0 = x[0, ...] * self.uk_scale[0]
-        ADC_x = (np.real(x[1, ...]**2) * self.uk_scale[1]**2)
-        ADC_xy = (np.real(x[2, ...] * self.uk_scale[2] *
+        #M0 = x[0, ...] * self.uk_scale[0]
+        #ADC_x = (np.real(x[1, ...]**2) * self.uk_scale[1]**2)
+        #ADC_xy = (np.real(x[2, ...] * self.uk_scale[2] *
+        #                  x[1, ...] * self.uk_scale[1]))
+        #ADC_y = (np.real(x[2, ...]**2 * self.uk_scale[2]**2 +
+        #                 x[3, ...]**2 * self.uk_scale[3]**2))
+        #ADC_xz = (np.real(x[4, ...] * self.uk_scale[4] *
+        #                  x[1, ...] * self.uk_scale[1]))
+        #ADC_z = (np.real(x[4, ...]**2 * self.uk_scale[4]**2 +
+        #                 x[5, ...]**2 * self.uk_scale[5]**2 +
+        #                 x[6, ...]**2 * self.uk_scale[6]**2))
+        #ADC_yz = (np.real(x[2, ...] * self.uk_scale[2] *
+        #                  x[4, ...] * self.uk_scale[4] +
+        #                  x[6, ...] * self.uk_scale[6] *
+        #                  x[3, ...] * self.uk_scale[3]))
+        #f = x[7, ...] * self.uk_scale[7]
+        #ADC_ivim = x[8, ...] * self.uk_scale[8]
+
+        #return np.array((M0, ADC_x, ADC_xy, ADC_y, ADC_xz, ADC_z, ADC_yz,
+        #                 f, ADC_ivim))
+        
+        tmp_x = np.copy(x)
+        tmp_x[0] = x[0, ...] * self.uk_scale[0]
+        tmp_x[1] = (np.real(x[1, ...]**2) * self.uk_scale[1]**2)
+        tmp_x[2] = (np.real(x[2, ...] * self.uk_scale[2] *
                           x[1, ...] * self.uk_scale[1]))
-        ADC_y = (np.real(x[2, ...]**2 * self.uk_scale[2]**2 +
+        tmp_x[3] = (np.real(x[2, ...]**2 * self.uk_scale[2]**2 +
                          x[3, ...]**2 * self.uk_scale[3]**2))
-        ADC_xz = (np.real(x[4, ...] * self.uk_scale[4] *
-                          x[1, ...] * self.uk_scale[1]))
-        ADC_z = (np.real(x[4, ...]**2 * self.uk_scale[4]**2 +
+        tmp_x[4] = (np.real(x[4, ...] * self.uk_scale[4] *
+                         x[1, ...] * self.uk_scale[1]))
+        tmp_x[5] = (np.real(x[4, ...]**2 * self.uk_scale[4]**2 +
                          x[5, ...]**2 * self.uk_scale[5]**2 +
                          x[6, ...]**2 * self.uk_scale[6]**2))
-        ADC_yz = (np.real(x[2, ...] * self.uk_scale[2] *
+        tmp_x[6] = (np.real(x[2, ...] * self.uk_scale[2] *
                           x[4, ...] * self.uk_scale[4] +
                           x[6, ...] * self.uk_scale[6] *
                           x[3, ...] * self.uk_scale[3]))
-        f = x[7, ...] * self.uk_scale[7]
-        ADC_ivim = x[8, ...] * self.uk_scale[8]
-
-        return np.array((M0, ADC_x, ADC_xy, ADC_y, ADC_xz, ADC_z, ADC_yz,
-                         f, ADC_ivim))
-
+        tmp_x[7] = x[7, ...] * self.uk_scale[7]
+        tmp_x[8] = x[8, ...] * self.uk_scale[8]
+        
+        const = []
+        for constrained in self.constraints:
+            const.append(constrained.real)
+        return{"data": tmp_x, 
+               "unknown_name": ["M0", "ADC_x", "ADC_xy", "ADC_y", "ADC_xz", 
+                                "ADC_z", "ADC_yz", "f", "ADC_ivim"],
+               "real_valued": const}
+        
     def _execute_forward_2D(self, x, islice):
         print("2D Functions not implemented")
         raise NotImplementedError
