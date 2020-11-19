@@ -62,13 +62,25 @@ class Model(BaseModel):
                 True))
 
     def rescale(self, x):
-        M0 = x[0, ...] * self.uk_scale[0]
-        ADC = x[1, ...] * self.uk_scale[1]
-        f = x[2, ...] * self.uk_scale[2]
-        ADC_ivim = x[3, ...] * self.uk_scale[3]
+        #M0 = x[0, ...] * self.uk_scale[0]
+        #ADC = x[1, ...] * self.uk_scale[1]
+        #f = x[2, ...] * self.uk_scale[2]
+        #ADC_ivim = x[3, ...] * self.uk_scale[3]
 
-        return np.array((M0, ADC,
-                         f, ADC_ivim))
+        #return np.array((M0, ADC,
+        #                 f, ADC_ivim))
+        tmp_x = np.copy(x)
+        tmp_x[0] = x[0, ...] * self.uk_scale[0]
+        tmp_x[1] = x[1, ...] * self.uk_scale[1]
+        tmp_x[2] = x[2, ...] * self.uk_scale[2]
+        tmp_x[3] = x[3, ...] * self.uk_scale[3]
+        
+        const = []
+        for constrained in self.constraints:
+            const.append(constrained.real)
+        return{"data":tmp_x, 
+               "unknown_name": ["M0", "ADC", "f", "ADC_ivim"],
+               "real_valued": const}
 
     def _execute_forward_2D(self, x, islice):
         print("2D Functions not implemented")
