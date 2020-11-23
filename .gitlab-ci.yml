@@ -2,9 +2,9 @@ default:
     image: registry.gitlab.tugraz.at/f23b736137140d66/mbpq
 
 stages:
-    build
-    test
-    integration-test
+    - build
+    - test
+    - integration-test
 
 build-job:
     stage: build
