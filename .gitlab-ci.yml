@@ -10,15 +10,15 @@ stages:
 build-job:
     stage: build
     script:
-        pip3 install -r requirements.txt
-        pip3 install -e .
+        - pip3 install -r requirements.txt
+        - pip3 install -e .
     tags:
         - fbmt129
 
 lint-job: 
     stage: lint
     script:
-        pylint -ry --output-format=parseable --exit-zero ./pyqmri > pylint.log
+        - pylint -ry --output-format=parseable --exit-zero ./pyqmri > pylint.log
     artifacts: 
         paths:
             - pylint.log
@@ -28,9 +28,9 @@ lint-job:
 test-job:
     stage: test
     script:
-        pytest --junitxml results_unittests_LinOp.xml --cov=pyqmri test/unittests/test_LinearDataOperator.py
-        pytest --junitxml results_unittests_grad.xml --cov=pyqmri test/unittests/test_gradient.py
-        pytest --junitxml results_unittests_symgrad.xml --cov=pyqmri test/unittests/test_symmetrized_gradient.py
+        - pytest --junitxml results_unittests_LinOp.xml --cov=pyqmri test/unittests/test_LinearDataOperator.py
+        - pytest --junitxml results_unittests_grad.xml --cov=pyqmri test/unittests/test_gradient.py
+        - pytest --junitxml results_unittests_symgrad.xml --cov=pyqmri test/unittests/test_symmetrized_gradient.py
     artifacts: 
         paths:
             - /*.xml
@@ -40,10 +40,10 @@ test-job:
 integration-job:
     stage: integration-test
     script:
-        ipcluster start&
-        pytest --junitxml results_integrationtests_single_slice.xml --cov=pyqmri --integration-cover test/integrationtests/test_integration_test_single_slice.py
-        pytest --junitxml results_integrationtests_single_slice.xml --cov=pyqmri --integration-cover test/integrationtests/test_integration_test_multi_slice.py
-        ipcluster stop&
+        - ipcluster start&
+        - pytest --junitxml results_integrationtests_single_slice.xml --cov=pyqmri --integration-cover test/integrationtests/test_integration_test_single_slice.py
+        - pytest --junitxml results_integrationtests_single_slice.xml --cov=pyqmri --integration-cover test/integrationtests/test_integration_test_multi_slice.py
+        - ipcluster stop&
     artifacts: 
         paths:
             - /*.xml
