@@ -24,6 +24,8 @@ from pyqmri._helper_fun import _utils as utils
 from pyqmri.solver import CGSolver
 from pyqmri.irgn import IRGNOptimizer
 
+np.seterr(divide='ignore')
+
 
 def _choosePlatform(myargs, par):
     platforms = cl.get_platforms()
