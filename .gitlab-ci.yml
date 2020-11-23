@@ -36,7 +36,7 @@ lint-job:
 test-job:
     stage: test
     before_script:
-        - pip install -e .
+        - pip3 install -e .
     script:
         - pytest --junitxml results_unittests_LinOp.xml --cov=pyqmri test/unittests/test_LinearDataOperator.py
         - pytest --junitxml results_unittests_grad.xml --cov=pyqmri test/unittests/test_gradient.py
@@ -50,7 +50,7 @@ test-job:
 integration-job:
     stage: integration-test
     before_script:
-        - pip install -e .
+        - pip3 install -e .
     script:
         - ipcluster start&
         - pytest --junitxml results_integrationtests_single_slice.xml --cov=pyqmri --integration-cover test/integrationtests/test_integration_test_single_slice.py
