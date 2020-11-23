@@ -1,6 +1,14 @@
 default:
     image: registry.gitlab.tugraz.at/f23b736137140d66/mbpq
-    
+
+stages:
+    - build
+    - test
+    - integration-test
+
+include:
+  - template: Code-Quality.gitlab-ci.yml
+
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
 
@@ -9,10 +17,11 @@ cache:
     - .cache/pip
     - venv/
 
-stages:
-    - build
-    - test
-    - integration-test
+code_quality:
+  artifacts:
+    paths: [gl-code-quality-report.json]
+    tags:
+        - fbmt129
 
 build-job:
     stage: build
