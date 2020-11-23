@@ -1,9 +1,7 @@
 default:
     image: registry.gitlab.tugraz.at/f23b736137140d66/mbpq
-
-include:
-  - template: Code-Quality.gitlab-ci.yml
-
+    tags:
+        - fbmt129
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
 
@@ -11,12 +9,6 @@ cache:
   paths:
     - .cache/pip
     - venv/
-
-code_quality:
-    artifacts:
-        paths: [gl-code-quality-report.json]
-    tags:
-        - fbmt129
 
 stages:
     - build
@@ -28,8 +20,6 @@ build-job:
     script:
         - pip3 install -r requirements.txt
         - pip3 install .
-    tags:
-        - fbmt129
 
 test-job:
     stage: test
@@ -42,8 +32,6 @@ test-job:
     artifacts: 
         paths:
             - /*.xml
-    tags:
-        - fbmt129
 
 integration-job:
     stage: integration-test
@@ -57,7 +45,5 @@ integration-job:
     artifacts: 
         paths:
             - /*.xml
-    tags:
-        - fbmt129
 
     
