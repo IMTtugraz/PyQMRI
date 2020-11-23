@@ -61,4 +61,16 @@ integration-job:
             junit: results_integrationtests_*.xml
             cobertura: coverage_integrationtests_*.xml
 
-    
+#pages:
+#  stage: deploy
+#  dependencies:
+#    - test-job
+#    - integration-job
+#  script:
+#    - mv coverage*.xml public/
+#  artifacts:
+#    paths:
+#      - public
+#    expire_in: 30 days
+#  only:
+#    - master    
