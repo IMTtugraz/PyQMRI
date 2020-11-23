@@ -38,7 +38,7 @@ test-job:
         - coverage xml -o coverage_unittest_symgrad.xml
     artifacts: 
         reports:    
-            junit: result_unittests_*.xml
+            junit: results_unittests_*.xml
             cobertura: coverage_unittest_*.xml
 
 integration-job:
@@ -55,7 +55,7 @@ integration-job:
         - ipcluster stop&
     artifacts: 
         reports:    
-            junit: result_integrationtest_*.xml
+            junit: results_integrationtest_*.xml
             cobertura: coverage_unittest_*.xml
 
     
