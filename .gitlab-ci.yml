@@ -1,3 +1,7 @@
+job:
+  tags:
+    - fbmt129
+
 default:
     image: registry.gitlab.tugraz.at/f23b736137140d66/mbpq
 
