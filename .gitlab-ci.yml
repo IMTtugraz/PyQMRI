@@ -1,7 +1,3 @@
-job:
-  tags:
-    - fbmt129
-
 default:
     image: registry.gitlab.tugraz.at/f23b736137140d66/mbpq
 
@@ -16,6 +12,8 @@ build-job:
     script:
         pip3 install -r requirements.txt
         pip3 install -e .
+    tags:
+        - fbmt129
 
 lint-job: 
     stage: lint
@@ -24,6 +22,8 @@ lint-job:
     artifacts: 
         paths:
             - pylint.log
+    tags:
+        - fbmt129
 
 test-job:
     stage: test
@@ -34,6 +34,8 @@ test-job:
     artifacts: 
         paths:
             - /*.xml
+    tags:
+        - fbmt129
 
 integration-job:
     stage: integration-test
@@ -45,5 +47,7 @@ integration-job:
     artifacts: 
         paths:
             - /*.xml
+    tags:
+        - fbmt129
 
     
