@@ -11,7 +11,9 @@ lint-job:
     stage: lint
     script:
         pylint -ry --output-format=parseable --exit-zero ./pyqmri > pylint.log
-    artifacts: pylint.log
+    artifacts: 
+        path:
+            pylint.log
 
 test-job:
     stage: test
@@ -19,7 +21,9 @@ test-job:
         pytest --junitxml results_unittests_LinOp.xml --cov=pyqmri test/unittests/test_LinearDataOperator.py
         pytest --junitxml results_unittests_grad.xml --cov=pyqmri test/unittests/test_gradient.py
         pytest --junitxml results_unittests_symgrad.xml --cov=pyqmri test/unittests/test_symmetrized_gradient.py
-    artifacts: /*.xml
+    artifacts: 
+        path:
+            /*.xml
 
 integration-job:
     stage: integration-testing
@@ -28,6 +32,8 @@ integration-job:
         pytest --junitxml results_integrationtests_single_slice.xml --cov=pyqmri --integration-cover test/integrationtests/test_integration_test_single_slice.py
         pytest --junitxml results_integrationtests_single_slice.xml --cov=pyqmri --integration-cover test/integrationtests/test_integration_test_multi_slice.py
         ipcluster stop&
-    artifacts: /*.xml
+    artifacts: 
+        path:
+            /*.xml
 
     
