@@ -34,15 +34,15 @@ test-job:
         - pip3 install -e . --no-cache-dir
     script:
         - pytest --junitxml results_unittests_LinOp.xml --cov=pyqmri test/unittests/test_LinearDataOperator.py
-        - coverage xml -o coverage_unittest_LinOp.xml
+#        - coverage xml -o coverage_unittest_LinOp.xml
         - pytest --junitxml results_unittests_grad.xml --cov=pyqmri test/unittests/test_gradient.py
-        - coverage xml -o coverage_unittest_grad.xml
+#        - coverage xml -o coverage_unittest_grad.xml
         - pytest --junitxml results_unittests_symgrad.xml --cov=pyqmri test/unittests/test_symmetrized_gradient.py
-        - coverage xml -o coverage_unittest_symgrad.xml
+        - coverage xml -o coverage_unittest.xml --include=results_unittests_'.*'.xml
     artifacts: 
         reports:    
             junit: results_unittests_*.xml
-            cobertura: coverage_unittest_*.xml
+            cobertura: coverage_unittest.xml
 
 integration-job:
     stage: integration-test
@@ -52,14 +52,14 @@ integration-job:
     script:
         - ipcluster start&
         - pytest --junitxml results_integrationtests_single_slice.xml --cov=pyqmri --integration-cover test/integrationtests/test_integration_test_single_slice.py
-        - coverage xml -o coverage_integrationtests_single_slice.xml
-        - pytest --junitxml results_integrationtests_single_slice.xml --cov=pyqmri --integration-cover test/integrationtests/test_integration_test_multi_slice.py
-        - coverage xml -o coverage_integrationtests_multi_slice.xml
+#        - coverage xml -o coverage_integrationtests_single_slice.xml
+        - pytest --junitxml results_integrationtests_multi_slice.xml --cov=pyqmri --integration-cover test/integrationtests/test_integration_test_multi_slice.py
+        - coverage xml -o coverage_integrationtest.xml --include=results_integrationtests_'.*'.xml
         - ipcluster stop&
     artifacts: 
         reports:    
             junit: results_integrationtests_*.xml
-            cobertura: coverage_integrationtests_*.xml
+            cobertura: coverage_integrationtest.xml
 
 #pages:
 #  stage: deploy
