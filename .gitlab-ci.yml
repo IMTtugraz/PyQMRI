@@ -23,6 +23,8 @@ lint-job:
     stage: linting
     script:
         pylint -ry --output-format=parseable --exit-zero ./pyqmri > pylint.log
+    artifacts:
+        paths: pylint.log
 
 test-job:
     stage: test
