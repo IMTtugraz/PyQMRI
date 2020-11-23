@@ -3,6 +3,7 @@ default:
 
 stages:
     - build
+    - lint
     - test
     - integration-test
 
