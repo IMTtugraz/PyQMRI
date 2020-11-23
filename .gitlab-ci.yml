@@ -18,8 +18,8 @@ cache:
     - venv/
 
 code_quality:
-  artifacts:
-    paths: [gl-code-quality-report.json]
+    artifacts:
+        paths: [gl-code-quality-report.json]
     tags:
         - fbmt129
 
