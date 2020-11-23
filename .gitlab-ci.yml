@@ -1,6 +1,11 @@
 default:
     image: registry.gitlab.tugraz.at/f23b736137140d66/mbpq
 
+stages:
+    build
+    test
+    integration-test
+
 build-job:
     stage: build
     script:
@@ -26,7 +31,7 @@ test-job:
             - /*.xml
 
 integration-job:
-    stage: integration-testing
+    stage: integration-test
     script:
         ipcluster start&
         pytest --junitxml results_integrationtests_single_slice.xml --cov=pyqmri --integration-cover test/integrationtests/test_integration_test_single_slice.py
