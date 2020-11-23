@@ -1,6 +1,9 @@
 default:
     image: registry.gitlab.tugraz.at/f23b736137140d66/mbpq
 
+include:
+  - template: Code-Quality.gitlab-ci.yml
+
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
 
@@ -9,9 +12,12 @@ cache:
     - .cache/pip
     - venv/
 
+code_quality:
+  artifacts:
+    paths: [gl-code-quality-report.json]
+
 stages:
     - build
-    - lint
     - test
     - integration-test
 
@@ -20,16 +26,6 @@ build-job:
     script:
         - pip3 install -r requirements.txt
         - pip3 install .
-    tags:
-        - fbmt129
-
-lint-job: 
-    stage: lint
-    script:
-        - pylint -ry --output-format=parseable --exit-zero ./pyqmri > pylint.log
-    artifacts: 
-        paths:
-            - pylint.log
     tags:
         - fbmt129
 
