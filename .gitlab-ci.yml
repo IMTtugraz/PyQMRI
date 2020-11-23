@@ -52,13 +52,13 @@ integration-job:
     script:
         - ipcluster start&
         - pytest --junitxml results_integrationtests_single_slice.xml --cov=pyqmri --integration-cover test/integrationtests/test_integration_test_single_slice.py
-        - coverage xml -o coverage_integrationtest_single_slice.xml
+        - coverage xml -o coverage_integrationtests_single_slice.xml
         - pytest --junitxml results_integrationtests_single_slice.xml --cov=pyqmri --integration-cover test/integrationtests/test_integration_test_multi_slice.py
-        - coverage xml -o coverage_integrationtest_multi_slice.xml
+        - coverage xml -o coverage_integrationtests_multi_slice.xml
         - ipcluster stop&
     artifacts: 
         reports:    
-            junit: results_integrationtest_*.xml
-            cobertura: coverage_unittest_*.xml
+            junit: results_integrationtests_*.xml
+            cobertura: coverage_integrationtests_*.xml
 
     
