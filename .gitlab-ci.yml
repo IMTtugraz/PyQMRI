@@ -1,6 +1,9 @@
 default:
     image: registry.gitlab.tugraz.at/f23b736137140d66/mbpq
 
+variables:
+  NVIDIA_VISIBLE_DEVICES: "all"
+
 stages:
     - build
     - test
