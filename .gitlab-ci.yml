@@ -20,16 +20,12 @@ cache:
 code_quality:
     artifacts:
         paths: [gl-code-quality-report.json]
-    tags:
-        - fbmt129
 
 build-job:
     stage: build
     script:
         - pip3 install -r requirements.txt
         - pip3 install .
-    tags:
-        - fbmt129
 
 test-job:
     stage: test
@@ -42,8 +38,6 @@ test-job:
     artifacts: 
         paths:
             - /*.xml
-    tags:
-        - fbmt129
 
 integration-job:
     stage: integration-test
@@ -57,7 +51,5 @@ integration-job:
     artifacts: 
         paths:
             - /*.xml
-    tags:
-        - fbmt129
 
     
