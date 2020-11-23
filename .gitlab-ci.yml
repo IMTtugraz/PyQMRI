@@ -12,7 +12,7 @@ lint-job:
     script:
         pylint -ry --output-format=parseable --exit-zero ./pyqmri > pylint.log
     artifacts: 
-        path:
+        paths:
             - pylint.log
 
 test-job:
@@ -22,7 +22,7 @@ test-job:
         pytest --junitxml results_unittests_grad.xml --cov=pyqmri test/unittests/test_gradient.py
         pytest --junitxml results_unittests_symgrad.xml --cov=pyqmri test/unittests/test_symmetrized_gradient.py
     artifacts: 
-        path:
+        paths:
             - /*.xml
 
 integration-job:
@@ -33,7 +33,7 @@ integration-job:
         pytest --junitxml results_integrationtests_single_slice.xml --cov=pyqmri --integration-cover test/integrationtests/test_integration_test_multi_slice.py
         ipcluster stop&
     artifacts: 
-        path:
+        paths:
             - /*.xml
 
     
