@@ -1,7 +1,7 @@
 .. |travis| image:: https://travis-ci.com/IMTtugraz/PyQMRI.svg?branch=master
     :target: https://travis-ci.com/IMTtugraz/PyQMRI
-.. |jenkins| image:: https://00c8da69b5ae.ngrok.io/buildStatus/icon?job=PyQMRI_public%2Fmaster
-   :target: https://00c8da69b5ae.ngrok.io/job/PyQMRI_public/job/master/
+.. |gitlab| image:: https://gitlab.tugraz.at/F23B736137140D66/PyQMRI/badges/master/pipeline.svg
+   :target: https://gitlab.tugraz.at/F23B736137140D66/PyQMRI/-/commits/master
 .. |pypi| image:: https://badge.fury.io/py/pyqmri.svg
     :target: https://pypi.org/project/pyqmri
 .. |docs| image:: https://readthedocs.org/projects/pyqmri/badge/?version=latest
@@ -11,7 +11,7 @@
     :target: https://colab.research.google.com/drive/19BfSJmDPinZDY0m1sMAhETutIiJG3b33?usp=sharing
     :alt: Open in Colab  
     
-Travis: |travis| Jenkins: |jenkins| |pypi| |docs|
+Travis: |travis| GitLab: |gitlab| |pypi| |docs|
     
 .. role:: bash(code)
    :language: bash
