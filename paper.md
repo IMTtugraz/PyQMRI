@@ -86,25 +86,25 @@ and ongoing work on aterial spin labeling [@Maier2020b; @Maier2020c], as well as
 
 # Related Work
 The increased importance of qMRI is reflected by a multitude of open-source toolboxes, each focusing on a subset or combination of qMRI applications. 
-Most tools show a strong focus on neurological applications but are usually not limited to brain (this apllication area) data.
-hMRI [@hMRI] is a Matlab based tool that builds upon SPM [@SPM]. It extends the spatial registration and statistical inference capabilities of SPM by relaxometry and quantification of the magnetisation transfer effect.
-mrQ [@mrQ] offers relaxometry combined with the ability to quantify the macromolecular tissue volume, apparent volume of interacting water protons and the water-surface interaction rate completely written in Matlab.
+Most tools show a strong focus on neurological applications (mostly brain) but are usually not limited to this application area.
+hMRI [@hMRI] is Matlab based and builds upon SPM [@SPM]. It extends the spatial registration and statistical inference capabilities of SPM by relaxometry and quantification of the magnetisation transfer effect.
+mrQ [@mrQ] offers relaxometry combined with the ability to quantify the macromolecular tissue volume, apparent volume of interacting water protons, and the water-surface interaction rate and is completely written in Matlab.
 Another Matlab based project is qMRlab [@qMRLab] which offers a multitude of quantification algorithms including relaxometry, diffusion imaging, quantitative susceptibility mapping, field mapping, and quantitative magnetization transfer.
 It further offers routines for visualization, simulation, and protocol optimization of quantitative MRI examinations.
-Another Matlab based tools is qmap [@QMAP] which offers a collection of tools for quantitative MRI. 
+Another Matlab based software is qmap [@QMAP] which offers a collection of tools for quantitative MRI. 
 
 qMRI is also present in the Python community with PyMRT [@PYMRT] offering tools for image analysis and relaxometry. 
-A powerful tool to with a focus on neuroimaing in Python is DIPY [@DIPY], offering a multitude of ways to evaluated diffusion and perfusion MRI data.
-Other tools focus on fast execution by utilizing C++ routines, like the QUIT [@QUIT] toolbox, which is entirely written in C++.
-These toolbox have in common that they usually require image data for the fitting process and thus are not suitable for accelerated acquired data
-or require dedicated reconstruction algorithms prior to fitting.
+Another powerful Pyhton package, with a focus on neuroimaing, is DIPY [@DIPY], offering a multitude of ways to evaluated diffusion and perfusion MRI data.
+Other software packages focus on fast execution and fitting, like the QUIT [@QUIT] toolbox, which is entirely written in C++ to speed up the computations.
+All of the above mentioned qMRI toolboxes have in common that they usually require image data for the fitting process and, thus, are not suitable for accelerated acquired data or require dedicated reconstruction algorithms prior to fitting.
 
 A recent extensions to BART [@BART] allows for $T_1$ quantification from 2D radially acquired inversion recovery Look-Locker data.
-The approach utilizes a model-based reconstruction approach to estimate $T_1$ directly from k-space[@wang2018, @wang2019].
+The approach utilizes a model-based reconstruction algorithm to estimate $T_1$ directly from k-space [@wang2018; @wang2019].
+Even though this approach can handle undersampled data and incorporates the whole MRI acquisition pipeline, it is currently limited to this single quantification model.
 
-To the best of the authors knowledge `PyQMRI`is the only available Python toolbox that offers real 3D regularization 
+To the best of the authors knowledge `PyQMRI` is the only available Python toolbox that offers real 3D regularization 
 in an iterative solver for model-based qMRI problems and for arbitrary large volumetric data, while simultaneously utilizing the computation
-power of recent GPUs. Further, the ability to use symbolic equations to generate new models seems to be unique as other tools require modifications of the code to include new qunatification models.
+power of recent GPUs. Further, the ability to use symbolic equations to generate new models seems to be unique as other tools require modifications of the code to include new quantification models.
 
 \pagebreak
 
