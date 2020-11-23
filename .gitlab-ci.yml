@@ -1,26 +1,28 @@
 default:
     image: registry.gitlab.tugraz.at/f23b736137140d66/mbpq
 
-variables:
-  NVIDIA_VISIBLE_DEVICES: "all"
-
 stages:
     - build
+    - linting
     - test
     - integration-test
 
-include:
-  - template: Code-Quality.gitlab-ci.yml
-
-code_quality:
-    artifacts:
-        paths: [gl-code-quality-report.json]
+# include:
+#  - template: Code-Quality.gitlab-ci.yml
+#code_quality:
+#    artifacts:
+#        paths: [gl-code-quality-report.json]
 
 build-job:
     stage: build
     script:
         - pip3 install -r requirements.txt
         - pip3 install .
+
+lint-job:
+    stage: linting
+    script:
+        pylint -ry --output-format=parseable --exit-zero ./pyqmri > pylint.log
 
 test-job:
     stage: test
