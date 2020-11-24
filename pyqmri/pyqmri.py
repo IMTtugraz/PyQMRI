@@ -310,7 +310,7 @@ def _readInput(myargs, par):
             sys.exit()
         file = myargs.file
     name = os.path.normpath(file)
-    par["fname"] = name.split(os.sep)[-1]
+    par["fname"] = name.split(os.sep)[-1].split(".")[0]
 
     if myargs.outdir == '':
         outdir = os.sep.join(name.split(os.sep)[:-1]) + os.sep + \

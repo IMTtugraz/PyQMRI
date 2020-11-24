@@ -132,7 +132,7 @@ class Model(BaseModel):
 
         T1prinv = _T1pr(self.T1, x[0], self.uk_scale[0], self.lambd)
         expAtt = _expAttT1b(x[1], self.uk_scale[1], self.T1b)
-        for j in range((self.t).size):
+        for j in range(self.t.shape[0]):
             ind_low = self.t[j] >= del_t
             ind_high = self.t[j] < (del_t+self.tau[j])
             ind = ind_low & ind_high
@@ -160,7 +160,7 @@ class Model(BaseModel):
         t = self.t
         T1prinv = _T1pr(self.T1, x[0], self.uk_scale[0], self.lambd)
         expAtt = _expAttT1b(x[1], self.uk_scale[1], self.T1b)
-        for j in range((self.t).size):
+        for j in range(self.t.shape[0]):
             ind_low = self.t[j] >= del_t
             ind_high = self.t[j] < (del_t+self.tau[j])
             ind = ind_low & ind_high
@@ -222,6 +222,10 @@ class Model(BaseModel):
         # ind2 = 35# int(images.shape[-1]/2) 30, 60
         off = 0
         [z, y, x] = f.shape
+        if len(self.t.shape) == 4:
+            t = self.t[:, int(self.NSlice/2), 0, 0]
+        else:
+            t = self.t
         if dim_2D:
             pass
         else:
@@ -294,7 +298,7 @@ class Model(BaseModel):
                 self.time_course_ref = []
 
                 self.time_course_ref.append(self.plot_ax.plot(
-                    self.t*60, np.real(
+                    t*60, np.real(
                         self.images[...,
                                     int(self.NSlice/2),
                                     self._ind2, self._ind1]),
@@ -303,7 +307,7 @@ class Model(BaseModel):
                 self.plot_ax.set_prop_cycle(None)
 
                 self.time_course = self.plot_ax.plot(
-                    self.t*60, np.real(
+                    t*60, np.real(
                         images[..., int(self.NSlice/2),
                                self._ind2, self._ind1]))
                 
