@@ -1,7 +1,7 @@
 .. |travis| image:: https://travis-ci.com/IMTtugraz/PyQMRI.svg?branch=master
     :target: https://travis-ci.com/IMTtugraz/PyQMRI
 .. |gitlab| image:: https://gitlab.tugraz.at/F23B736137140D66/PyQMRI/badges/master/pipeline.svg
-   :target: https://gitlab.tugraz.at/F23B736137140D66/PyQMRI/-/commits/master
+   :target: https://gitlab.tugraz.at/F23B736137140D66/PyQMRI/-/pipelines/
 .. |pypi| image:: https://badge.fury.io/py/pyqmri.svg
     :target: https://pypi.org/project/pyqmri
 .. |docs| image:: https://readthedocs.org/projects/pyqmri/badge/?version=latest
