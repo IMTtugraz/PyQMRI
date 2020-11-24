@@ -1,7 +1,7 @@
 .. |travis| image:: https://travis-ci.com/IMTtugraz/PyQMRI.svg?branch=master
     :target: https://travis-ci.com/IMTtugraz/PyQMRI
 .. |gitlab| image:: https://gitlab.tugraz.at/F23B736137140D66/PyQMRI/badges/master/pipeline.svg
-   :target: https://gitlab.tugraz.at/F23B736137140D66/PyQMRI/-/commits/master
+   :target: https://gitlab.tugraz.at/F23B736137140D66/PyQMRI/-/pipelines/
 .. |pypi| image:: https://badge.fury.io/py/pyqmri.svg
     :target: https://pypi.org/project/pyqmri
 .. |docs| image:: https://readthedocs.org/projects/pyqmri/badge/?version=latest
@@ -45,6 +45,7 @@ entry in the .h5 to force a recomputation of the receive coil sensitivities as t
 
 Contributing
 ------------
+Development and code contributaions should be done at our GitLab_ site to facilitate the CI integration and GPU availability there.
 If you want to contribute please make sure that all tests pass and adhere to our `Code of Conduct`_. 
 Prior to running the tests it is necessary to start an ipcluster. 
 An exemplary workflow would be:
@@ -89,3 +90,4 @@ at `[v0.1.0] <https://github.com/IMTtugraz/PyQMRI/tree/v.0.1.0>`_
 .. _`Quickstart Guide` : https://pyqmri.readthedocs.io/en/latest/quickstart.html
 .. _Documentation : https://pyqmri.readthedocs.io/en/latest/?badge=latest
 .. _`Code of Conduct` : CODE_OF_CONDUCT.rst
+.. _GitLab : https://gitlab.tugraz.at/F23B736137140D66/PyQMRI
