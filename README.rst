@@ -11,7 +11,7 @@
     :target: https://colab.research.google.com/drive/19BfSJmDPinZDY0m1sMAhETutIiJG3b33?usp=sharing
     :alt: Open in Colab  
     
-Travis: |travis| GitLab: |gitlab| |pypi| |docs|
+|travis| |gitlab| |pypi| |docs|
     
 .. role:: bash(code)
    :language: bash
