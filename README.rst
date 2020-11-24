@@ -11,7 +11,7 @@
     :target: https://colab.research.google.com/drive/19BfSJmDPinZDY0m1sMAhETutIiJG3b33?usp=sharing
     :alt: Open in Colab  
     
-Travis: |travis| GitLab: |gitlab| |pypi| |docs|
+|travis| |gitlab| |pypi| |docs|
     
 .. role:: bash(code)
    :language: bash
@@ -45,7 +45,7 @@ entry in the .h5 to force a recomputation of the receive coil sensitivities as t
 
 Contributing
 ------------
-Development and code contributaions should be done at our GitLab_ site to facilitate the CI integration and GPU availability there.
+Development and code contributions should be done at our GitLab_ site to facilitate the CI integration and GPU availability there.
 If you want to contribute please make sure that all tests pass and adhere to our `Code of Conduct`_. 
 Prior to running the tests it is necessary to start an ipcluster. 
 An exemplary workflow would be:
