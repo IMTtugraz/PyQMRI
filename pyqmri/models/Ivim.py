@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from pyqmri.models.template import BaseModel, constraints, DTYPE
+from pyqmri.models.template import BaseModel, constraints
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
@@ -62,13 +62,25 @@ class Model(BaseModel):
                 True))
 
     def rescale(self, x):
-        M0 = x[0, ...] * self.uk_scale[0]
-        ADC = x[1, ...] * self.uk_scale[1]
-        f = x[2, ...] * self.uk_scale[2]
-        ADC_ivim = x[3, ...] * self.uk_scale[3]
+        #M0 = x[0, ...] * self.uk_scale[0]
+        #ADC = x[1, ...] * self.uk_scale[1]
+        #f = x[2, ...] * self.uk_scale[2]
+        #ADC_ivim = x[3, ...] * self.uk_scale[3]
 
-        return np.array((M0, ADC,
-                         f, ADC_ivim))
+        #return np.array((M0, ADC,
+        #                 f, ADC_ivim))
+        tmp_x = np.copy(x)
+        tmp_x[0] = x[0, ...] * self.uk_scale[0]
+        tmp_x[1] = x[1, ...] * self.uk_scale[1]
+        tmp_x[2] = x[2, ...] * self.uk_scale[2]
+        tmp_x[3] = x[3, ...] * self.uk_scale[3]
+        
+        const = []
+        for constrained in self.constraints:
+            const.append(constrained.real)
+        return{"data":tmp_x, 
+               "unknown_name": ["M0", "ADC", "f", "ADC_ivim"],
+               "real_valued": const}
 
     def _execute_forward_2D(self, x, islice):
         print("2D Functions not implemented")
@@ -88,7 +100,7 @@ class Model(BaseModel):
                 * np.exp(-(x[3, ...] * self.uk_scale[3]) * self.b)
                 + (1-x[2, ...] * self.uk_scale[2])
                 * np.exp(- ADC * self.b)
-             )).astype(DTYPE)
+             )).astype(self._DTYPE)
 
         S *= self.phase
         S[~np.isfinite(S)] = 0
@@ -123,7 +135,7 @@ class Model(BaseModel):
             [grad_M0,
              grad_ADC,
              grad_f,
-             grad_ADC_ivim], dtype=DTYPE)
+             grad_ADC_ivim], dtype=self._DTYPE)
         grad[~np.isfinite(grad)] = 0
         grad *= self.phase
         return grad
@@ -323,9 +335,9 @@ class Model(BaseModel):
             test_M0 = self.b0
         else:
             test_M0 = args[0][0]
-        ADC = 1 * np.ones(args[0].shape[-3:], dtype=DTYPE)
-        f = 0.2 * np.ones(args[0].shape[-3:], dtype=DTYPE)
-        ADC_ivim = 50 * np.ones(args[0].shape[-3:], dtype=DTYPE)
+        ADC = 1 * np.ones(args[0].shape[-3:], dtype=self._DTYPE)
+        f = 0.2 * np.ones(args[0].shape[-3:], dtype=self._DTYPE)
+        ADC_ivim = 50 * np.ones(args[0].shape[-3:], dtype=self._DTYPE)
 
         x = np.array(
                 [
@@ -333,5 +345,5 @@ class Model(BaseModel):
                     ADC,
                     f,
                     ADC_ivim],
-                dtype=DTYPE)
+                dtype=self._DTYPE)
         self.guess = x

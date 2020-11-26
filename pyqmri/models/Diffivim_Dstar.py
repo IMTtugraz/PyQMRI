@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from pyqmri.models.template import BaseModel, constraints, DTYPE
+from pyqmri.models.template import BaseModel, constraints
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
@@ -86,27 +86,54 @@ class Model(BaseModel):
                 True))
 
     def rescale(self, x):
-        M0 = x[0, ...] * self.uk_scale[0]
-        ADC_x = (np.real(x[1, ...]**2) * self.uk_scale[1]**2)
-        ADC_xy = (np.real(x[2, ...] * self.uk_scale[2] *
+        #M0 = x[0, ...] * self.uk_scale[0]
+        #ADC_x = (np.real(x[1, ...]**2) * self.uk_scale[1]**2)
+        #ADC_xy = (np.real(x[2, ...] * self.uk_scale[2] *
+        #                  x[1, ...] * self.uk_scale[1]))
+        #ADC_y = (np.real(x[2, ...]**2 * self.uk_scale[2]**2 +
+        #                 x[3, ...]**2 * self.uk_scale[3]**2))
+        #ADC_xz = (np.real(x[4, ...] * self.uk_scale[4] *
+        #                  x[1, ...] * self.uk_scale[1]))
+        #ADC_z = (np.real(x[4, ...]**2 * self.uk_scale[4]**2 +
+        #                 x[5, ...]**2 * self.uk_scale[5]**2 +
+        #                 x[6, ...]**2 * self.uk_scale[6]**2))
+        #ADC_yz = (np.real(x[2, ...] * self.uk_scale[2] *
+        #                  x[4, ...] * self.uk_scale[4] +
+        #                  x[6, ...] * self.uk_scale[6] *
+        #                  x[3, ...] * self.uk_scale[3]))
+        #f = x[7, ...] * self.uk_scale[7]
+        #ADC_ivim = x[8, ...] * self.uk_scale[8]
+
+        #return np.array((M0, ADC_x, ADC_xy, ADC_y, ADC_xz, ADC_z, ADC_yz,
+        #                 f, ADC_ivim))
+        
+        tmp_x = np.copy(x)
+        tmp_x[0] = x[0, ...] * self.uk_scale[0]
+        tmp_x[1] = (np.real(x[1, ...]**2) * self.uk_scale[1]**2)
+        tmp_x[2] = (np.real(x[2, ...] * self.uk_scale[2] *
                           x[1, ...] * self.uk_scale[1]))
-        ADC_y = (np.real(x[2, ...]**2 * self.uk_scale[2]**2 +
+        tmp_x[3] = (np.real(x[2, ...]**2 * self.uk_scale[2]**2 +
                          x[3, ...]**2 * self.uk_scale[3]**2))
-        ADC_xz = (np.real(x[4, ...] * self.uk_scale[4] *
-                          x[1, ...] * self.uk_scale[1]))
-        ADC_z = (np.real(x[4, ...]**2 * self.uk_scale[4]**2 +
+        tmp_x[4] = (np.real(x[4, ...] * self.uk_scale[4] *
+                         x[1, ...] * self.uk_scale[1]))
+        tmp_x[5] = (np.real(x[4, ...]**2 * self.uk_scale[4]**2 +
                          x[5, ...]**2 * self.uk_scale[5]**2 +
                          x[6, ...]**2 * self.uk_scale[6]**2))
-        ADC_yz = (np.real(x[2, ...] * self.uk_scale[2] *
+        tmp_x[6] = (np.real(x[2, ...] * self.uk_scale[2] *
                           x[4, ...] * self.uk_scale[4] +
                           x[6, ...] * self.uk_scale[6] *
                           x[3, ...] * self.uk_scale[3]))
-        f = x[7, ...] * self.uk_scale[7]
-        ADC_ivim = x[8, ...] * self.uk_scale[8]
-
-        return np.array((M0, ADC_x, ADC_xy, ADC_y, ADC_xz, ADC_z, ADC_yz,
-                         f, ADC_ivim))
-
+        tmp_x[7] = x[7, ...] * self.uk_scale[7]
+        tmp_x[8] = x[8, ...] * self.uk_scale[8]
+        
+        const = []
+        for constrained in self.constraints:
+            const.append(constrained.real)
+        return{"data": tmp_x, 
+               "unknown_name": ["M0", "ADC_x", "ADC_xy", "ADC_y", "ADC_xz", 
+                                "ADC_z", "ADC_yz", "f", "ADC_ivim"],
+               "real_valued": const}
+        
     def _execute_forward_2D(self, x, islice):
         print("2D Functions not implemented")
         raise NotImplementedError
@@ -139,7 +166,7 @@ class Model(BaseModel):
                 * np.exp(-(x[8, ...] * self.uk_scale[8]) * self.b)
                 + (1-x[7, ...] * self.uk_scale[7])
                 * np.exp(- ADC * self.b)
-             )).astype(DTYPE)
+             )).astype(self._DTYPE)
 
         S *= self.phase
         S[~np.isfinite(S)] = 0
@@ -223,7 +250,7 @@ class Model(BaseModel):
              grad_ADC_z,
              grad_ADC_yz,
              grad_f,
-             grad_ADC_ivim], dtype=DTYPE)
+             grad_ADC_ivim], dtype=self._DTYPE)
         grad[~np.isfinite(grad)] = 0
         grad *= self.phase
         return grad
@@ -569,10 +596,10 @@ class Model(BaseModel):
             test_M0 = self.b0
         else:
             test_M0 = args[0][0]
-        ADC = 1 * np.ones(args[0].shape[-3:], dtype=DTYPE)
+        ADC = 1 * np.ones(args[0].shape[-3:], dtype=self._DTYPE)
         # change initial guess for f, D*
-        f = 0.1 * np.ones(args[0].shape[-3:], dtype=DTYPE)
-        ADC_ivim = 10 * np.ones(args[0].shape[-3:], dtype=DTYPE)
+        f = 0.1 * np.ones(args[0].shape[-3:], dtype=self._DTYPE)
+        ADC_ivim = 10 * np.ones(args[0].shape[-3:], dtype=self._DTYPE)
 
         x = np.array(
                 [
@@ -585,5 +612,5 @@ class Model(BaseModel):
                     0 * ADC,
                     f,
                     ADC_ivim],
-                dtype=DTYPE)
+                dtype=self._DTYPE)
         self.guess = x
