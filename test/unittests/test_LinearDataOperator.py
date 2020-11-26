@@ -130,7 +130,7 @@ class OperatorKspaceRadial(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=12)
+        self.assertAlmostEqual(a, b, places=6)
 
     def test_adj_inplace(self):
         inpfwd = clarray.to_device(self.queue, self.opinfwd)
@@ -152,7 +152,7 @@ class OperatorKspaceRadial(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=12)
+        self.assertAlmostEqual(a, b, places=6)
 
 
 class OperatorKspaceCartesian(unittest.TestCase):
