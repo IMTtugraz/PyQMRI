@@ -7,17 +7,20 @@ Created on Mon Aug 12 11:26:41 2019
 """
 import pytest
 import os
+from os.path import join as pjoin
 import pyqmri
 import shutil
 import h5py
 import numpy as np
 
 
+data_dir = os.path.realpath(pjoin(os.path.dirname(__file__), '..'))
+
 @pytest.mark.integration_test
 def test_VFA_model_kspace_TGV_cart_multislice(gen_multislice_data):
-    assert pyqmri.run(data=os.getcwd()+'/test/VFA_cart_test.h5',
+    assert pyqmri.run(data=pjoin(data_dir, 'VFA_cart_test.h5'),
                       model='VFA',
-                      config=os.getcwd()+'/test/default.ini',
+                      config=pjoin(data_dir, 'default.ini'),
                       trafo=False,
                       slices=4
                       ) is None
@@ -25,9 +28,9 @@ def test_VFA_model_kspace_TGV_cart_multislice(gen_multislice_data):
 
 @pytest.mark.integration_test
 def test_VFA_model_kspace_TGV_cart_multislice_streamed(gen_multislice_data):
-    assert pyqmri.run(data=os.getcwd()+'/test/VFA_cart_test.h5',
+    assert pyqmri.run(data=pjoin(data_dir, 'VFA_cart_test.h5'),
                       model='VFA',
-                      config=os.getcwd()+'/test/default.ini',
+                      config=pjoin(data_dir, 'default.ini'),
                       trafo=False,
                       slices=4,
                       streamed=1,
@@ -37,9 +40,9 @@ def test_VFA_model_kspace_TGV_cart_multislice_streamed(gen_multislice_data):
 
 @pytest.mark.integration_test
 def test_VFA_model_kspace_TV_cart_multislice_streamed(gen_multislice_data):
-    assert pyqmri.run(data=os.getcwd()+'/test/VFA_cart_test.h5',
+    assert pyqmri.run(data=pjoin(data_dir, 'VFA_cart_test.h5'),
                       model='VFA',
-                      config=os.getcwd()+'/test/default.ini',
+                      config=pjoin(data_dir, 'default.ini'),
                       trafo=False,
                       slices=4,
                       streamed=1,
@@ -50,7 +53,7 @@ def test_VFA_model_kspace_TV_cart_multislice_streamed(gen_multislice_data):
 
 @pytest.fixture(scope="function")
 def gen_multislice_data():
-    file = h5py.File(os.getcwd()+'/test/VFA_cart_smalltest.h5', 'r')
+    file = h5py.File(pjoin(data_dir, 'VFA_cart_smalltest.h5'), 'r')
 
     Coils = file["Coils"][()]
     real_dat = file["real_dat"][()]
@@ -62,7 +65,7 @@ def gen_multislice_data():
     fa = file.attrs["fa"][()]
     TR = file.attrs["TR"]
 
-    file_out = h5py.File(os.getcwd()+'/test/VFA_cart_test.h5', 'w')
+    file_out = h5py.File(pjoin(data_dir, 'VFA_cart_test.h5'), 'w')
 
     slices = 4
 
@@ -92,6 +95,9 @@ def gen_multislice_data():
 def clean_up():
     yield
     try:
-        shutil.rmtree(os.getcwd()+'/test/PyQMRI_out')
+        if os.path.exists(pjoin(data_dir, 'PyQMRI_out')):
+            shutil.rmtree(pjoin(data_dir, 'PyQMRI_out'))
+        if os.path.isfile(pjoin(data_dir, 'VFA_cart_test.h5')):
+            os.remove(pjoin(data_dir, 'VFA_cart_test.h5'))
     except OSError as e:
         print("Error: %s - %s." % (e.filename, e.strerror))
