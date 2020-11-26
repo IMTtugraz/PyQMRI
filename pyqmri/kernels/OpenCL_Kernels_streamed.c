@@ -211,12 +211,12 @@ __kernel void operator_fwd_ssense(__global float2 *out, __global float2 *in,
     float2 f_sum = 0.0f;
     for (int map=0; map < Nmaps; map++)
     {
-      tmp_in = in[map*NSl*X*Y + k*X*Y+ y*X + x];
-      tmp_coil = (float2) coils[map*NCo*NSl*X*Y + coil*NSl*X*Y + k*X*Y + y*X + x];
+      tmp_in = in[k*Nmaps*X*Y + map*X*Y+ y*X + x];
+      tmp_coil = (float2) coils[k*Nmaps*NCo*X*Y + map*NCo*X*Y + coil*X*Y + y*X + x];
       f_sum += (float2)(tmp_in.x * tmp_coil.x - tmp_in.y * tmp_coil.y,
                         tmp_in.x * tmp_coil.y + tmp_in.y * tmp_coil.x);
     }
-    out[coil*NSl*X*Y+ k*X*Y + y*X + x] = f_sum;
+    out[k*NCo*X*Y+ coil*X*Y + y*X + x] = f_sum;
   }
 }
 
@@ -227,6 +227,7 @@ __kernel void operator_ad_ssense(__global float2 *out, __global float2 *in,
   size_t X = get_global_size(2);
   size_t Y = get_global_size(1);
   size_t NSl = get_global_size(0);
+
   size_t x = get_global_id(2);
   size_t y = get_global_id(1);
   size_t k = get_global_id(0);
@@ -239,14 +240,14 @@ __kernel void operator_ad_ssense(__global float2 *out, __global float2 *in,
     float2 f_sum = 0.0f;
     for (int coil=0; coil < NCo; coil++)
     {
-      tmp_in = in[coil*NSl*X*Y + k*X*Y+ y*X + x];
-      conj_coils = (float2) (coils[map*NCo*NSl*X*Y + coil*NSl*X*Y + k*X*Y + y*X + x].x,
-                            -coils[map*NCo*NSl*X*Y + coil*NSl*X*Y + k*X*Y + y*X + x].y);
+      tmp_in = in[k*NCo*X*Y + coil*X*Y+ y*X + x];
+      conj_coils = (float2) (coils[k*Nmaps*NCo*X*Y + map*NCo*X*Y + coil*X*Y + y*X + x].x,
+                            -coils[k*Nmaps*NCo*X*Y + map*NCo*X*Y + coil*X*Y + y*X + x].y);
 
       f_sum += (float2)(tmp_in.x*conj_coils.x-tmp_in.y*conj_coils.y,
                         tmp_in.x*conj_coils.y+tmp_in.y*conj_coils.x);
     }
-    out[map*NSl*X*Y + k*X*Y + y*X + x] = f_sum;
+    out[k*Nmaps*X*Y + map*X*Y + y*X + x] = f_sum;
   }
 }
 

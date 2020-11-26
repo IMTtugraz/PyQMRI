@@ -1,4 +1,6 @@
 import argparse
+import sys
+
 import pyopencl.array as cla
 import pyqmri.operator as pyqmirop
 import pyqmri.solver as pyqmrisl
@@ -36,13 +38,14 @@ def _setup_par(par, myargs, ksp_data):
     par["dz"] = 1
 
     par["fft_dim"] = (0, 1, 2)  # 3D fft
-    par["mask"] = np.ones(ksp_data[0, 0, ...].shape, dtype=DTYPE_real)
+    #par["mask"] = np.ones(ksp_data[0, 0, ...].shape, dtype=DTYPE_real)
+    par["mask"] = np.require(np.ones((par["dimY"], par["dimX"]), dtype=DTYPE_real), requirements='C')
 
     par["overlap"] = 0
     par["par_slices"] = par["NSlice"]
 
     if myargs.streamed:
-        par["par_slices"] = par["NSlice"] / par["num_dev"]
+        par["par_slices"] = 4
         par["overlap"] = 1
 
 
@@ -51,7 +54,7 @@ def _setup_irgn_par(irgn_par, myargs):
     irgn_par["accelerated"] = False
     irgn_par["tol"] = 1e-8
     irgn_par["stag"] = 1000
-    irgn_par["sigma"] = 1
+    irgn_par["sigma"] = np.float32(1 / np.sqrt(12))
     irgn_par["lambd"] = myargs.lamda
     irgn_par["alpha0"] = np.sqrt(2)  # 2D --> np.sqrt(2), 3D --> np.sqrt(3)
     irgn_par["alpha1"] = 1   # 1
@@ -169,7 +172,7 @@ def _pda_soft_sense_solver(myargs, par, ksp, cmaps, imgs, imgs_us, reg_type=''):
     inp = inp.astype(DTYPE)
 
     # if reg_type != '':
-    irgn_par["sigma"] = np.float32(1 / np.sqrt(12))
+    # irgn_par["sigma"] = np.float32(1 / np.sqrt(12))
 
     fval = calculate_cost(myargs, irgn_par, inp, np.zeros(inp.shape+(3,)), ksp, cmaps, reg_type)
 
@@ -220,14 +223,28 @@ def _2d_recon(imgs, ksp_data, cmaps, par, myargs):
     imgs = imgs[:, 21:21+NSlice, ...]
     #imgs = np.expand_dims(imgs, axis=0)
 
+    if myargs.streamed:
+        data_trans_axes = (2, 0, 1, 3, 4)
+        ksp_data2d = np.transpose(ksp_data2d, data_trans_axes)
+        cmaps = np.transpose(cmaps, data_trans_axes)
+
+        #ksp_data2d = np.moveaxis(ksp_data2d, [0, 1, 2], [1, 2, 0])
+        #cmaps = np.moveaxis(cmaps, [0, 1, 2], [1, 2, 0])
+
     out_undersampled = soft_sense_recon_cl(myargs, par, ksp_data2d, cmaps)
-    img_montage(sum_of_squares(out_undersampled), '2D reconstruction of undersampled data with adjoint operator')
+
+    if myargs.streamed:
+        out_undersampled = np.moveaxis(out_undersampled, [0, 1], [1, 0])
+        save_imgs(sum_of_squares(out_undersampled), myargs, 'test_streamed')
+        sys.exit()
+
+    # img_montage(sum_of_squares(out_undersampled), '2D reconstruction of undersampled data with adjoint operator')
 
     out_pd = _pda_soft_sense_solver(myargs, par, ksp_data2d, cmaps, imgs, out_undersampled, reg_type=myargs.reg_type)
 
     x_orig = normalize_imgs(sum_of_squares(imgs))
     x_ssense = normalize_imgs(sum_of_squares(out_pd))
-    x_diff = normalize_imgs(x_orig - x_ssense)
+    x_diff = x_orig - x_ssense
 
     return x_ssense, x_orig, x_diff
 
@@ -253,8 +270,8 @@ def _main(myargs):
 
     # setup PyQMRI parameters and PyOCL
     par = {}
-    _setup_par(par, myargs, ksp_data)
     _setupOCL(myargs, par)
+    _setup_par(par, myargs, ksp_data)
 
     imgs = phase_recon_cl_3d(ksp_data, cmaps, par)
     img_montage(sum_of_squares(imgs), 'Phase sensitive reconstruction 3D')
@@ -268,9 +285,15 @@ def _main(myargs):
 
     img_montage(out_orig, 'Original selected images')
     img_montage(out_ssense, 'Softsense recon ' + myargs.reg_type)
-    # img_montage(out_diff, 'Diffs')
+    img_montage(out_diff, 'Diffs')
 
-    save_imgs(out_ssense, myargs.type + '_recon_' + args.reg_type + '_lambda_' + str(myargs.lamda))
+    mse, psnr, ssim = calc_image_metrics(out_ssense, out_orig)
+
+    irgn_par = {}
+    _setup_irgn_par(irgn_par, myargs)
+    save_data(out_ssense, par, irgn_par, myargs)
+    # save_data(out_orig, par, irgn_par, myargs, filename='fully_sampled_recon', ds_name='dataset', store_attrs=False)
+    save_imgs(out_ssense, myargs)
 
 
 if __name__ == '__main__':
@@ -293,16 +316,16 @@ if __name__ == '__main__':
 
     args.trafo = False
     args.use_GPU = True
-    args.streamed = False
-    args.devices = 0
+    args.streamed = True
+    args.devices = -1
     args.kspfile = Path.cwd() / 'data_soft_sense_test' / 'kspace.mat'
     args.csfile = Path.cwd() / 'data_soft_sense_test' / 'sensitivities_ecalib.mat'
 
     # args.type = '3D'
-    # args.reg_type = 'TV'  # '', 'TV', or 'TGV'
+    args.reg_type = ''  # '', 'TV', or 'TGV'
     args.linesearch = False
     # args.lamda = 0.1
-    args.undersampling = True
+    args.undersampling = False
     args.dim_us = 'y'
     args.acceleration_factor = 4
 

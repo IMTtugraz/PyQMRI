@@ -139,20 +139,38 @@ def phase_recon(ksp, cmap, fft3d=True):
 
 
 def soft_sense_recon_cl(myargs, par, ksp, cmaps):
-    file = open(resource_filename('pyqmri', 'kernels/OpenCL_Kernels.c'))
-    prg = Program(
-        par["ctx"][0],
-        file.read())
-    file.close()
-
-    op = pyqmirop.OperatorSoftSense(par, prg)
-
     ksp = ksp.astype(DTYPE)
-    inp_adj = cla.to_device(op.queue, np.require(ksp, requirements='C'))
     cmaps = cmaps.astype(DTYPE)
-    inp_cmaps = cla.to_device(op.queue, np.require(cmaps, requirements='C'))
 
-    return op.adjoop([inp_adj, inp_cmaps]).get()
+    if myargs.streamed:
+        file = resource_filename(
+            'pyqmri', 'kernels/OpenCL_Kernels_streamed.c')
+
+        prg = []
+        for j in range(len(par["num_dev"])):
+            with open(file) as myfile:
+                prg.append(Program(
+                    par["ctx"][j],
+                    myfile.read()))
+
+        op = pyqmirop.OperatorSoftSenseStreamed(par, prg, trafo=False)
+        inp_adj = np.require(ksp, requirements='C')
+        cmaps = np.ones_like(cmaps)
+        inp_cmaps = np.require(cmaps, requirements='C')
+
+        return op.adjoop([inp_adj, inp_cmaps])
+    else:
+        file = open(resource_filename('pyqmri', 'kernels/OpenCL_Kernels.c'))
+        prg = Program(
+            par["ctx"][0],
+            file.read())
+        file.close()
+
+        op = pyqmirop.OperatorSoftSense(par, prg)
+        inp_adj = cla.to_device(op.queue, np.require(ksp, requirements='C'))
+        inp_cmaps = cla.to_device(op.queue, np.require(cmaps, requirements='C'))
+
+        return op.adjoop([inp_adj, inp_cmaps]).get()
 
 
 def _operator_adj_np(ksp, cmaps, mask):

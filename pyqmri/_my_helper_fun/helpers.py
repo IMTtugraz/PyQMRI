@@ -1,5 +1,7 @@
 import numpy as np
 
+from skimage.metrics import structural_similarity as calc_ssim
+
 DTYPE = np.complex64
 DTYPE_real = np.float32
 
@@ -49,7 +51,7 @@ def undersample_kspace(par, ksp_data, acc=2, dim='y'):
 
 
 def sum_of_squares(x):
-    return np.sqrt(np.abs(x[0])**2 + np.abs(x[1])**2)
+    return np.sqrt(np.abs(x[0])**2 + np.abs(x[1])**2) if x.shape[0] == 2 else np.abs(x)
 
 
 def normalize_imgs(x):
@@ -59,6 +61,40 @@ def normalize_imgs(x):
         i_max = np.max(img)
         x[i] = (img - i_min) / (i_max - i_min)
     return x
+
+
+def calc_psnr(img, orig_img):
+    rmse = calc_rmse(img, orig_img)
+    psnr = 100
+    if rmse != 0:
+        psnr = 20 * np.log10(1. / rmse)
+    return psnr
+
+
+def calc_rmse(img, orig_img):
+    return np.sqrt(calc_mse(img, orig_img))
+
+
+def calc_mse(img, orig_img):
+    return np.mean((img - orig_img)**2)
+
+
+def calc_image_metrics(imgs, orig_imgs):
+    mse = []
+    psnr = []
+    ssim = []
+
+    for img, orig_img in zip(imgs, orig_imgs):
+        mse.append(calc_mse(img, orig_img))
+        psnr.append(calc_psnr(img, orig_img))
+        ssim.append(calc_ssim(img, orig_img))
+
+    print('MSE: ' + str(np.mean(mse)))
+    print('PSNR: ' + str(np.mean(psnr)))
+    print('SSIM: ' + str(np.mean(ssim)))
+
+    return mse, psnr, ssim
+
 
 def prepare_data(ksp, par):
     check = np.ones_like(ksp)

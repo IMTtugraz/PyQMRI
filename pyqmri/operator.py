@@ -1993,7 +1993,7 @@ class OperatorSoftSense(Operator):
         self.queue = self.queue[0]
         self.ctx = self.ctx[0]
         self.NMaps = par["NMaps"]
-        self.NScan = 1
+        self.NScan = par["NScan"]
         self.tmp_result = clarray.empty(
             self.queue, (self.NScan, self.NC,
                          self.NSlice, self.dimY, self.dimX),
@@ -2159,15 +2159,7 @@ class OperatorSoftSense(Operator):
 
 
 class OperatorSoftSenseStreamed(Operator):
-    """ The streamed version of the k-space based Operator
-
-    This class serves as linear operator between parameter and k-space.
-    All calculations are performed in a streamed fashion.
-
-    Use this operator if you want to perform complex parameter fitting from
-    complex k-space data without the need of performing FFTs.
-    In contrast to non-streaming classes no out of place operations
-    are implemented.
+    """ The streamed version of the Soft Sense Operator
 
     Attributes:
       overlap (int):
@@ -2190,6 +2182,18 @@ class OperatorSoftSenseStreamed(Operator):
         self.overlap = par["overlap"]
         self.par_slices = par["par_slices"]
         self.NMaps = par["NMaps"]
+        self.NScan = par["NScan"]
+
+        self._checker = []
+
+        self._check = np.ones((self.par_slices+self.overlap, self.NScan, self.NC, self.dimY, self.dimX), dtype=DTYPE_real)
+        self._check[..., ::2] = -1
+        self._check[..., 1::2, :] *= -1
+        if np.size(par["fft_dim"]) == 3:
+            self._check[1::2, ...] *= -1
+
+        # self._check = clarray.to_device(self.queue[0], self._check)
+
         if not trafo:
             self.Nproj = self.dimY
             self.N = self.dimX
@@ -2198,9 +2202,10 @@ class OperatorSoftSenseStreamed(Operator):
                 self.tmp_result.append(
                     clarray.empty(
                         self.queue[4*j+i],
-                        (self.par_slices+self.overlap, self.NMaps,
+                        (self.par_slices+self.overlap, self.NScan,
                          self.NC, self.dimY, self.dimX),
                         self.DTYPE, "C"))
+                self._checker.append(clarray.to_device(self.queue[4*j+i], self._check))
                 self.NUFFT.append(
                     CLnuFFT.create(self.ctx[j],
                                  self.queue[4*j+i], par,
@@ -2209,22 +2214,12 @@ class OperatorSoftSenseStreamed(Operator):
                                  DTYPE=DTYPE,
                                  DTYPE_real=DTYPE_real))
 
-        # self._check = np.ones((self.NSlice, self.NMaps, self.NC, self.dimY, self.dimX), dtype=DTYPE_real)
-        # self._check[..., ::2] = -1
-        # self._check[..., 1::2, :] *= -1
-        # if np.size(par["fft_dim"]) == 3:
-        #     self._check[1::2, ...] *= -1
-        # self._check = clarray.to_device(self.queue[0], self._check)
-
         self.unknown_shape = (self.NSlice, self.NMaps, self.dimY, self.dimX)
-        coil_shape = (self.NSlice, self.NC, self.dimY, self.dimX)
-        # model_grad_shape = (self.NSlice, self.unknowns,
-        #                     self.NScan, self.dimY, self.dimX)
-        self.data_shape = (self.NSlice, self.NMaps, self.NC, self.Nproj,
+        coil_shape = (self.NSlice, self.NMaps, self.NC, self.dimY, self.dimX)
+        self.data_shape = (self.NSlice, self.NScan, self.NC, self.Nproj,
                            self.N)
-        trans_shape = (self.NSlice, self.NMaps,
+        trans_shape = (self.NSlice, self.NScan,
                        self.NC, self.dimY, self.dimX)
-        # grad_shape = self.unknown_shape + (4,)
 
         self.fwdstr = self._defineoperator(
             [self._fwdstreamed],
@@ -2232,19 +2227,10 @@ class OperatorSoftSenseStreamed(Operator):
             [[self.unknown_shape,
               coil_shape]])
 
-        # self.adjstrKyk1 = self._defineoperator(
-        #     [self._adjstreamedKyk1],
-        #     [self.unknown_shape],
-        #     [[self.data_shape,
-        #       grad_shape,
-        #       coil_shape,
-        #       model_grad_shape,
-        #       self.unknown_shape]])
-
         self.adjstr = self._defineoperator(
             [self._adjstreamed],
             [self.unknown_shape],
-            [[self.unknown_shape,
+            [[self.data_shape,
               coil_shape]])
 
         self.FTstr = self._defineoperator(
@@ -2268,20 +2254,6 @@ class OperatorSoftSenseStreamed(Operator):
         self.adjstr.eval([tmp_result], inp)
         return tmp_result
 
-    # def adjKyk1(self, out, inp):
-    #     """ Apply the linear operator from parameter space to k-space
-    #
-    #     This method fully implements the combined linear operator
-    #     consisting of the data part as well as the TGV regularization part.
-    #
-    #     Args:
-    #       out (Numpy.Array):
-    #         The complex parameter space data which is used as input.
-    #       inp (Numpy.Array):
-    #         The complex parameter space data which is used as input.
-    #     """
-    #     self.adjstrKyk1.eval(out, inp)
-
     def _fwdstreamed(self, out, inp, par=None, idx=0, idxq=0,
                      bound_cond=0, wait_for=[]):
         self.tmp_result[2*idx+idxq].add_event(
@@ -2303,10 +2275,10 @@ class OperatorSoftSenseStreamed(Operator):
         #         self.tmp_result[2*idx+idxq].data,
         #         self._check.data,
         #         wait_for=wait_for + self.tmp_result[2*idx+idxq].events))
-        return out.add_event(self.NUFFT[2*idx+idxq].FFT(
+        return self.NUFFT[2*idx+idxq].FFT(
             out,
             self.tmp_result[2*idx+idxq],
-            wait_for=out.events+wait_for+self.tmp_result[2*idx+idxq].events))
+            wait_for=out.events+wait_for+self.tmp_result[2*idx+idxq].events)
         # return self.tmp_result[2*idx+idxq].add_event(
         #     self.NUFFT[2*idx+idxq].prg.masking(
         #         self.queue[4*idx+idxq],
@@ -2316,27 +2288,6 @@ class OperatorSoftSenseStreamed(Operator):
         #         self._check.data,
         #         wait_for=wait_for + self.tmp_result[2*idx+idxq].events))
 
-    # def _adjstreamedKyk1(self, outp, inp, par=None, idx=0, idxq=0,
-    #                      bound_cond=0, wait_for=[]):
-    #     self.tmp_result[2*idx+idxq].add_event(
-    #         self.NUFFT[2*idx+idxq].FFTH(
-    #             self.tmp_result[2*idx+idxq], inp[0],
-    #             wait_for=(wait_for+inp[0].events +
-    #                       self.tmp_result[2*idx+idxq].events)))
-    #     return self.prg[idx].update_Kyk1(
-    #         self.queue[4*idx+idxq],
-    #         (self.par_slices+self.overlap, self.dimY, self.dimX), None,
-    #         outp.data, self.tmp_result[2*idx+idxq].data,
-    #         inp[2].data,
-    #         inp[3].data,
-    #         inp[1].data, np.int32(self.NC), np.int32(self.NScan),
-    #         par[0][idx].data, np.int32(self.unknowns),
-    #         np.int32(bound_cond), self.DTYPE_real(self._dz),
-    #         wait_for=(
-    #             self.tmp_result[2*idx+idxq].events +
-    #             outp.events+inp[1].events +
-    #             inp[2].events + inp[3].events + wait_for))
-
     def _adjstreamed(self, outp, inp, par=None, idx=0, idxq=0,
                      bound_cond=0, wait_for=[]):
         # inp[0].add_event(
@@ -2345,7 +2296,7 @@ class OperatorSoftSenseStreamed(Operator):
         #         (inp[0].size,),
         #         None,
         #         inp[0].data,
-        #         self._check.data,
+        #         self._checker[2*idx+idxq].data,
         #         wait_for=wait_for + inp[0].events))
         self.tmp_result[2*idx+idxq].add_event(
             self.NUFFT[2*idx+idxq].FFTH(
@@ -2358,7 +2309,7 @@ class OperatorSoftSenseStreamed(Operator):
         #         ((self.par_slices+self.overlap)*self.dimY*self.dimX,),
         #         None,
         #         self.tmp_result[2*idx+idxq].data,
-        #         self._check.data,
+        #         self._check.data[2*idx+idxq].data,
         #         wait_for=wait_for + self.tmp_result[2*idx+idxq].events))
         return self.prg[idx].operator_ad_ssense(
             self.queue[4*idx+idxq],

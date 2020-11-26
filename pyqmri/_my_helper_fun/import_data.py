@@ -6,21 +6,19 @@ from tkinter.filedialog import askopenfilename
 from scipy.io import loadmat
 from pathlib import Path
 
-"""Module for importing datasets."""
+
+# def load_mat(filename):
+#     f = load_mat(filename)
+#     return f
 
 
-def load_mat(filename):
-    f = load_mat(filename)
-    return f
-
-
-# def _read_hdf(pathfile):
-#     data_sets = []
-#     with h5py.File(pathfile, 'r') as f:
-#         for key in f.keys():
-#             data_sets.append(f[key][()])
-#     f.close()
-#     return data_sets
+def read_hdf(pathfile):
+    data_sets = []
+    with h5py.File(pathfile, 'r') as f:
+        for key in f.keys():
+            data_sets.append(f[key][()])
+    f.close()
+    return data_sets
 
 
 def _read_unknown(pathfile):

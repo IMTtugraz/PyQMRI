@@ -21,9 +21,9 @@ class Args:
 def _setup_par(par):
     par["dimX"] = 64
     par["dimY"] = 64
-    par["NSlice"] = 50
+    par["NSlice"] = 48
     par["NC"] = 20
-    par["NScan"] = 2
+    par["NScan"] = 1
     par["NMaps"] = 2
 
     par["N"] = par["dimX"]
@@ -34,11 +34,11 @@ def _setup_par(par):
     par["dz"] = 1
 
     par["overlap"] = 1
-    par["par_slices"] = 50
+    par["par_slices"] = par["NSlice"]
 
-    par["fft_dim"] = (1, 2)
-    par["mask"] = np.ones((50, 64, 64), dtype=DTYPE_real)
-    par["mask"][:, ::2, :] = 0
+    par["fft_dim"] = (-2, -1)
+    par["mask"] = np.ones((48, 64, 64), dtype=DTYPE_real)
+    # par["mask"][:, ::2, :] = 0
 
 
 class OperatorSoftSenseTest(unittest.TestCase):
@@ -124,30 +124,27 @@ class OperatorSoftSenseTest(unittest.TestCase):
 class OperatorSoftSenseStreamedTest(unittest.TestCase):
     def setUp(self):
         args = Args
-        args.trafo = False
         args.use_GPU = True
         args.streamed = True
-        args.devices = [0]
+        args.devices = -1
 
         par = {}
         _setupOCL(args, par)
         _setup_par(par)
 
         if DTYPE == np.complex128:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_double_streamed.c'))
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels_double_streamed.c')
         else:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_streamed.c'))
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels_streamed.c')
+
         prg = []
-        for j in range(1):
-            prg.append(
-                Program(
-                    par["ctx"][j],
-                    file.read()))
-        file.close()
+        for j in range(len(par["ctx"])):
+          with open(file) as myfile:
+            prg.append(Program(
+                par["ctx"][j],
+                myfile.read()))
 
         par["par_slices"] = 1
         par["mask"] = np.ones((par["dimY"], par["dimX"]),
@@ -164,22 +161,15 @@ class OperatorSoftSenseStreamedTest(unittest.TestCase):
                                        par["dimY"], par["dimX"]) +\
             1j * np.random.randn(par["NSlice"], par["NMaps"],
                                  par["dimY"], par["dimX"])
-        self.opinadj = np.random.randn(par["NSlice"], par["NMaps"], par["NC"],
+        self.opinadj = np.random.randn(par["NSlice"], par["NScan"], par["NC"],
                                        par["dimY"], par["dimX"]) +\
+            1j * np.random.randn(par["NSlice"], par["NScan"], par["NC"],
+                                 par["dimY"], par["dimX"])
+        self.C = np.random.randn(par["NSlice"], par["NMaps"], par["NC"],
+                                 par["dimY"], par["dimX"]) + \
             1j * np.random.randn(par["NSlice"], par["NMaps"], par["NC"],
                                  par["dimY"], par["dimX"])
-        # self.model_gradient = np.random.randn(par["NSlice"], par["unknowns"],
-        #                                       par["NScan"],
-        #                                       par["dimY"], par["dimX"]) + \
-        #     1j * np.random.randn(par["NSlice"], par["unknowns"],
-        #                          par["NScan"],
-        #                          par["dimY"], par["dimX"])
-        self.C = np.random.randn(par["NSlice"], par["NC"],
-                                 par["dimY"], par["dimX"]) + \
-            1j * np.random.randn(par["NSlice"], par["NC"],
-                                 par["dimY"], par["dimX"])
 
-        #self.model_gradient = self.model_gradient.astype(DTYPE)
         self.opinfwd = self.opinfwd.astype(DTYPE)
         self.opinadj = self.opinadj.astype(DTYPE)
         self.C = self.C.astype(DTYPE)
@@ -196,7 +186,7 @@ class OperatorSoftSenseStreamedTest(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=12)
+        self.assertAlmostEqual(a, b, places=6)
 
     def test_adj_inplace(self):
 
@@ -213,7 +203,7 @@ class OperatorSoftSenseStreamedTest(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=12)
+        self.assertAlmostEqual(a, b, places=6)
 
 
 if __name__ == '__main__':
