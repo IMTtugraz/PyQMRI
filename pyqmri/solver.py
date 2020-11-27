@@ -4377,3 +4377,117 @@ class PDALSoftSenseSolverTGV(PDALSoftSenseBaseSolver):
 
         gap = np.abs(primal - dual)
         return primal.get(), dual.get(), gap.get()
+
+
+# class PDSoftSenseSolverStreamed(PDSoftSenseBaseSolver):
+#     """
+#     PD Algorithm for Soft Sense reconstruction without regularization
+#     """
+#     def __init__(self, par, irgn_par, queue, tau, fval, prg,
+#                  linop, coils, model):
+#
+#         super().__init__(
+#             par,
+#             irgn_par,
+#             queue,
+#             tau,
+#             fval,
+#             prg,
+#             coils,
+#             model)
+#         self._op = linop[0]
+#
+#     def _setupVariables(self, inp, data):
+#         primal_vars = {}
+#         primal_vars_new = {}
+#         tmp_results_adjoint = {}
+#
+#         primal_vars["x"] = inp
+#         primal_vars_new["x"] = np.zeros_like(primal_vars["x"])
+#
+#         tmp_results_adjoint["Kay"] = np.zeros_like(primal_vars["x"])
+#
+#         dual_vars = {}
+#         dual_vars_new = {}
+#         tmp_results_forward = {}
+#
+#         dual_vars["y"] = np.zeros(
+#             data.shape,
+#             dtype=DTYPE
+#         )
+#         dual_vars_new["y"] = np.zeros_like(dual_vars["y"])
+#
+#         tmp_results_forward["Kx"] = np.zeros_like(data)
+#
+#         return (primal_vars,
+#                 primal_vars_new,
+#                 tmp_results_forward,
+#                 dual_vars,
+#                 dual_vars_new,
+#                 tmp_results_adjoint,
+#                 data)
+#
+#     def _updateInitial(self,
+#                        out_fwd, out_adj,
+#                        in_primal, in_dual):
+#         out_adj["Kay"].add_event(self._op.adj(
+#                 out_adj["Kay"], [in_dual["y"], self._coils]))
+#
+#         out_fwd["Kx"].add_event(self._op.fwd(
+#                 out_fwd["Kx"], [in_primal["x"], self._coils]))
+#
+#     def _updatePrimal(self,
+#                       out_primal, out_fwd,
+#                       in_primal, in_dual, in_precomp_adj,
+#                       tau, theta):
+#         out_primal["x"].add_event(self.update_x(
+#             outp=out_primal["x"],
+#             inp=(in_primal["x"], in_precomp_adj["Kay"]),
+#             par=(tau, theta)))  # 2nd parameter is theta, set to 1
+#
+#         out_fwd["Kx"].add_event(self._op.fwd(
+#             out_fwd["Kx"], [out_primal["x"], self._coils]))
+#
+#     def _updateDual(self,
+#                     out_dual,
+#                     out_adj,
+#                     in_primal,
+#                     in_dual,
+#                     in_precomp_fwd,
+#                     data,
+#                     sigma):
+#         out_dual["y"].add_event(
+#             self.update_y(
+#                 outp=out_dual["y"],
+#                 inp=(in_dual["y"], in_precomp_fwd["Kx"], data),
+#                 par=(sigma, 1.0)))  # without regularization lambda set to 1
+#
+#         out_adj["Kay"].add_event(
+#             self._op.adj(
+#                 out_adj["Kay"],
+#                 [out_dual["y"],
+#                  self._coils],
+#                ))
+#
+#     def _calcResidual(self,
+#                     in_primal,
+#                     in_dual,
+#                     in_precomp_fwd,
+#                     data):
+#
+#         primal = (
+#             clarray.vdot(
+#                 (in_precomp_fwd["Kx"] - data),
+#                 (in_precomp_fwd["Kx"] - data)
+#             )
+#         ).real
+#
+#         dual = (
+#             clarray.vdot(
+#                 in_dual["y"],
+#                 in_dual["y"]
+#             )
+#         ).real
+#
+#         gap = np.abs(primal - dual)
+#         return primal.get(), dual.get(), gap.get()

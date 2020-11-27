@@ -2185,14 +2185,11 @@ class OperatorSoftSenseStreamed(Operator):
         self.NScan = par["NScan"]
 
         self._checker = []
-
         self._check = np.ones((self.par_slices+self.overlap, self.NScan, self.NC, self.dimY, self.dimX), dtype=DTYPE_real)
         self._check[..., ::2] = -1
         self._check[..., 1::2, :] *= -1
         if np.size(par["fft_dim"]) == 3:
             self._check[1::2, ...] *= -1
-
-        # self._check = clarray.to_device(self.queue[0], self._check)
 
         if not trafo:
             self.Nproj = self.dimY
@@ -2267,50 +2264,57 @@ class OperatorSoftSenseStreamed(Operator):
                 np.int32(self.NMaps),
                 wait_for=(self.tmp_result[2*idx+idxq].events +
                           inp[0].events+wait_for)))
-        # self.tmp_result[2*idx+idxq].add_event(
-        #     self.NUFFT[2*idx+idxq].prg.masking(
-        #         self.queue[4*idx+idxq],
-        #         ((self.par_slices+self.overlap)*self.dimY*self.dimX,),
-        #         None,
-        #         self.tmp_result[2*idx+idxq].data,
-        #         self._check.data,
-        #         wait_for=wait_for + self.tmp_result[2*idx+idxq].events))
-        return self.NUFFT[2*idx+idxq].FFT(
-            out,
-            self.tmp_result[2*idx+idxq],
-            wait_for=out.events+wait_for+self.tmp_result[2*idx+idxq].events)
-        # return self.tmp_result[2*idx+idxq].add_event(
-        #     self.NUFFT[2*idx+idxq].prg.masking(
-        #         self.queue[4*idx+idxq],
-        #         ((self.par_slices+self.overlap)*self.dimY*self.dimX,),
-        #         None,
-        #         self.tmp_result[2*idx+idxq].data,
-        #         self._check.data,
-        #         wait_for=wait_for + self.tmp_result[2*idx+idxq].events))
+        self.tmp_result[2*idx+idxq].add_event(
+            self.NUFFT[2*idx+idxq].prg.masking(
+                self.queue[4*idx+idxq],
+                (self.tmp_result[2*idx+idxq].size,),
+                None,
+                self.tmp_result[2*idx+idxq].data,
+                self._checker[2*idx+idxq].data,
+                wait_for=wait_for + self.tmp_result[2*idx+idxq].events))
+        self.tmp_result[2*idx+idxq].add_event(
+            self.NUFFT[2*idx+idxq].FFT(
+                out,
+                self.tmp_result[2*idx+idxq],
+                wait_for=out.events+wait_for+self.tmp_result[2*idx+idxq].events))
+        return self.NUFFT[2*idx+idxq].prg.masking(
+                self.queue[4*idx+idxq],
+                (out.size,),
+                None,
+                out.data,
+                self._checker[2*idx+idxq].data,
+                wait_for=wait_for + self.tmp_result[2*idx+idxq].events)
 
     def _adjstreamed(self, outp, inp, par=None, idx=0, idxq=0,
                      bound_cond=0, wait_for=[]):
-        # inp[0].add_event(
-        #     self.NUFFT[2*idx+idxq].prg.masking(
-        #         self.queue[4*idx+idxq],
-        #         (inp[0].size,),
-        #         None,
-        #         inp[0].data,
-        #         self._checker[2*idx+idxq].data,
-        #         wait_for=wait_for + inp[0].events))
+        inp[0].add_event(
+            self.NUFFT[2*idx+idxq].prg.masking(
+                self.queue[4*idx+idxq],
+                (inp[0].size,),
+                None,
+                inp[0].data,
+                self._checker[2*idx+idxq].data,
+                wait_for=wait_for + inp[0].events))
         self.tmp_result[2*idx+idxq].add_event(
             self.NUFFT[2*idx+idxq].FFTH(
                 self.tmp_result[2*idx+idxq], inp[0],
                 wait_for=(wait_for+inp[0].events +
                           self.tmp_result[2*idx+idxq].events)))
-        # self.tmp_result[2*idx+idxq].add_event(
-        #     self.NUFFT[2*idx+idxq].prg.masking(
-        #         self.queue[4*idx+idxq],
-        #         ((self.par_slices+self.overlap)*self.dimY*self.dimX,),
-        #         None,
-        #         self.tmp_result[2*idx+idxq].data,
-        #         self._check.data[2*idx+idxq].data,
-        #         wait_for=wait_for + self.tmp_result[2*idx+idxq].events))
+        # inp_0 = inp[0].get()
+        # inp_0 = np.transpose(inp_0, (1, 2, 0, 3, 4))
+        # img_montage(np.abs(np.sum(np.squeeze(inp_0), axis=0)))
+        #
+        # res = self.tmp_result[2*idx+idxq].get()
+        # res = np.transpose(res, (1, 2, 0, 3, 4))
+        # img_montage(np.abs(np.sum(np.squeeze(res), axis=0)))
+        self.tmp_result[2*idx+idxq].add_event(
+            self.NUFFT[2*idx+idxq].prg.masking(
+                self.queue[4*idx+idxq],
+                (inp[0].size,),
+                None,
+                self.tmp_result[2*idx+idxq].data,
+                self._checker[2*idx+idxq].data,
+                wait_for=wait_for + self.tmp_result[2*idx+idxq].events))
         return self.prg[idx].operator_ad_ssense(
             self.queue[4*idx+idxq],
             (self.par_slices+self.overlap, self.dimY, self.dimX),

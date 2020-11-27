@@ -44,7 +44,9 @@ def phase_recon_cl(x, cmap, par):
 
 
 def phase_recon_cl_3d(x, cmap, par):
-    fft = PyOpenCLnuFFT.create(par["ctx"][0], par["queue"][0], par, fft_dim=par["fft_dim"])
+    fft_dim = par["fft_dim"]
+    par["fft_dim"] = (0, 1, 2)
+    fft = PyOpenCLnuFFT.create(par["ctx"][0], par["queue"][0], par, par["fft_dim"])
 
     size = np.shape(x)
     result = np.zeros(
@@ -55,16 +57,6 @@ def phase_recon_cl_3d(x, cmap, par):
         (1, par["NC"], par["NSlice"], par["dimY"], par["dimX"]),
         dtype=DTYPE)
 
-    check = np.ones(np.shape(x), dtype=DTYPE_real)
-    check[..., ::2] = -1
-    check[..., 1::2, :] *= -1
-    check[..., 1::2, :, :] *= -1
-
-    # check = ((np.indices((par["NSlice"], par["dimY"], par["dimX"])).sum(axis=0) % 2) * 2 - 1).astype(DTYPE_real)
-    # check = np.repeat(np.repeat(check[None, None, ...], par["NC"], 1), par["NScan"], 0)
-
-    check = cla.to_device(par["queue"][0], check)
-
     x_shifted = x.copy()
 
     start = time.time()
@@ -74,26 +66,15 @@ def phase_recon_cl_3d(x, cmap, par):
                                 np.require(
                                     x_shifted[n, ...][None, ...],
                                     requirements='C'))
-        clainput.add_event(
-            fft.prg.masking(
-                par["queue"][0],
-                (clainput.size,),
-                None,
-                clainput.data,
-                check.data,
-                wait_for=clainput.events))
+
         fft.FFTH(tmp_result, clainput).wait()
-        # tmp_result.add_event(
-        #     fft.prg.masking(
-        #         par["queue"][0],
-        #         (tmp_result.size,),
-        #         None,
-        #         tmp_result.data,
-        #         check.data,
-        #         wait_for=tmp_result.events))
-        result[n, ...] = np.squeeze(tmp_result.get())
+
+        tmp_result = tmp_result.get()
+        tmp_result[n, ...] = np.fft.fftshift(tmp_result[n, ...], axes=(-3, -2, -1))
+        result[n, ...] = np.squeeze(tmp_result)
     print("FT took %f s" % (time.time() - start))
 
+    par["fft_dim"] = fft_dim
     return np.stack((np.sum(result[0, ...] * np.conj(cmap[0, ...]), axis=0),
             np.sum(result[0, ...] * np.conj(cmap[1, ...]), axis=0)), axis=0)
 
@@ -155,18 +136,19 @@ def soft_sense_recon_cl(myargs, par, ksp, cmaps):
 
         op = pyqmirop.OperatorSoftSenseStreamed(par, prg, trafo=False)
         inp_adj = np.require(ksp, requirements='C')
-        cmaps = np.ones_like(cmaps)
         inp_cmaps = np.require(cmaps, requirements='C')
 
-        return op.adjoop([inp_adj, inp_cmaps])
+        return op.adjoop([[inp_adj, inp_cmaps]])
     else:
         file = open(resource_filename('pyqmri', 'kernels/OpenCL_Kernels.c'))
+
         prg = Program(
             par["ctx"][0],
             file.read())
         file.close()
 
         op = pyqmirop.OperatorSoftSense(par, prg)
+
         inp_adj = cla.to_device(op.queue, np.require(ksp, requirements='C'))
         inp_cmaps = cla.to_device(op.queue, np.require(cmaps, requirements='C'))
 

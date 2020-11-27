@@ -30,20 +30,21 @@ def create_mask(shape, acc=2, dim='y'):
 
     return mask
 
-def undersample_kspace(par, ksp_data, acc=2, dim='y'):
+
+def undersample_kspace(par, ksp_data, args):
+    acc = args.acceleration_factor
+    dim = args.dim_us
+
     par["mask"] = np.zeros(ksp_data[0, 0, ...].shape, dtype=DTYPE_real)
     #mask = np.zeros(np.shape(ksp_data), dtype=DTYPE_real)
     mask = create_mask(np.shape(ksp_data), acc, dim)
 
     if dim == 'x':
         par["mask"][..., ::acc] = 1
-        # mask[..., ::acc] = 1
     elif dim == 'y':
         par["mask"][..., ::acc, :] = 1
-        # mask[..., ::acc, :] = 1
     elif dim == 'z':
         par["mask"][..., ::acc, :, :] = 1
-        # mask[..., ::acc, :, :] = 1
     else:
         raise ValueError("Invalid dimension! Has to be x, y or z.")
 
@@ -96,10 +97,10 @@ def calc_image_metrics(imgs, orig_imgs):
     return mse, psnr, ssim
 
 
-def prepare_data(ksp, par):
-    check = np.ones_like(ksp)
-    check[..., 1::2] = -1
-    check[..., ::2, :] *= -1
-    if np.size(par["fft_dim"]) == 3:
-        check[..., ::2, :, :] *= -1
+def prepare_data(ksp, recon_type='2D'):
+    check = np.ones_like(ksp)  # + 1j * np.ones_like(ksp)
+    check[..., 1::2] = -1   # - 1j
+    check[..., ::2, :] *= -1   # - 1j
+    if recon_type == '3D':
+        check[..., ::2, :, :] *= -1   # - 1j
     return ksp * check

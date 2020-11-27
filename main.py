@@ -23,7 +23,7 @@ def _setup_par(par, myargs, ksp_data):
     par["dimX"] = ksp_shape[-1]
     par["dimY"] = ksp_shape[-2]
     par["NSlice"] = ksp_shape[-3]
-    par["NC"] = ksp_shape[-4]
+    par["NC"] = ksp_shape[1]
     par["NScan"] = ksp_shape[0]
     par["NMaps"] = 2
 
@@ -37,15 +37,14 @@ def _setup_par(par, myargs, ksp_data):
     par["weights"] = np.ones(par["unknowns"], dtype=DTYPE_real)
     par["dz"] = 1
 
-    par["fft_dim"] = (0, 1, 2)  # 3D fft
-    #par["mask"] = np.ones(ksp_data[0, 0, ...].shape, dtype=DTYPE_real)
+    par["fft_dim"] = (0, 1, 2) if myargs.type == '3D' else (1, 2)
     par["mask"] = np.require(np.ones((par["dimY"], par["dimX"]), dtype=DTYPE_real), requirements='C')
 
     par["overlap"] = 0
     par["par_slices"] = par["NSlice"]
 
     if myargs.streamed:
-        par["par_slices"] = 4
+        par["par_slices"] = int(par["NSlice"] / len(par["num_dev"]))
         par["overlap"] = 1
 
 
@@ -194,10 +193,15 @@ def _3d_recon(imgs, ksp_data, cmaps, par, myargs):
     if myargs.undersampling:
         ksp_data = undersample_kspace(par, ksp_data, acc=myargs.acceleration_factor, dim=myargs.dim_us)
 
-    out = soft_sense_recon_cl(myargs, par, ksp_data, cmaps)
-    img_montage(sum_of_squares(out), '3D reconstruction of undersampled data with adjoint operator')
+    out_undersampled = soft_sense_recon_cl(myargs, par, ksp_data, cmaps)
 
-    out_pd = _pda_soft_sense_solver(myargs, par, ksp_data, cmaps, imgs, out, myargs.reg_type)
+    if myargs.streamed:
+        out_undersampled_ = np.moveaxis(out_undersampled, [0, 1], [1, 0])
+        img_montage(sum_of_squares(out_undersampled_), '2D reconstruction of undersampled data with adjoint operator')
+    else:
+        img_montage(sum_of_squares(out_undersampled), '2D reconstruction of undersampled data with adjoint operator')
+
+    out_pd = _pda_soft_sense_solver(myargs, par, ksp_data, cmaps, imgs, out_undersampled, myargs.reg_type)
 
     x_orig = normalize_imgs(sum_of_squares(imgs))
     x_ssense = normalize_imgs(sum_of_squares(out_pd))
@@ -209,36 +213,32 @@ def _3d_recon(imgs, ksp_data, cmaps, par, myargs):
 def _2d_recon(imgs, ksp_data, cmaps, par, myargs):
 
     ksp_data2d = gen_2ddata_from_imgs(imgs, cmaps)
-    par["fft_dim"] = (1, 2)
 
     if myargs.undersampling:
-        ksp_data2d = undersample_kspace(par, ksp_data2d, acc=myargs.acceleration_factor, dim=myargs.dim_us)
+        ksp_data2d = undersample_kspace(par, ksp_data2d, myargs)
 
     # Select only several slices (performance/duration)
-    NSlice = 4
-    par["NSlice"] = NSlice
-    ksp_data2d = ksp_data2d[:, :, 21:21+NSlice, :, :]
-    cmaps = cmaps[:, :, 21:21+NSlice, ...]
-    #cmaps = np.expand_dims(cmaps, axis=0)
-    imgs = imgs[:, 21:21+NSlice, ...]
-    #imgs = np.expand_dims(imgs, axis=0)
+    n_slice = 4
+    par["NSlice"] = n_slice
+    par["par_slices"] = int(par["NSlice"] / len(par["num_dev"])) if myargs.streamed else n_slice
+
+    ksp_data2d = ksp_data2d[:, :, 21:21+n_slice, :, :]
+    cmaps = cmaps[:, :, 21:21+n_slice, ...]
+    imgs = imgs[:, 21:21+n_slice, ...]
 
     if myargs.streamed:
         data_trans_axes = (2, 0, 1, 3, 4)
         ksp_data2d = np.transpose(ksp_data2d, data_trans_axes)
         cmaps = np.transpose(cmaps, data_trans_axes)
 
-        #ksp_data2d = np.moveaxis(ksp_data2d, [0, 1, 2], [1, 2, 0])
-        #cmaps = np.moveaxis(cmaps, [0, 1, 2], [1, 2, 0])
-
     out_undersampled = soft_sense_recon_cl(myargs, par, ksp_data2d, cmaps)
 
     if myargs.streamed:
-        out_undersampled = np.moveaxis(out_undersampled, [0, 1], [1, 0])
-        save_imgs(sum_of_squares(out_undersampled), myargs, 'test_streamed')
+        out_undersampled_ = np.moveaxis(out_undersampled, [0, 1], [1, 0])
+        img_montage(sum_of_squares(out_undersampled_), '2D reconstruction of undersampled data with adjoint operator')
         sys.exit()
-
-    # img_montage(sum_of_squares(out_undersampled), '2D reconstruction of undersampled data with adjoint operator')
+    else:
+        img_montage(sum_of_squares(out_undersampled), '2D reconstruction of undersampled data with adjoint operator')
 
     out_pd = _pda_soft_sense_solver(myargs, par, ksp_data2d, cmaps, imgs, out_undersampled, reg_type=myargs.reg_type)
 
@@ -275,6 +275,9 @@ def _main(myargs):
 
     imgs = phase_recon_cl_3d(ksp_data, cmaps, par)
     img_montage(sum_of_squares(imgs), 'Phase sensitive reconstruction 3D')
+
+    # fftshift included in operators by masking with checker
+    # ksp_data = prepare_data(ksp_data, myargs.type)
 
     if myargs.type == '2D':
         out_ssense, out_orig, out_diff = _2d_recon(imgs, ksp_data, cmaps, par, myargs)
@@ -325,7 +328,7 @@ if __name__ == '__main__':
     args.reg_type = ''  # '', 'TV', or 'TGV'
     args.linesearch = False
     # args.lamda = 0.1
-    args.undersampling = False
+    args.undersampling = True
     args.dim_us = 'y'
     args.acceleration_factor = 4
 
