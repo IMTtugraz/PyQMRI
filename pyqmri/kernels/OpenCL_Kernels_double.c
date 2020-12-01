@@ -358,7 +358,7 @@ __kernel void gradient(
      
     mygrad.s01 = ( (i+1) % dimX) ? (u[i+1]-back_point) : 0.0f;
     mygrad.s23 = ( (i/dimX + 1) % dimY) ? (u[i+dimX]-back_point) : 0.0f;
-    mygrad.s45 = ( (i/(dimX*dimY) + 1) % dimZ) ? (u[i+dimX*dimY]-back_point) / dz : 0.0f;
+    mygrad.s45 = ( (i/(dimX*dimY) + 1) % dimZ) ? (u[i+dimX*dimY]-back_point) * dz : 0.0f;
      
     // scale gradients
     mygrad*=ratio[NUk*i/size];
@@ -404,13 +404,13 @@ __kernel void sym_grad(
     sym[i] = (double16)(
       real_xdiff.s0, imag_xdiff.s0,
       real_ydiff.s1, imag_ydiff.s1,
-      real_zdiff.s2/dz, imag_zdiff.s2/dz,
+      real_zdiff.s2*dz, imag_zdiff.s2*dz,
       0.5f*(real_xdiff.s1 + real_ydiff.s0),
       0.5f*(imag_xdiff.s1 + imag_ydiff.s0),
-      0.5f*(real_xdiff.s2 + real_zdiff.s0/dz),
-      0.5f*(imag_xdiff.s2 + imag_zdiff.s0/dz),
-      0.5f*(real_ydiff.s2 + real_zdiff.s1/dz),
-      0.5f*(imag_ydiff.s2 + imag_zdiff.s1/dz),
+      0.5f*(real_xdiff.s2 + real_zdiff.s0*dz),
+      0.5f*(imag_xdiff.s2 + imag_zdiff.s0*dz),
+      0.5f*(real_ydiff.s2 + real_zdiff.s1*dz),
+      0.5f*(imag_ydiff.s2 + imag_zdiff.s1*dz),
       0.0f,0.0f,0.0f,0.0f)*ratio[NUk*i/size];
 }
 
@@ -441,7 +441,7 @@ __kernel void divergence(
     
     if (!((i/(dimX*dimY)+1)%dimZ))
       val.s45 = 0.0f;
-    val.s45 = ( (i/(dimX*dimY)) % dimZ) ? (val.s45 - p[i-dimX*dimY].s45) / dz : val.s45 / dz;
+    val.s45 = ( (i/(dimX*dimY)) % dimZ) ? (val.s45 - p[i-dimX*dimY].s45) * dz : val.s45 * dz;
    
     div[i] = (val.s01+val.s23+val.s45)*ratio[NUk*i/size];
 }
@@ -497,8 +497,8 @@ __kernel void sym_divergence(
     real_zdiff = ( (i/(dimX*dimY) + 1) % dimZ) ? (real_zdiff + q[i+dimX*dimY].s8a4) : real_zdiff;
     imag_zdiff = ( (i/(dimX*dimY) + 1) % dimZ) ? (imag_zdiff + q[i+dimX*dimY].s9b5) : imag_zdiff;
         
-    w[i].s024 = (real_xdiff + real_ydiff + real_zdiff/dz)*ratio[NUk*i/size];
-    w[i].s135 = (imag_xdiff + imag_ydiff + imag_zdiff/dz)*ratio[NUk*i/size];
+    w[i].s024 = (real_xdiff + real_ydiff + real_zdiff*dz)*ratio[NUk*i/size];
+    w[i].s135 = (imag_xdiff + imag_ydiff + imag_zdiff*dz)*ratio[NUk*i/size];
 }
 
 
@@ -554,8 +554,8 @@ __kernel void update_Kyk2(
     real_zdiff = ( (i/(dimX*dimY) + 1) % dimZ) ? (real_zdiff + q[i+dimX*dimY].s8a4) : real_zdiff;
     imag_zdiff = ( (i/(dimX*dimY) + 1) % dimZ) ? (imag_zdiff + q[i+dimX*dimY].s9b5) : imag_zdiff;
         
-    w[i].s024 = -(real_xdiff + real_ydiff + real_zdiff/dz)*ratio[NUk*i/size]-z[i].s024;
-    w[i].s135 = -(imag_xdiff + imag_ydiff + imag_zdiff/dz)*ratio[NUk*i/size]-z[i].s135;
+    w[i].s024 = -(real_xdiff + real_ydiff + real_zdiff*dz)*ratio[NUk*i/size]-z[i].s024;
+    w[i].s135 = -(imag_xdiff + imag_ydiff + imag_zdiff*dz)*ratio[NUk*i/size]-z[i].s135;
 }
 
 
@@ -724,7 +724,7 @@ __kernel void update_Kyk1(
         
         if (!((i/(dimX*dimY)+1)%dimZ))
           val.s45 = 0.0f;
-        val.s45 = ( (i/(dimX*dimY)) % dimZ) ? (val.s45 - p[i-dimX*dimY+uk*size].s45) / dz : val.s45 / dz;
+        val.s45 = ( (i/(dimX*dimY)) % dimZ) ? (val.s45 - p[i-dimX*dimY+uk*size].s45) * dz : val.s45 * dz;
        
         // scale gradients
         val*=ratio[uk];
@@ -854,7 +854,7 @@ __kernel void update_Kyk1_imagespace(
         
         if (!((i/(dimX*dimY)+1)%dimZ))
           val.s45 = 0.0f;
-        val.s45 = ( (i/(dimX*dimY)) % dimZ) ? (val.s45 - p[uk*size+i-dimX*dimY].s45) / dz : val.s45 / dz;
+        val.s45 = ( (i/(dimX*dimY)) % dimZ) ? (val.s45 - p[uk*size+i-dimX*dimY].s45) * dz : val.s45 * dz;
        
         // scale gradients
         val*=ratio[uk];
