@@ -23,15 +23,15 @@ class Model(BaseModel):
             self.b = self.b[None]
             self.t = self.t[None]
 
-        self.numT1Scale = len(self.b)-1
+        self.numT1Scale = len(self.b)
 
-        par["unknowns_TGV"] = 2 + len(self.b) + len(self.b) - 1
+        par["unknowns_TGV"] = 1 + len(self.b) + len(self.b)
         par["unknowns_H1"] = 0
         par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
 
         self.unknowns = par["unknowns"]
         
-        t1min = np.min(self.t)/2
+        t1min = 0#np.min(self.t)/2
 
         for j in range(par["unknowns"]):
             self.uk_scale.append(1)
@@ -40,24 +40,16 @@ class Model(BaseModel):
             constraints(0,
                         1000,
                         True))
-        self.constraints.append(
-            constraints(0,
-                        1,
-                        False))
-        self.constraints.append(
-            constraints(t1min,
-                        2000,
-                        True))
-        for j in range(self.numT1Scale):
-            self.constraints.append(
-                constraints(t1min,
-                            2000,
-                            True))
         for j in range(self.numT1Scale):
             self.constraints.append(
                 constraints(0,
                             1,
                             False))
+        for j in range(self.numT1Scale):
+            self.constraints.append(
+                constraints(t1min,
+                            10000,
+                            True))
         self._ind1 = 0
         self._ind2 = 0
         self._labels = []
@@ -68,15 +60,13 @@ class Model(BaseModel):
     def rescale(self, x):
         tmp_x = np.copy(x)
         tmp_x[0] *= self.uk_scale[0]
-        tmp_x[1] *= self.uk_scale[1]
-        tmp_x[2] *= self.uk_scale[2]
-        ukname = ["C", "alpha", "T1_1"]
+        ukname = ["C", "alpha"]
         for j in range(self.numT1Scale):
-            tmp_x[3+j] *= self.uk_scale[3+j]
-            ukname.append("T1_"+str(2+j))
+            tmp_x[1+j] *= self.uk_scale[1+j]
+            ukname.append("alpha_"+str(1+j))
         for j in range(self.numT1Scale):
-            tmp_x[3+self.numT1Scale+j] *= self.uk_scale[3+self.numT1Scale+j]
-            ukname.append("al_"+str(2+j))
+            tmp_x[-self.numT1Scale+j] *= self.uk_scale[-self.numT1Scale+j]
+            ukname.append("T1_"+str(1+j))
         const = []
         for constrained in self.constraints:
             const.append(constrained.real)
@@ -89,22 +79,15 @@ class Model(BaseModel):
             (self.NScan, self.NSlice, self.dimY, self.dimX),
             dtype=self._DTYPE)
         t = self.t[0][:, None, None, None]
-        S[:len(t)] = (
-            x[0] * self.uk_scale[0]*x[1]*self.uk_scale[1]
-            * (-self.b0 *
-               np.exp(-t / (x[2] * self.uk_scale[2]))
-               + (1 - np.exp(-t / (x[2] * self.uk_scale[2])))
-               * self.b[0])
-            )
         for j in range(self.numT1Scale):
-            offset = len(self.t[j+1])
-            t = self.t[j+1][:, None, None, None]
-            S[offset*(j+1):offset*(j+2)] = (
-                x[0] * self.uk_scale[0]*x[3+self.numT1Scale+j]*self.uk_scale[3+self.numT1Scale+j]
+            offset = len(self.t[j])
+            t = self.t[j][:, None, None, None]
+            S[offset*(j):offset*(j+1)] = (
+                x[0] * self.uk_scale[0]*x[1+j]*self.uk_scale[1+j]
                 * (-self.b0 *
-                   np.exp(-t / (x[3+j] * self.uk_scale[3+j]))
-                   + (1 - np.exp(-t / (x[3+j] * self.uk_scale[3+j])))
-                   * self.b[1+j])
+                   np.exp(-t / (x[-self.numT1Scale+j] * self.uk_scale[-self.numT1Scale+j]))
+                   + (1 - np.exp(-t / (x[-self.numT1Scale+j] * self.uk_scale[-self.numT1Scale+j])))
+                   * self.b[j])
                 )
         S[~np.isfinite(S)] = 1e-20
         S = np.array(S, dtype=self._DTYPE)
@@ -116,11 +99,7 @@ class Model(BaseModel):
         gradAlpha = self._gradAlpha(x)
         gradT1 = self._gradT1(x)
 
-        grad = np.concatenate(
-            (np.array([gradC, gradAlpha[0]], dtype=self._DTYPE),
-             gradT1), axis=0)
-
-        grad = np.concatenate((grad, gradAlpha[1:]), axis=0)
+        grad = np.concatenate((gradC[None], gradAlpha, gradT1), axis=0)
         return grad
 
     def _gradC(self, x):
@@ -128,22 +107,15 @@ class Model(BaseModel):
             (self.NScan, self.NSlice, self.dimY, self.dimX),
             dtype=self._DTYPE)
         t = self.t[0][:, None, None, None]
-        grad[:len(t)] = (
-            self.uk_scale[0]*x[1]*self.uk_scale[1]
-            * (-self.b0 *
-               np.exp(-t / (x[2] * self.uk_scale[2]))
-               + (1 - np.exp(-t / (x[2] * self.uk_scale[2])))
-               * self.b[0])
-            )
         for j in range(self.numT1Scale):
-            offset = len(self.t[j+1])
-            t = self.t[j+1][:, None, None, None]
-            grad[offset*(j+1):offset*(j+2)] = (
-                self.uk_scale[0]*x[3+self.numT1Scale+j]*self.uk_scale[3+self.numT1Scale+j]
+            offset = len(self.t[j])
+            t = self.t[j][:, None, None, None]
+            grad[offset*(j):offset*(j+1)] = (
+                self.uk_scale[0]*x[1+j]*self.uk_scale[1+j]
                 * (-self.b0 *
-                   np.exp(-t / (x[3+j] * self.uk_scale[3+j]))
-                   + (1 - np.exp(-t / (x[3+j] * self.uk_scale[3+j])))
-                   * self.b[1+j])
+                   np.exp(-t / (x[-self.numT1Scale+j] * self.uk_scale[-self.numT1Scale+j]))
+                   + (1 - np.exp(-t / (x[-self.numT1Scale+j] * self.uk_scale[-self.numT1Scale+j])))
+                   * self.b[j])
                 )
         grad[~np.isfinite(grad)] = 1e-20
 
@@ -151,25 +123,18 @@ class Model(BaseModel):
 
     def _gradAlpha(self, x):
         grad = np.zeros(
-            (self.numT1Scale+1, self.NScan, self.NSlice, self.dimY, self.dimX),
+            (self.numT1Scale, self.NScan, self.NSlice, self.dimY, self.dimX),
             dtype=self._DTYPE)
         t = self.t[0][:, None, None, None]
-        grad[0, :len(t)] = (
-            x[0] * self.uk_scale[0]*self.uk_scale[1]
-            * (-self.b0 *
-               np.exp(-t / (x[2] * self.uk_scale[2]))
-               + (1 - np.exp(-t / (x[2] * self.uk_scale[2])))
-               * self.b[0])
-            )
         for j in range(self.numT1Scale):
-            offset = len(self.t[j+1])
-            t = self.t[j+1][:, None, None, None]
-            grad[j+1, offset*(j+1):offset*(j+2)] = (
-                x[0] * self.uk_scale[0]*self.uk_scale[3+self.numT1Scale+j]
+            offset = len(self.t[j])
+            t = self.t[j][:, None, None, None]
+            grad[j, offset*(j):offset*(j+1)] = (
+                x[0] * self.uk_scale[0]*self.uk_scale[1+j]
                 * (-self.b0 *
-                   np.exp(-t / (x[3+j] * self.uk_scale[3+j]))
-                   + (1 - np.exp(-t / (x[3+j] * self.uk_scale[3+j])))
-                   * self.b[1+j])
+                   np.exp(-t / (x[-self.numT1Scale+j] * self.uk_scale[-self.numT1Scale+j]))
+                   + (1 - np.exp(-t / (x[-self.numT1Scale+j] * self.uk_scale[-self.numT1Scale+j])))
+                   * self.b[j])
                 )
         grad[~np.isfinite(grad)] = 1e-20
 
@@ -177,28 +142,20 @@ class Model(BaseModel):
 
     def _gradT1(self, x):
         grad = np.zeros(
-            (self.numT1Scale+1, self.NScan, self.NSlice, self.dimY, self.dimX),
+            (self.numT1Scale, self.NScan, self.NSlice, self.dimY, self.dimX),
             dtype=self._DTYPE)
         t = self.t[0][:, None, None, None]
-        grad[0, :len(t)] = (
-            x[0]*self.uk_scale[0]*x[1]*self.uk_scale[1]*(
-                -self.b0*t
-                * np.exp(-t/(x[2]*self.uk_scale[2]))
-                - self.b[0]*t
-                * np.exp(-t/(x[2]*self.uk_scale[2]))
-                )/(x[2]**2*self.uk_scale[2])
-            )
-        for ind in range(self.numT1Scale):
-            offset = len(self.t[ind+1])
-            t = self.t[ind+1][:, None, None, None]
-            grad[ind+1, (ind+1)*offset:(ind+2)*offset] = (
-                x[0]*self.uk_scale[0]*x[3+self.numT1Scale+ind]*self.uk_scale[3+self.numT1Scale+ind]*(
+        for j in range(self.numT1Scale):
+            offset = len(self.t[j])
+            t = self.t[j][:, None, None, None]
+            grad[j, (j)*offset:(j+1)*offset] = (
+                x[0]*self.uk_scale[0]*x[1+j]*self.uk_scale[1+j]*(
                     -self.b0*t
-                    * np.exp(-t/(x[3+ind]*self.uk_scale[3+ind]))
-                    - self.b[1+ind]*t
-                    * np.exp(-t/(x[3+ind]*self.uk_scale[3+ind]))
+                    * np.exp(-t/(x[-self.numT1Scale+j]*self.uk_scale[-self.numT1Scale+j]))
+                    - self.b[j]*t
+                    * np.exp(-t/(x[-self.numT1Scale+j]*self.uk_scale[-self.numT1Scale+j]))
                     )
-                )/(x[3+ind]**2*self.uk_scale[3+ind])
+                )/(x[-self.numT1Scale+j]**2*self.uk_scale[-self.numT1Scale+j])
         grad[~np.isfinite(grad)] = 1e-20
 
         return grad
@@ -211,9 +168,7 @@ class Model(BaseModel):
         images = np.reshape(images, self.t.shape+images.shape[-3:])
 
         tmp_x[0] = np.abs(tmp_x[0])/self.dscale
-        tmp_x[1] = np.abs(tmp_x[1])
-        tmp_x[-self.numT1Scale:] = np.abs(tmp_x[-self.numT1Scale:])
-        tmp_x = np.real(tmp_x)
+        tmp_x = np.abs(tmp_x)
 
         if dim_2D:
             pass
@@ -347,25 +302,21 @@ class Model(BaseModel):
         test_M0 = 0.1*np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
         self.constraints[0].update(1/args[1])
-        test_Xi = 1*np.ones(
-            (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
-        # self.constraints[1].update(1/args[1])
-        test_R1 = 300 * np.ones(
-            (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
-        test_Cx = []
-        # self.b *= args[1]
+        test_Xi = []
         for j in range(self.numT1Scale):
-            test_Cx.append(
-                300/(j+1) *
-                np.ones(
-                    (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE))
-        test_Ca = []
-        # self.b *= args[1]
-        for j in range(self.numT1Scale):
-            test_Ca.append(
+            test_Xi.append(
                 1 *
                 np.ones(
                     (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE))
+ 
+        test_R1 = []
+        # self.b *= args[1]
+        for j in range(self.numT1Scale):
+            test_R1.append(
+                300/(j+1) *
+                np.ones(
+                    (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE))
+
 
         self.guess = np.array(
-            [test_M0, test_Xi, test_R1] + test_Cx + test_Ca, dtype=self._DTYPE)
+            [test_M0] + test_Xi + test_R1, dtype=self._DTYPE)
