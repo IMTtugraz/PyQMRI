@@ -365,7 +365,7 @@ class PDBaseSolver:
         self.display_iterations = irgn_par["display_iterations"]
         self.mu = 1 / self.delta
         self.tau = tau
-        self.beta_line = 1e3  # 1e10#1e12
+        self.beta_line = 1  # 1e10#1e12
         self.theta_line = DTYPE_real(1.0)
         self.unknowns_TGV = par["unknowns_TGV"]
         self.unknowns_H1 = par["unknowns_H1"]
@@ -577,7 +577,7 @@ class PDBaseSolver:
         beta_line = self.beta_line
         beta_new = self._DTYPE_real(0)
         mu_line = self._DTYPE_real(0.5)
-        delta_line = self._DTYPE_real(1)
+        delta_line = self._DTYPE_real(0.9)
         ynorm = self._DTYPE_real(0.0)
         lhs = self._DTYPE_real(0.0)
         primal = []
@@ -609,8 +609,8 @@ class PDBaseSolver:
                 in_precomp_adj=tmp_results_adjoint,
                 tau=tau
                 )
-            beta_new = beta_line * (1 + self.mu * tau)
-            tau_new = tau * np.sqrt(beta_line / beta_new*(1 + theta_line))
+            beta_new = beta_line #* (1 + self.mu * tau)
+            tau_new = tau * np.sqrt(beta_line / beta_new * (1+theta_line))
             beta_line = beta_new
 
             while True:
@@ -719,7 +719,7 @@ class PDBaseSolver:
                 (i+1, 1000*primal[-1] / gap[0],
                  1000*dual[-1] / gap[0],
                  1000*gap[-1] / gap[0],
-                 beta_line))
+                 tau))
             sys.stdout.flush()
 
         return primal_vars
