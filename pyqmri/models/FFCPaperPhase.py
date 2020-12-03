@@ -17,7 +17,7 @@ class Model(BaseModel):
         if "b0" in par.keys():
             self.b0 = par["b0"]
         else:
-            self.b0 = self.b[0]
+            self.b0 = 0.2#self.b[0]
 
         if len(self.t.shape) < 2:
             self.b = self.b[None]
@@ -31,7 +31,7 @@ class Model(BaseModel):
 
         self.unknowns = par["unknowns"]
         
-        t1min = np.min(self.t)/3
+        t1min = 0 #np.min(self.t)/3
 
         for j in range(par["unknowns"]):
             self.uk_scale.append(1)
@@ -164,7 +164,7 @@ class Model(BaseModel):
         unknowns = self.rescale(x)
         tmp_x = unknowns["data"]
 
-        images = np.angle(self._execute_forward_3D(x) / self.dscale)
+        images = np.abs(self._execute_forward_3D(x) / self.dscale)
         images = np.reshape(images, self.t.shape+images.shape[-3:])
 
         tmp_x[0] = np.abs(tmp_x[0])/self.dscale
@@ -297,7 +297,7 @@ class Model(BaseModel):
 
     def computeInitialGuess(self, *args):
         self.dscale = args[1]
-        self.images = np.reshape(np.angle(args[0]/args[1]),
+        self.images = np.reshape(np.abs(args[0]/args[1]),
                                  self.t.shape+args[0].shape[-3:])
         test_M0 = 0.1*np.ones(
             (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
