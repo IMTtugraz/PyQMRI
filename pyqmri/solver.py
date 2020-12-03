@@ -365,7 +365,7 @@ class PDBaseSolver:
         self.display_iterations = irgn_par["display_iterations"]
         self.mu = 1 / self.delta
         self.tau = tau
-        self.beta_line = 1  # 1e10#1e12
+        self.beta_line = 10  # 1e10#1e12
         self.theta_line = DTYPE_real(1.0)
         self.unknowns_TGV = par["unknowns_TGV"]
         self.unknowns_H1 = par["unknowns_H1"]
@@ -577,7 +577,7 @@ class PDBaseSolver:
         beta_line = self.beta_line
         beta_new = self._DTYPE_real(0)
         mu_line = self._DTYPE_real(0.5)
-        delta_line = self._DTYPE_real(0.9)
+        delta_line = self._DTYPE_real(0.99)
         ynorm = self._DTYPE_real(0.0)
         lhs = self._DTYPE_real(0.0)
         primal = []
