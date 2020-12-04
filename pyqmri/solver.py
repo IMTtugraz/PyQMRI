@@ -713,13 +713,15 @@ class PDBaseSolver:
             "relative tolerance of %.3e" 
             % (i+1, np.abs((gap[-1] - gap[-2]) / gap[0]), self.tol))
                     return primal_vars
+            sys.stdout.write("\x1b[1K\r")
+            sys.stdout.flush()
             sys.stdout.write(
                 "Iteration: %04d ---- Primal: %2.2e, "
-                "Dual: %2.2e, Gap: %2.2e, Beta: %2.2e \r" %
+                "Dual: %2.2e, Gap: %2.2e \r" %
                 (i+1, 1000*primal[-1] / gap[0],
                  1000*dual[-1] / gap[0],
-                 1000*gap[-1] / gap[0],
-                 tau))
+                 1000*gap[-1] / gap[0]
+                 ))
             sys.stdout.flush()
 
         return primal_vars
