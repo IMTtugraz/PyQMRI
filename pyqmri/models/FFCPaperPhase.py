@@ -17,7 +17,7 @@ class Model(BaseModel):
         if "b0" in par.keys():
             self.b0 = par["b0"]
         else:
-            self.b0 = 0.2#self.b[0]
+            self.b0 = self.b[0]
 
         if len(self.t.shape) < 2:
             self.b = self.b[None]
@@ -38,17 +38,17 @@ class Model(BaseModel):
 
         self.constraints.append(
             constraints(0,
-                        1000,
+                        10,
                         True))
         for j in range(self.numT1Scale):
             self.constraints.append(
                 constraints(0,
-                            10,
+                            1,
                             False))
         for j in range(self.numT1Scale):
             self.constraints.append(
                 constraints(t1min,
-                            600/(j+1),
+                            1000/(j+1),
                             True))
         self._ind1 = 0
         self._ind2 = 0
