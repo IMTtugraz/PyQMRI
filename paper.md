@@ -17,7 +17,7 @@ authors:
     affiliation: "1, 2"
   - name: Rudolf Stollberger
     orcid: 0000-0002-4969-3878
-    affiliation: "1, 2"
+    affiliation: "1, 3"
 affiliations:
  - name: Institute of Medical Engineering, Graz University of Technology, Graz, Austria
    index: 1
