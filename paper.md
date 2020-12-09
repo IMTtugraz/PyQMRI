@@ -51,8 +51,8 @@ To this end, we propose `PyQMRI`, a simple to use Python toolbox for quantitativ
 
 # Statement of need 
 
-`PyQMRI` aims at reducing the required reconstruction time by means of a
-highly parallelized `PyOpenCL`&nbsp;[@Klockner2012a] implementation of a state-of-the-art model-based reconstruction and fitting algorithm, 
+`PyQMRI` aims at reducing the required reconstruction time by means of a highly parallelized   
+`PyOpenCL`&nbsp;[@Klockner2012a] implementation of a state-of-the-art model-based reconstruction and fitting algorithm, 
 while maintaining the easy-to-use properties of a Python package.
 In addition to processing small data (e.g. 2D slices) completely on the GPU, an efficient
 double-buffering based solution strategy is implemented. Double-buffering 
