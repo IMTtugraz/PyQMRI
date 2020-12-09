@@ -577,7 +577,7 @@ class PDBaseSolver:
         beta_line = self.beta_line
         beta_new = self._DTYPE_real(0)
         mu_line = self._DTYPE_real(0.5)
-        delta_line = self._DTYPE_real(0.99)
+        delta_line = self._DTYPE_real(0.95)
         ynorm = self._DTYPE_real(0.0)
         lhs = self._DTYPE_real(0.0)
         primal = []
