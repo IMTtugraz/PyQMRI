@@ -14,15 +14,17 @@ authors:
     affiliation: "1"
   - name: Markues Bödenler
     orcid: 0000-0001-6018-7821
-    affiliation: "1"
+    affiliation: "1, 2"
   - name: Rudolf Stollberger
     orcid: 0000-0002-4969-3878
     affiliation: "1, 2"
 affiliations:
  - name: Institute of Medical Engineering, Graz University of Technology, Graz, Austria
    index: 1
- - name: BioTechMed Graz
+ - name: Institute of eHealth, University of Applied Sciences FH JOANNEUM, Graz, Austria
    index: 2
+ - name: BioTechMed Graz
+   index: 3
 date: 15 September 2020
 bibliography: paper.bib
 
@@ -45,7 +47,7 @@ Recently, the upsurge of computationally powerful GPUs has led to a variety of G
 To utilize full 3D information in advanced reconstruction and fitting algorithms on memory limited GPUs, 
 special solutions strategies are necessary to leverage the speed advantage, e.g., hiding memory latency of repeated transfers to/from the GPU to host memory.
 This can be achieved using asynchronous execution strategies. However, correct synchronization of critical operations can be error prone.
-To this end, we propose `PyQMRI`, a simple to use python toolbox for quantitative MRI.
+To this end, we propose `PyQMRI`, a simple to use Python toolbox for quantitative MRI.
 
 # Statement of need 
 
