@@ -37,7 +37,7 @@ bibliography: paper.bib
 # Summary
 
 Various medical examinations are seeing a shift to a more patient centric and personalized view, based on quantitative instead of qualitative observations and comparisons. 
-This trend has also affected medical imaging, and particularly quantitative MRI (qMRI) gained importance in recent years. qMRI aims to identify the underlying biophysical and tissue parameters that determine contrast in an MR imaging experiment. In addition to contrast information from conventional MRI examinations, qMRI permits insights into diseases by providing biophysical, microstructural, and functional information in absolute quantitative values. For quantification, biophysical models are used, which describe the relationship between image intensity and physical properties of the tissue for certain scanning sequences and sequence parameters. By performing several measurements with different sequence parameters (e.g. flip angle, repetition time, echo time) the related inverse problem of identifying the tissue parameters sought can be solved.
+This trend has also affected medical imaging, and particularly quantitative MRI (qMRI) gained importance in recent years. qMRI aims to identify the underlying biophysical and tissue parameters that determine contrast in an MR imaging experiment. In addition to contrast information, qMRI permits insights into diseases by providing biophysical, microstructural, and functional information in absolute quantitative values. For quantification, biophysical models are used, which describe the relationship between image intensity and physical properties of the tissue for certain scanning sequences and sequence parameters. By performing several measurements with different sequence parameters (e.g. flip angle, repetition time, echo time) the related inverse problem of identifying the tissue parameters sought can be solved.
 
 Quantitative MR typically suffers from increased measurement time due to repeated imaging experiments. Therefore, methods to reduce scanning time by means of optimal scanning protocols and subsampled data acquisition have been extensively studied. However, these approaches are typically associated with a reduced SNR, and can suffer from subsampling artifacts. To address both aspects, it has been shown that the inclusion of a biophysical model in the reconstruction process leads to much faster data acquisition, while simultaneously improving image quality. The inverse problem associated with this special reconstruction approach requires dedicated numerical solution strategies [@Donoho2006; @Lustig2007; @Block2009; @Doneva2010; @Sumpf2012; @Roeloffs2016; @Maier2019c], commonly known as model-based reconstruction. Model-based reconstruction is based on variational modeling, and combines parallel imaging and compressed sensing to achieve acceleration factors as high as 10x the speed of fully sampled acquisitions. The method directly solves for the unknown parameter maps from raw k-space data. The repeated transition from k-space to image-space, combined with the involved non-linear iterative reconstruction techniques to identify the unknown parameters, often leads to prolonged reconstruction times. This effect gets even more demanding if 3D image volumes are of interest. 
 
@@ -52,7 +52,7 @@ To this end, we propose `PyQMRI`, a simple to use Python toolbox for quantitativ
 # Statement of need 
 
 `PyQMRI` aims at reducing the required reconstruction time by means of a
-highly parallelized `PyOpenCL` [@Klockner2012a] implementation of a state-of-the-art model-based reconstruction and fitting algorithm, 
+highly parallelized `PyOpenCL`&nbsp;[@Klockner2012a] implementation of a state-of-the-art model-based reconstruction and fitting algorithm, 
 while maintaining the easy-to-use properties of a Python package.
 In addition to processing small data (e.g. 2D slices) completely on the GPU, an efficient
 double-buffering based solution strategy is implemented. Double-buffering 
@@ -78,7 +78,7 @@ of complex or real valued image data. The main advantage of fitting the complex 
 new models can be introduced via a simple text file, utilizing the power
 of `SymPy` to generate numerical models as well as their partial derivatives in Python. Fitting can be initiated via a command line interface (CLI) or by importing the package
 into a Python script. Due to `PyQMRI`'s OpenCL backend, no vendor specific hardware restrictions are present. However,
-current limitations of the `gpyfft` package used to wrap the `clfft` constrain the use to GPU devices only.
+current limitations of the `gpyfft` package, used to wrap the `clfft`, constrain the use to GPU devices only.
 A switch to other `clfft` wrappers might solve this limitation in future releases, but `gpyfft` is the only one that currently supports fast non-power-of-two transformations up to 13.
 
 `PyQMRI` and its predecessors have been succesfully used in several scientific
