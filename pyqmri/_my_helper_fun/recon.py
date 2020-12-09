@@ -329,17 +329,23 @@ def _primal_dual_solver_np(ksp, cmaps):
 #
 #     img_montage(np.real(xn), 'PD numpy recon')
 
-def calculate_cost(myargs, par, x, v, ksp, cmaps, reg_type=''):
+def calculate_cost(myargs, par, x, v, ksp, cmaps):
+    if myargs.streamed:
+        x = np.transpose(x, (1, 0, 2, 3))
+        v = np.transpose(v, (1, 0, 2, 3, 4))
+        ksp = np.transpose(ksp, (1, 2, 0, 3, 4))
+        cmaps = np.transpose(cmaps, (1, 2, 0, 3, 4))
+
     mask = create_mask(np.shape(ksp), myargs.acceleration_factor, myargs.dim_us)
     out_fwd = _operator_fwd_np(x, cmaps, mask)
     cost = np.linalg.norm(out_fwd - ksp)**2
     # cost = np.vdot((out_fwd - ksp), (out_fwd - ksp)).real
 
     reg_cost = 0
-    if reg_type == 'TV':
+    if myargs.reg_type == 'TV':
         cost *= myargs.lamda * 0.5
         reg_cost = np.sum(np.abs(_gradient(x)))
-    if reg_type == 'TGV':
+    if myargs.reg_type == 'TGV':
         cost *= myargs.lamda * 0.5
         reg_cost = par['alpha1'] * np.sum(np.abs(_gradient(x) - v)) + par['alpha0'] * np.sum(np.abs(_sym_grad(v)))
 

@@ -141,22 +141,39 @@ def _calc_step_size(args, par, ksp, cmaps):
     return tau, sigma
 
 
-def _pda_soft_sense_solver(myargs, par, ksp, cmaps, imgs, imgs_us, reg_type=''):
+def _pda_soft_sense_solver(myargs, par, ksp, cmaps, imgs, imgs_us):
 
     # _calc_step_size(myargs, par, ksp, cmaps)
 
-    file = open(resource_filename('pyqmri', 'kernels/OpenCL_Kernels.c'))
-    prg = Program(
-        par["ctx"][0],
-        file.read())
-    file.close()
+    ksp = np.require(ksp.astype(DTYPE), requirements='C')
+    cmaps = np.require(cmaps.astype(DTYPE), requirements='C')
+
+    if myargs.streamed:
+        file = resource_filename(
+            'pyqmri', 'kernels/OpenCL_Kernels_streamed.c')
+        inp = np.zeros((par["NSlice"], par["NMaps"], par["dimY"], par["dimX"])) + \
+              1j * np.zeros((par["NSlice"], par["NMaps"], par["dimY"], par["dimX"]))
+    else:
+        file = resource_filename(
+            'pyqmri', 'kernels/OpenCL_Kernels.c')
+        inp = np.zeros((par["NMaps"], par["NSlice"], par["dimY"], par["dimX"])) + \
+              1j * np.zeros((par["NMaps"], par["NSlice"], par["dimY"], par["dimX"]))
+
+    inp = inp.astype(DTYPE)
+
+    prg = []
+    for j in range(len(par["num_dev"])):
+        with open(file) as myfile:
+            prg.append(Program(
+                par["ctx"][j],
+                myfile.read()))
 
     irgn_par = {}
     _setup_irgn_par(irgn_par, myargs)
-    op = pyqmirop.OperatorSoftSense(par, prg)
-    grad_op = pyqmirop.OperatorFiniteGradient(par, prg)
-    symgrad_op = pyqmirop.OperatorFiniteSymGradient(par, prg)
-    cmaps = cmaps.astype(DTYPE)
+
+    op = pyqmirop.Operator.SoftSenseOperatorFactory(par, prg, DTYPE, DTYPE_real, myargs.streamed)
+    grad_op = pyqmirop.Operator.GradientOperatorFactory(par, prg, DTYPE, DTYPE_real, myargs.streamed)
+    symgrad_op = pyqmirop.Operator.SymGradientOperatorFactory(par, prg, DTYPE, DTYPE_real, myargs.streamed)
 
     # inp_noise = np.random.randn(par["NMaps"], par["NSlice"], par["dimY"], par["dimX"]) +\
     #        1j * np.random.randn(par["NMaps"], par["NSlice"], par["dimY"], par["dimX"])
@@ -166,27 +183,28 @@ def _pda_soft_sense_solver(myargs, par, ksp, cmaps, imgs, imgs_us, reg_type=''):
     # inp = imgs_us.astype(DTYPE)
     # inp = imgs.astype(DTYPE)
 
-    inp = np.zeros((par["NMaps"], par["NSlice"], par["dimY"], par["dimX"])) +\
-        1j * np.zeros((par["NMaps"], par["NSlice"], par["dimY"], par["dimX"]))
-    inp = inp.astype(DTYPE)
-
     # if reg_type != '':
     # irgn_par["sigma"] = np.float32(1 / np.sqrt(12))
 
-    fval = calculate_cost(myargs, irgn_par, inp, np.zeros(inp.shape+(3,)), ksp, cmaps, reg_type)
+    fval = calculate_cost(myargs, irgn_par, inp, np.zeros(inp.shape+(3,)), ksp, cmaps)
 
-    cmaps = cla.to_device(op.queue, cmaps)
+    if not myargs.streamed:
+        cmaps = cla.to_device(op.queue, cmaps)
 
     if myargs.linesearch:
-        pd = pyqmrisl.PDALSoftSenseBaseSolver.factory((prg,), par["queue"], par, irgn_par,
-                                                    fval, cmaps, (op, grad_op, symgrad_op), None, reg_type)
+        pd = pyqmrisl.PDALSoftSenseBaseSolver.factory(prg, par["queue"], par, irgn_par,
+                                                    fval, cmaps, (op, grad_op, symgrad_op), None, myargs.reg_type)
     else:
-        pd = pyqmrisl.PDSoftSenseBaseSolver.factory((prg,), par["queue"], par, irgn_par,
-                                                    fval, cmaps, (op, grad_op, symgrad_op), None, reg_type)
+        pd = pyqmrisl.PDSoftSenseBaseSolver.factory(prg, par["queue"], par, irgn_par,
+                                                    fval, cmaps, (op, grad_op, symgrad_op),
+                                                    None, myargs.reg_type, SMS=False, streamed=myargs.streamed)
 
-    primal_vars = pd.run(inp=inp.copy(), data=ksp.copy(), iters=1000)["x"].get()
+    primal_vars = pd.run(inp=inp.copy(), data=ksp.copy(), iters=1000)["x"]
 
-    return primal_vars
+    if myargs.streamed:
+        return np.transpose(primal_vars, (1, 0, 2, 3))
+
+    return primal_vars.get()
 
 
 def _3d_recon(imgs, ksp_data, cmaps, par, myargs):
@@ -226,6 +244,10 @@ def _2d_recon(imgs, ksp_data, cmaps, par, myargs):
     cmaps = cmaps[:, :, 21:21+n_slice, ...]
     imgs = imgs[:, 21:21+n_slice, ...]
 
+    ksp_data2d = np.repeat(ksp_data2d[:, :, [0], :, :], 4, axis=2)
+    cmaps = np.repeat(cmaps[:, :, [0], :, :], 4, axis=2)
+    imgs = np.repeat(imgs[:, [0], :, :], 4, axis=1)
+
     if myargs.streamed:
         data_trans_axes = (2, 0, 1, 3, 4)
         ksp_data2d = np.transpose(ksp_data2d, data_trans_axes)
@@ -236,11 +258,10 @@ def _2d_recon(imgs, ksp_data, cmaps, par, myargs):
     if myargs.streamed:
         out_undersampled_ = np.moveaxis(out_undersampled, [0, 1], [1, 0])
         img_montage(sum_of_squares(out_undersampled_), '2D reconstruction of undersampled data with adjoint operator')
-        sys.exit()
     else:
         img_montage(sum_of_squares(out_undersampled), '2D reconstruction of undersampled data with adjoint operator')
 
-    out_pd = _pda_soft_sense_solver(myargs, par, ksp_data2d, cmaps, imgs, out_undersampled, reg_type=myargs.reg_type)
+    out_pd = _pda_soft_sense_solver(myargs, par, ksp_data2d, cmaps, imgs, out_undersampled)
 
     x_orig = normalize_imgs(sum_of_squares(imgs))
     x_ssense = normalize_imgs(sum_of_squares(out_pd))
@@ -325,7 +346,7 @@ if __name__ == '__main__':
     args.csfile = Path.cwd() / 'data_soft_sense_test' / 'sensitivities_ecalib.mat'
 
     # args.type = '3D'
-    args.reg_type = ''  # '', 'TV', or 'TGV'
+    args.reg_type = 'TV'  # '', 'TV', or 'TGV'
     args.linesearch = False
     # args.lamda = 0.1
     args.undersampling = True

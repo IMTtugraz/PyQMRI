@@ -287,8 +287,7 @@ class Operator(ABC):
             op = OperatorSoftSenseStreamed(par,
                                            prg,
                                            DTYPE,
-                                           DTYPE_real
-            )
+                                           DTYPE_real)
         else:
             op = OperatorSoftSense(par,
                                    prg[0],
@@ -2157,6 +2156,38 @@ class OperatorSoftSense(Operator):
             wait_for=wait_for + self.tmp_result.events + out.events).wait()
         return out
 
+    def adjKyk1(self, out, inp, wait_for=[]):
+        inp[0].add_event(
+            self.NUFFT.prg.masking(
+                self.queue,
+                (inp[0].size,),
+                None,
+                inp[0].data,
+                self._check.data,
+                wait_for=wait_for + inp[0].events))
+        self.tmp_result.add_event(
+            self.NUFFT.FFTH(
+                self.tmp_result, inp[0], wait_for=wait_for + inp[0].events))
+        self.tmp_result.add_event(
+            self.NUFFT.prg.masking(
+                self.queue,
+                (self.tmp_result.size,),
+                None,
+                self.tmp_result.data,
+                self._check.data,
+                wait_for=wait_for + inp[0].events))
+        return self.prg.update_Kyk1_ssense(
+            self.queue, (self.NSlice, self.dimY, self.dimX), None,
+            out.data,
+            self.tmp_result.data,
+            inp[1].data,
+            inp[2].data,
+            np.int32(self.NC),
+            np.int32(self.NMaps),
+            inp[3].data,
+            self.DTYPE_real(self._dz),
+            wait_for=(self.tmp_result.events +
+                      out.events + inp[2].events + inp[3].events + wait_for))
 
 class OperatorSoftSenseStreamed(Operator):
     """ The streamed version of the Soft Sense Operator
@@ -2217,12 +2248,20 @@ class OperatorSoftSenseStreamed(Operator):
                            self.N)
         trans_shape = (self.NSlice, self.NScan,
                        self.NC, self.dimY, self.dimX)
+        grad_shape = self.unknown_shape + (4,)
 
         self.fwdstr = self._defineoperator(
             [self._fwdstreamed],
             [self.data_shape],
             [[self.unknown_shape,
               coil_shape]])
+
+        self.adjstrKyk1 = self._defineoperator(
+            [self._adjstreamedKyk1],
+            [self.unknown_shape],
+            [[self.data_shape,
+              coil_shape,
+              grad_shape]])
 
         self.adjstr = self._defineoperator(
             [self._adjstreamed],
@@ -2250,6 +2289,9 @@ class OperatorSoftSenseStreamed(Operator):
         tmp_result = np.zeros(self.unknown_shape, dtype=self.DTYPE)
         self.adjstr.eval([tmp_result], inp)
         return tmp_result
+
+    def adjKyk1(self, out, inp):
+        self.adjstrKyk1.eval(out, inp)
 
     def _fwdstreamed(self, out, inp, par=None, idx=0, idxq=0,
                      bound_cond=0, wait_for=[]):
@@ -2300,13 +2342,6 @@ class OperatorSoftSenseStreamed(Operator):
                 self.tmp_result[2*idx+idxq], inp[0],
                 wait_for=(wait_for+inp[0].events +
                           self.tmp_result[2*idx+idxq].events)))
-        # inp_0 = inp[0].get()
-        # inp_0 = np.transpose(inp_0, (1, 2, 0, 3, 4))
-        # img_montage(np.abs(np.sum(np.squeeze(inp_0), axis=0)))
-        #
-        # res = self.tmp_result[2*idx+idxq].get()
-        # res = np.transpose(res, (1, 2, 0, 3, 4))
-        # img_montage(np.abs(np.sum(np.squeeze(res), axis=0)))
         self.tmp_result[2*idx+idxq].add_event(
             self.NUFFT[2*idx+idxq].prg.masking(
                 self.queue[4*idx+idxq],
@@ -2325,6 +2360,44 @@ class OperatorSoftSenseStreamed(Operator):
             np.int32(self.NC),
             np.int32(self.NMaps),
             wait_for=(self.tmp_result[2*idx+idxq].events + inp[1].events+wait_for))
+
+    def _adjstreamedKyk1(self, outp, inp, par=None, idx=0, idxq=0,
+                         bound_cond=0, wait_for=[]):
+        inp[0].add_event(
+            self.NUFFT[2*idx+idxq].prg.masking(
+                self.queue[4*idx+idxq],
+                (inp[0].size,),
+                None,
+                inp[0].data,
+                self._checker[2*idx+idxq].data,
+                wait_for=wait_for + inp[0].events))
+        self.tmp_result[2*idx+idxq].add_event(
+            self.NUFFT[2*idx+idxq].FFTH(
+                self.tmp_result[2*idx+idxq], inp[0],
+                wait_for=(wait_for+inp[0].events +
+                          self.tmp_result[2*idx+idxq].events)))
+        self.tmp_result[2*idx+idxq].add_event(
+            self.NUFFT[2*idx+idxq].prg.masking(
+                self.queue[4*idx+idxq],
+                (inp[0].size,),
+                None,
+                self.tmp_result[2*idx+idxq].data,
+                self._checker[2*idx+idxq].data,
+                wait_for=wait_for + self.tmp_result[2*idx+idxq].events))
+        return self.prg[idx].update_Kyk1_ssense(
+            self.queue[4*idx+idxq],
+            (self.par_slices+self.overlap, self.dimY, self.dimX), None,
+            outp.data, self.tmp_result[2*idx+idxq].data,
+            inp[1].data,
+            inp[2].data,
+            np.int32(self.NC),
+            np.int32(self.NMaps),
+            par[0][idx].data,
+            self.DTYPE_real(self._dz),
+            wait_for=(
+                self.tmp_result[2*idx+idxq].events +
+                outp.events+inp[1].events +
+                inp[2].events + wait_for))
 
     def FT(self, outp, inp, par=None, idx=0, idxq=0,
            bound_cond=0, wait_for=[]):

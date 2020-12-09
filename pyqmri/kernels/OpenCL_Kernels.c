@@ -1,13 +1,3 @@
-/*__kernel void update_x(global float2 *xn1, __global float2 *xn, __global float2 *Kyn1, const float tau,
-                        const float Nmaps)
-{
-    size_t i = get_global_id(1);
-    size_t m = get_global_id(0);
-
-    size_t I = get_global_size(1);
-
-    xn1[m*I + i] = xn[m*I + i] - tau * Kyn1[m*I + i];
-}*/
 
 __kernel void update_x(global float2 *xn1, __global float2 *xn, __global float2 *Kay, const float tau,
                         const float theta)
@@ -15,17 +5,6 @@ __kernel void update_x(global float2 *xn1, __global float2 *xn, __global float2 
     size_t i = get_global_id(0);
     xn1[i] = xn[i] - tau * (1 + theta) * Kay[i];
 }
-
-/*__kernel void update_x_tgv(global float2 *xn1, __global float2 *xn, __global float2 *Kyn1,
-                          __global float2 *divz, const float tau, const float theta)
-{
-    size_t i = get_global_id(1);
-    size_t m = get_global_id(0);
-
-    size_t I = get_global_size(1);
-
-    xn1[m*I + i] = xn[m*I + i] - tau * (1 + theta) * (Kyn1[m*I + i] - divz[m*I + i]);
-}*/
 
 __kernel void update_x_tgv(global float2 *xn1, __global float2 *xn, __global float2 *Kay,
                              __global float2 *divz, const float tau, const float theta)
@@ -247,6 +226,87 @@ __kernel void operator_ad_ssense(__global float2 *out, __global float2 *in,
                         tmp_in.x*conj_coils.y+tmp_in.y*conj_coils.x);
     }
     out[map*NSl*X*Y + k*X*Y + y*X + x] = f_sum;
+  }
+}
+
+__kernel void update_Kyk1_ssense(__global float2 *out, __global float2 *in,
+                       __global float2 *coils, __global float8 *p, const int NCo,
+                       const int Nmaps, __global float* ratio, const float dz)
+{
+  size_t X = get_global_size(2);
+  size_t Y = get_global_size(1);
+  size_t NSl = get_global_size(0);
+  size_t x = get_global_id(2);
+  size_t y = get_global_id(1);
+  size_t k = get_global_id(0);
+
+  float2 tmp_in = 0.0f;
+  float2 conj_coils = 0.0f;
+
+  size_t i = k*X*Y+X*y + x;
+
+  for (int map=0; map < Nmaps; map++)
+  {
+    float2 f_sum = (float2) 0.0f;
+    for (int coil=0; coil < NCo; coil++)
+    {
+      tmp_in = in[coil*NSl*X*Y + k*X*Y+ y*X + x];
+      conj_coils = (float2) (coils[map*NCo*NSl*X*Y + coil*NSl*X*Y + k*X*Y + y*X + x].x,
+                            -coils[map*NCo*NSl*X*Y + coil*NSl*X*Y + k*X*Y + y*X + x].y);
+
+      f_sum += (float2)(tmp_in.x*conj_coils.x-tmp_in.y*conj_coils.y,
+                        tmp_in.x*conj_coils.y+tmp_in.y*conj_coils.x);
+    }
+    // divergence
+    float8 val = p[i];
+    if (x == X-1)
+    {
+      //real
+      val.s0 = 0.0f;
+      //imag
+      val.s1 = 0.0f;
+    }
+    if (x > 0)
+    {
+        //real
+        val.s0 -= p[i-1].s0;
+        //imag
+        val.s1 -= p[i-1].s1;
+    }
+    if (y == Y-1)
+    {
+        //real
+        val.s2 = 0.0f;
+        //imag
+        val.s3 = 0.0f;
+    }
+    if (y > 0)
+    {
+        //real
+        val.s2 -= p[i-X].s2;
+        //imag
+        val.s3 -= p[i-X].s3;
+    }
+    if (k == NSl-1)
+    {
+        //real
+        val.s4 = 0.0f;
+        //imag
+        val.s5 = 0.0f;
+    }
+    if (k > 0)
+    {
+        //real
+        val.s4 -= p[i-X*Y].s4;
+        //imag
+        val.s5 -= p[i-X*Y].s5;
+    }
+
+    // scale gradients
+    {val*=ratio[map];}
+
+    out[map*NSl*X*Y + k*X*Y + y*X + x] = f_sum - (val.s01+val.s23+val.s45/dz);
+    i += NSl*X*Y;
   }
 }
 
