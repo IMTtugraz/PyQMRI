@@ -12,7 +12,7 @@ authors:
     affiliation: "1" # (Multiple affiliations must be quoted)
   - name: Stefan M Spann
     affiliation: "1"
-  - name: Markues Bödenler
+  - name: Markus Bödenler
     orcid: 0000-0001-6018-7821
     affiliation: "1, 2"
   - name: Rudolf Stollberger
