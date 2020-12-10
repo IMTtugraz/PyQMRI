@@ -6,7 +6,7 @@ __kernel void update_x(global float2 *xn1, __global float2 *xn, __global float2 
     xn1[i] = xn[i] - tau * (1 + theta) * Kay[i];
 }
 
-__kernel void update_x_tgv(global float2 *xn1, __global float2 *xn, __global float2 *Kay,
+__kernel void update_x_explicit(global float2 *xn1, __global float2 *xn, __global float2 *Kay,
                              __global float2 *divz, const float tau, const float theta)
 {
     size_t i = get_global_id(0);
@@ -67,7 +67,7 @@ __kernel void update_z_tv_line(__global float8 *zn1, __global float8 *zn, __glob
   }
 }
 
-__kernel void update_v_tgv(global float2 *vn1, __global float2 *vn, __global float2 *z1,
+__kernel void update_v_explicit(global float2 *vn1, __global float2 *vn, __global float2 *z1,
                              __global float2 *ez2, const float tau, const float theta)
 {
     size_t i = get_global_id(0);

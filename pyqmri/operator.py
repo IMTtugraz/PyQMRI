@@ -421,11 +421,11 @@ class OperatorKspace(Operator):
             self.Nproj = self.dimY
             self.N = self.dimX
         self.NUFFT = CLnuFFT.create(self.ctx,
-                                  self.queue,
-                                  par,
-                                  radial=trafo,
-                                  DTYPE=DTYPE,
-                                  DTYPE_real=DTYPE_real)
+                                    self.queue,
+                                    par,
+                                    radial=trafo,
+                                    DTYPE=DTYPE,
+                                    DTYPE_real=DTYPE_real)
 
     def fwd(self, out, inp, wait_for=[]):
         self.tmp_result.add_event(
@@ -2027,25 +2027,25 @@ class OperatorSoftSense(Operator):
                 np.int32(self.NC),
                 np.int32(self.NMaps),
                 wait_for=self.tmp_result.events + inp[0].events + wait_for))
-        self.tmp_result.add_event(
-            self.NUFFT.prg.masking(
-                self.queue,
-                (self.tmp_result.size,),
-                None,
-                self.tmp_result.data,
-                self._check.data,
-                wait_for=wait_for + self.tmp_result.events))
-        out.add_event(self.NUFFT.FFT(
-                out,
-                self.tmp_result,
-                wait_for=wait_for + out.events + self.tmp_result.events))
-        return self.NUFFT.prg.masking(
-            self.queue,
-            (out.size,),
-            None,
-            out.data,
-            self._check.data,
-            wait_for=wait_for + out.events)
+        # self.tmp_result.add_event(
+        #     self.NUFFT.prg.masking(
+        #         self.queue,
+        #         (self.tmp_result.size,),
+        #         None,
+        #         self.tmp_result.data,
+        #         self._check.data,
+        #         wait_for=wait_for + self.tmp_result.events))
+        return self.NUFFT.FFT(
+                    out,
+                    self.tmp_result,
+                    wait_for=wait_for + self.tmp_result.events)
+        # return self.NUFFT.prg.masking(
+        #     self.queue,
+        #     (out.size,),
+        #     None,
+        #     out.data,
+        #     self._check.data,
+        #     wait_for=wait_for + out.events)
 
     def fwdoop(self, inp, wait_for=[]):
         self.tmp_result.add_event(
@@ -2059,14 +2059,14 @@ class OperatorSoftSense(Operator):
                 np.int32(self.NC),
                 np.int32(self.NMaps),
                 wait_for=self.tmp_result.events + inp[0].events + wait_for))
-        self.tmp_result.add_event(
-            self.NUFFT.prg.masking(
-                self.queue,
-                (self.tmp_result.size,),
-                None,
-                self.tmp_result.data,
-                self._check.data,
-                wait_for=wait_for + self.tmp_result.events))
+        # self.tmp_result.add_event(
+        #     self.NUFFT.prg.masking(
+        #         self.queue,
+        #         (self.tmp_result.size,),
+        #         None,
+        #         self.tmp_result.data,
+        #         self._check.data,
+        #         wait_for=wait_for + self.tmp_result.events))
         tmp_sino = clarray.empty(
             self.queue,
             (self.NScan, self.NC, self.NSlice, self.Nproj, self.N),
@@ -2075,38 +2075,38 @@ class OperatorSoftSense(Operator):
             self.NUFFT.FFT(
                 tmp_sino,
                 self.tmp_result))
-        tmp_sino.add_event(
-            self.NUFFT.prg.masking(
-                self.queue,
-                (tmp_sino.size,),
-                None,
-                tmp_sino.data,
-                self._check.data,
-                wait_for=wait_for + tmp_sino.events))
+        # tmp_sino.add_event(
+        #     self.NUFFT.prg.masking(
+        #         self.queue,
+        #         (tmp_sino.size,),
+        #         None,
+        #         tmp_sino.data,
+        #         self._check.data,
+        #         wait_for=wait_for + tmp_sino.events))
         return tmp_sino
 
     def adj(self, out, inp, wait_for=[]):
-        inp[0].add_event(
-            self.NUFFT.prg.masking(
-                self.queue,
-                (inp[0].size,),
-                None,
-                inp[0].data,
-                self._check.data,
-                wait_for=wait_for + inp[0].events))
+        # inp[0].add_event(
+        #     self.NUFFT.prg.masking(
+        #         self.queue,
+        #         (inp[0].size,),
+        #         None,
+        #         inp[0].data,
+        #         self._check.data,
+        #         wait_for=wait_for + inp[0].events))
         self.tmp_result.add_event(
             self.NUFFT.FFTH(
                 self.tmp_result,
                 inp[0],
                 wait_for=wait_for + inp[0].events + self.tmp_result.events))
-        self.tmp_result.add_event(
-            self.NUFFT.prg.masking(
-                self.queue,
-                (self.tmp_result.size,),
-                None,
-                self.tmp_result.data,
-                self._check.data,
-                wait_for=wait_for + inp[0].events))
+        # self.tmp_result.add_event(
+        #     self.NUFFT.prg.masking(
+        #         self.queue,
+        #         (self.tmp_result.size,),
+        #         None,
+        #         self.tmp_result.data,
+        #         self._check.data,
+        #         wait_for=wait_for + inp[0].events))
         return self.prg.operator_ad_ssense(
             self.queue,
             (self.NSlice, self.dimY, self.dimX),
@@ -2119,27 +2119,27 @@ class OperatorSoftSense(Operator):
             wait_for=wait_for + self.tmp_result.events + out.events)
 
     def adjoop(self, inp, wait_for=[]):
-        inp[0].add_event(
-            self.NUFFT.prg.masking(
-                self.queue,
-                (inp[0].size,),
-                None,
-                inp[0].data,
-                self._check.data,
-                wait_for=wait_for + inp[0].events))
+        # inp[0].add_event(
+        #     self.NUFFT.prg.masking(
+        #         self.queue,
+        #         (inp[0].size,),
+        #         None,
+        #         inp[0].data,
+        #         self._check.data,
+        #         wait_for=wait_for + inp[0].events))
         self.tmp_result.add_event(
             self.NUFFT.FFTH(
                 self.tmp_result,
                 inp[0],
                 wait_for=wait_for + inp[0].events + self.tmp_result.events))
-        self.tmp_result.add_event(
-            self.NUFFT.prg.masking(
-                self.queue,
-                (self.tmp_result.size,),
-                None,
-                self.tmp_result.data,
-                self._check.data,
-                wait_for=wait_for + inp[0].events))
+        # self.tmp_result.add_event(
+        #     self.NUFFT.prg.masking(
+        #         self.queue,
+        #         (self.tmp_result.size,),
+        #         None,
+        #         self.tmp_result.data,
+        #         self._check.data,
+        #         wait_for=wait_for + inp[0].events))
         out = clarray.empty(
             self.queue,
             (self.NMaps, self.NSlice, self.dimY, self.dimX),
@@ -2157,25 +2157,25 @@ class OperatorSoftSense(Operator):
         return out
 
     def adjKyk1(self, out, inp, wait_for=[]):
-        inp[0].add_event(
-            self.NUFFT.prg.masking(
-                self.queue,
-                (inp[0].size,),
-                None,
-                inp[0].data,
-                self._check.data,
-                wait_for=wait_for + inp[0].events))
+        # inp[0].add_event(
+        #     self.NUFFT.prg.masking(
+        #         self.queue,
+        #         (inp[0].size,),
+        #         None,
+        #         inp[0].data,
+        #         self._check.data,
+        #         wait_for=wait_for + inp[0].events))
         self.tmp_result.add_event(
             self.NUFFT.FFTH(
                 self.tmp_result, inp[0], wait_for=wait_for + inp[0].events))
-        self.tmp_result.add_event(
-            self.NUFFT.prg.masking(
-                self.queue,
-                (self.tmp_result.size,),
-                None,
-                self.tmp_result.data,
-                self._check.data,
-                wait_for=wait_for + inp[0].events))
+        # self.tmp_result.add_event(
+        #     self.NUFFT.prg.masking(
+        #         self.queue,
+        #         (self.tmp_result.size,),
+        #         None,
+        #         self.tmp_result.data,
+        #         self._check.data,
+        #         wait_for=wait_for + inp[0].events))
         return self.prg.update_Kyk1_ssense(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data,
@@ -2188,6 +2188,7 @@ class OperatorSoftSense(Operator):
             self.DTYPE_real(self._dz),
             wait_for=(self.tmp_result.events +
                       out.events + inp[2].events + inp[3].events + wait_for))
+
 
 class OperatorSoftSenseStreamed(Operator):
     """ The streamed version of the Soft Sense Operator
@@ -2306,50 +2307,49 @@ class OperatorSoftSenseStreamed(Operator):
                 np.int32(self.NMaps),
                 wait_for=(self.tmp_result[2*idx+idxq].events +
                           inp[0].events+wait_for)))
-        self.tmp_result[2*idx+idxq].add_event(
-            self.NUFFT[2*idx+idxq].prg.masking(
-                self.queue[4*idx+idxq],
-                (self.tmp_result[2*idx+idxq].size,),
-                None,
-                self.tmp_result[2*idx+idxq].data,
-                self._checker[2*idx+idxq].data,
-                wait_for=wait_for + self.tmp_result[2*idx+idxq].events))
-        self.tmp_result[2*idx+idxq].add_event(
-            self.NUFFT[2*idx+idxq].FFT(
+        # self.tmp_result[2*idx+idxq].add_event(
+        #     self.NUFFT[2*idx+idxq].prg.masking(
+        #         self.queue[4*idx+idxq],
+        #         (self.tmp_result[2*idx+idxq].size,),
+        #         None,
+        #         self.tmp_result[2*idx+idxq].data,
+        #         self._checker[2*idx+idxq].data,
+        #         wait_for=wait_for + self.tmp_result[2*idx+idxq].events))
+        return self.NUFFT[2*idx+idxq].FFT(
                 out,
                 self.tmp_result[2*idx+idxq],
-                wait_for=out.events+wait_for+self.tmp_result[2*idx+idxq].events))
-        return self.NUFFT[2*idx+idxq].prg.masking(
-                self.queue[4*idx+idxq],
-                (out.size,),
-                None,
-                out.data,
-                self._checker[2*idx+idxq].data,
-                wait_for=wait_for + self.tmp_result[2*idx+idxq].events)
+                wait_for=wait_for+self.tmp_result[2*idx+idxq].events)
+        # return self.NUFFT[2*idx+idxq].prg.masking(
+        #         self.queue[4*idx+idxq],
+        #         (out.size,),
+        #         None,
+        #         out.data,
+        #         self._checker[2*idx+idxq].data,
+        #         wait_for=wait_for + self.tmp_result[2*idx+idxq].events)
 
     def _adjstreamed(self, outp, inp, par=None, idx=0, idxq=0,
                      bound_cond=0, wait_for=[]):
-        inp[0].add_event(
-            self.NUFFT[2*idx+idxq].prg.masking(
-                self.queue[4*idx+idxq],
-                (inp[0].size,),
-                None,
-                inp[0].data,
-                self._checker[2*idx+idxq].data,
-                wait_for=wait_for + inp[0].events))
+        # inp[0].add_event(
+        #     self.NUFFT[2*idx+idxq].prg.masking(
+        #         self.queue[4*idx+idxq],
+        #         (inp[0].size,),
+        #         None,
+        #         inp[0].data,
+        #         self._checker[2*idx+idxq].data,
+        #         wait_for=wait_for + inp[0].events))
         self.tmp_result[2*idx+idxq].add_event(
             self.NUFFT[2*idx+idxq].FFTH(
                 self.tmp_result[2*idx+idxq], inp[0],
                 wait_for=(wait_for+inp[0].events +
                           self.tmp_result[2*idx+idxq].events)))
-        self.tmp_result[2*idx+idxq].add_event(
-            self.NUFFT[2*idx+idxq].prg.masking(
-                self.queue[4*idx+idxq],
-                (inp[0].size,),
-                None,
-                self.tmp_result[2*idx+idxq].data,
-                self._checker[2*idx+idxq].data,
-                wait_for=wait_for + self.tmp_result[2*idx+idxq].events))
+        # self.tmp_result[2*idx+idxq].add_event(
+        #     self.NUFFT[2*idx+idxq].prg.masking(
+        #         self.queue[4*idx+idxq],
+        #         (inp[0].size,),
+        #         None,
+        #         self.tmp_result[2*idx+idxq].data,
+        #         self._checker[2*idx+idxq].data,
+        #         wait_for=wait_for + self.tmp_result[2*idx+idxq].events))
         return self.prg[idx].operator_ad_ssense(
             self.queue[4*idx+idxq],
             (self.par_slices+self.overlap, self.dimY, self.dimX),
@@ -2363,27 +2363,27 @@ class OperatorSoftSenseStreamed(Operator):
 
     def _adjstreamedKyk1(self, outp, inp, par=None, idx=0, idxq=0,
                          bound_cond=0, wait_for=[]):
-        inp[0].add_event(
-            self.NUFFT[2*idx+idxq].prg.masking(
-                self.queue[4*idx+idxq],
-                (inp[0].size,),
-                None,
-                inp[0].data,
-                self._checker[2*idx+idxq].data,
-                wait_for=wait_for + inp[0].events))
+        # inp[0].add_event(
+        #     self.NUFFT[2*idx+idxq].prg.masking(
+        #         self.queue[4*idx+idxq],
+        #         (inp[0].size,),
+        #         None,
+        #         inp[0].data,
+        #         self._checker[2*idx+idxq].data,
+        #         wait_for=wait_for + inp[0].events))
         self.tmp_result[2*idx+idxq].add_event(
             self.NUFFT[2*idx+idxq].FFTH(
                 self.tmp_result[2*idx+idxq], inp[0],
                 wait_for=(wait_for+inp[0].events +
                           self.tmp_result[2*idx+idxq].events)))
-        self.tmp_result[2*idx+idxq].add_event(
-            self.NUFFT[2*idx+idxq].prg.masking(
-                self.queue[4*idx+idxq],
-                (inp[0].size,),
-                None,
-                self.tmp_result[2*idx+idxq].data,
-                self._checker[2*idx+idxq].data,
-                wait_for=wait_for + self.tmp_result[2*idx+idxq].events))
+        # self.tmp_result[2*idx+idxq].add_event(
+        #     self.NUFFT[2*idx+idxq].prg.masking(
+        #         self.queue[4*idx+idxq],
+        #         (inp[0].size,),
+        #         None,
+        #         self.tmp_result[2*idx+idxq].data,
+        #         self._checker[2*idx+idxq].data,
+        #         wait_for=wait_for + self.tmp_result[2*idx+idxq].events))
         return self.prg[idx].update_Kyk1_ssense(
             self.queue[4*idx+idxq],
             (self.par_slices+self.overlap, self.dimY, self.dimX), None,

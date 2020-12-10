@@ -39,7 +39,6 @@ __kernel void update_z_tv(__global float8 *zn1, __global float8 *zn, __global fl
 
      abs_val = hypot(abs_val,hypot(hypot(zn1[i].s0,zn1[i].s1), hypot(hypot(zn1[i].s2,zn1[i].s3),hypot(zn1[i].s4,zn1[i].s5))));
 
-     //if (abs_val > 1.0f) zn1[i] /=abs_val;
      i += Nx*Ny;
   }
   i = k*NUk*Nx*Ny + Nx*y + x;
@@ -57,7 +56,7 @@ __kernel void update_z_tv_line(__global float8 *zn1, __global float8 *zn, __glob
   size_t NSl = get_global_size(0);
   size_t x = get_global_id(2), y = get_global_id(1);
   size_t k = get_global_id(0);
-  size_t i = k*Nx*Ny+Nx*y + x;
+  size_t i = k*NUk*Nx*Ny+Nx*y + x;
 
   float abs_val = 0.0f;
 
@@ -67,9 +66,13 @@ __kernel void update_z_tv_line(__global float8 *zn1, __global float8 *zn, __glob
 
      abs_val = hypot(abs_val,hypot(hypot(zn1[i].s0,zn1[i].s1), hypot(hypot(zn1[i].s2,zn1[i].s3),hypot(zn1[i].s4,zn1[i].s5))));
 
+     i += Nx*Ny;
+  }
+  i = k*NUk*Nx*Ny + Nx*y + x;
+  for (int uk=0; uk<NUk; uk++)
+  {
      if (abs_val > 1.0f) zn1[i] /=abs_val;
-
-     i += NSl*Nx*Ny;
+     i += Nx*Ny;
   }
 }
 
@@ -87,7 +90,7 @@ __kernel void update_z1_tgv(__global float8 *zn1, __global float8 *zn, __global 
   size_t NSl = get_global_size(0);
   size_t x = get_global_id(2), y = get_global_id(1);
   size_t k = get_global_id(0);
-  size_t i = k*Nx*Ny+Nx*y + x;
+  size_t i = k*NUk*Nx*Ny+Nx*y + x;
 
   float fac = 0.0f;
 
@@ -97,9 +100,13 @@ __kernel void update_z1_tgv(__global float8 *zn1, __global float8 *zn, __global 
 
      fac = alphainv * hypot(fac,hypot(hypot(zn1[i].s0,zn1[i].s1), hypot(hypot(zn1[i].s2,zn1[i].s3),hypot(zn1[i].s4,zn1[i].s5))));
 
-     if (fac > 1.0f) zn1[i] /= fac;
-
-     i += NSl*Nx*Ny;
+     i += Nx*Ny;
+  }
+  i = k*NUk*Nx*Ny + Nx*y + x;
+  for (int uk=0; uk<NUk; uk++)
+  {
+     if (fac > 1.0f) zn1[i] /=fac;
+     i += Nx*Ny;
   }
 }
 
@@ -109,7 +116,7 @@ __kernel void update_z2_tgv(__global float16 *zn1, __global float16 *zn, __globa
   size_t NSl = get_global_size(0);
   size_t x = get_global_id(2), y = get_global_id(1);
   size_t k = get_global_id(0);
-  size_t i = k*Nx*Ny+Nx*y + x;
+  size_t i = k*NUk*Nx*Ny+Nx*y + x;
 
   float fac = 0.0f;
 
@@ -121,10 +128,14 @@ __kernel void update_z2_tgv(__global float16 *zn1, __global float16 *zn, __globa
      hypot(hypot(hypot(zn1[i].s0,zn1[i].s1), hypot(zn1[i].s2,zn1[i].s3)),hypot(zn1[i].s4,zn1[i].s5)),
      hypot(hypot(2.0f*hypot(zn1[i].s6,zn1[i].s7),2.0f*hypot(zn1[i].s8,zn1[i].s9)),2.0f*hypot(zn1[i].sa,zn1[i].sb))));
 
+     i += Nx*Ny;
+  }
+  i = k*NUk*Nx*Ny + Nx*y + x;
+  for (int uk=0; uk<NUk; uk++)
+  {
      if (fac > 1.0f) zn1[i] /=fac;
-
-     i += NSl*Nx*Ny;
-   }
+     i += Nx*Ny;
+  }
 }
 
 __kernel void update_z1_tgv_line(__global float8 *zn1, __global float8 *zn, __global float8 *gx, __global float8 *gx_,
@@ -135,7 +146,7 @@ __kernel void update_z1_tgv_line(__global float8 *zn1, __global float8 *zn, __gl
   size_t NSl = get_global_size(0);
   size_t x = get_global_id(2), y = get_global_id(1);
   size_t k = get_global_id(0);
-  size_t i = k*Nx*Ny+Nx*y + x;
+  size_t i = k*NUk*Nx*Ny+Nx*y + x;
 
   float fac = 0.0f;
 
@@ -145,9 +156,13 @@ __kernel void update_z1_tgv_line(__global float8 *zn1, __global float8 *zn, __gl
 
      fac = alphainv * hypot(fac,hypot(hypot(zn1[i].s0,zn1[i].s1), hypot(hypot(zn1[i].s2,zn1[i].s3),hypot(zn1[i].s4,zn1[i].s5))));
 
-     if (fac > 1.0f) zn1[i] /= fac;
-
-     i += NSl*Nx*Ny;
+     i += Nx*Ny;
+  }
+  i = k*NUk*Nx*Ny + Nx*y + x;
+  for (int uk=0; uk<NUk; uk++)
+  {
+     if (fac > 1.0f) zn1[i] /=fac;
+     i += Nx*Ny;
   }
 }
 
@@ -158,7 +173,7 @@ __kernel void update_z2_tgv_line(__global float16 *zn1, __global float16 *zn, __
   size_t NSl = get_global_size(0);
   size_t x = get_global_id(2), y = get_global_id(1);
   size_t k = get_global_id(0);
-  size_t i = k*Nx*Ny+Nx*y + x;
+  size_t i = k*NUk*Nx*Ny+Nx*y + x;
 
   float fac = 0.0f;
 
@@ -170,10 +185,14 @@ __kernel void update_z2_tgv_line(__global float16 *zn1, __global float16 *zn, __
      hypot(hypot(hypot(zn1[i].s0,zn1[i].s1), hypot(zn1[i].s2,zn1[i].s3)),hypot(zn1[i].s4,zn1[i].s5)),
      hypot(hypot(2.0f*hypot(zn1[i].s6,zn1[i].s7),2.0f*hypot(zn1[i].s8,zn1[i].s9)),2.0f*hypot(zn1[i].sa,zn1[i].sb))));
 
-     if (fac > 1.0f) zn1[i] /=fac;
-
-     i += NSl*Nx*Ny;
+     i += Nx*Ny;
    }
+  i = k*NUk*Nx*Ny + Nx*y + x;
+  for (int uk=0; uk<NUk; uk++)
+  {
+     if (fac > 1.0f) zn1[i] /=fac;
+     i += Nx*Ny;
+  }
 }
 
 __kernel void operator_fwd_ssense(__global float2 *out, __global float2 *in,

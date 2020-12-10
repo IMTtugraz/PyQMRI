@@ -8,7 +8,7 @@ import pyqmri.solver as pyqmrisl
 from pyqmri._my_helper_fun.import_data import import_data
 from pyqmri._my_helper_fun.display_data import *
 from pyqmri._my_helper_fun.export_data import *
-from pyqmri._my_helper_fun.recon import phase_recon_cl_3d, soft_sense_recon_cl, calculate_cost
+from pyqmri._my_helper_fun.recon import phase_recon_cl_3d, phase_recon_cl, soft_sense_recon_cl, calculate_cost
 from pyqmri._my_helper_fun.helpers import *
 from pyqmri.pyqmri import _setupOCL
 from pkg_resources import resource_filename
@@ -44,21 +44,21 @@ def _setup_par(par, myargs, ksp_data):
     par["par_slices"] = par["NSlice"]
 
     if myargs.streamed:
-        par["par_slices"] = int(par["NSlice"] / len(par["num_dev"]))
+        par["par_slices"] = int(par["NSlice"] / (2 * len(par["num_dev"])))
         par["overlap"] = 1
 
 
 def _setup_irgn_par(irgn_par, myargs):
     irgn_par["display_iterations"] = False
-    irgn_par["accelerated"] = False
+    irgn_par["accelerated"] = myargs.accelerated
     irgn_par["tol"] = 1e-8
-    irgn_par["stag"] = 1000
+    irgn_par["stag"] = 1e10
     irgn_par["sigma"] = np.float32(1 / np.sqrt(12))
     irgn_par["lambd"] = myargs.lamda
     irgn_par["alpha0"] = np.sqrt(2)  # 2D --> np.sqrt(2), 3D --> np.sqrt(3)
     irgn_par["alpha1"] = 1   # 1
-    irgn_par["delta"] = 2
-    irgn_par["gamma"] = 1
+    irgn_par["delta"] = 10
+    irgn_par["gamma"] = 1e-5
 
 
 def _power_iterations(par, x, cmaps, op, iters=100):
@@ -175,18 +175,7 @@ def _pda_soft_sense_solver(myargs, par, ksp, cmaps, imgs, imgs_us):
     grad_op = pyqmirop.Operator.GradientOperatorFactory(par, prg, DTYPE, DTYPE_real, myargs.streamed)
     symgrad_op = pyqmirop.Operator.SymGradientOperatorFactory(par, prg, DTYPE, DTYPE_real, myargs.streamed)
 
-    # inp_noise = np.random.randn(par["NMaps"], par["NSlice"], par["dimY"], par["dimX"]) +\
-    #        1j * np.random.randn(par["NMaps"], par["NSlice"], par["dimY"], par["dimX"])
-    # inp_noise = inp_noise.astype(DTYPE) * 1e-4
-    # inp = inp_noise
-
-    # inp = imgs_us.astype(DTYPE)
-    # inp = imgs.astype(DTYPE)
-
-    # if reg_type != '':
-    # irgn_par["sigma"] = np.float32(1 / np.sqrt(12))
-
-    fval = calculate_cost(myargs, irgn_par, inp, np.zeros(inp.shape+(3,)), ksp, cmaps)
+    fval = calculate_cost(myargs, irgn_par, imgs_us, np.zeros(inp.shape+(3,)), ksp, cmaps)
 
     if not myargs.streamed:
         cmaps = cla.to_device(op.queue, cmaps)
@@ -209,17 +198,22 @@ def _pda_soft_sense_solver(myargs, par, ksp, cmaps, imgs, imgs_us):
 
 def _3d_recon(imgs, ksp_data, cmaps, par, myargs):
     if myargs.undersampling:
-        ksp_data = undersample_kspace(par, ksp_data, acc=myargs.acceleration_factor, dim=myargs.dim_us)
+        ksp_data = undersample_kspace(par, ksp_data, myargs)
+
+    if myargs.streamed:
+        data_trans_axes = (2, 0, 1, 3, 4)
+        ksp_data = np.transpose(ksp_data, data_trans_axes)
+        cmaps = np.transpose(cmaps, data_trans_axes)
 
     out_undersampled = soft_sense_recon_cl(myargs, par, ksp_data, cmaps)
 
     if myargs.streamed:
         out_undersampled_ = np.moveaxis(out_undersampled, [0, 1], [1, 0])
-        img_montage(sum_of_squares(out_undersampled_), '2D reconstruction of undersampled data with adjoint operator')
+        img_montage(sum_of_squares(out_undersampled_), '3D reconstruction of undersampled data with adjoint operator')
     else:
-        img_montage(sum_of_squares(out_undersampled), '2D reconstruction of undersampled data with adjoint operator')
+        img_montage(sum_of_squares(out_undersampled), '3D reconstruction of undersampled data with adjoint operator')
 
-    out_pd = _pda_soft_sense_solver(myargs, par, ksp_data, cmaps, imgs, out_undersampled, myargs.reg_type)
+    out_pd = _pda_soft_sense_solver(myargs, par, ksp_data, cmaps, imgs, out_undersampled)
 
     x_orig = normalize_imgs(sum_of_squares(imgs))
     x_ssense = normalize_imgs(sum_of_squares(out_pd))
@@ -231,6 +225,7 @@ def _3d_recon(imgs, ksp_data, cmaps, par, myargs):
 def _2d_recon(imgs, ksp_data, cmaps, par, myargs):
 
     ksp_data2d = gen_2ddata_from_imgs(imgs, cmaps)
+    ksp_data2d = prepare_data(ksp_data2d).astype(DTYPE)
 
     if myargs.undersampling:
         ksp_data2d = undersample_kspace(par, ksp_data2d, myargs)
@@ -238,15 +233,15 @@ def _2d_recon(imgs, ksp_data, cmaps, par, myargs):
     # Select only several slices (performance/duration)
     n_slice = 4
     par["NSlice"] = n_slice
-    par["par_slices"] = int(par["NSlice"] / len(par["num_dev"])) if myargs.streamed else n_slice
+    par["par_slices"] = int(par["NSlice"] / (2 * len(par["num_dev"]))) if myargs.streamed else n_slice
 
     ksp_data2d = ksp_data2d[:, :, 21:21+n_slice, :, :]
     cmaps = cmaps[:, :, 21:21+n_slice, ...]
     imgs = imgs[:, 21:21+n_slice, ...]
 
-    ksp_data2d = np.repeat(ksp_data2d[:, :, [0], :, :], 4, axis=2)
-    cmaps = np.repeat(cmaps[:, :, [0], :, :], 4, axis=2)
-    imgs = np.repeat(imgs[:, [0], :, :], 4, axis=1)
+    # ksp_data2d = np.repeat(ksp_data2d[:, :, [0], :, :], n_slice, axis=2)
+    # cmaps = np.repeat(cmaps[:, :, [0], :, :], n_slice, axis=2)
+    # imgs = np.repeat(imgs[:, [0], :, :], n_slice, axis=1)
 
     if myargs.streamed:
         data_trans_axes = (2, 0, 1, 3, 4)
@@ -284,7 +279,9 @@ def _main(myargs):
     # NC * NSlice = 52 * 51 = 2652 --> not valid --> reduce NSlice to 50
     # also reorder kspace to (NScan (NMaps), NC, NSlice, y, x)
     ksp_data = np.moveaxis(ksp_data, [0, 1, 2, 3], [3, 2, 1, 0])
-    ksp_data = ksp_data[:, :50, :, :] * 1e4  # without scaling --> numerical errors --> no reasonable solution
+    ksp_data = ksp_data[:, :50, :, :]  # without scaling --> numerical errors --> no reasonable solution
+    # rescale with sqrt(X*Y*Z)
+    ksp_data = prepare_data(ksp_data, rescale=True, recon_type='3D').astype(DTYPE)
     ksp_data = np.expand_dims(ksp_data, axis=0)
     cs_data = cs_data[:, :, :50, :, :]
     cmaps = cs_data.view(DTYPE)
@@ -296,9 +293,6 @@ def _main(myargs):
 
     imgs = phase_recon_cl_3d(ksp_data, cmaps, par)
     img_montage(sum_of_squares(imgs), 'Phase sensitive reconstruction 3D')
-
-    # fftshift included in operators by masking with checker
-    # ksp_data = prepare_data(ksp_data, myargs.type)
 
     if myargs.type == '2D':
         out_ssense, out_orig, out_diff = _2d_recon(imgs, ksp_data, cmaps, par, myargs)
@@ -318,6 +312,7 @@ def _main(myargs):
     save_data(out_ssense, par, irgn_par, myargs)
     # save_data(out_orig, par, irgn_par, myargs, filename='fully_sampled_recon', ds_name='dataset', store_attrs=False)
     save_imgs(out_ssense, myargs)
+    save_imgs(out_diff, myargs, 'diffs')
 
 
 if __name__ == '__main__':
@@ -340,15 +335,16 @@ if __name__ == '__main__':
 
     args.trafo = False
     args.use_GPU = True
-    args.streamed = True
+    args.streamed = False
     args.devices = -1
     args.kspfile = Path.cwd() / 'data_soft_sense_test' / 'kspace.mat'
     args.csfile = Path.cwd() / 'data_soft_sense_test' / 'sensitivities_ecalib.mat'
 
     # args.type = '3D'
-    args.reg_type = 'TV'  # '', 'TV', or 'TGV'
+    args.reg_type = ''  # '', 'TV', or 'TGV'
     args.linesearch = False
-    # args.lamda = 0.1
+    args.accelerated = False
+    args.lamda = 10.0
     args.undersampling = True
     args.dim_us = 'y'
     args.acceleration_factor = 4

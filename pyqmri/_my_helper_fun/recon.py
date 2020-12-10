@@ -36,7 +36,9 @@ def phase_recon_cl(x, cmap, par):
                                         x[n, c, ...][None, None, ...],
                                         requirements='C'))
             fft.FFTH(tmp_result, clainput).wait()
-            result[n, c, ...] = np.fft.fftshift(np.squeeze(tmp_result.get()), axes=par["fft_dim"])
+            # result[n, c, ...] = np.fft.fftshift(np.squeeze(tmp_result.get()), axes=par["fft_dim"])
+            result[n, c, ...] = np.squeeze(tmp_result.get())
+
     print("FT took %f s" % (time.time() - start))
 
     return np.stack((np.require(np.sum(result[0, ...] * np.conj(cmap[0, ...]), axis=0), requirements='C'),
@@ -61,7 +63,7 @@ def phase_recon_cl_3d(x, cmap, par):
 
     start = time.time()
     for n in range(size[0]):
-        x_shifted[n, ...] = np.fft.fftshift(x[n, ...], axes=(-3, -2, -1))
+        # x_shifted[n, ...] = np.fft.fftshift(x[n, ...], axes=(-3, -2, -1))
         clainput = cla.to_device(fft.queue,
                                 np.require(
                                     x_shifted[n, ...][None, ...],
@@ -70,7 +72,7 @@ def phase_recon_cl_3d(x, cmap, par):
         fft.FFTH(tmp_result, clainput).wait()
 
         tmp_result = tmp_result.get()
-        tmp_result[n, ...] = np.fft.fftshift(tmp_result[n, ...], axes=(-3, -2, -1))
+        # tmp_result[n, ...] = np.fft.fftshift(tmp_result[n, ...], axes=(-3, -2, -1))
         result[n, ...] = np.squeeze(tmp_result)
     print("FT took %f s" % (time.time() - start))
 
@@ -343,10 +345,10 @@ def calculate_cost(myargs, par, x, v, ksp, cmaps):
 
     reg_cost = 0
     if myargs.reg_type == 'TV':
-        cost *= myargs.lamda * 0.5
+        cost *= (myargs.lamda * 0.5)
         reg_cost = np.sum(np.abs(_gradient(x)))
     if myargs.reg_type == 'TGV':
-        cost *= myargs.lamda * 0.5
+        cost *= (myargs.lamda * 0.5)
         reg_cost = par['alpha1'] * np.sum(np.abs(_gradient(x) - v)) + par['alpha0'] * np.sum(np.abs(_sym_grad(v)))
 
     return cost + reg_cost

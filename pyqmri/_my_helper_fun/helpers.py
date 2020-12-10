@@ -97,10 +97,12 @@ def calc_image_metrics(imgs, orig_imgs):
     return mse, psnr, ssim
 
 
-def prepare_data(ksp, recon_type='2D'):
+def prepare_data(ksp, rescale=False, recon_type='2D'):
+    shape = np.shape(ksp)
+    z, y, x = shape[-3:]
     check = np.ones_like(ksp)  # + 1j * np.ones_like(ksp)
     check[..., 1::2] = -1   # - 1j
     check[..., ::2, :] *= -1   # - 1j
     if recon_type == '3D':
         check[..., ::2, :, :] *= -1   # - 1j
-    return ksp * check
+    return ksp * check * np.sqrt(z * y * x) if rescale else ksp * check
