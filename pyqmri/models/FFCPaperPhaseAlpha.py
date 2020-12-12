@@ -24,7 +24,7 @@ class Model(BaseModel):
             self.t = self.t[None]
 
         self.numT1Scale = len(self.b)
-        self.numC = len(self.b)
+        self.numC = 1#len(self.b)
         self.numAlpha = len(self.b)
 
         par["unknowns_TGV"] = self.numC + self.numAlpha + len(self.b)
@@ -43,12 +43,12 @@ class Model(BaseModel):
             self.constraints.append(
                 constraints(0,
                             1000,
-                            False))
+                            True))
         for j in range(self.numAlpha):
             self.constraints.append(
-                constraints(1,
-                            1,
-                            True))
+                constraints(0,
+                            2,
+                            False))
         for j in range(self.numT1Scale):
             self.constraints.append(
                 constraints(t1min,

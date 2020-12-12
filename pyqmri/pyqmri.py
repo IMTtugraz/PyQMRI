@@ -625,7 +625,7 @@ def _start_recon(myargs):
                         reg_type=myargs.reg,
                         DTYPE=par["DTYPE"],
                         DTYPE_real=par["DTYPE_real"])
-    f = h5py.File(par["outdir"]+"output_" + par["fname"], "a")
+    f = h5py.File(par["outdir"]+"output_" + par["fname"]+".h5", "a")
     f.create_dataset("images_ifft", data=images)
     f.attrs['data_norm'] = par["dscale"]
     f.close()
