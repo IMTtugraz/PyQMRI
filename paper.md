@@ -23,7 +23,7 @@ affiliations:
    index: 1
  - name: Institute of eHealth, University of Applied Sciences FH JOANNEUM, Graz, Austria
    index: 2
- - name: BioTechMed Graz
+ - name: BioTechMed Graz, Austria
    index: 3
 date: 15 September 2020
 bibliography: paper.bib
@@ -110,7 +110,7 @@ power of recent GPUs. Further, the ability to use symbolic equations to generate
 
 \pagebreak
 
-# Algorithmic
+# Algorithm
 `PyQMRI` deals with the following general problem structure:
 
 $$
