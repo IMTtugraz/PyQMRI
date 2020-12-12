@@ -110,7 +110,7 @@ power of recent GPUs. Further, the ability to use symbolic equations to generate
 
 \pagebreak
 
-# Algorithm
+# Algorithms
 `PyQMRI` deals with the following general problem structure:
 
 $$
