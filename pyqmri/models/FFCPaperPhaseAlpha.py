@@ -43,7 +43,7 @@ class Model(BaseModel):
             self.constraints.append(
                 constraints(0,
                             1000,
-                            True))
+                            False))
         for j in range(self.numAlpha):
             self.constraints.append(
                 constraints(0,
