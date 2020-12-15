@@ -2771,45 +2771,27 @@ class PDSoftSenseBaseSolver:
     on single precission complex input data.
     """
 
-    def __init__(self, par, irgn_par, queue, tau, fval, prg, coil, model):
-        """
-        PD reconstruction Object.
+    def __init__(self,
+                 par,
+                 ss_par,
+                 queue,
+                 tau,
+                 fval,
+                 prg,
+                 coil,
+                 DTYPE=np.complex64,
+                 DTYPE_real=np.float32):
 
-        Args
-        ----
-          par (dict): A python dict containing the necessary information to
-            setup the object. Needs to contain the number of slices (NSlice),
-            number of scans (NScan), image dimensions (dimX, dimY), number of
-            coils (NC), sampling points (N) and read outs (NProj)
-            a PyOpenCL queue (queue) and the complex coil
-            sensitivities (C).
-          irgn_par (dict): A python dict containing the regularization
-            parameters for a given gauss newton step.
-          queue (list): A list of PyOpenCL queues to perform the optimization.
-          tau (float): Estimate of the initial step size based on the
-            operator norm of the linear operator.
-          fval (float): Estimate of the initial cost function value to
-            scale the displayed values.
-          prg (PyOpenCL Program): A PyOpenCL Program containing the
-            kernels for optimization.
-          reg_type (string): String to choose between "TV" and "TGV"
-            optimization.
-          data_operator (PyQMRI Operator): The operator to traverse from
-            parameter to data space.
-          coils (PyOpenCL Buffer or empty List): optional coil buffer.
-          NScan (int): Number of Scan which should be used internally. Do not
-            need to be the same number as in par["NScan"]
-          trafo (bool): Switch between radial (1) and Cartesian (0) fft.
-          and slice accelerated (1) reconstruction.
-        """
-        self.sigma = irgn_par["sigma"]
-        self.delta = irgn_par["delta"]
-        self.gamma = irgn_par["gamma"]
-        self.lambd = irgn_par["lambd"]
-        self.accelerated = irgn_par["accelerated"]
-        self.stag = irgn_par["stag"]
-        self.tol = irgn_par["tol"]
-        self.display_iterations = irgn_par["display_iterations"]
+        self._DTYPE = DTYPE
+        self._DTYPE_real = DTYPE_real
+        self.sigma = ss_par["sigma"]
+        self.delta = ss_par["delta"]
+        self.gamma = ss_par["gamma"]
+        self.lambd = ss_par["lambd"]
+        self.accelerated = ss_par["accelerated"]
+        self.stag = ss_par["stag"]
+        self.tol = ss_par["tol"]
+        self.display_iterations = ss_par["display_iterations"]
         self.tau = tau
         self.unknowns = par["unknowns"]
         self.num_dev = len(par["num_dev"])
@@ -2818,7 +2800,6 @@ class PDSoftSenseBaseSolver:
         self._prg = prg
         self._queue = queue
         self._coils = coil
-        self.model = model
         self._kernelsize = (par["par_slices"] + par["overlap"], par["dimY"],
                             par["dimX"])
 
@@ -2827,14 +2808,14 @@ class PDSoftSenseBaseSolver:
             prg,
             queue,
             par,
-            irgn_par,
+            ss_par,
             init_fval,
             coils,
             linops,
-            model=None,
             reg_type='',
-            SMS=False,
-            streamed=False):
+            streamed=False,
+            DTYPE=np.complex64,
+            DTYPE_real=np.float32):
         """
         Generate a PDSolver object.
 
@@ -2867,79 +2848,79 @@ class PDSoftSenseBaseSolver:
         """
         if reg_type == '':
             if not streamed:
-                if not SMS:
-                    pdop = PDSoftSenseSolver(
-                        par,
-                        irgn_par,
-                        queue,
-                        np.float32(1 / np.sqrt(12)),
-                        init_fval,
-                        prg,
-                        linops,
-                        coils,
-                        model)
+                pdop = PDSoftSenseSolver(
+                    par,
+                    ss_par,
+                    queue,
+                    np.float32(1 / np.sqrt(12)),
+                    init_fval,
+                    prg,
+                    linops,
+                    coils,
+                    DTYPE=DTYPE,
+                    DTYPE_real=DTYPE_real)
             else:
-                if not SMS:
-                    pdop = PDSoftSenseSolverStreamed(
-                        par,
-                        irgn_par,
-                        queue,
-                        np.float32(1 / np.sqrt(12)),
-                        init_fval,
-                        prg,
-                        linops,
-                        coils,
-                        model)
+                pdop = PDSoftSenseSolverStreamed(
+                    par,
+                    ss_par,
+                    queue,
+                    np.float32(1 / np.sqrt(12)),
+                    init_fval,
+                    prg,
+                    linops,
+                    coils,
+                    DTYPE=DTYPE,
+                    DTYPE_real=DTYPE_real)
         elif reg_type == 'TV':
             if not streamed:
-                if not SMS:
-                    pdop = PDSoftSenseSolverTV(
-                        par,
-                        irgn_par,
-                        queue,
-                        np.float32(1 / np.sqrt(8)),
-                        init_fval,
-                        prg,
-                        linops,
-                        coils,
-                        model)
+                pdop = PDSoftSenseSolverTV(
+                    par,
+                    ss_par,
+                    queue,
+                    np.float32(1 / np.sqrt(8)),
+                    init_fval,
+                    prg,
+                    linops,
+                    coils,
+                    DTYPE=DTYPE,
+                    DTYPE_real=DTYPE_real)
             else:
-                if not SMS:
-                    pdop = PDSoftSenseSolverStreamedTV(
-                        par,
-                        irgn_par,
-                        queue,
-                        np.float32(1 / np.sqrt(8)),
-                        init_fval,
-                        prg,
-                        linops,
-                        coils,
-                        model)
+                pdop = PDSoftSenseSolverStreamedTV(
+                    par,
+                    ss_par,
+                    queue,
+                    np.float32(1 / np.sqrt(8)),
+                    init_fval,
+                    prg,
+                    linops,
+                    coils,
+                    DTYPE=DTYPE,
+                    DTYPE_real=DTYPE_real)
         elif reg_type == 'TGV':
             if not streamed:
-                if not SMS:
-                    pdop = PDSoftSenseSolverTGV(
-                        par,
-                        irgn_par,
-                        queue,
-                        np.float32(1 / np.sqrt(12)),
-                        init_fval,
-                        prg,
-                        linops,
-                        coils,
-                        model)
+                pdop = PDSoftSenseSolverTGV(
+                    par,
+                    ss_par,
+                    queue,
+                    np.float32(1 / np.sqrt(8)),
+                    init_fval,
+                    prg,
+                    linops,
+                    coils,
+                    DTYPE=DTYPE,
+                    DTYPE_real=DTYPE_real)
             else:
-                if not SMS:
-                    pdop = PDSoftSenseSolverStreamedTGV(
-                        par,
-                        irgn_par,
-                        queue,
-                        np.float32(1 / np.sqrt(8)),
-                        init_fval,
-                        prg,
-                        linops,
-                        coils,
-                        model)
+                pdop = PDSoftSenseSolverStreamedTGV(
+                    par,
+                    ss_par,
+                    queue,
+                    np.float32(1 / np.sqrt(8)),
+                    init_fval,
+                    prg,
+                    linops,
+                    coils,
+                    DTYPE=DTYPE,
+                    DTYPE_real=DTYPE_real)
         else:
             raise NotImplementedError
         return pdop
@@ -3007,7 +2988,6 @@ class PDSoftSenseBaseSolver:
                 out_primal=primal_vars_new,
                 out_fwd=tmp_results_forward,
                 in_primal=primal_vars,
-                in_dual=dual_vars_new,
                 in_precomp_adj=tmp_results_adjoint,
                 tau=tau,
                 theta=theta
@@ -3025,21 +3005,17 @@ class PDSoftSenseBaseSolver:
                 dual_vars[k] = dual_vars_new[k]
 
             if not np.mod(i, 10):
-                if self.display_iterations:
-                    if type(primal_vars["x"]) is np.ndarray:
-                        self.model.plot_unknowns(
-                            np.swapaxes(primal_vars["x"], 0, 1))
-                    else:
-                        self.model.plot_unknowns(primal_vars["x"].get())
+
                 primal_new, dual, gap = self._calcResidual(
                     in_primal=primal_vars,
                     in_dual=dual_vars,
                     in_precomp_fwd=tmp_results_forward,
                     data=data)
-                print("Iteration: %i" %i)
-                print("Primal: %f" %primal_new)
-                # print("Dual: %f" %dual)
-                print("Gap: %f" %gap)
+                if self.display_iterations:
+                    print("Iteration: %i" %i)
+                    print("Primal: %f" %primal_new)
+                    print("Dual: %f" %dual)
+                    print("Gap: %f" %gap)
                 if i == 0:
                     gap_init = gap
                 if np.abs(primal - primal_new)/self._fval_init <\
@@ -3049,10 +3025,10 @@ class PDSoftSenseBaseSolver:
                           (i,
                            np.abs(primal - primal_new)/self._fval_init))
                     return primal_vars_new
-                # if gap > gap_old * self.stag and i > 1:
-                #     print("Terminated at iteration %d "
-                #           "because the method stagnated" % (i))
-                #     return primal_vars_new
+                if gap > gap_old * self.stag and i > 1:
+                    print("Terminated at iteration %d "
+                          "because the method stagnated" % (i))
+                    return primal_vars_new
                 if np.abs((gap - gap_old) / gap_init) < self.tol:
                     print("Terminated at iteration %d because the "
                           "relative energy decrease of the PD gap was "
@@ -3071,30 +3047,48 @@ class PDSoftSenseBaseSolver:
 
         return primal_vars
 
-    def _updateInitial(self, outp, inp):
+    def _updateInitial(
+            self,
+            out_fwd,
+            out_adj,
+            in_primal,
+            in_dual):
         pass
 
-    def _updatePrimal(self, outp, inp, par):
+    def _updatePrimal(
+            self,
+            out_primal,
+            out_fwd,
+            in_primal,
+            in_precomp_adj,
+            tau,
+            theta):
         pass
 
-    def _updateDual(self, outp, inp, par):
-        pass
-
-    def _calcResidual(
+    def _updateDual(self,
+                    out_dual,
+                    out_adj,
                     in_primal,
                     in_dual,
                     in_precomp_fwd,
-                    data):
+                    data,
+                    sigma):
         pass
 
-    def _setupVariables(inps, data):
+    def _calcResidual(self,
+                      in_primal,
+                      in_dual,
+                      in_precomp_fwd,
+                      data):
         pass
 
-    def _calcStepSize(self):
+    def _setupVariables(self,
+                        inp,
+                        data):
         pass
 
     def update_x(self, outp, inp, par=None, idx=0, idxq=0,
-                 bound_cond=0, wait_for=[]):
+                 bound_cond=0, wait_for=None):
         """
         Primal update of the x variable in Primal-Dual Algorithm.
 
@@ -3109,17 +3103,19 @@ class PDSoftSenseBaseSolver:
             PD-algorithm
           wait_for (list): A optional list for PyOpenCL.events to wait for
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_x(
             self._queue[4*idx+idxq], (outp.size,), None,
             outp.data,
             inp[0].data,
             inp[1].data,
-            np.float32(par[0]),
-            np.float32(par[1]),
+            self._DTYPE_real(par[0]),
+            self._DTYPE_real(par[1]),
             wait_for=outp.events + inp[0].events + inp[1].events + wait_for)
 
     def update_x_tgv(self, outp, inp, par=None, idx=0, idxq=0,
-                 bound_cond=0, wait_for=[]):
+                 bound_cond=0, wait_for=None):
         """
         Primal update of the v variable in Primal-Dual Algorithm.
 
@@ -3136,19 +3132,21 @@ class PDSoftSenseBaseSolver:
             PD-algorithm
           wait_for (list): A optional list for PyOpenCL.events to wait for
         """
-        return self._prg[idx].update_x_tgv(
+        if wait_for is None:
+            wait_for = []
+        return self._prg[idx].update_x_explicit(
             self._queue[4 * idx + idxq], (outp.size,), None,
             outp.data,
             inp[0].data,
             inp[1].data,
             inp[2].data,
-            np.float32(par[0]),         # tau
-            np.float32(par[1]),         # theta
+            self._DTYPE_real(par[0]),         # tau
+            self._DTYPE_real(par[1]),         # theta
             wait_for=outp.events + inp[0].events +
                      inp[1].events + inp[2].events + wait_for)
 
     def update_y(self, outp, inp, par=None, idx=0, idxq=0,
-                 bound_cond=0, wait_for=[]):
+                 bound_cond=0, wait_for=None):
         """
         Update the data dual variable y.
 
@@ -3164,19 +3162,21 @@ class PDSoftSenseBaseSolver:
             data fidelity term
           wait_for (list): A optional list for PyOpenCL.events to wait for
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_y(
             self._queue[4*idx+idxq], (outp.size,), None,
             outp.data,
             inp[0].data,
             inp[1].data,
             inp[2].data,
-            np.float32(par[0]),           # sigma
-            np.float32(1 / par[1]),       # lambdainv
+            self._DTYPE_real(par[0]),           # sigma
+            self._DTYPE_real(1 / par[1]),       # lambdainv
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+wait_for))
 
     def update_z_tv(self, outp, inp, par=None, idx=0, idxq=0,
-                     bound_cond=0, wait_for=[]):
+                     bound_cond=0, wait_for=None):
         """
         Dual update of the z variable in Primal-Dual Algorithm for TV.
 
@@ -3188,29 +3188,33 @@ class PDSoftSenseBaseSolver:
           sigma (float): Dual step size
           wait_for (list): A optional list for PyOpenCL.events to wait for
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_z_tv(
             self._queue[4*idx+idxq],
             self._kernelsize, None,
             outp.data,
             inp[0].data,
             inp[1].data,
-            np.float32(par[0]),
+            self._DTYPE_real(par[0]),
             np.int32(self.unknowns),
             wait_for=(outp.events + inp[0].events +
                       inp[1].events + wait_for))
 
     def update_Kyk2(self, outp, inp, par=None, idx=0, idxq=0,
-                    bound_cond=0, wait_for=[]):
+                    bound_cond=0, wait_for=None):
         """
         Precompute the v-part of the Adjoint Linear operator.
 
         Args
         ----
-          div (PyOpenCL.Array): The result of the computation
-          u (PyOpenCL.Array): Dual Variable of the symmetrized gradient of TGV
+          w (PyOpenCL.Array): The result of the computation
+          q (PyOpenCL.Array): Dual Variable of the symmetrized gradient of TGV
           z (PyOpenCL.Array): Dual Variable of the gradient of TGV
           wait_for (list): A optional list for PyOpenCL.events to wait for
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_Kyk2(
             self._queue[4*idx+idxq],
             self._kernelsize, None,
@@ -3218,11 +3222,11 @@ class PDSoftSenseBaseSolver:
             np.int32(self.unknowns),
             par[idx].data,
             np.int32(bound_cond),
-            np.float32(self.dz),
+            self._DTYPE_real(self.dz),
             wait_for=outp.events + inp[0].events + inp[1].events+wait_for)
 
     def update_z1_tgv(self, outp, inp, par=None, idx=0, idxq=0,
-                      bound_cond=0, wait_for=[]):
+                      bound_cond=0, wait_for=None):
         """
         Dual update of the z1 variable in Primal-Dual Algorithm for TGV.
 
@@ -3237,6 +3241,8 @@ class PDSoftSenseBaseSolver:
             TGV functional
           wait_for (list): A optional list for PyOpenCL.events to wait for
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_z1_tgv(
             self._queue[4*idx+idxq],
             self._kernelsize, None,
@@ -3244,14 +3250,14 @@ class PDSoftSenseBaseSolver:
             inp[0].data,
             inp[1].data,
             inp[2].data,
-            np.float32(par[0]),
-            np.float32(1 / par[1]),
+            self._DTYPE_real(par[0]),
+            self._DTYPE_real(1 / par[1]),
             np.int32(self.unknowns),
             wait_for=(outp.events + inp[0].events + inp[1].events +
                       inp[2].events + wait_for))
 
     def update_z2_tgv(self, outp, inp, par=None, idx=0, idxq=0,
-                      bound_cond=0, wait_for=[]):
+                      bound_cond=0, wait_for=None):
         """
         Dual update of the z2 variable in Primal-Dual Algorithm for TGV.
 
@@ -3267,20 +3273,22 @@ class PDSoftSenseBaseSolver:
             TGV functional
           wait_for (list): A optional list for PyOpenCL.events to wait for
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_z2_tgv(
             self._queue[4*idx+idxq],
             self._kernelsize, None,
             outp.data,
             inp[0].data,
             inp[1].data,
-            np.float32(par[0]),
-            np.float32(1 / par[1]),
+            self._DTYPE_real(par[0]),
+            self._DTYPE_real(1 / par[1]),
             np.int32(self.unknowns),
             wait_for=(outp.events + inp[0].events +
                       inp[1].events + wait_for))
 
-    def update_v_tgv(self, outp, inp, par=None, idx=0, idxq=0,
-                 bound_cond=0, wait_for=[]):
+    def update_v(self, outp, inp, par=None, idx=0, idxq=0,
+                 bound_cond=0, wait_for=None):
         """
         Primal update of the v variable in Primal-Dual Algorithm.
 
@@ -3296,10 +3304,12 @@ class PDSoftSenseBaseSolver:
             PD-algorithm
           wait_for (list): A optional list for PyOpenCL.events to wait for
         """
-        return self._prg[idx].update_v_tgv(
+        if wait_for is None:
+            wait_for = []
+        return self._prg[idx].update_v_explicit(
             self._queue[4*idx+idxq], (outp.size,), None,
             outp.data, inp[0].data, inp[1].data, inp[2].data,
-            np.float32(par[0]), np.float32(par[1]),
+            self._DTYPE_real(par[0]), self._DTYPE_real(par[1]),
             wait_for=outp.events+inp[0].events+inp[1].events+inp[2].events+wait_for)
 
 
@@ -3307,22 +3317,32 @@ class PDSoftSenseSolver(PDSoftSenseBaseSolver):
     """
     PD Algorithm for Soft Sense reconstruction without regularization
     """
-    def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model):
+    def __init__(self,
+                 par,
+                 ss_par,
+                 queue,
+                 tau,
+                 fval,
+                 prg,
+                 linop,
+                 coils,
+                 **kwargs
+                 ):
 
         super().__init__(
             par,
-            irgn_par,
+            ss_par,
             queue,
             tau,
             fval,
             prg,
             coils,
-            model)
+            **kwargs)
+
         self._op = linop[0]
 
     def _setupVariables(self, inp, data):
-        data = clarray.to_device(self._queue[0], data.astype(DTYPE))
+        data = clarray.to_device(self._queue[0], data.astype(self._DTYPE))
 
         primal_vars = {}
         primal_vars_new = {}
@@ -3340,8 +3360,9 @@ class PDSoftSenseSolver(PDSoftSenseBaseSolver):
         dual_vars["y"] = clarray.zeros(
             self._queue[0],
             data.shape,
-            dtype=DTYPE
+            dtype=self._DTYPE
         )
+
         dual_vars_new["y"] = clarray.zeros_like(dual_vars["y"])
 
         tmp_results_forward["Kx"] = clarray.empty_like(data)
@@ -3355,8 +3376,10 @@ class PDSoftSenseSolver(PDSoftSenseBaseSolver):
                 data)
 
     def _updateInitial(self,
-                       out_fwd, out_adj,
-                       in_primal, in_dual):
+                       out_fwd,
+                       out_adj,
+                       in_primal,
+                       in_dual):
         out_adj["Kay"].add_event(self._op.adj(
                 out_adj["Kay"], [in_dual["y"], self._coils]))
 
@@ -3364,13 +3387,16 @@ class PDSoftSenseSolver(PDSoftSenseBaseSolver):
                 out_fwd["Kx"], [in_primal["x"], self._coils]))
 
     def _updatePrimal(self,
-                      out_primal, out_fwd,
-                      in_primal, in_dual, in_precomp_adj,
-                      tau, theta):
+                      out_primal,
+                      out_fwd,
+                      in_primal,
+                      in_precomp_adj,
+                      tau,
+                      theta):
         out_primal["x"].add_event(self.update_x(
             outp=out_primal["x"],
             inp=(in_primal["x"], in_precomp_adj["Kay"]),
-            par=(tau, theta)))  # 2nd parameter is theta, set to 1
+            par=(tau, theta)))
 
         out_fwd["Kx"].add_event(self._op.fwd(
             out_fwd["Kx"], [out_primal["x"], self._coils]))
@@ -3397,10 +3423,10 @@ class PDSoftSenseSolver(PDSoftSenseBaseSolver):
                ))
 
     def _calcResidual(self,
-                    in_primal,
-                    in_dual,
-                    in_precomp_fwd,
-                    data):
+                      in_primal,
+                      in_dual,
+                      in_precomp_fwd,
+                      data):
 
         primal = (
             clarray.vdot(
@@ -3419,31 +3445,37 @@ class PDSoftSenseSolver(PDSoftSenseBaseSolver):
         gap = np.abs(primal - dual)
         return primal.get(), dual.get(), gap.get()
 
-    def _calcStepSize(self):
-        pass
-
 
 class PDSoftSenseSolverTV(PDSoftSenseBaseSolver):
     """
     PD Algorithm for Soft Sense reconstruction with TV regularization
     """
-    def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model):
+    def __init__(self,
+                 par,
+                 ss_par,
+                 queue,
+                 tau,
+                 fval,
+                 prg,
+                 linop,
+                 coils,
+                 **kwargs
+                 ):
 
         super().__init__(
             par,
-            irgn_par,
+            ss_par,
             queue,
             tau,
             fval,
             prg,
             coils,
-            model)
+            **kwargs)
         self._op = linop[0]
         self._grad_op = linop[1]
 
     def _setupVariables(self, inp, data):
-        data = clarray.to_device(self._queue[0], data.astype(DTYPE))
+        data = clarray.to_device(self._queue[0], data.astype(self._DTYPE))
 
         primal_vars = {}
         primal_vars_new = {}
@@ -3452,8 +3484,6 @@ class PDSoftSenseSolverTV(PDSoftSenseBaseSolver):
         primal_vars["x"] = clarray.to_device(self._queue[0], inp)
         primal_vars_new["x"] = clarray.empty_like(primal_vars["x"])
 
-        # tmp_results_adjoint["Kay"] = clarray.empty_like(primal_vars["x"])
-        # tmp_results_adjoint["divz"] = clarray.empty_like(primal_vars["x"])
         tmp_results_adjoint["Kyk1"] = clarray.empty_like(primal_vars["x"])
 
         dual_vars = {}
@@ -3463,11 +3493,11 @@ class PDSoftSenseSolverTV(PDSoftSenseBaseSolver):
         dual_vars["y"] = clarray.zeros(
             self._queue[0],
             data.shape,
-            dtype=DTYPE
+            dtype=self._DTYPE
         )
         dual_vars["z"] = clarray.zeros(self._queue[0],
                                        primal_vars["x"].shape+(4,),
-                                       dtype=DTYPE)
+                                       dtype=self._DTYPE)
 
         dual_vars_new["y"] = clarray.zeros_like(dual_vars["y"])
         dual_vars_new["z"] = clarray.zeros_like(dual_vars["z"])
@@ -3488,10 +3518,7 @@ class PDSoftSenseSolverTV(PDSoftSenseBaseSolver):
                        in_primal, in_dual):
         out_adj["Kyk1"].add_event(self._op.adjKyk1(
             out=out_adj["Kyk1"],
-            inp=[in_dual["y"], self._coils, in_dual["z"], self._grad_op._ratio]))
-
-        # out_adj["Kay"].add_event(self._op.adj(
-        #         out_adj["Kay"], [in_dual["y"], self._coils]))
+            inp=[in_dual["y"], self._coils, in_dual["z"], self._grad_op.ratio]))
 
         out_fwd["Kx"].add_event(self._op.fwd(
                 out_fwd["Kx"], [in_primal["x"], self._coils]))
@@ -3501,17 +3528,12 @@ class PDSoftSenseSolverTV(PDSoftSenseBaseSolver):
 
     def _updatePrimal(self,
                       out_primal, out_fwd,
-                      in_primal, in_dual, in_precomp_adj,
+                      in_primal, in_precomp_adj,
                       tau, theta):
         out_primal["x"].add_event(self.update_x(
             outp=out_primal["x"],
             inp=(in_primal["x"], in_precomp_adj["Kyk1"]),
             par=(tau, theta)))
-
-        # out_primal["x"].add_event(self.update_x_tgv(
-        #     outp=out_primal["x"],
-        #     inp=(in_primal["x"], in_precomp_adj["Kay"], in_precomp_adj["divz"]),
-        #     par=(tau, theta)))
 
         out_fwd["Kx"].add_event(self._op.fwd(
             out_fwd["Kx"], [out_primal["x"], self._coils]))
@@ -3533,32 +3555,21 @@ class PDSoftSenseSolverTV(PDSoftSenseBaseSolver):
                 inp=(in_dual["y"], in_precomp_fwd["Kx"], data),
                 par=(sigma, self.lambd)))
 
-        # out_adj["Kay"].add_event(
-        #     self._op.adj(
-        #         out_adj["Kay"],
-        #         [out_dual["y"],
-        #          self._coils],))
-
         out_dual["z"].add_event(
             self.update_z_tv(
                 outp=out_dual["z"],
                 inp=(in_dual["z"], in_precomp_fwd["gradx"]),
                 par=(sigma, self.lambd)))
 
-        # out_adj["divz"].add_event(
-        #     self._grad_op.adj(
-        #         out_adj["divz"],
-        #         out_dual["z"]))
-
         out_adj["Kyk1"].add_event(self._op.adjKyk1(
             out=out_adj["Kyk1"],
-            inp=[out_dual["y"], self._coils, out_dual["z"], self._grad_op._ratio]))
+            inp=[out_dual["y"], self._coils, out_dual["z"], self._grad_op.ratio]))
 
     def _calcResidual(self,
-                    in_primal,
-                    in_dual,
-                    in_precomp_fwd,
-                    data):
+                      in_primal,
+                      in_dual,
+                      in_precomp_fwd,
+                      data):
 
         primal = (
             self.lambd / 2 * clarray.vdot(
@@ -3585,28 +3596,36 @@ class PDSoftSenseSolverTGV(PDSoftSenseBaseSolver):
     PD Algorithm for Soft Sense reconstruction with TGV regularization
     """
 
-    def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model):
+    def __init__(self,
+                 par,
+                 ss_par,
+                 queue,
+                 tau,
+                 fval,
+                 prg,
+                 linop,
+                 coils,
+                 **kwargs):
 
         super().__init__(
             par,
-            irgn_par,
+            ss_par,
             queue,
             tau,
             fval,
             prg,
             coils,
-            model)
+            **kwargs)
 
-        self.alpha_0 = irgn_par["alpha0"]      # alpha_0
-        self.alpha_1 = irgn_par["alpha1"]      # alpha_1
+        self.alpha_0 = ss_par["alpha0"]      # alpha_0
+        self.alpha_1 = ss_par["alpha1"]      # alpha_1
 
         self._op = linop[0]
         self._grad_op = linop[1]
         self._symgrad_op = linop[2]
 
     def _setupVariables(self, inp, data):
-        data = clarray.to_device(self._queue[0], data.astype(DTYPE))
+        data = clarray.to_device(self._queue[0], data.astype(self._DTYPE))
 
         primal_vars = {}
         primal_vars_new = {}
@@ -3615,16 +3634,12 @@ class PDSoftSenseSolverTGV(PDSoftSenseBaseSolver):
         primal_vars["x"] = clarray.to_device(self._queue[0], inp)
         primal_vars["v"] = clarray.zeros(self._queue[0],
                                          primal_vars["x"].shape+(4,),
-                                         dtype=DTYPE)
+                                         dtype=self._DTYPE)
         primal_vars_new["x"] = clarray.empty_like(primal_vars["x"])
         primal_vars_new["v"] = clarray.empty_like(primal_vars["v"])
 
         tmp_results_adjoint["Kyk1"] = clarray.empty_like(primal_vars["x"])
         tmp_results_adjoint["Kyk2"] = clarray.empty_like(primal_vars["v"])
-
-        #tmp_results_adjoint["Kay"] = clarray.empty_like(primal_vars["x"])
-        #tmp_results_adjoint["divz1"] = clarray.empty_like(primal_vars["x"])
-        #tmp_results_adjoint["asymgradz2"] = clarray.empty_like(primal_vars["v"])
 
         dual_vars = {}
         dual_vars_new = {}
@@ -3633,15 +3648,15 @@ class PDSoftSenseSolverTGV(PDSoftSenseBaseSolver):
         dual_vars["y"] = clarray.zeros(
             self._queue[0],
             data.shape,
-            dtype=DTYPE
+            dtype=self._DTYPE
         )
         dual_vars["z1"] = clarray.zeros(self._queue[0],
                                         primal_vars["x"].shape+(4,),
-                                        dtype=DTYPE)
+                                        dtype=self._DTYPE)
 
         dual_vars["z2"] = clarray.zeros(self._queue[0],
                                         primal_vars["x"].shape+(8,),
-                                        dtype=DTYPE)
+                                        dtype=self._DTYPE)
 
         dual_vars_new["y"] = clarray.empty_like(dual_vars["y"])
         dual_vars_new["z1"] = clarray.empty_like(dual_vars["z1"])
@@ -3660,20 +3675,20 @@ class PDSoftSenseSolverTGV(PDSoftSenseBaseSolver):
                 data)
 
     def _updateInitial(self,
-                       out_fwd, out_adj,
-                       in_primal, in_dual):
+                       out_fwd,
+                       out_adj,
+                       in_primal,
+                       in_dual):
+
         out_adj["Kyk1"].add_event(self._op.adjKyk1(
             out=out_adj["Kyk1"],
-            inp=[in_dual["y"], self._coils, in_dual["z1"], self._grad_op._ratio]))
-
-        # out_adj["Kay"].add_event(self._op.adj(
-        #         out_adj["Kay"], [in_dual["y"], self._coils]))
+            inp=[in_dual["y"], self._coils, in_dual["z1"], self._grad_op.ratio]))
 
         out_adj["Kyk2"].add_event(
             self.update_Kyk2(
                 outp=out_adj["Kyk2"],
                 inp=(in_dual["z2"], in_dual["z1"]),
-                par=[self._symgrad_op._ratio]))
+                par=[self._symgrad_op.ratio]))
 
         out_fwd["Kx"].add_event(self._op.fwd(
                 out_fwd["Kx"], [in_primal["x"], self._coils]))
@@ -3689,9 +3704,9 @@ class PDSoftSenseSolverTGV(PDSoftSenseBaseSolver):
                       out_primal,
                       out_fwd,
                       in_primal,
-                      in_dual,
                       in_precomp_adj,
-                      tau, theta):
+                      tau,
+                      theta):
 
         out_primal["x"].add_event(self.update_x(
             outp=out_primal["x"],
@@ -3703,21 +3718,11 @@ class PDSoftSenseSolverTGV(PDSoftSenseBaseSolver):
             inp=(in_primal["v"], in_precomp_adj["Kyk2"]),
             par=(tau, theta)))
 
-        # out_primal["x"].add_event(self.update_x_tgv(
-        #     outp=out_primal["x"],
-        #     inp=(in_primal["x"], in_precomp_adj["Kay"], in_precomp_adj["divz1"]),
-        #     par=(tau, theta)))
-
         out_fwd["Kx"].add_event(self._op.fwd(
             out_fwd["Kx"], [out_primal["x"], self._coils]))
 
         out_fwd["gradx"].add_event(self._grad_op.fwd(
             out_fwd["gradx"], out_primal["x"]))
-
-        # out_primal["v"].add_event(self.update_v_tgv(
-        #     outp=out_primal["v"],
-        #     inp=(in_primal["v"], in_dual["z1"], in_precomp_adj["asymgradz2"]),
-        #     par=(tau, theta)))
 
         out_fwd["symgradv"].add_event(self._symgrad_op.fwd(
             out_fwd["symgradv"], out_primal["v"]))
@@ -3737,12 +3742,6 @@ class PDSoftSenseSolverTGV(PDSoftSenseBaseSolver):
                 inp=(in_dual["y"], in_precomp_fwd["Kx"], data),
                 par=(sigma, self.lambd)))
 
-        # out_adj["Kay"].add_event(
-        #     self._op.adj(
-        #         out_adj["Kay"],
-        #         [out_dual["y"],
-        #          self._coils],))
-
         out_dual["z1"].add_event(
             self.update_z1_tgv(
                 outp=out_dual["z1"],
@@ -3751,7 +3750,7 @@ class PDSoftSenseSolverTGV(PDSoftSenseBaseSolver):
 
         out_adj["Kyk1"].add_event(self._op.adjKyk1(
             out=out_adj["Kyk1"],
-            inp=[out_dual["y"], self._coils, out_dual["z1"], self._grad_op._ratio]))
+            inp=[out_dual["y"], self._coils, out_dual["z1"], self._grad_op.ratio]))
 
         out_dual["z2"].add_event(
             self.update_z2_tgv(
@@ -3763,17 +3762,7 @@ class PDSoftSenseSolverTGV(PDSoftSenseBaseSolver):
             self.update_Kyk2(
                 outp=out_adj["Kyk2"],
                 inp=(out_dual["z2"], out_dual["z1"]),
-                par=[self._symgrad_op._ratio]))
-
-        # out_adj["divz1"].add_event(
-        #     self._grad_op.adj(
-        #         out_adj["divz1"],
-        #         out_dual["z1"]))
-        #
-        # out_adj["asymgradz2"].add_event(
-        #     self._symgrad_op.adj(
-        #         out_adj["asymgradz2"],
-        #         out_dual["z2"]))
+                par=[self._symgrad_op.ratio]))
 
     def _calcResidual(
             self,
@@ -3813,7 +3802,16 @@ class PDALSoftSenseBaseSolver:
     on single precission complex input data.
     """
 
-    def __init__(self, par, irgn_par, queue, tau, fval, prg, coil, model):
+    def __init__(self,
+                 par,
+                 ss_par,
+                 queue,
+                 tau,
+                 fval,
+                 prg,
+                 coil,
+                 DTYPE=np.complex64,
+                 DTYPE_real=np.float32):
         """
         PD reconstruction Object.
 
@@ -3844,15 +3842,17 @@ class PDALSoftSenseBaseSolver:
           trafo (bool): Switch between radial (1) and Cartesian (0) fft.
           and slice accelerated (1) reconstruction.
         """
-        self.sigma = irgn_par["sigma"]
-        self.delta = irgn_par["delta"]
-        self.lambd = irgn_par["lambd"]
-        self.stag = irgn_par["stag"]
-        self.tol = irgn_par["tol"]
-        self.display_iterations = irgn_par["display_iterations"]
+        self._DTYPE = DTYPE
+        self._DTYPE_real = DTYPE_real
+        self.sigma = ss_par["sigma"]
+        self.delta = ss_par["delta"]
+        self.lambd = ss_par["lambd"]
+        self.stag = ss_par["stag"]
+        self.tol = ss_par["tol"]
+        self.display_iterations = ss_par["display_iterations"]
         self.mu = 1 / self.delta
         self.tau = tau
-        self.beta_line = 1.0 # choice of beta_line and mu crucial for faster convergence
+        self.beta_line = 1.0  # choice of beta_line and mu crucial for faster convergence
         self.theta_line = np.float32(1.0)
         self.unknowns = par["unknowns"]
         self.num_dev = len(par["num_dev"])
@@ -3861,7 +3861,6 @@ class PDALSoftSenseBaseSolver:
         self._prg = prg
         self._queue = queue
         self._coils = coil
-        self.model = model
         self._kernelsize = (par["par_slices"] + par["overlap"], par["dimY"],
                             par["dimX"])
 
@@ -3870,14 +3869,14 @@ class PDALSoftSenseBaseSolver:
             prg,
             queue,
             par,
-            irgn_par,
+            ss_par,
             init_fval,
             coils,
             linops,
-            model=None,
             reg_type='',
-            SMS=False,
-            streamed=False):
+            streamed=False,
+            DTYPE=np.complex64,
+            DTYPE_real=np.float32):
         """
         Generate a PDSolver object.
 
@@ -3910,43 +3909,43 @@ class PDALSoftSenseBaseSolver:
         """
         if reg_type == '':
             if not streamed:
-                if not SMS:
-                    pdop = PDALSoftSenseSolver(
-                        par,
-                        irgn_par,
-                        queue,
-                        np.float32(1 / np.sqrt(12)),
-                        init_fval,
-                        prg,
-                        linops,
-                        coils,
-                        model)
+                pdop = PDALSoftSenseSolver(
+                    par,
+                    ss_par,
+                    queue,
+                    np.float32(1 / np.sqrt(12)),
+                    init_fval,
+                    prg,
+                    linops,
+                    coils,
+                    DTYPE=DTYPE,
+                    DTYPE_real=DTYPE_real)
         elif reg_type == 'TV':
             if not streamed:
-                if not SMS:
-                    pdop = PDALSoftSenseSolverTV(
-                        par,
-                        irgn_par,
-                        queue,
-                        np.float32(1 / np.sqrt(8)),
-                        init_fval,
-                        prg,
-                        linops,
-                        coils,
-                        model)
+                pdop = PDALSoftSenseSolverTV(
+                    par,
+                    ss_par,
+                    queue,
+                    np.float32(1 / np.sqrt(8)),
+                    init_fval,
+                    prg,
+                    linops,
+                    coils,
+                    DTYPE=DTYPE,
+                    DTYPE_real=DTYPE_real)
         elif reg_type == 'TGV':
             if not streamed:
-                if not SMS:
-                    pdop = PDALSoftSenseSolverTGV(
-                        par,
-                        irgn_par,
-                        queue,
-                        np.float32(1 / np.sqrt(12)),
-                        init_fval,
-                        prg,
-                        linops,
-                        coils,
-                        model)
+                pdop = PDALSoftSenseSolverTGV(
+                    par,
+                    ss_par,
+                    queue,
+                    np.float32(1 / np.sqrt(8)),
+                    init_fval,
+                    prg,
+                    linops,
+                    coils,
+                    DTYPE=DTYPE,
+                    DTYPE_real=DTYPE_real)
         else:
             raise NotImplementedError
         return pdop
@@ -3972,23 +3971,23 @@ class PDALSoftSenseBaseSolver:
             Number of primal-dual iterations to run
         """
         tau = self.tau
-        tau_new = np.float32(0)
+        tau_new = self._DTYPE_real(0)
 
         theta_line = self.theta_line
         beta_line = self.beta_line
-        beta_new = np.float32(0)
-        mu_line = np.float32(0.7)
-        delta_line = np.float32(0.99)
-        ynorm = np.float32(0)
-        lhs = np.float32(0.0)
+        beta_new = self._DTYPE_real(0)
+        mu_line = self._DTYPE_real(0.7)
+        delta_line = self._DTYPE_real(0.99)
+        ynorm = self._DTYPE_real(0)
+        lhs = self._DTYPE_real(0.0)
         sigma = self.sigma
         lambd = self.lambd
-        primal = np.float32(0.0)
-        primal_new = np.float32(0)
-        dual = np.float32(0.0)
-        gap_init = np.float32(0.0)
-        gap_old = np.float32(0.0)
-        gap = np.float32(0.0)
+        primal = self._DTYPE_real(0.0)
+        primal_new = self._DTYPE_real(0)
+        dual = self._DTYPE_real(0.0)
+        gap_init = self._DTYPE_real(0.0)
+        gap_old = self._DTYPE_real(0.0)
+        gap = self._DTYPE_real(0.0)
 
         (primal_vars,
          primal_vars_new,
@@ -4012,13 +4011,11 @@ class PDALSoftSenseBaseSolver:
                 out_primal=primal_vars_new,
                 out_fwd=tmp_results_forward_new,
                 in_primal=primal_vars,
-                in_dual=dual_vars,
                 in_precomp_adj=tmp_results_adjoint,
                 tau=tau
                 )
 
             beta_new = beta_line * (1 + self.mu * tau)
-            # tau_new = tau * np.sqrt(beta_line / beta_new)
             tau_new = tau * np.sqrt(beta_line / beta_new * (1 + theta_line))
             beta_line = beta_new
 
@@ -4075,10 +4072,11 @@ class PDALSoftSenseBaseSolver:
                     in_dual=dual_vars,
                     in_precomp_fwd=tmp_results_forward,
                     data=data)
-                print("Iteration: %i" %i)
-                print("Primal: %f" %primal_new)
-                print("Dual: %f" %dual)
-                print("Gap: %f" %gap)
+                if self.display_iterations:
+                    print("Iteration: %i" %i)
+                    print("Primal: %f" %primal_new)
+                    print("Dual: %f" %dual)
+                    print("Gap: %f" %gap)
                 if i == 0:
                     gap_init = gap
                 if np.abs(primal - primal_new)/self._fval_init <\
@@ -4111,30 +4109,53 @@ class PDALSoftSenseBaseSolver:
 
         return primal_vars
 
-    def _updateInitial(self, outp, inp):
+    def _updateInitial(
+            self,
+            out_fwd,
+            out_adj,
+            in_primal,
+            in_dual):
         pass
 
-    def _updatePrimal(self, outp, inp, par):
+    def _updatePrimal(
+            self,
+            out_primal,
+            out_fwd,
+            in_primal,
+            in_precomp_adj,
+            tau):
         pass
 
-    def _updateDual(self, outp, inp, par):
-        pass
-
-    def _updateDualLine(self, outp, inp, par):
-        pass
-
-    def _calcResidual(
+    def _updateDual(self,
+                    out_dual,
+                    out_adj,
                     in_primal,
+                    in_primal_new,
                     in_dual,
                     in_precomp_fwd,
-                    data):
+                    in_precomp_fwd_new,
+                    in_precomp_adj,
+                    data,
+                    beta,
+                    tau,
+                    theta
+                    ):
+        return ({}, {})
+
+    def _calcResidual(self,
+                      in_primal,
+                      in_dual,
+                      in_precomp_fwd,
+                      data):
         pass
 
-    def _setupVariables(inps, data):
+    def _setupVariables(self,
+                        inp,
+                        data):
         pass
 
     def update_x(self, outp, inp, par=None, idx=0, idxq=0,
-                 bound_cond=0, wait_for=[]):
+                 bound_cond=0, wait_for=None):
         """
         Primal update of the x variable in Primal-Dual Algorithm.
 
@@ -4149,17 +4170,19 @@ class PDALSoftSenseBaseSolver:
             PD-algorithm
           wait_for (list): A optional list for PyOpenCL.events to wait for
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_x(
             self._queue[4 * idx + idxq], (outp.size,), None,
             outp.data,
             inp[0].data,
             inp[1].data,
-            np.float32(par[0]),
-            np.float32(par[1]),
+            self._DTYPE_real(par[0]),
+            self._DTYPE_real(par[1]),
             wait_for=outp.events + inp[0].events + inp[1].events + wait_for)
 
     def update_x_tgv(self, outp, inp, par=None, idx=0, idxq=0,
-                 bound_cond=0, wait_for=[]):
+                 bound_cond=0, wait_for=None):
         """
         Primal update of the v variable in Primal-Dual Algorithm.
 
@@ -4176,19 +4199,21 @@ class PDALSoftSenseBaseSolver:
             PD-algorithm
           wait_for (list): A optional list for PyOpenCL.events to wait for
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_x_tgv(
             self._queue[4 * idx + idxq], (outp.size,), None,
             outp.data,
             inp[0].data,
             inp[1].data,
             inp[2].data,
-            np.float32(par[0]),         # tau
-            np.float32(par[1]),         # theta
+            self._DTYPE_real(par[0]),         # tau
+            self._DTYPE_real(par[1]),         # theta
             wait_for=outp.events + inp[0].events +
                      inp[1].events + inp[2].events + wait_for)
 
     def update_y(self, outp, inp, par=None, idx=0, idxq=0,
-                 bound_cond=0, wait_for=[]):
+                 bound_cond=0, wait_for=None):
         """
         Update the data dual variable y according to line search derivation.
 
@@ -4206,17 +4231,19 @@ class PDALSoftSenseBaseSolver:
             term
           wait_for (list): A optional list for PyOpenCL.events to wait for
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_r(
             self._queue[4*idx+idxq], (outp.size,), None,
             outp.data, inp[0].data,
             inp[1].data, inp[2].data, inp[3].data,
-            np.float32(par[0]), np.float32(par[1]),
-            np.float32(1/(1+par[0]/par[2])),
+            self._DTYPE_real(par[0]), self._DTYPE_real(par[1]),
+            self._DTYPE_real(1/(1+par[0]/par[2])),
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
 
     def update_z_tv(self, outp, inp, par=None, idx=0, idxq=0,
-                     bound_cond=0, wait_for=[]):
+                     bound_cond=0, wait_for=None):
         """
         Dual update of the z variable in Primal-Dual Algorithm for TV including line search.
 
@@ -4232,18 +4259,20 @@ class PDALSoftSenseBaseSolver:
           alpha (float): Regularization parameter of the first TGV functional
           wait_for (list): A optional list for PyOpenCL.events to wait for
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_z_tv_line(
             self._queue[4*idx+idxq],
             self._kernelsize, None,
             outp.data, inp[0].data, inp[1].data, inp[2].data,
-            np.float32(par[0]),
-            np.float32(par[1]),
+            self._DTYPE_real(par[0]),
+            self._DTYPE_real(par[1]),
             np.int32(self.unknowns),
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
 
     def update_z1_tgv(self, outp, inp, par=None, idx=0, idxq=0,
-                      bound_cond=0, wait_for=[]):
+                      bound_cond=0, wait_for=None):
         """
         Dual update of the z1 variable in Primal-Dual Algorithm for TGV.
 
@@ -4258,6 +4287,8 @@ class PDALSoftSenseBaseSolver:
             TGV functional
           wait_for (list): A optional list for PyOpenCL.events to wait for
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_z1_tgv_line(
             self._queue[4*idx+idxq],
             self._kernelsize, None,
@@ -4265,14 +4296,14 @@ class PDALSoftSenseBaseSolver:
             inp[0].data, inp[1].data,
             inp[2].data, inp[3].data,
             inp[4].data,
-            np.float32(par[0]),
-            np.float32(par[1]),
-            np.float32(1 / par[2]),
+            self._DTYPE_real(par[0]),
+            self._DTYPE_real(par[1]),
+            self._DTYPE_real(1 / par[2]),
             np.int32(self.unknowns),
             wait_for=(outp.events+inp[0].events+inp[1].events+inp[2].events+inp[3].events+inp[4].events+wait_for))
 
     def update_z2_tgv(self, outp, inp, par=None, idx=0, idxq=0,
-                      bound_cond=0, wait_for=[]):
+                      bound_cond=0, wait_for=None):
         """
         Dual update of the z2 variable in Primal-Dual Algorithm for TGV.
 
@@ -4288,6 +4319,8 @@ class PDALSoftSenseBaseSolver:
             TGV functional
           wait_for (list): A optional list for PyOpenCL.events to wait for
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_z2_tgv_line(
             self._queue[4*idx+idxq],
             self._kernelsize, None,
@@ -4295,14 +4328,14 @@ class PDALSoftSenseBaseSolver:
             inp[0].data,
             inp[1].data,
             inp[2].data,
-            np.float32(par[0]),
-            np.float32(par[1]),
-            np.float32(1 / par[1]),
+            self._DTYPE_real(par[0]),
+            self._DTYPE_real(par[1]),
+            self._DTYPE_real(1 / par[1]),
             np.int32(self.unknowns),
             wait_for=(outp.events+inp[0].events+inp[1].events+inp[2].events+wait_for))
 
     def update_Kyk2(self, outp, inp, par=None, idx=0, idxq=0,
-                    bound_cond=0, wait_for=[]):
+                    bound_cond=0, wait_for=None):
         """
         Precompute the v-part of the Adjoint Linear operator.
 
@@ -4313,6 +4346,8 @@ class PDALSoftSenseBaseSolver:
           z (PyOpenCL.Array): Dual Variable of the gradient of TGV
           wait_for (list): A optional list for PyOpenCL.events to wait for
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_Kyk2(
             self._queue[4*idx+idxq],
             self._kernelsize, None,
@@ -4320,11 +4355,11 @@ class PDALSoftSenseBaseSolver:
             np.int32(self.unknowns),
             par[idx].data,
             np.int32(bound_cond),
-            np.float32(self.dz),
+            self._DTYPE_real(self.dz),
             wait_for=outp.events + inp[0].events + inp[1].events+wait_for)
 
     def update_v(self, outp, inp, par=None, idx=0, idxq=0,
-                 bound_cond=0, wait_for=[]):
+                 bound_cond=0, wait_for=None):
         """
         Primal update of the v variable in Primal-Dual Algorithm.
 
@@ -4340,10 +4375,12 @@ class PDALSoftSenseBaseSolver:
             PD-algorithm
           wait_for (list): A optional list for PyOpenCL.events to wait for
         """
+        if wait_for is None:
+            wait_for = []
         return self._prg[idx].update_v_tgv(
             self._queue[4*idx+idxq], (outp[..., 0].size,), None,
             outp.data, inp[0].data, inp[1].data, inp[2].data,
-            np.float32(par[0]), np.float32(par[1]),
+            self._DTYPE_real(par[0]), self._DTYPE_real(par[1]),
             wait_for=outp.events+inp[0].events+inp[1].events+inp[2].events+wait_for)
 
 
@@ -4351,22 +4388,31 @@ class PDALSoftSenseSolver(PDALSoftSenseBaseSolver):
     """
     PD Algorithm for Soft Sense reconstruction without regularization
     """
-    def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model):
+    def __init__(self,
+                 par,
+                 ss_par,
+                 queue,
+                 tau,
+                 fval,
+                 prg,
+                 linop,
+                 coils,
+                 **kwargs
+                 ):
 
         super().__init__(
             par,
-            irgn_par,
+            ss_par,
             queue,
             tau,
             fval,
             prg,
             coils,
-            model)
+            **kwargs)
         self._op = linop[0]
 
     def _setupVariables(self, inp, data):
-        data = clarray.to_device(self._queue[0], data.astype(DTYPE))
+        data = clarray.to_device(self._queue[0], data.astype(self._DTYPE))
 
         primal_vars = {}
         primal_vars_new = {}
@@ -4387,7 +4433,7 @@ class PDALSoftSenseSolver(PDALSoftSenseBaseSolver):
         dual_vars["y"] = clarray.zeros(
             self._queue[0],
             data.shape,
-            dtype=DTYPE
+            dtype=self._DTYPE
         )
         dual_vars_new["y"] = clarray.zeros_like(dual_vars["y"])
 
@@ -4417,9 +4463,9 @@ class PDALSoftSenseSolver(PDALSoftSenseBaseSolver):
                       out_primal,
                       out_fwd,
                       in_primal,
-                      in_dual,
                       in_precomp_adj,
-                      tau):
+                      tau
+                      ):
         out_primal["x"].add_event(self.update_x(
             outp=out_primal["x"],
             inp=(in_primal["x"], in_precomp_adj["Kay"]),
@@ -4502,23 +4548,32 @@ class PDALSoftSenseSolverTV(PDALSoftSenseBaseSolver):
     """
     PD Algorithm for Soft Sense reconstruction with TV regularization
     """
-    def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model):
+    def __init__(self,
+                 par,
+                 ss_par,
+                 queue,
+                 tau,
+                 fval,
+                 prg,
+                 linop,
+                 coils,
+                 **kwargs
+                 ):
 
         super().__init__(
             par,
-            irgn_par,
+            ss_par,
             queue,
             tau,
             fval,
             prg,
             coils,
-            model)
+            **kwargs)
         self._op = linop[0]
         self._grad_op = linop[1]
 
     def _setupVariables(self, inp, data):
-        data = clarray.to_device(self._queue[0], data.astype(DTYPE))
+        data = clarray.to_device(self._queue[0], data.astype(self._DTYPE))
 
         primal_vars = {}
         primal_vars_new = {}
@@ -4531,11 +4586,6 @@ class PDALSoftSenseSolverTV(PDALSoftSenseBaseSolver):
         tmp_results_adjoint["Kyk1"] = clarray.empty_like(primal_vars["x"])
         tmp_results_adjoint_new["Kyk1"] = clarray.empty_like(primal_vars["x"])
 
-        # tmp_results_adjoint["Kay"] = clarray.empty_like(primal_vars["x"])
-        # tmp_results_adjoint["divz"] = clarray.empty_like(primal_vars["x"])
-        # tmp_results_adjoint_new["Kay"] = clarray.empty_like(primal_vars["x"])
-        # tmp_results_adjoint_new["divz"] = clarray.empty_like(primal_vars["x"])
-
         dual_vars = {}
         dual_vars_new = {}
         tmp_results_forward = {}
@@ -4544,11 +4594,11 @@ class PDALSoftSenseSolverTV(PDALSoftSenseBaseSolver):
         dual_vars["y"] = clarray.zeros(
             self._queue[0],
             data.shape,
-            dtype=DTYPE
+            dtype=self._DTYPE
         )
         dual_vars["z"] = clarray.zeros(self._queue[0],
                                        primal_vars["x"].shape+(4,),
-                                       dtype=DTYPE)
+                                       dtype=self._DTYPE)
 
         dual_vars_new["y"] = clarray.zeros_like(dual_vars["y"])
         dual_vars_new["z"] = clarray.zeros_like(dual_vars["z"])
@@ -4571,14 +4621,13 @@ class PDALSoftSenseSolverTV(PDALSoftSenseBaseSolver):
     def _updateInitial(self,
                        out_fwd, out_adj,
                        in_primal, in_dual):
-        # out_adj["Kay"].add_event(self._op.adj(
-        #         out_adj["Kay"], [in_dual["y"], self._coils]))
+
         out_adj["Kyk1"].add_event(
             self._op.adjKyk1(out_adj["Kyk1"],
                              [in_dual["y"],
                               self._coils,
-                              in_dual["z1"],
-                              self._grad_op._ratio]))
+                              in_dual["z"],
+                              self._grad_op.ratio]))
 
         out_fwd["Kx"].add_event(self._op.fwd(
                 out_fwd["Kx"], [in_primal["x"], self._coils]))
@@ -4590,18 +4639,13 @@ class PDALSoftSenseSolverTV(PDALSoftSenseBaseSolver):
                       out_primal,
                       out_fwd,
                       in_primal,
-                      in_dual,
                       in_precomp_adj,
                       tau):
+
         out_primal["x"].add_event(self.update_x(
             outp=out_primal["x"],
             inp=(in_primal["x"], in_precomp_adj["Kyk1"]),
             par=(tau, 1)))
-
-        # out_primal["x"].add_event(self.update_x_tgv(
-        #     outp=out_primal["x"],
-        #     inp=(in_primal["x"], in_precomp_adj["Kay"], in_precomp_adj["divz"]),
-        #     par=(tau, 1)))
 
         out_fwd["Kx"].add_event(self._op.fwd(
             out_fwd["Kx"], [out_primal["x"], self._coils]))
@@ -4632,12 +4676,6 @@ class PDALSoftSenseSolverTV(PDALSoftSenseBaseSolver):
                     data),
                 par=(beta*tau, theta, self.lambd)))
 
-        # out_adj["Kay"].add_event(
-        #     self._op.adj(
-        #         out_adj["Kay"],
-        #         [out_dual["y"],
-        #          self._coils],))
-
         out_dual["z"].add_event(
             self.update_z_tv(
                 outp=out_dual["z"],
@@ -4649,12 +4687,7 @@ class PDALSoftSenseSolverTV(PDALSoftSenseBaseSolver):
                              [out_dual["y"],
                               self._coils,
                               out_dual["z"],
-                              self._grad_op._ratio]))
-
-        # out_adj["divz"].add_event(
-        #     self._grad_op.adj(
-        #         out_adj["divz"],
-        #         out_dual["z"]))
+                              self._grad_op.ratio]))
 
         ynorm = (
             (
@@ -4707,26 +4740,36 @@ class PDALSoftSenseSolverTGV(PDALSoftSenseBaseSolver):
     PD Algorithm for Soft Sense reconstruction with TGV regularization
     """
 
-    def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model):
+    def __init__(self,
+                 par,
+                 ss_par,
+                 queue,
+                 tau,
+                 fval,
+                 prg,
+                 linop,
+                 coils,
+                 **kwargs
+                 ):
 
         super().__init__(
             par,
-            irgn_par,
+            ss_par,
             queue,
             tau,
             fval,
             prg,
             coils,
-            model)
-        self.alpha_0 = irgn_par["alpha0"]
-        self.alpha_1 = irgn_par["alpha1"]
+            **kwargs)
+
+        self.alpha_0 = ss_par["alpha0"]
+        self.alpha_1 = ss_par["alpha1"]
         self._op = linop[0]
         self._grad_op = linop[1]
         self._symgrad_op = linop[2]
 
     def _setupVariables(self, inp, data):
-        data = clarray.to_device(self._queue[0], data.astype(DTYPE))
+        data = clarray.to_device(self._queue[0], data.astype(self._DTYPE))
 
         primal_vars = {}
         primal_vars_new = {}
@@ -4736,7 +4779,7 @@ class PDALSoftSenseSolverTGV(PDALSoftSenseBaseSolver):
         primal_vars["x"] = clarray.to_device(self._queue[0], inp)
         primal_vars["v"] = clarray.zeros(self._queue[0],
                                          primal_vars["x"].shape+(4,),
-                                         dtype=DTYPE)
+                                         dtype=self._DTYPE)
         primal_vars_new["x"] = clarray.empty_like(primal_vars["x"])
         primal_vars_new["v"] = clarray.empty_like(primal_vars["v"])
 
@@ -4744,13 +4787,6 @@ class PDALSoftSenseSolverTGV(PDALSoftSenseBaseSolver):
         tmp_results_adjoint_new["Kyk1"] = clarray.empty_like(primal_vars["x"])
         tmp_results_adjoint["Kyk2"] = clarray.empty_like(primal_vars["v"])
         tmp_results_adjoint_new["Kyk2"] = clarray.empty_like(primal_vars["v"])
-
-        # tmp_results_adjoint["Kay"] = clarray.empty_like(primal_vars["x"])
-        # tmp_results_adjoint["divz1"] = clarray.empty_like(primal_vars["x"])
-        # tmp_results_adjoint["asymgradz2"] = clarray.empty_like(primal_vars["v"])
-        # tmp_results_adjoint_new["Kay"] = clarray.empty_like(primal_vars["x"])
-        # tmp_results_adjoint_new["divz1"] = clarray.empty_like(primal_vars["x"])
-        # tmp_results_adjoint_new["asymgradz2"] = clarray.empty_like(primal_vars["v"])
 
         dual_vars = {}
         dual_vars_new = {}
@@ -4760,15 +4796,15 @@ class PDALSoftSenseSolverTGV(PDALSoftSenseBaseSolver):
         dual_vars["y"] = clarray.zeros(
             self._queue[0],
             data.shape,
-            dtype=DTYPE
+            dtype=self._DTYPE
         )
         dual_vars["z1"] = clarray.zeros(self._queue[0],
                                         primal_vars["x"].shape+(4,),
-                                        dtype=DTYPE)
+                                        dtype=self._DTYPE)
 
         dual_vars["z2"] = clarray.zeros(self._queue[0],
                                         primal_vars["x"].shape+(8,),
-                                        dtype=DTYPE)
+                                        dtype=self._DTYPE)
 
         dual_vars_new["y"] = clarray.empty_like(dual_vars["y"])
         dual_vars_new["z1"] = clarray.empty_like(dual_vars["z1"])
@@ -4800,16 +4836,13 @@ class PDALSoftSenseSolverTGV(PDALSoftSenseBaseSolver):
                              [in_dual["y"],
                               self._coils,
                               in_dual["z1"],
-                              self._grad_op._ratio]))
+                              self._grad_op.ratio]))
 
         out_adj["Kyk2"].add_event(
             self.update_Kyk2(
                 outp=out_adj["Kyk2"],
                 inp=(in_dual["z2"], in_dual["z1"]),
-                par=[self._symgrad_op._ratio]))
-
-        # out_adj["Kay"].add_event(self._op.adj(
-        #         out_adj["Kay"], [in_dual["y"], self._coils]))
+                par=[self._symgrad_op.ratio]))
 
         out_fwd["Kx"].add_event(self._op.fwd(
                 out_fwd["Kx"], [in_primal["x"], self._coils]))
@@ -4825,9 +4858,9 @@ class PDALSoftSenseSolverTGV(PDALSoftSenseBaseSolver):
                       out_primal,
                       out_fwd,
                       in_primal,
-                      in_dual,
                       in_precomp_adj,
                       tau):
+
         out_primal["x"].add_event(self.update_x(
             outp=out_primal["x"],
             inp=(in_primal["x"], in_precomp_adj["Kyk1"]),
@@ -4873,12 +4906,6 @@ class PDALSoftSenseSolverTGV(PDALSoftSenseBaseSolver):
                     data),
                 par=(beta*tau, theta, self.lambd)))
 
-        # out_adj["Kay"].add_event(
-        #     self._op.adj(
-        #         out_adj["Kay"],
-        #         [out_dual["y"],
-        #          self._coils],))
-
         out_dual["z1"].add_event(
             self.update_z1_tgv(
                 outp=out_dual["z1"],
@@ -4896,12 +4923,7 @@ class PDALSoftSenseSolverTGV(PDALSoftSenseBaseSolver):
                 [out_dual["y"],
                  self._coils,
                  out_dual["z1"],
-                 self._grad_op._ratio]))
-
-        # out_adj["divz1"].add_event(
-        #     self._grad_op.adj(
-        #         out_adj["divz1"],
-        #         out_dual["z1"]))
+                 self._grad_op.ratio]))
 
         out_dual["z2"].add_event(
             self.update_z2_tgv(
@@ -4916,12 +4938,7 @@ class PDALSoftSenseSolverTGV(PDALSoftSenseBaseSolver):
             self.update_Kyk2(
                 outp=out_adj["Kyk2"],
                 inp=(out_dual["z2"], out_dual["z1"]),
-                par=[self._symgrad_op._ratio]))
-
-        # out_adj["asymgradz2"].add_event(
-        #     self._symgrad_op.adj(
-        #         out_adj["asymgradz2"],
-        #         out_dual["z2"]))
+                par=[self._symgrad_op.ratio]))
 
         ynorm = (
             (
@@ -4988,52 +5005,66 @@ class PDSoftSenseBaseSolverStreamed(PDSoftSenseBaseSolver):
     This class is the base class for the streamed array optimization.
     """
 
-    def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model, imagespace=False):
+    def __init__(self,
+                 par,
+                 ss_par,
+                 queue,
+                 tau,
+                 fval,
+                 prg,
+                 coils,
+                 **kwargs
+                 ):
 
         super().__init__(
             par,
-            irgn_par,
+            ss_par,
             queue,
             tau,
             fval,
             prg,
             coils,
-            model)
+            **kwargs)
+
+        self._op = None
+        self._grad_op = None
+        self._symgrad_op = None
 
         self.unknown_shape = (par["NSlice"], par["NMaps"],
                               par["dimY"], par["dimX"])
 
         self.grad_shape = self.unknown_shape + (4,)
 
-        self.NSlice = par["NSlice"]
-        self.par_slices = par["par_slices"]
-        self.overlap = par["overlap"]
+        self.symgrad_shape = None
+
+        self._NSlice = par["NSlice"]
+        self._par_slices = par["par_slices"]
+        self._overlap = par["overlap"]
 
         self.dat_trans_axes = [2, 0, 1, 3, 4]
         self.data_shape = (par["NSlice"], par["NScan"],
                            par["NC"], par["Nproj"], par["N"])
 
     def _setup_reg_tmp_arrays(self, reg_type, SMS=False):
-        if reg_type == 'TV' or reg_type == '':
+        if reg_type != 'TGV':
             pass
         elif reg_type == 'TGV':
             self.v = np.zeros(
                 self.grad_shape,
-                dtype=DTYPE)
+                dtype=self._DTYPE)
             self.z2 = np.zeros(
                 self.symgrad_shape,
-                dtype=DTYPE)
+                dtype=self._DTYPE)
         else:
             raise NotImplementedError("Not implemented")
         self._setupstreamingops(reg_type, SMS=SMS)
 
         self.r = np.zeros(
                 self.data_shape,
-                dtype=DTYPE)
+                dtype=self._DTYPE)
         self.z1 = np.zeros(
             self.grad_shape,
-            dtype=DTYPE)
+            dtype=self._DTYPE)
 
     def _setupstreamingops(self, reg_type, SMS=False):
         if not SMS:
@@ -5048,7 +5079,7 @@ class PDSoftSenseBaseSolverStreamed(PDSoftSenseBaseSolver):
             if reg_type != '':
                 self.stream_initial_1 += self._op.adjstrKyk1
             if reg_type == 'TGV':
-                self.stream_initial_1 += self._symgrad_op._stream_symgrad
+                self.stream_initial_1 += self._symgrad_op.getStreamedSymGradientObject()
 
         if reg_type == 'TGV':
             self.stream_Kyk2 = self._defineoperator(
@@ -5063,7 +5094,7 @@ class PDSoftSenseBaseSolverStreamed(PDSoftSenseBaseSolver):
                 [],
                 [[]])
 
-            self.stream_initial_2 += self._grad_op._stream_grad
+            self.stream_initial_2 += self._grad_op.getStreamedGradientObject()
             self.stream_initial_2 += self.stream_Kyk2
 
         self.stream_primal = self._defineoperator(
@@ -5086,7 +5117,7 @@ class PDSoftSenseBaseSolverStreamed(PDSoftSenseBaseSolver):
             self.update_primal_1.connectouttoin(0, (1, 0))
 
         if reg_type != '':
-            self.update_primal_1 += self._grad_op._stream_grad
+            self.update_primal_1 += self._grad_op.getStreamedGradientObject()
             self.update_primal_1.connectouttoin(0, (2, 0))
 
         if reg_type == 'TGV':
@@ -5103,7 +5134,7 @@ class PDSoftSenseBaseSolverStreamed(PDSoftSenseBaseSolver):
                 reverse_dir=True)
 
             self.update_primal_2 += self.stream_update_v
-            self.update_primal_2 += self._symgrad_op._stream_symgrad
+            self.update_primal_2 += self._symgrad_op.getStreamedSymGradientObject()
             self.update_primal_2.connectouttoin(0, (1, 0))
             self.stream_update_z1 = self._defineoperator(
                 [self.update_z1_tgv],
@@ -5189,40 +5220,49 @@ class PDSoftSenseBaseSolverStreamed(PDSoftSenseBaseSolver):
                         outp,
                         inp,
                         reverse_dir=False,
-                        posofnorm=[],
+                        posofnorm=None,
                         slices=None):
         if slices is None:
-            slices = self.NSlice
+            slices = self._NSlice
         return streaming.Stream(
             functions,
             outp,
             inp,
-            self.par_slices,
-            self.overlap,
+            self._par_slices,
+            self._overlap,
             slices,
             self._queue,
             self.num_dev,
             reverse_dir,
-            posofnorm)
+            posofnorm,
+            DTYPE=self._DTYPE)
 
 
 class PDSoftSenseSolverStreamed(PDSoftSenseBaseSolverStreamed):
     """
-    PD Algorithm for Soft Sense reconstruction without regularization
+    Streamed version of PD Algorithm for Soft Sense reconstruction without regularization
     """
-    def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model):
+    def __init__(self,
+                 par,
+                 ss_par,
+                 queue,
+                 tau,
+                 fval,
+                 prg,
+                 linop,
+                 coils,
+                 **kwargs
+                 ):
 
         super().__init__(
             par,
-            irgn_par,
+            ss_par,
             queue,
             tau,
             fval,
             prg,
-            linop,
             coils,
-            model)
+            **kwargs)
         self._op = linop[0]
 
         self._setup_reg_tmp_arrays('', SMS=False)
@@ -5243,7 +5283,7 @@ class PDSoftSenseSolverStreamed(PDSoftSenseBaseSolverStreamed):
 
         dual_vars["y"] = np.zeros(
             data.shape,
-            dtype=DTYPE
+            dtype=self._DTYPE
         )
         dual_vars_new["y"] = np.zeros_like(dual_vars["y"])
 
@@ -5258,8 +5298,10 @@ class PDSoftSenseSolverStreamed(PDSoftSenseBaseSolverStreamed):
                 data)
 
     def _updateInitial(self,
-                       out_fwd, out_adj,
-                       in_primal, in_dual):
+                       out_fwd,
+                       out_adj,
+                       in_primal,
+                       in_dual):
 
         self.stream_initial_1.eval(
             [
@@ -5277,9 +5319,12 @@ class PDSoftSenseSolverStreamed(PDSoftSenseBaseSolverStreamed):
         )
 
     def _updatePrimal(self,
-                      out_primal, out_fwd,
-                      in_primal, in_dual, in_precomp_adj,
-                      tau, theta):
+                      out_primal,
+                      out_fwd,
+                      in_primal,
+                      in_precomp_adj,
+                      tau,
+                      theta):
 
         self.update_primal_1.eval(
             [
@@ -5348,19 +5393,27 @@ class PDSoftSenseSolverStreamedTV(PDSoftSenseBaseSolverStreamed):
     """
     PD Algorithm for Soft Sense reconstruction with TV regularization
     """
-    def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model):
+    def __init__(self,
+                 par,
+                 ss_par,
+                 queue,
+                 tau,
+                 fval,
+                 prg,
+                 linop,
+                 coils,
+                 **kwargs
+                 ):
 
         super().__init__(
             par,
-            irgn_par,
+            ss_par,
             queue,
             tau,
             fval,
             prg,
-            linop,
             coils,
-            model)
+            **kwargs)
 
         self._op = linop[0]
         self._grad_op = linop[1]
@@ -5375,8 +5428,6 @@ class PDSoftSenseSolverStreamedTV(PDSoftSenseBaseSolverStreamed):
         primal_vars["x"] = inp
         primal_vars_new["x"] = np.zeros_like(primal_vars["x"])
 
-        tmp_results_adjoint["Kay"] = np.zeros_like(primal_vars["x"])
-        tmp_results_adjoint["divz"] = np.zeros_like(primal_vars["x"])
         tmp_results_adjoint["Kyk1"] = np.zeros_like(primal_vars["x"])
 
         dual_vars = {}
@@ -5385,13 +5436,13 @@ class PDSoftSenseSolverStreamedTV(PDSoftSenseBaseSolverStreamed):
 
         dual_vars["y"] = np.zeros(
             data.shape,
-            dtype=DTYPE
+            dtype=self._DTYPE
         )
         dual_vars_new["y"] = np.zeros_like(dual_vars["y"])
 
         dual_vars["z"] = np.zeros(
             primal_vars["x"].shape+(4,),
-            dtype=DTYPE
+            dtype=self._DTYPE
         )
         dual_vars_new["z"] = np.zeros_like(dual_vars["z"])
 
@@ -5407,8 +5458,10 @@ class PDSoftSenseSolverStreamedTV(PDSoftSenseBaseSolverStreamed):
                 data)
 
     def _updateInitial(self,
-                       out_fwd, out_adj,
-                       in_primal, in_dual):
+                       out_fwd,
+                       out_adj,
+                       in_primal,
+                       in_dual):
 
         self.stream_initial_1.eval(
             [
@@ -5421,14 +5474,17 @@ class PDSoftSenseSolverStreamedTV(PDSoftSenseBaseSolverStreamed):
             ],
             [
                 [],
-                [self._grad_op._ratio]
+                [self._grad_op.ratio]
             ]
         )
 
     def _updatePrimal(self,
-                      out_primal, out_fwd,
-                      in_primal, in_dual, in_precomp_adj,
-                      tau, theta):
+                      out_primal,
+                      out_fwd,
+                      in_primal,
+                      in_precomp_adj,
+                      tau,
+                      theta):
 
         self.update_primal_1.eval(
             [
@@ -5471,7 +5527,7 @@ class PDSoftSenseSolverStreamedTV(PDSoftSenseBaseSolverStreamed):
             [
                 [sigma, self.lambd],
                 [sigma, self.lambd],
-                [self._grad_op._ratio]
+                [self._grad_op.ratio]
             ]
         )
 
@@ -5505,22 +5561,29 @@ class PDSoftSenseSolverStreamedTGV(PDSoftSenseBaseSolverStreamed):
     """
     PD Algorithm for Soft Sense reconstruction with TGV regularization
     """
-    def __init__(self, par, irgn_par, queue, tau, fval, prg,
-                 linop, coils, model):
+    def __init__(self,
+                 par,
+                 ss_par,
+                 queue,
+                 tau,
+                 fval,
+                 prg,
+                 linop,
+                 coils,
+                 **kwargs):
 
         super().__init__(
             par,
-            irgn_par,
+            ss_par,
             queue,
             tau,
             fval,
             prg,
-            linop,
             coils,
-            model)
+            **kwargs)
 
-        self.alpha_0 = irgn_par["alpha0"]
-        self.alpha_1 = irgn_par["alpha1"]
+        self.alpha_0 = ss_par["alpha0"]
+        self.alpha_1 = ss_par["alpha1"]
 
         self._op = linop[0]
         self._grad_op = linop[1]
@@ -5536,7 +5599,7 @@ class PDSoftSenseSolverStreamedTGV(PDSoftSenseBaseSolverStreamed):
         tmp_results_adjoint = {}
 
         primal_vars["x"] = inp
-        primal_vars["v"] = np.zeros(primal_vars["x"].shape+(4,), dtype=DTYPE)
+        primal_vars["v"] = np.zeros(primal_vars["x"].shape+(4,), dtype=self._DTYPE)
 
         primal_vars_new["x"] = np.zeros_like(primal_vars["x"])
         primal_vars_new["v"] = np.zeros_like(primal_vars["v"])
@@ -5550,19 +5613,19 @@ class PDSoftSenseSolverStreamedTGV(PDSoftSenseBaseSolverStreamed):
 
         dual_vars["y"] = np.zeros(
             data.shape,
-            dtype=DTYPE
+            dtype=self._DTYPE
         )
         dual_vars_new["y"] = np.zeros_like(dual_vars["y"])
 
         dual_vars["z1"] = np.zeros(
             primal_vars["x"].shape+(4,),
-            dtype=DTYPE
+            dtype=self._DTYPE
         )
         dual_vars_new["z1"] = np.zeros_like(dual_vars["z1"])
 
         dual_vars["z2"] = np.zeros(
             primal_vars["x"].shape+(4,),
-            dtype=DTYPE
+            dtype=self._DTYPE
         )
         dual_vars_new["z2"] = np.zeros_like(dual_vars["z2"])
 
@@ -5579,8 +5642,10 @@ class PDSoftSenseSolverStreamedTGV(PDSoftSenseBaseSolverStreamed):
                 data)
 
     def _updateInitial(self,
-                       out_fwd, out_adj,
-                       in_primal, in_dual):
+                       out_fwd,
+                       out_adj,
+                       in_primal,
+                       in_dual):
 
         self.stream_initial_1.eval(
             [
@@ -5595,7 +5660,7 @@ class PDSoftSenseSolverStreamedTGV(PDSoftSenseBaseSolverStreamed):
             ],
             [
                 [],
-                [self._grad_op._ratio],
+                [self._grad_op.ratio],
                 []
             ]
         )
@@ -5610,14 +5675,17 @@ class PDSoftSenseSolverStreamedTGV(PDSoftSenseBaseSolverStreamed):
             ],
             [
                 [],
-                self._symgrad_op._ratio
+                self._symgrad_op.ratio
             ]
         )
 
     def _updatePrimal(self,
-                      out_primal, out_fwd,
-                      in_primal, in_dual, in_precomp_adj,
-                      tau, theta):
+                      out_primal,
+                      out_fwd,
+                      in_primal,
+                      in_precomp_adj,
+                      tau,
+                      theta):
 
         self.update_primal_1.eval(
             [
@@ -5675,7 +5743,7 @@ class PDSoftSenseSolverStreamedTGV(PDSoftSenseBaseSolverStreamed):
             [
                 [sigma, self.alpha_0],
                 [sigma, self.lambd],
-                [self._grad_op._ratio]
+                [self._grad_op.ratio]
             ]
         )
 
@@ -5690,7 +5758,7 @@ class PDSoftSenseSolverStreamedTGV(PDSoftSenseBaseSolverStreamed):
             ],
             [
                 [sigma, self.alpha_1],
-                self._symgrad_op._ratio
+                self._symgrad_op.ratio
             ]
         )
 

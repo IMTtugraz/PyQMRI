@@ -44,21 +44,21 @@ def _setup_par(par, myargs, ksp_data):
     par["par_slices"] = par["NSlice"]
 
     if myargs.streamed:
-        par["par_slices"] = int(par["NSlice"] / (2 * len(par["num_dev"])))
+        par["par_slices"] = int(par["NSlice"] / (1 * len(par["num_dev"])))
         par["overlap"] = 1
 
 
-def _setup_irgn_par(irgn_par, myargs):
-    irgn_par["display_iterations"] = False
-    irgn_par["accelerated"] = myargs.accelerated
-    irgn_par["tol"] = 1e-8
-    irgn_par["stag"] = 1e10
-    irgn_par["sigma"] = np.float32(1 / np.sqrt(12))
-    irgn_par["lambd"] = myargs.lamda
-    irgn_par["alpha0"] = np.sqrt(2)  # 2D --> np.sqrt(2), 3D --> np.sqrt(3)
-    irgn_par["alpha1"] = 1   # 1
-    irgn_par["delta"] = 10
-    irgn_par["gamma"] = 1e-5
+def _setup_ss_par(ss_par, myargs):
+    ss_par["display_iterations"] = True
+    ss_par["accelerated"] = myargs.accelerated
+    ss_par["tol"] = 1e-8
+    ss_par["stag"] = 1e10
+    ss_par["sigma"] = np.float32(1 / np.sqrt(12))
+    ss_par["lambd"] = myargs.lamda
+    ss_par["alpha0"] = np.sqrt(2)  # 2D --> np.sqrt(2), 3D --> np.sqrt(3)
+    ss_par["alpha1"] = 1   # 1
+    ss_par["delta"] = 10
+    ss_par["gamma"] = 1e-5
 
 
 def _power_iterations(par, x, cmaps, op, iters=100):
@@ -168,25 +168,26 @@ def _pda_soft_sense_solver(myargs, par, ksp, cmaps, imgs, imgs_us):
                 par["ctx"][j],
                 myfile.read()))
 
-    irgn_par = {}
-    _setup_irgn_par(irgn_par, myargs)
+    ss_par = {}
+    _setup_ss_par(ss_par, myargs)
 
     op = pyqmirop.Operator.SoftSenseOperatorFactory(par, prg, DTYPE, DTYPE_real, myargs.streamed)
-    grad_op = pyqmirop.Operator.GradientOperatorFactory(par, prg, DTYPE, DTYPE_real, myargs.streamed)
+    grad_op, _ = pyqmirop.Operator.GradientOperatorFactory(par, prg, DTYPE, DTYPE_real, myargs.streamed)
     symgrad_op = pyqmirop.Operator.SymGradientOperatorFactory(par, prg, DTYPE, DTYPE_real, myargs.streamed)
 
-    fval = calculate_cost(myargs, irgn_par, imgs_us, np.zeros(inp.shape+(3,)), ksp, cmaps)
+    fval = calculate_cost(myargs, ss_par, imgs_us, np.zeros(inp.shape+(3,)), ksp, cmaps)
 
     if not myargs.streamed:
         cmaps = cla.to_device(op.queue, cmaps)
 
     if myargs.linesearch:
-        pd = pyqmrisl.PDALSoftSenseBaseSolver.factory(prg, par["queue"], par, irgn_par,
-                                                    fval, cmaps, (op, grad_op, symgrad_op), None, myargs.reg_type)
+        pd = pyqmrisl.PDALSoftSenseBaseSolver.factory(prg, par["queue"], par, ss_par,
+                                                      fval, cmaps, (op, grad_op, symgrad_op),
+                                                      myargs.reg_type, myargs.streamed)
     else:
-        pd = pyqmrisl.PDSoftSenseBaseSolver.factory(prg, par["queue"], par, irgn_par,
+        pd = pyqmrisl.PDSoftSenseBaseSolver.factory(prg, par["queue"], par, ss_par,
                                                     fval, cmaps, (op, grad_op, symgrad_op),
-                                                    None, myargs.reg_type, SMS=False, streamed=myargs.streamed)
+                                                    myargs.reg_type, myargs.streamed)
 
     primal_vars = pd.run(inp=inp.copy(), data=ksp.copy(), iters=1000)["x"]
 
@@ -197,8 +198,8 @@ def _pda_soft_sense_solver(myargs, par, ksp, cmaps, imgs, imgs_us):
 
 
 def _3d_recon(imgs, ksp_data, cmaps, par, myargs):
-    # if myargs.undersampling:
-    #     ksp_data = undersample_kspace(par, ksp_data, myargs)
+    if myargs.undersampling:
+        ksp_data = undersample_kspace(par, ksp_data, myargs)
 
     if myargs.streamed:
         data_trans_axes = (2, 0, 1, 3, 4)
@@ -232,12 +233,12 @@ def _2d_recon(imgs, ksp_data, cmaps, par, myargs):
     # Select only several slices (performance/duration)
     # n_slice = 4
     # par["NSlice"] = n_slice
-    # par["par_slices"] = int(par["NSlice"] / (2 * len(par["num_dev"]))) if myargs.streamed else n_slice
+    # par["par_slices"] = int(par["NSlice"] / (1 * len(par["num_dev"]))) if myargs.streamed else n_slice
     #
     # ksp_data2d = ksp_data2d[:, :, 21:21+n_slice, :, :]
     # cmaps = cmaps[:, :, 21:21+n_slice, ...]
     # imgs = imgs[:, 21:21+n_slice, ...]
-
+    #
     # ksp_data2d = np.repeat(ksp_data2d[:, :, [0], :, :], n_slice, axis=2)
     # cmaps = np.repeat(cmaps[:, :, [0], :, :], n_slice, axis=2)
     # imgs = np.repeat(imgs[:, [0], :, :], n_slice, axis=1)
@@ -278,7 +279,8 @@ def _main(myargs):
     # NC * NSlice = 52 * 51 = 2652 --> not valid --> reduce NSlice to 50
     # also reorder kspace to (NScan (NMaps), NC, NSlice, y, x)
     ksp_data = np.moveaxis(ksp_data, [0, 1, 2, 3], [3, 2, 1, 0])
-    ksp_data = ksp_data[:, :50, :, :]  # without scaling --> numerical errors --> no reasonable solution
+    ksp_data = ksp_data[:, :50, :, :]
+    # without scaling --> numerical errors --> no reasonable solution
     # rescale with sqrt(X*Y*Z)
     ksp_data = prepare_data(ksp_data, rescale=True, recon_type='3D').astype(DTYPE)
     ksp_data = np.expand_dims(ksp_data, axis=0)
@@ -306,12 +308,22 @@ def _main(myargs):
 
     mse, psnr, ssim = calc_image_metrics(out_ssense, out_orig)
 
-    irgn_par = {}
-    _setup_irgn_par(irgn_par, myargs)
-    save_data(out_ssense, par, irgn_par, myargs)
-    # save_data(out_orig, par, irgn_par, myargs, filename='fully_sampled_recon', ds_name='dataset', store_attrs=False)
+    ss_par = {}
+    _setup_ss_par(ss_par, myargs)
+    save_data(out_ssense, par, ss_par, myargs)
+    # save_data(out_orig, par, ss_par, myargs, filename='fully_sampled_recon', ds_name='dataset', store_attrs=False)
     save_imgs(out_ssense, myargs)
     save_imgs(out_diff, myargs, 'diffs')
+
+
+def _str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    if v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
 if __name__ == '__main__':
@@ -327,23 +339,31 @@ if __name__ == '__main__':
            "options are: 'TGV', 'TV', ''")
     args.add_argument(
         '--lambda', default=1, dest='lamda',
-        help="Regularization parameter (default: 1)", type=float
-    )
+        help="Regularization parameter (default: 1)", type=float)
+    args.add_argument(
+        '--linesearch', default='0', dest='linesearch',
+        help="Use PD algorithm with linesearch (default: 0)", type=_str2bool)
+    args.add_argument(
+        '--accelerated', default='0', dest='accelerated',
+        help="Use PD algorithm with adaptive step size (default: 0)", type=_str2bool)
+    args.add_argument(
+        '--streamed', default='0', dest='streamed', type=_str2bool,
+        help='Enable streaming of large data arrays (e.g. >10 slices).')
 
     args = args.parse_args()
 
     args.trafo = False
     args.use_GPU = True
-    args.streamed = True
+    args.streamed = False
     args.devices = -1
     args.kspfile = Path.cwd() / 'data_soft_sense_test' / 'kspace.mat'
     args.csfile = Path.cwd() / 'data_soft_sense_test' / 'sensitivities_ecalib.mat'
 
-    args.type = '2D'
-    # args.reg_type = 'TV'  # '', 'TV', or 'TGV'
+    #args.type = '2D'
+    #args.reg_type = 'TGV'  # '', 'TV', or 'TGV'
     args.linesearch = False
     args.accelerated = False
-    # args.lamda = 1.0
+    #args.lamda = 8.0
     args.undersampling = True
     args.dim_us = 'y'
     args.acceleration_factor = 4

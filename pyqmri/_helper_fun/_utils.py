@@ -52,6 +52,40 @@ def NUFFT(par, trafo=True, SMS=False):
 
     return FFT
 
+def gen_soft_sense_default_config():
+    """Generate soft sense default config file."""
+    config = configparser.ConfigParser()
+
+    config['TGV'] = {}
+    config['TGV']["max_iters"] = '1000'
+    config['TGV']["lambd"] = '1e0'
+    config['TGV']["gamma"] = '1e-3'
+    config['TGV']["delta"] = '1e-2'
+    config['TGV']["display_iterations"] = '0'
+    config['TGV']["tol"] = '1e-6'
+    config['TGV']["stag"] = '1e10'
+
+    config['TV'] = {}
+    config['TV']["max_iters"] = '1000'
+    config['TV']["lambd"] = '1e0'
+    config['TV']["gamma"] = '1e-3'
+    config['TV']["delta"] = '1e-2'
+    config['TV']["display_iterations"] = '0'
+    config['TV']["tol"] = '1e-6'
+    config['TV']["stag"] = '1e10'
+
+    config[''] = {}
+    config['']["max_iters"] = '1000'
+    config['']["lambd"] = '1e0'
+    config['']["gamma"] = '1e-3'
+    config['']["delta"] = '1e-2'
+    config['']["display_iterations"] = '0'
+    config['']["tol"] = '1e-6'
+    config['']["stag"] = '1e10'
+
+    with open('default.ini', 'w') as configfile:
+        config.write(configfile)
+
 
 def gen_default_config():
     """Generate default config file."""
@@ -97,7 +131,7 @@ def gen_default_config():
         config.write(configfile)
 
 
-def read_config(conf_file, reg_type="TGV"):
+def read_config(conf_file, optimizer="IRGN", reg_type="TGV"):
     """Config file reader.
 
     Parameters
@@ -117,7 +151,10 @@ def read_config(conf_file, reg_type="TGV"):
     except BaseException:
         print("Config file not readable or not found. "
               "Falling back to default.")
-        gen_default_config()
+        if optimizer == "IRGN":
+            gen_default_config()
+        else:
+            gen_soft_sense_default_config()
         with open('default.ini', 'r') as f:
             config.read_file(f)
     finally:
