@@ -8,7 +8,7 @@ import pyqmri.solver as pyqmrisl
 from pyqmri._my_helper_fun.import_data import import_data
 from pyqmri._my_helper_fun.display_data import *
 from pyqmri._my_helper_fun.export_data import *
-from pyqmri._my_helper_fun.recon import phase_recon_cl_3d, phase_recon_cl, soft_sense_recon_cl, calculate_cost
+from pyqmri._my_helper_fun.recon import phase_recon_cl_3d, soft_sense_recon_cl, calculate_cost
 from pyqmri._my_helper_fun.helpers import *
 from pyqmri.pyqmri import _setupOCL
 from pkg_resources import resource_filename
@@ -143,7 +143,7 @@ def _calc_step_size(args, par, ksp, cmaps):
 
 def _pda_soft_sense_solver(myargs, par, ksp, cmaps, imgs, imgs_us):
 
-    # _calc_step_size(myargs, par, ksp, cmaps)
+    #tau, sigma =  _calc_step_size(myargs, par, ksp, cmaps)
 
     ksp = np.require(ksp.astype(DTYPE), requirements='C')
     cmaps = np.require(cmaps.astype(DTYPE), requirements='C')
@@ -197,8 +197,8 @@ def _pda_soft_sense_solver(myargs, par, ksp, cmaps, imgs, imgs_us):
 
 
 def _3d_recon(imgs, ksp_data, cmaps, par, myargs):
-    if myargs.undersampling:
-        ksp_data = undersample_kspace(par, ksp_data, myargs)
+    # if myargs.undersampling:
+    #     ksp_data = undersample_kspace(par, ksp_data, myargs)
 
     if myargs.streamed:
         data_trans_axes = (2, 0, 1, 3, 4)
@@ -225,19 +225,18 @@ def _3d_recon(imgs, ksp_data, cmaps, par, myargs):
 def _2d_recon(imgs, ksp_data, cmaps, par, myargs):
 
     ksp_data2d = gen_2ddata_from_imgs(imgs, cmaps)
-    ksp_data2d = prepare_data(ksp_data2d).astype(DTYPE)
 
     if myargs.undersampling:
         ksp_data2d = undersample_kspace(par, ksp_data2d, myargs)
 
     # Select only several slices (performance/duration)
-    n_slice = 4
-    par["NSlice"] = n_slice
-    par["par_slices"] = int(par["NSlice"] / (2 * len(par["num_dev"]))) if myargs.streamed else n_slice
-
-    ksp_data2d = ksp_data2d[:, :, 21:21+n_slice, :, :]
-    cmaps = cmaps[:, :, 21:21+n_slice, ...]
-    imgs = imgs[:, 21:21+n_slice, ...]
+    # n_slice = 4
+    # par["NSlice"] = n_slice
+    # par["par_slices"] = int(par["NSlice"] / (2 * len(par["num_dev"]))) if myargs.streamed else n_slice
+    #
+    # ksp_data2d = ksp_data2d[:, :, 21:21+n_slice, :, :]
+    # cmaps = cmaps[:, :, 21:21+n_slice, ...]
+    # imgs = imgs[:, 21:21+n_slice, ...]
 
     # ksp_data2d = np.repeat(ksp_data2d[:, :, [0], :, :], n_slice, axis=2)
     # cmaps = np.repeat(cmaps[:, :, [0], :, :], n_slice, axis=2)
@@ -335,16 +334,16 @@ if __name__ == '__main__':
 
     args.trafo = False
     args.use_GPU = True
-    args.streamed = False
+    args.streamed = True
     args.devices = -1
     args.kspfile = Path.cwd() / 'data_soft_sense_test' / 'kspace.mat'
     args.csfile = Path.cwd() / 'data_soft_sense_test' / 'sensitivities_ecalib.mat'
 
-    # args.type = '3D'
-    args.reg_type = ''  # '', 'TV', or 'TGV'
+    args.type = '2D'
+    # args.reg_type = 'TV'  # '', 'TV', or 'TGV'
     args.linesearch = False
     args.accelerated = False
-    args.lamda = 10.0
+    # args.lamda = 1.0
     args.undersampling = True
     args.dim_us = 'y'
     args.acceleration_factor = 4

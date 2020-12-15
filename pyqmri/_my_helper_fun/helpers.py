@@ -11,8 +11,9 @@ def gen_2ddata_from_imgs(imgs, cmaps):
     for z in range(np.shape(imgs)[1]):
         for c in range(np.shape(cmaps)[1]):
             for m in range(np.shape(cmaps)[0]):
-                result[m, c, z, ...] = 1 * np.fft.ifftshift(np.fft.fft2(
-                    np.fft.fftshift(imgs[m, z, ...] * cmaps[m, c, z, ...]), norm='ortho'))
+                # result[m, c, z, ...] = 1 * np.fft.ifftshift(np.fft.fft2(
+                #     np.fft.fftshift(imgs[m, z, ...] * cmaps[m, c, z, ...]), norm='ortho'))
+                result[m, c, z, ...] = np.fft.fft2(imgs[m, z, ...] * cmaps[m, c, z, ...], norm='ortho')
     return np.sum(result, axis=0, keepdims=True)
 
 
@@ -100,9 +101,14 @@ def calc_image_metrics(imgs, orig_imgs):
 def prepare_data(ksp, rescale=False, recon_type='2D'):
     shape = np.shape(ksp)
     z, y, x = shape[-3:]
-    check = np.ones_like(ksp)  # + 1j * np.ones_like(ksp)
-    check[..., 1::2] = -1   # - 1j
-    check[..., ::2, :] *= -1   # - 1j
+    check = np.ones_like(ksp)
+    check[..., 1::2] = -1
+    check[..., ::2, :] *= -1
     if recon_type == '3D':
-        check[..., ::2, :, :] *= -1   # - 1j
-    return ksp * check * np.sqrt(z * y * x) if rescale else ksp * check
+        check[..., ::2, :, :] *= -1
+
+    result = ksp * check
+    for nc in range(shape[0]):
+        result[nc] = np.fft.ifftshift(result[nc])
+
+    return result * np.sqrt(z * y * x) if rescale else result

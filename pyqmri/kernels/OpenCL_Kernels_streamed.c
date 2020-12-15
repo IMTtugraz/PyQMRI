@@ -257,7 +257,7 @@ __kernel void operator_ad_ssense(__global float2 *out, __global float2 *in,
 
 __kernel void update_Kyk1_ssense(__global float2 *out, __global float2 *in,
                        __global float2 *coils, __global float8 *p, const int NCo,
-                       const int Nmaps, __global float* ratio, const float dz)
+                       const int Nmaps, __global float* ratio, const int last, const float dz)
 {
   size_t X = get_global_size(2);
   size_t Y = get_global_size(1);
@@ -313,19 +313,22 @@ __kernel void update_Kyk1_ssense(__global float2 *out, __global float2 *in,
         //imag
         val.s3 -= p[i-X].s3;
     }
-    if (k == NSl-1)
+    if (last == 1)
     {
-        //real
-        val.s4 = 0.0f;
-        //imag
-        val.s5 = 0.0f;
+      if (k == NSl-1)
+      {
+          //real
+          val.s4 = 0.0f;
+          //imag
+          val.s5 = 0.0f;
+      }
     }
     if (k > 0)
     {
         //real
-        val.s4 -= p[i-X*Y].s4;
+        val.s4 -= p[i-X*Y*Nmaps].s4;
         //imag
-        val.s5 -= p[i-X*Y].s5;
+        val.s5 -= p[i-X*Y*Nmaps].s5;
     }
 
     // scale gradients

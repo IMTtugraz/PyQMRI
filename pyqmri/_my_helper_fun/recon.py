@@ -63,7 +63,7 @@ def phase_recon_cl_3d(x, cmap, par):
 
     start = time.time()
     for n in range(size[0]):
-        # x_shifted[n, ...] = np.fft.fftshift(x[n, ...], axes=(-3, -2, -1))
+        # x_shifted[n, ...] = np.fft.ifftshift(x[n, ...], axes=(-3, -2, -1))
         clainput = cla.to_device(fft.queue,
                                 np.require(
                                     x_shifted[n, ...][None, ...],
