@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import numpy as np
-from pyqmri.models.template import BaseModel, constraints, DTYPE
+"""Module holding the general model for fitting."""
 import configparser
+import numpy as np
 import sympy
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
+from pyqmri.models.template import BaseModel, constraints
 
 
 def _str2bool(v):
@@ -13,43 +12,50 @@ def _str2bool(v):
         return v
     if v.lower() in ('yes', 'true', 't', 'y', '1'):
         return True
-    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+    if v.lower() in ('no', 'false', 'f', 'n', '0'):
         return False
-    else:
-        raise ValueError('Boolean value expected.')
+    raise ValueError('Boolean value expected.')
 
 
 class Model(BaseModel):
-    """ Realization of a generative model based on sympy
+    """Realization of a generative model based on sympy.
 
       This model can handel all kinds of sympy input in form of a config file.
       Partial derivatives of the model are automatically generated and a
       numpy compatible function is build from sumpy equations.
 
-    Attributes:
-      signaleq (sympy derived function):
+    Attributes
+    ----------
+      signaleq : sympy derived function
         The signal equation derived from sympy
-      grad (list of functions):
+      grad : list of functions
         Partial derivatives with respect to the unknowns
-      rescalefun (list of functions): Functions to rescale each parameter
-      modelparams (list): List of model parameters
-      indphase (bool): Flag to estimate the phase from a given image series.
+      rescalefun : list of functions
+      Functions to rescale each parameter
+      modelparams : list
+        List of model parameters
+      indphase : bool
+        Flag to estimate the phase from a given image series.
         The phase is normed on the first image.
         If True, each image will be multiplied by the estimated phase in the
         forward and gradient evaluation.
-      guess (numpy.Array): Initial guess
+      init_values : list of str
+          Initial guess for each unknown
     """
+
     def __init__(self, par):
 
         super().__init__(par)
-
         config = configparser.ConfigParser()
+
+        if not par["modelfile"].endswith('.ini'):
+            par["modelfile"] += '.ini'
         try:
             with open(par["modelfile"], 'r') as f:
                 config.read_file(f)
         except BaseException:
             print("Model file not readable or not found")
-            raise(BaseException)
+            raise BaseException
         finally:
             params = {}
             for key in config[par["modelname"]]:
@@ -57,6 +63,7 @@ class Model(BaseModel):
 
         modelpar = sympy.symbols(params["parameter"])
         unknowns = sympy.symbols(params["unknowns"])
+        self._unknowns = unknowns
 
         par["unknowns_TGV"] = len(unknowns)
         par["unknowns_H1"] = 0
@@ -120,21 +127,47 @@ class Model(BaseModel):
 
         self.init_values = params["guess"].split(",")
 
+        self._plot = []
+        self._phase = None
+        self.guess = None
+
     def rescale(self, x):
+        """Rescale the unknowns with the scaling factors.
+
+        Rescales each unknown with the corresponding scaling factor and
+        an optional transformation.
+
+        Parameters
+        ----------
+          x : numpy.array
+            The array of unknowns to be rescaled
+
+        Returns
+        -------
+          numpy.array:
+            The rescaled unknowns
+        """
         tmp_x = np.copy(x)
+        uk_name = []
         for j in range(x.shape[0]):
             tmp_x[j] = self.rescalefun[j](
                 self.modelparams, x, self.uk_scale)
-        return tmp_x
+            uk_name.append(str(self._unknowns[j]))
+        const = []
+        for constrained in self.constraints:
+            const.append(constrained.real)
+        return {"data": tmp_x,
+                "unknown_name": uk_name,
+                "real_valued": const}
 
     def _execute_forward_3D(self, x):
         S = self.signaleq(self.modelparams, x, self.uk_scale)
         while len(S.shape) >= 5:
-           S = np.squeeze(S, axis=0)
+            S = np.squeeze(S, axis=0)
         if self.indphase is True:
-            S *= self.phase
+            S *= self._phase
         S[~np.isfinite(S)] = 1e-20
-        S = S.astype(dtype=DTYPE)
+        S = S.astype(dtype=self._DTYPE)
         return S
 
     def _execute_gradient_3D(self, x):
@@ -142,71 +175,34 @@ class Model(BaseModel):
         if self.indphase is True:
             for ukgrad in self.grad:
                 modelgradient.append(
-                        ukgrad(self.modelparams, x, self.uk_scale)*self.phase)
+                    ukgrad(self.modelparams, x, self.uk_scale)*self._phase)
         else:
             for ukgrad in self.grad:
                 modelgradient.append(
-                        ukgrad(self.modelparams, x, self.uk_scale))
-        modelgradient = np.array(modelgradient, dtype=DTYPE)
+                    ukgrad(self.modelparams, x, self.uk_scale))
+        modelgradient = np.array(modelgradient, dtype=self._DTYPE)
         while len(modelgradient.shape) >= 6:
             modelgradient = np.squeeze(modelgradient, axis=1)
         modelgradient[~np.isfinite(modelgradient)] = 1e-20
         return modelgradient
 
-    def plot_unknowns(self, x, dim_2D=False):
-        tmp_x = (self.rescale(x))
-        tmp_x[0] = np.abs(tmp_x[0])#*np.sign(tmp_x[0])
-        tmp_x = np.real(tmp_x)
-
-        if dim_2D:
-            pass
-        else:
-            self.ax = []
-            if not self.figure:
-                plot_dim = int(np.ceil(np.sqrt(len(self.uk_scale))))
-                plt.ion()
-                self.figure = plt.figure(figsize=(12, 6))
-                self.figure.subplots_adjust(hspace=0.3, wspace=0)
-                wd_ratio = np.tile([1, 1 / 20, 1 / (5)], plot_dim)
-                self.gs = gridspec.GridSpec(
-                    plot_dim, 3 * plot_dim,
-                    width_ratios=wd_ratio, hspace=0.3, wspace=0)
-                self.figure.tight_layout()
-                self.figure.patch.set_facecolor(plt.cm.viridis.colors[0])
-                for grid in self.gs:
-                    self.ax.append(plt.subplot(grid))
-                    self.ax[-1].axis('off')
-                self._plot = []
-                for j in range(len(self.uk_scale)):
-                    self._plot.append(
-                        self.ax[3 * j].imshow(
-                            tmp_x[j, int(self.NSlice / 2), ...]))
-                    self.ax[3 *
-                            j].set_title('UK : ' +
-                                         str(j), color='white')
-                    self.ax[3 * j + 1].axis('on')
-                    cbar = self.figure.colorbar(
-                        self._plot[j], cax=self.ax[3 * j + 1])
-                    cbar.ax.tick_params(labelsize=12, colors='white')
-                    for spine in cbar.ax.spines:
-                        cbar.ax.spines[spine].set_color('white')
-
-                plt.draw()
-                plt.pause(1e-10)
-
-            else:
-                for j in range(len(self.uk_scale)):
-                    self._plot[j].set_data(tmp_x[j, int(self.NSlice / 2), ...])
-                    self._plot[j].set_clim([tmp_x[j].min(), tmp_x[j].max()])
-
-                plt.draw()
-                plt.pause(1e-10)
-
     def computeInitialGuess(self, *args):
+        """Initialize unknown array for the fitting.
+
+        This function provides an initial guess for the fitting, based
+        on the values on the text file.
+
+        Parameters
+        ----------
+          args : list of objects
+            Assumes the image series at potition 0 and optionally computes
+            a phase based on the difference between each image series minus
+            the first image in the series. (Scan i minus Scan 0)
+        """
         if self.indphase is True:
-            self.phase = np.exp(1j*(np.angle(args[0])-np.angle(args[0][0])))
+            self._phase = np.exp(1j*(np.angle(args[0])-np.angle(args[0][0])))
         x = np.ones((len(self.init_values),
-                     self.NSlice, self.dimY, self.dimX), DTYPE)
+                     self.NSlice, self.dimY, self.dimX), self._DTYPE)
         for j in range(len(self.init_values)):
             if "image" in self.init_values[j]:
                 x[j] = args[0][int(self.init_values[j].split("_")[-1])]
@@ -214,11 +210,12 @@ class Model(BaseModel):
                 x[j] *= float(self.init_values[j])
         self.guess = x
 
-def genDefaultModelfile():
-    """ Generate a default model config file.
 
-      This method generates a default model file in the current project folder.
-      This file can be modified or further models can be added.
+def genDefaultModelfile():
+    """Generate a default model config file.
+
+    This method generates a default model file in the current project folder.
+    This file can be modified or further models can be added.
     """
     config = configparser.ConfigParser()
 

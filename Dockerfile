@@ -1,14 +1,13 @@
 #Download base image python buster
 FROM nvidia/opencl
 
-ENV NVIDIA_VISIBLE_DEVICES all
-ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 ENV DEBIAN_FRONTEND=noninteractive 
 ENV DEBCONF_NONINTERACTIVE_SEEN=true
 
-RUN apt-get update
-
-RUN apt-get install -y python3 && \
+RUN apt-get update &&\
+    apt-get install -y python3 && \
     apt-get install -y python3-pip && \
     apt-get install -y python3-tk && \
     apt-get install -y ocl-icd* opencl-headers &&\
@@ -26,10 +25,11 @@ ENV PATH="/var/jenkins_home/.local:${PATH}"
 
 RUN pip3 install cython 
 RUN pip3 install pyopencl
+    
 RUN git clone https://github.com/geggo/gpyfft.git &&\
     pip3 install gpyfft/. &&\
     pip3 install pytest &&\
     pip3 install pytest-cov &&\
     pip3 install pylint &&\
-    pip3 install pylint_junit
-
+    pip3 install pylint_junit &&\
+    pip3 install pytest-integration

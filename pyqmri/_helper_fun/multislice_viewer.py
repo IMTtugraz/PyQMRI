@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Wed Nov 15 16:55:39 2017
-
-@author: omaier
-"""
+"""Simple Volumetric image viewer with scrolling option."""
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -14,9 +10,20 @@ import numpy as np
 
 
 def imshow(volume, vmin=None, vmax=None):
-    """
-    Volumetric image viewer for python. Shows up to 4D volumes.
-    volume is assumed to be real valued.
+    """Volumetric image viewer for python.
+
+    Shows up to 4D volumes. volume is assumed to be real valued.
+
+    Parameters
+    ----------
+      volume : numpy.array
+        The (real values) image data to display
+      vmin : float, None
+        Minimum value of the display window. If None, uses minimum value in
+        middle slice of the volume.
+      vmax : float, None
+        Maximum value of the display window. If None, uses maximum value in
+        middle slice of the volume.
     """
     plot_rgb = 0
     if volume.shape[-1] == 3:
@@ -52,19 +59,19 @@ def imshow(volume, vmin=None, vmax=None):
                                           vmin=vmin, vmax=vmax)
     else:
         raise NameError('Unsupported Dimensions')
-    fig.canvas.mpl_connect('scroll_event', process_scroll)
+    fig.canvas.mpl_connect('scroll_event', _process_scroll)
 
 
-def process_scroll(event):
+def _process_scroll(event):
     fig = event.canvas.figure
     ax = fig.axes
-    for i in range(len(ax)):
-        if ax[i].index is not None:
-            volume = ax[i].volume
-            if (int((ax[i].index - event.step) >= volume.shape[0]) or
-                    int((ax[i].index - event.step) < 0)):
+    for i, axes in enumerate(ax):
+        if axes.index is not None:
+            volume = axes.volume
+            if (int((axes.index - event.step) >= volume.shape[0]) or
+                    int((axes.index - event.step) < 0)):
                 pass
             else:
-                ax[i].index = int((ax[i].index - event.step) % volume.shape[0])
+                ax[i].index = int((axes.index - event.step) % volume.shape[0])
                 ax[i].images[0].set_array(volume[ax[i].index])
                 fig.canvas.draw()
