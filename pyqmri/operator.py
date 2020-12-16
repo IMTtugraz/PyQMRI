@@ -2956,7 +2956,7 @@ class OperatorSoftSense(Operator):
             wait_for = []
         self._tmp_result.add_event(
             self.NUFFT.FFTH(
-                self.tmp_result, inp[0], wait_for=wait_for + inp[0].events))
+                self._tmp_result, inp[0], wait_for=wait_for + inp[0].events))
         return self.prg.update_Kyk1_ssense(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data,
