@@ -7,11 +7,6 @@ from scipy.io import loadmat
 from pathlib import Path
 
 
-# def load_mat(filename):
-#     f = load_mat(filename)
-#     return f
-
-
 def read_hdf(pathfile):
     data_sets = []
     with h5py.File(pathfile, 'r') as f:
@@ -71,7 +66,7 @@ def import_data(pathfile, dialog):
 
     file_ext = pathfile.suffix
     data = {'.mat': _read_mat(pathfile)#,
-            #'txt': _read_hdf(pathfile)
+            #'hdf5': _read_hdf(pathfile)
             }.get(file_ext)
 
     if data is not None:

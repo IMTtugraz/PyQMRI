@@ -6,15 +6,6 @@ DTYPE = np.complex64
 DTYPE_real = np.float32
 
 
-def gen_2ddata_from_imgs(imgs, cmaps):
-    result = np.zeros(np.shape(cmaps)).astype(DTYPE)
-    for z in range(np.shape(imgs)[1]):
-        for c in range(np.shape(cmaps)[1]):
-            for m in range(np.shape(cmaps)[0]):
-                # result[m, c, z, ...] = 1 * np.fft.ifftshift(np.fft.fft2(
-                #     np.fft.fftshift(imgs[m, z, ...] * cmaps[m, c, z, ...]), norm='ortho'))
-                result[m, c, z, ...] = np.fft.fft2(imgs[m, z, ...] * cmaps[m, c, z, ...], norm='ortho')
-    return np.sum(result, axis=0, keepdims=True)
 
 
 def create_mask(shape, acc=2, dim='y'):
@@ -36,8 +27,7 @@ def undersample_kspace(par, ksp_data, args):
     acc = args.acceleration_factor
     dim = args.dim_us
 
-    par["mask"] = np.zeros(ksp_data[0, 0, ...].shape, dtype=DTYPE_real)
-    #mask = np.zeros(np.shape(ksp_data), dtype=DTYPE_real)
+    par["mask"] = np.zeros(ksp_data.shape[2:], dtype=DTYPE_real)
     mask = create_mask(np.shape(ksp_data), acc, dim)
 
     if dim == 'x':
@@ -52,12 +42,12 @@ def undersample_kspace(par, ksp_data, args):
     return ksp_data * mask
 
 
-def sum_of_squares(x):
+def sqrt_sum_of_squares(x):
     return np.sqrt(np.abs(x[0])**2 + np.abs(x[1])**2) if x.shape[0] == 2 else np.abs(x)
 
 
 def normalize_imgs(x):
-    for i in range(x.shape[0]):
+    for i in range(x.shape[-3]):
         img = x[i]
         i_min = np.min(img)
         i_max = np.max(img)
@@ -91,24 +81,27 @@ def calc_image_metrics(imgs, orig_imgs):
         psnr.append(calc_psnr(img, orig_img))
         ssim.append(calc_ssim(img, orig_img))
 
-    print('MSE: ' + str(np.mean(mse)))
-    print('PSNR: ' + str(np.mean(psnr)))
-    print('SSIM: ' + str(np.mean(ssim)))
-
+    print('-'*75)
+    print('MSE min: ' + str(np.min(mse)))
+    print('PSNR max: ' + str(np.max(psnr)))
+    print('SSIM max: ' + str(np.max(ssim)))
+    print('-' * 75)
     return mse, psnr, ssim
 
 
 def prepare_data(ksp, rescale=False, recon_type='2D'):
     shape = np.shape(ksp)
-    z, y, x = shape[-3:]
+    fft_shift_dim = (-2, -1)
+    nc, z, y, x = shape[-4:]
     check = np.ones_like(ksp)
     check[..., 1::2] = -1
     check[..., ::2, :] *= -1
     if recon_type == '3D':
         check[..., ::2, :, :] *= -1
+        fft_shift_dim = (-3, -2, -1)
 
     result = ksp * check
-    for nc in range(shape[0]):
-        result[nc] = np.fft.ifftshift(result[nc])
+    for n in range(nc):
+        result[:, n, ...] = np.fft.ifftshift(result[:, n, ...], axes=fft_shift_dim)
 
     return result * np.sqrt(z * y * x) if rescale else result

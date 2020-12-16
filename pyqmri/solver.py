@@ -3312,6 +3312,16 @@ class PDSoftSenseBaseSolver:
             self._DTYPE_real(par[0]), self._DTYPE_real(par[1]),
             wait_for=outp.events+inp[0].events+inp[1].events+inp[2].events+wait_for)
 
+    def setFvalInit(self, fval):
+        """Set the initial value of the cost function.
+
+        Parameters
+        ----------
+          fval : float
+            The initial cost of the optimization problem
+        """
+        self._fval_init = fval
+
 
 class PDSoftSenseSolver(PDSoftSenseBaseSolver):
     """
@@ -4383,6 +4393,16 @@ class PDALSoftSenseBaseSolver:
             self._DTYPE_real(par[0]), self._DTYPE_real(par[1]),
             wait_for=outp.events+inp[0].events+inp[1].events+inp[2].events+wait_for)
 
+    def setFvalInit(self, fval):
+        """Set the initial value of the cost function.
+
+        Parameters
+        ----------
+          fval : float
+            The initial cost of the optimization problem
+        """
+        self._fval_init = fval
+
 
 class PDALSoftSenseSolver(PDALSoftSenseBaseSolver):
     """
@@ -4999,7 +5019,7 @@ class PDALSoftSenseSolverTGV(PDALSoftSenseBaseSolver):
 
 
 class PDSoftSenseBaseSolverStreamed(PDSoftSenseBaseSolver):
-    """
+    """ver
     Streamed version of the PD Solver.
 
     This class is the base class for the streamed array optimization.

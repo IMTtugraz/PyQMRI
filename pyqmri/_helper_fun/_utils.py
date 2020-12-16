@@ -52,6 +52,7 @@ def NUFFT(par, trafo=True, SMS=False):
 
     return FFT
 
+
 def gen_soft_sense_default_config():
     """Generate soft sense default config file."""
     config = configparser.ConfigParser()
@@ -62,7 +63,7 @@ def gen_soft_sense_default_config():
     config['TGV']["gamma"] = '1e-3'
     config['TGV']["delta"] = '1e-2'
     config['TGV']["display_iterations"] = '0'
-    config['TGV']["tol"] = '1e-6'
+    config['TGV']["tol"] = '1e-8'
     config['TGV']["stag"] = '1e10'
 
     config['TV'] = {}
@@ -71,17 +72,17 @@ def gen_soft_sense_default_config():
     config['TV']["gamma"] = '1e-3'
     config['TV']["delta"] = '1e-2'
     config['TV']["display_iterations"] = '0'
-    config['TV']["tol"] = '1e-6'
+    config['TV']["tol"] = '1e-8'
     config['TV']["stag"] = '1e10'
 
-    config[''] = {}
-    config['']["max_iters"] = '1000'
-    config['']["lambd"] = '1e0'
-    config['']["gamma"] = '1e-3'
-    config['']["delta"] = '1e-2'
-    config['']["display_iterations"] = '0'
-    config['']["tol"] = '1e-6'
-    config['']["stag"] = '1e10'
+    config['NoReg'] = {}
+    config['NoReg']["max_iters"] = '1000'
+    config['NoReg']["lambd"] = '1e0'
+    config['NoReg']["gamma"] = '1e-3'
+    config['NoReg']["delta"] = '1e-2'
+    config['NoReg']["display_iterations"] = '0'
+    config['NoReg']["tol"] = '1e-8'
+    config['NoReg']["stag"] = '1e10'
 
     with open('default.ini', 'w') as configfile:
         config.write(configfile)
@@ -141,6 +142,9 @@ def read_config(conf_file, optimizer="IRGN", reg_type="TGV"):
       reg_type : str, TGV
         Select witch regularization parameters from the file should be used.
     """
+    if reg_type == '':
+        reg_type = 'NoReg'
+
     config = configparser.ConfigParser()
 
     if not conf_file.endswith('.ini'):

@@ -16,7 +16,7 @@ DTYPE_real = np.float32
 def phase_recon_cl(x, cmap, par):
     nctmp = par["NC"]
     par["NC"] = 1
-    fft = PyOpenCLnuFFT.create(par["ctx"][0], par["queue"][0], par, fft_dim=par["fft_dim"])
+    fft = PyOpenCLnuFFT.create(par["ctx"][0], par["queue"][0], par)
     par["NC"] = nctmp
 
     size = np.shape(x)
@@ -31,13 +31,14 @@ def phase_recon_cl(x, cmap, par):
     start = time.time()
     for n in range(size[0]):
         for c in range(size[1]):
+            # x = np.fft.fftshift(x, axes=(par["fft_dim"]))
             clainput = cla.to_device(fft.queue,
                                     np.require(
                                         x[n, c, ...][None, None, ...],
                                         requirements='C'))
             fft.FFTH(tmp_result, clainput).wait()
-            # result[n, c, ...] = np.fft.fftshift(np.squeeze(tmp_result.get()), axes=par["fft_dim"])
-            result[n, c, ...] = np.squeeze(tmp_result.get())
+            result[n, c, ...] = np.fft.ifftshift(np.squeeze(tmp_result.get()), axes=par["fft_dim"])
+            #result[n, c, ...] = np.squeeze(tmp_result.get())
 
     print("FT took %f s" % (time.time() - start))
 
@@ -101,23 +102,24 @@ def sos_recon(ksp, fft3d=True):
     return np.sqrt(np.squeeze(np.sum(np.abs(result)**2, axis=1)))
 
 
-def phase_recon(ksp, cmap, fft3d=True):
-    result = np.zeros_like(ksp)
-    print("Performing phase recon...")
-    start = time.time()
-    for n in range(np.shape(ksp)[0]):
-        for c in range(np.shape(ksp)[1]):
+def phase_recon(ksp, cmaps, fft3d=True):
+    result = np.zeros_like(cmaps)
+    # print("Performing phase recon...")
+    # start = time.time()
+    for n in range(np.shape(cmaps)[0]):
+        for c in range(np.shape(cmaps)[1]):
             if fft3d:
                 # print("Performing 3D FFT...")
                 # np.sqrt(np.prod(np.shape(ksp[c, ...]))) * \
-                result[n, c, ...] = np.fft.ifftshift(np.fft.ifftn(np.fft.fftshift(ksp[n, c, ...]), norm='ortho')) * \
-                                    np.conj(cmap[0, c, ...])
+                # result[n, c, ...] = np.fft.ifftshift(np.fft.ifftn(np.fft.fftshift(ksp[0, c, ...]), norm='ortho')) * \
+                #                     np.conj(cmaps[n, c, ...])
+                result[n, c, ...] = np.fft.ifftn(ksp[0, c, ...], norm='ortho') * np.conj(cmaps[n, c, ...])
             else:
                 # print("Performing 2D FFT...")
                 for z in range(np.shape(ksp)[2]):
                     result[n, c, z, ...] = np.fft.ifftshift(np.fft.ifft2(
-                        np.fft.fftshift(ksp[n, c, z, ...]), norm='ortho')) * np.conj(cmap[0, c, z, ...])
-    print("Done! ...FT took %f s" % (time.time() - start))
+                        np.fft.fftshift(ksp[0, c, z, ...]), norm='ortho')) * np.conj(cmaps[n, c, z, ...])
+    # print("Done! ...FT took %f s" % (time.time() - start))
     return np.squeeze(np.sum(result, axis=1))
 
 

@@ -13,7 +13,8 @@ import pyqmri.operator as operator
 import pyqmri.solver as optimizer
 from pyqmri._helper_fun import CLProgram as Program
 from pyqmri._helper_fun import _utils as utils
-
+from pyqmri._my_helper_fun.display_data import img_montage
+from pyqmri._my_helper_fun.helpers import sqrt_sum_of_squares, normalize_imgs
 
 class SoftSenseOptimizer:
     """Main Soft Sense Optimization class.
@@ -56,15 +57,16 @@ class SoftSenseOptimizer:
         optimization process
     """
 
-    def __init__(self, par,
+    def __init__(self,
+                 par,
+                 myargs,
                  reg_type='TGV',
-                 config='',
                  streamed=False,
                  DTYPE=np.complex64,
                  DTYPE_real=np.float32):
         self.par = par
-        self.ss_par = utils.read_config(config, optimizer="SSense", reg_type=reg_type)
-        utils.save_config(self.ss_par, par["outdir"], reg_type)
+        self.ss_par = utils.read_config('', optimizer="SSense", reg_type=reg_type)
+        # utils.save_config(self.ss_par, par["outdir"], reg_type)
         num_dev = len(par["num_dev"])
         self._fval_old = 0
         self._fval = 0
@@ -77,20 +79,27 @@ class SoftSenseOptimizer:
         self._DTYPE = DTYPE
         self._DTYPE_real = DTYPE_real
 
+        # temporary solution
+        self.ss_par["lambd"] = myargs.lamda
+        self.ss_par["linesearch"] = myargs.linesearch
+        self.ss_par["accelerated"] = myargs.accelerated
+        self.ss_par["display_iterations"] = True
+        self.ss_par["sigma"] = np.float32(1 / np.sqrt(12))
+
         self._streamed = streamed
-        if streamed and par["NSlice"]/(num_dev*par["par_slices"]) < 2:
-            raise ValueError(
-                "Number of Slices devided by parallel "
-                "computed slices and devices needs to be larger two.\n"
-                "Current values are %i total Slices, %i parallel slices and "
-                "%i compute devices."
-                % (par["NSlice"], par["par_slices"], num_dev))
-        if streamed and par["NSlice"] % par["par_slices"]:
-            raise ValueError(
-                "Number of Slices devided by parallel "
-                "computed slices needs to be an integer.\n"
-                "Current values are %i total Slices with %i parallel slices."
-                % (par["NSlice"], par["par_slices"]))
+        # if streamed and par["NSlice"]/(num_dev*par["par_slices"]) < 2:
+        #     raise ValueError(
+        #         "Number of Slices devided by parallel "
+        #         "computed slices and devices needs to be larger two.\n"
+        #         "Current values are %i total Slices, %i parallel slices and "
+        #         "%i compute devices."
+        #         % (par["NSlice"], par["par_slices"], num_dev))
+        # if streamed and par["NSlice"] % par["par_slices"]:
+        #     raise ValueError(
+        #         "Number of Slices devided by parallel "
+        #         "computed slices needs to be an integer.\n"
+        #         "Current values are %i total Slices with %i parallel slices."
+        #         % (par["NSlice"], par["par_slices"]))
         if DTYPE == np.complex128:
             if streamed:
                 kernname = 'kernels/OpenCL_Kernels_double_streamed.c'
@@ -117,16 +126,20 @@ class SoftSenseOptimizer:
 
         self._data_shape = (par["NScan"], par["NC"],
                             par["NSlice"], par["Nproj"], par["N"])
+        self._unknown_shape = (par["NMaps"], par["NSlice"],
+                               par["Nproj"], par["N"])
+
         if self._streamed:
             self._data_trans_axes = (2, 0, 1, 3, 4)
-            self._coils = np.require(
-                np.swapaxes(par["C"], 0, 1), requirements='C',
+            self._cmaps = np.require(
+                np.transpose(par["C"], self._data_trans_axes), requirements='C',
                 dtype=DTYPE)
-
+            self._unknown_shape = (par["NSlice"], par["NMaps"],
+                                   par["Nproj"], par["N"])
             self._data_shape = (par["NSlice"], par["NScan"], par["NC"],
                                 par["Nproj"], par["N"])
         else:
-            self._coils = clarray.to_device(self._queue[0],
+            self._cmaps = clarray.to_device(self._queue[0],
                                             self.par["C"])
 
         self._MRI_operator, self._FT = operator.Operator.SoftSenseOperatorFactory(
@@ -137,20 +150,32 @@ class SoftSenseOptimizer:
             streamed
             )
 
-        self._grad_op, self._symgrad_op, self._v = self._setupLinearOps(
+        self._grad_op, self._symgrad_op, self._v = self._setup_linear_ops(
             DTYPE,
             DTYPE_real)
 
         if self.ss_par["linesearch"]:
-            pass
-        else:
-            self._pdop = optimizer.PDSoftSenseSolver.factory(
+            self._pdop = optimizer.PDALSoftSenseBaseSolver.factory(
                 self._prg,
                 self._queue,
                 self.par,
                 self.ss_par,
                 self._fval_init,
-                self._coils,
+                self._cmaps,
+                linops=(self._MRI_operator, self._grad_op, self._symgrad_op),
+                reg_type=self._reg_type,
+                streamed=self._streamed,
+                DTYPE=DTYPE,
+                DTYPE_real=DTYPE_real
+            )
+        else:
+            self._pdop = optimizer.PDSoftSenseBaseSolver.factory(
+                self._prg,
+                self._queue,
+                self.par,
+                self.ss_par,
+                self._fval_init,
+                self._cmaps,
                 linops=(self._MRI_operator, self._grad_op, self._symgrad_op),
                 reg_type=self._reg_type,
                 streamed=self._streamed,
@@ -158,8 +183,8 @@ class SoftSenseOptimizer:
                 DTYPE_real=DTYPE_real
             )
 
-    def _setupLinearOps(self, DTYPE, DTYPE_real):
-        grad_op = operator.Operator.GradientOperatorFactory(
+    def _setup_linear_ops(self, DTYPE, DTYPE_real):
+        grad_op, _ = operator.Operator.GradientOperatorFactory(
             self.par,
             self._prg,
             DTYPE,
@@ -182,6 +207,135 @@ class SoftSenseOptimizer:
                 v = np.require(np.swapaxes(v, 0, 1), requirements='C')
         return grad_op, symgrad_op, v
 
+    def _power_iterations(self, x, cmap, op, iters=100):
+        x = x.astype(self._DTYPE)
+
+        if len(cmap) > 0:
+            cmap = cmap.astype(self._DTYPE)
+            if self._streamed:
+                y = op.adjoop([[op.fwdoop([[x, cmap]]), cmap]])
+            else:
+                x = clarray.to_device(self._queue[0], x)
+                y = op.adjoop([op.fwdoop([x, cmap]), cmap]).get()
+        else:
+            if self._streamed:
+                y = op.adjoop([op.fwdoop([x])])
+            else:
+                x = clarray.to_device(self._queue[0], x)
+                y = op.adjoop(op.fwdoop(x)).get()
+
+        l1 = []
+        for i in range(iters):
+            y_norm = np.linalg.norm(y)
+            x = y / y_norm if y_norm != 0 else y
+            if self._streamed:
+                y = op.adjoop([[op.fwdoop([[x, cmap]]), cmap]]) if len(cmap) > 0 \
+                    else op.adjoop([op.fwdoop([x])])
+            else:
+                x = clarray.to_device(self._queue, x)
+                y = op.adjoop([op.fwdoop([x, cmap]), cmap]).get() if len(cmap) > 0 \
+                    else op.adjoop(op.fwdoop(x)).get()
+
+                if not isinstance(x, np.ndarray):
+                    x = x.get()
+                l1.append(np.vdot(y, x))
+
+        return np.sqrt(np.max(np.abs(l1)))
+
+    def _calc_step_size(self):
+
+        if self._streamed:
+            x = np.random.randn(self.par["NSlice"], 1, self.par["dimY"], self.par["dimX"]) + \
+                1j * np.random.randn(self.par["NSlice"], 1, self.par["dimY"], self.par["dimX"])
+        else:
+            x = np.random.randn(1, self.par["NSlice"], self.par["dimY"], self.par["dimX"]) + \
+                1j * np.random.randn(1, self.par["NSlice"], self.par["dimY"], self.par["dimX"])
+
+        opnorm_1 = self._power_iterations(x, self._cmaps[0], self._MRI_operator)
+        opnorm_2 = self._power_iterations(x, self._cmaps[1], self._MRI_operator)
+
+        opnorm_grad = self._power_iterations(x, [], self._grad_op)
+
+        if self._streamed:
+            x_symgrad = np.random.randn(self.par["NSlice"], 1, self.par["dimY"], self.par["dimX"], 4) + \
+                        1j * np.random.randn(self.par["NSlice"], 1, self.par["dimY"], self.par["dimX"], 4)
+        else:
+            x_symgrad = np.random.randn(1, self.par["NSlice"], self.par["dimY"], self.par["dimX"], 4) + \
+                        1j * np.random.randn(1, self.par["NSlice"], self.par["dimY"], self.par["dimX"], 4)
+
+        opnorm_symgrad = self._power_iterations(x_symgrad, [], self._symgrad_op)
+
+        K_ssense = np.array([opnorm_1, opnorm_2])
+        K_ssense_tv = np.array([[opnorm_1, opnorm_2],
+                                [opnorm_grad, 0],
+                                [0, opnorm_grad]])
+
+        K_ssense_tgv = np.array([[opnorm_1, opnorm_2, 0, 0],
+                                 [opnorm_grad, 0, 1, 0],
+                                 [0, 0, opnorm_symgrad, 0],
+                                 [0, opnorm_grad, 0, 1],
+                                 [0, 0, 0, opnorm_symgrad]])
+
+        if self._reg_type == '':
+            tau = 1 / np.sqrt(np.vdot(K_ssense, K_ssense))
+        if self._reg_type == 'TV':
+            tau = 1 / np.sqrt(np.vdot(K_ssense_tv, K_ssense_tv))
+        if self._reg_type == 'TGV':
+            tau = 1 / np.sqrt(np.vdot(K_ssense_tgv, K_ssense_tgv))
+        sigma = tau
+        return tau, sigma
+
+    def _calculate_cost(self, x, data):
+        if self._streamed:
+            fwd = self._MRI_operator.fwdoop([[x, self._cmaps]])
+            grad = self._grad_op.fwdoop([x])
+            if self._v is not None:
+                symgrad = self._symgrad_op.fwdoop([self._v])
+        else:
+            x = clarray.to_device(self._queue[0], x)
+            fwd = self._MRI_operator.fwdoop([x, self._cmaps]).get()
+            grad = self._grad_op.fwdoop(x).get()
+            if self._v is not None:
+                v = clarray.to_device(self._queue[0], self._v)
+                symgrad = self._symgrad_op.fwdoop(v).get()
+
+        data_cost = np.linalg.norm(fwd - data) ** 2
+        # datacost = np.vdot((out_fwd - ksp), (out_fwd - ksp)).real
+
+        reg_cost = 0
+        if self._reg_type == 'TV':
+            data_cost *= (self.ss_par["lambd"] * 0.5)
+            reg_cost = np.sum(np.abs(grad))
+        if self._reg_type == 'TGV':
+            data_cost *= self.ss_par["lambd"]
+            reg_cost = self.par['alpha1'] * np.sum(np.abs(grad - self._v)) \
+                + self.par['alpha0'] * np.sum(np.abs(symgrad))
+
+        self._fval = data_cost + reg_cost
+        self._fval_init = self._fval
+        self._pdop.setFvalInit(self._fval)
+
+        print("-" * 75)
+        print("Initial Cost: %f" % self._fval_init)
+        print("Costs of Data: %f" % data_cost)
+        if self._reg_type != '':
+            print("Costs of T(G)V: %f" % reg_cost)
+        print("-" * 75)
+
+    def _solve(self, x, data, iters):
+        tmpres = self._pdop.run(x, data, iters)
+        for key in tmpres:
+            if key == 'x':
+                if isinstance(tmpres[key], np.ndarray):
+                    x = tmpres["x"]
+                else:
+                    x = tmpres["x"].get()
+
+        if self._streamed:
+            x = np.require(np.swapaxes(x, 0, 1), requirements='C')
+
+        return x
+
     def execute(self, data):
         """Start the Soft Sense optimization.
 
@@ -190,8 +344,40 @@ class SoftSenseOptimizer:
           data : numpy.array
             the data to perform optimization on.
         """
-        pass
+        x = np.require(
+            np.zeros(self._unknown_shape, self._DTYPE)
+            + 1j * np.zeros(self._unknown_shape, self._DTYPE),
+            requirements='C')
 
+        if self._streamed:
+            data = np.require(
+                np.transpose(data, self._data_trans_axes),
+                requirements='C')
+
+            img_init = self._MRI_operator.adjoop([[data, self._cmaps]])
+            img_init_ = np.swapaxes(img_init, 0, 1)
+            img_montage(sqrt_sum_of_squares(img_init_))
+        else:
+            data_ = clarray.to_device(self._queue[0], data)
+            img_init = self._MRI_operator.adjoop([data_, self._cmaps]).get()
+            img_montage(sqrt_sum_of_squares(img_init))
+
+        iters = self.ss_par["max_iters"] if "max_iters" in self.ss_par.keys() else 1000
+
+        self._calculate_cost(img_init, data)
+
+        # if False:
+        #     tau, sigma = self._calc_step_size()
+
+        start_time = time.time()
+        result = self._solve(x, data, iters)
+        time_elapsed = time.time() - start_time
+
+        print("-" * 75)
+        print("Elapsed time PD algorithm: %f seconds" % time_elapsed)
+        print("-" * 75)
+
+        return result
 
 
 

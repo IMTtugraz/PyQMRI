@@ -390,12 +390,13 @@ class Operator(ABC):
                                            prg,
                                            DTYPE,
                                            DTYPE_real)
+
         else:
             op = OperatorSoftSense(par,
                                    prg[0],
                                    DTYPE,
                                    DTYPE_real)
-        return op
+        return op, op.NUFFT
 
     def _defineoperator(self,
                         functions,
