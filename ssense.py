@@ -1,24 +1,32 @@
 import argparse
-import sys
 
-import pyopencl.array as cla
-import pyqmri.operator as pyqmirop
-import pyqmri.solver as pyqmrisl
-from pyqmri.softsense import SoftSenseOptimizer
+from pkg_resources import resource_filename
+from pyqmri.pyqmri import _setupOCL
+from pyqmri._helper_fun import CLProgram as Program
 
 from pyqmri._my_helper_fun.import_data import import_data
-from pyqmri._my_helper_fun.display_data import *
+from pyqmri._my_helper_fun.display_data import img_montage
 from pyqmri._my_helper_fun.export_data import *
 from pyqmri._my_helper_fun.recon import *
 from pyqmri._my_helper_fun.helpers import *
-from pyqmri.pyqmri import _setupOCL
-from pkg_resources import resource_filename
-from pyqmri._helper_fun import CLProgram as Program
+
 from pyqmri.softsense import SoftSenseOptimizer
+import pyqmri.solver as pyqmrisl
 
 
 DTYPE = np.complex64
 DTYPE_real = np.float32
+
+
+def _set_output_dir(par, myargs):
+    if myargs.outdir == '':
+        outdir = Path.cwd()
+    else:
+        outdir = Path(myargs.outdir)
+    outdir = outdir / "SoftSense_out" / myargs.reg_type / time.strftime("%Y-%m-%d_%H-%M-%S")
+    if not outdir.exists():
+        outdir.mkdir(parents=True, exist_ok=True)
+    par["outdir"] = outdir
 
 
 def _setup_par(par, myargs, ksp_data, cmaps):
@@ -46,13 +54,16 @@ def _setup_par(par, myargs, ksp_data, cmaps):
 
     par["fft_dim"] = (0, 1, 2) if myargs.type == '3D' else (1, 2)
     par["mask"] = np.require(np.ones((par["dimY"], par["dimX"]), dtype=DTYPE_real), requirements='C')
+    par["R"] = myargs.acceleration_factor
 
     par["overlap"] = 0
     par["par_slices"] = par["NSlice"]
 
     if myargs.streamed:
-        par["par_slices"] = int(par["NSlice"] / (1 * len(par["num_dev"])))
-        par["overlap"] = 0
+        par["par_slices"] = int(par["NSlice"] / len(par["num_dev"]))
+        par["overlap"] = 1
+
+    _set_output_dir(par, myargs)
 
 
 def _setup_ss_par(ss_par, myargs):
@@ -162,8 +173,6 @@ def _recon(imgs, ksp_data, cmaps, par, myargs):
 
     img_montage(sqrt_sum_of_squares(out_undersampled_),
                 myargs.type + ' reconstruction of undersampled data with adjoint operator')
-    # img_montage(np.real(out_undersampled_))
-    # img_montage(np.imag(out_undersampled_))
 
     out_pd = _pda_soft_sense_solver(myargs, par, ksp_data, cmaps, imgs, out_undersampled)
 
@@ -175,7 +184,7 @@ def _start_recon(data, par, myargs):
                                    myargs,
                                    myargs.reg_type,
                                    streamed=myargs.streamed)
-    result = optimizer.execute(data)
+    result = optimizer.execute(data.copy())
 
     return result
 
@@ -215,8 +224,8 @@ def _main(myargs):
     ksp_data = np.require(prepare_data(ksp_data, recon_type=myargs.type).astype(DTYPE), requirements='C')
     ksp_data = undersample_kspace(par, ksp_data, myargs)
 
+    # x_ssense = _recon(x, ksp_data, cmaps, par, myargs)
     x_ssense = _start_recon(ksp_data, par, myargs)
-    # x_ssense2 = _recon(x, ksp_data, cmaps, par, myargs)
 
     x_ssense_ = normalize_imgs(sqrt_sum_of_squares(x_ssense))
     x_ = normalize_imgs(sqrt_sum_of_squares(x))
@@ -227,12 +236,10 @@ def _main(myargs):
 
     mse, psnr, ssim = calc_image_metrics(x_ssense_, x_)
 
-    ss_par = {}
-    _setup_ss_par(ss_par, myargs)
-    save_data(x_ssense_, par, ss_par, myargs)
-    # save_data(out_orig, par, ss_par, myargs, filename='fully_sampled_recon', ds_name='dataset', store_attrs=False)
-    save_imgs(x_ssense_, myargs)
-    #save_imgs(x_diff_, myargs, 'diffs')
+    # ss_par = {}
+    # _setup_ss_par(ss_par, myargs)
+    # save_data(x_ssense_, par, ss_par, myargs)
+    # save_imgs(x_ssense_, myargs)
 
 
 def _str2bool(v):
@@ -253,9 +260,9 @@ if __name__ == '__main__':
       '--recon_type', default='2D', dest='type',
       help='Choose reconstruction type, 2D or 3D')
     args.add_argument(
-      '--reg_type', default='', dest='reg_type',
+      '--reg_type', default='NoReg', dest='reg_type',
       help="Choose regularization type (default: without regularization) "
-           "options are: 'TGV', 'TV', ''")
+           "options are: 'TGV', 'TV', 'NoReg'")
     args.add_argument(
         '--lambda', default=1, dest='lamda',
         help="Regularization parameter (default: 1)", type=float)
@@ -271,22 +278,25 @@ if __name__ == '__main__':
     args.add_argument(
         '--reco_slices', default='-1', dest='reco_slices', type=int,
         help='Number of slices taken around center for reconstruction (Default to -1, i.e. all slices)')
+    args.add_argument(
+        '--outdir', default='', dest='outdir', type=str,
+        help='Output directory.')
 
     args = args.parse_args()
 
     args.trafo = False
     args.use_GPU = True
-    args.streamed = True
+    # args.streamed = False
     args.devices = -1
     args.kspfile = Path.cwd() / 'data_soft_sense_test' / 'kspace.mat'
     args.csfile = Path.cwd() / 'data_soft_sense_test' / 'sensitivities_ecalib.mat'
 
-    # args.type = '2D'
-    # args.reg_type = ''  # '', 'TV', or 'TGV'
-    # args.reco_slices = 4
+    #args.type = '2D'
+    #args.reg_type = 'TGV'  # 'NoReg', 'TV', or 'TGV'
+    #args.reco_slices = 4
     args.linesearch = False
     args.accelerated = False
-    # args.lamda = 1.0
+    #args.lamda = 1.0
     args.dim_us = 'y'
     args.acceleration_factor = 4
 

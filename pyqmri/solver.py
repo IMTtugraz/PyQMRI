@@ -2784,10 +2784,10 @@ class PDSoftSenseBaseSolver:
 
         self._DTYPE = DTYPE
         self._DTYPE_real = DTYPE_real
-        self.sigma = ss_par["sigma"]
-        self.delta = ss_par["delta"]
-        self.gamma = ss_par["gamma"]
-        self.lambd = ss_par["lambd"]
+        self.sigma = self._DTYPE_real(ss_par["sigma"])
+        self.delta = self._DTYPE_real(ss_par["delta"])
+        self.gamma = self._DTYPE_real(ss_par["gamma"])
+        self.lambd = self._DTYPE_real(ss_par["lambd"])
         self.accelerated = ss_par["accelerated"]
         self.stag = ss_par["stag"]
         self.tol = ss_par["tol"]
@@ -2846,7 +2846,7 @@ class PDSoftSenseBaseSolver:
           trafo (bool): Switch between radial (1) and Cartesian (0) fft.
           and slice accelerated (1) reconstruction.
         """
-        if reg_type == '':
+        if reg_type == 'NoReg':
             if not streamed:
                 pdop = PDSoftSenseSolver(
                     par,
@@ -2877,7 +2877,7 @@ class PDSoftSenseBaseSolver:
                     par,
                     ss_par,
                     queue,
-                    np.float32(1 / np.sqrt(8)),
+                    np.float32(1 / np.sqrt(12)),
                     init_fval,
                     prg,
                     linops,
@@ -2889,7 +2889,7 @@ class PDSoftSenseBaseSolver:
                     par,
                     ss_par,
                     queue,
-                    np.float32(1 / np.sqrt(8)),
+                    np.float32(1 / np.sqrt(12)),
                     init_fval,
                     prg,
                     linops,
@@ -2902,7 +2902,7 @@ class PDSoftSenseBaseSolver:
                     par,
                     ss_par,
                     queue,
-                    np.float32(1 / np.sqrt(8)),
+                    np.float32(1 / np.sqrt(12)),
                     init_fval,
                     prg,
                     linops,
@@ -2914,7 +2914,7 @@ class PDSoftSenseBaseSolver:
                     par,
                     ss_par,
                     queue,
-                    np.float32(1 / np.sqrt(8)),
+                    np.float32(1 / np.sqrt(12)),
                     init_fval,
                     prg,
                     linops,
@@ -3569,7 +3569,7 @@ class PDSoftSenseSolverTV(PDSoftSenseBaseSolver):
             self.update_z_tv(
                 outp=out_dual["z"],
                 inp=(in_dual["z"], in_precomp_fwd["gradx"]),
-                par=(sigma, self.lambd)))
+                par=(sigma,)))
 
         out_adj["Kyk1"].add_event(self._op.adjKyk1(
             out=out_adj["Kyk1"],
@@ -3627,8 +3627,8 @@ class PDSoftSenseSolverTGV(PDSoftSenseBaseSolver):
             coils,
             **kwargs)
 
-        self.alpha_0 = ss_par["alpha0"]      # alpha_0
-        self.alpha_1 = ss_par["alpha1"]      # alpha_1
+        self.alpha_0 = self._DTYPE_real(ss_par["alpha0"])      # alpha_0
+        self.alpha_1 = self._DTYPE_real(ss_par["alpha1"])      # alpha_1
 
         self._op = linop[0]
         self._grad_op = linop[1]
@@ -3917,7 +3917,7 @@ class PDALSoftSenseBaseSolver:
           trafo (bool): Switch between radial (1) and Cartesian (0) fft.
           and slice accelerated (1) reconstruction.
         """
-        if reg_type == '':
+        if reg_type == 'NoReg':
             if not streamed:
                 pdop = PDALSoftSenseSolver(
                     par,
@@ -5094,9 +5094,9 @@ class PDSoftSenseBaseSolverStreamed(PDSoftSenseBaseSolver):
                 [[]],
                 reverse_dir=True)
             self.stream_initial_1 += self._op.fwdstr
-            if reg_type == '':
+            if reg_type == 'NoReg':
                 self.stream_initial_1 += self._op.adjstr
-            if reg_type != '':
+            if reg_type != 'NoReg':
                 self.stream_initial_1 += self._op.adjstrKyk1
             if reg_type == 'TGV':
                 self.stream_initial_1 += self._symgrad_op.getStreamedSymGradientObject()
@@ -5136,7 +5136,7 @@ class PDSoftSenseBaseSolverStreamed(PDSoftSenseBaseSolver):
             self.update_primal_1 += self._op.fwdstr
             self.update_primal_1.connectouttoin(0, (1, 0))
 
-        if reg_type != '':
+        if reg_type != 'NoReg':
             self.update_primal_1 += self._grad_op.getStreamedGradientObject()
             self.update_primal_1.connectouttoin(0, (2, 0))
 
@@ -5189,12 +5189,12 @@ class PDSoftSenseBaseSolverStreamed(PDSoftSenseBaseSolver):
                 reverse_dir=True,
                 posofnorm=[False, False, True])
 
-            if reg_type != '':
+            if reg_type != 'NoReg':
                 self.update_dual_1 += self.stream_update_z1
 
             self.update_dual_1 += self.stream_update_y
 
-            if reg_type == '':
+            if reg_type == 'NoReg':
                 self.update_dual_1 += self._op.adjstr
                 self.update_dual_1.connectouttoin(0, (1, 0))
             else:
@@ -5285,7 +5285,7 @@ class PDSoftSenseSolverStreamed(PDSoftSenseBaseSolverStreamed):
             **kwargs)
         self._op = linop[0]
 
-        self._setup_reg_tmp_arrays('', SMS=False)
+        self._setup_reg_tmp_arrays('NoReg', SMS=False)
 
     def _setupVariables(self, inp, data):
         primal_vars = {}

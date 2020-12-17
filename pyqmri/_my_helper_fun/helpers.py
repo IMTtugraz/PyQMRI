@@ -6,8 +6,6 @@ DTYPE = np.complex64
 DTYPE_real = np.float32
 
 
-
-
 def create_mask(shape, acc=2, dim='y'):
     mask = np.zeros(shape, dtype=DTYPE_real)
 

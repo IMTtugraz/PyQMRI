@@ -65,6 +65,8 @@ def gen_soft_sense_default_config():
     config['TGV']["display_iterations"] = '0'
     config['TGV']["tol"] = '1e-8'
     config['TGV']["stag"] = '1e10'
+    config['TGV']["alpha0"] = '1414e-3'
+    config['TGV']["alpha1"] = '1e0'
 
     config['TV'] = {}
     config['TV']["max_iters"] = '1000'
@@ -142,9 +144,6 @@ def read_config(conf_file, optimizer="IRGN", reg_type="TGV"):
       reg_type : str, TGV
         Select witch regularization parameters from the file should be used.
     """
-    if reg_type == '':
-        reg_type = 'NoReg'
-
     config = configparser.ConfigParser()
 
     if not conf_file.endswith('.ini'):

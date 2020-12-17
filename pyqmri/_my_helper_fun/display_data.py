@@ -34,9 +34,3 @@ def img_montage(imgs, title=''):
         plt.imshow(montage, cmap='gray')
         plt.title(title)
         plt.show()
-
-
-def img_show(img):
-    fig = plt.figure()
-    plt.imshow(img, cmap='gray')
-    plt.show()

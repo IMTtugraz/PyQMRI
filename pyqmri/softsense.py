@@ -4,10 +4,12 @@
 from __future__ import division
 import time
 import numpy as np
+import h5py
+from PIL import Image
+from pathlib import Path
 
 from pkg_resources import resource_filename
 import pyopencl.array as clarray
-import h5py
 
 import pyqmri.operator as operator
 import pyqmri.solver as optimizer
@@ -15,6 +17,7 @@ from pyqmri._helper_fun import CLProgram as Program
 from pyqmri._helper_fun import _utils as utils
 from pyqmri._my_helper_fun.display_data import img_montage
 from pyqmri._my_helper_fun.helpers import sqrt_sum_of_squares, normalize_imgs
+
 
 class SoftSenseOptimizer:
     """Main Soft Sense Optimization class.
@@ -66,7 +69,7 @@ class SoftSenseOptimizer:
                  DTYPE_real=np.float32):
         self.par = par
         self.ss_par = utils.read_config('', optimizer="SSense", reg_type=reg_type)
-        # utils.save_config(self.ss_par, par["outdir"], reg_type)
+        utils.save_config(self.ss_par, str(par["outdir"]), reg_type)
         num_dev = len(par["num_dev"])
         self._fval_old = 0
         self._fval = 0
@@ -85,6 +88,8 @@ class SoftSenseOptimizer:
         self.ss_par["accelerated"] = myargs.accelerated
         self.ss_par["display_iterations"] = True
         self.ss_par["sigma"] = np.float32(1 / np.sqrt(12))
+
+        self._elapsed_time = None
 
         self._streamed = streamed
         # if streamed and par["NSlice"]/(num_dev*par["par_slices"]) < 2:
@@ -207,6 +212,45 @@ class SoftSenseOptimizer:
                 v = np.require(np.swapaxes(v, 0, 1), requirements='C')
         return grad_op, symgrad_op, v
 
+    def _save_imgs(self, x):
+        if "fname" in self.par.keys():
+            filename = self.par["fname"]
+        else:
+            filename = 'Recon_R_' + str(self.par["R"]) + '_lambda_' + '{:.0e}'.format(self.ss_par["lambd"])
+        path = self.par["outdir"] / 'imgs'
+        if not path.exists():
+            path.mkdir(parents=True, exist_ok=True)
+
+        for i, img in enumerate(x):
+            img = np.flipud(np.abs(img))
+            img_rescaled = (255.0 / img.max() * (img - img.min())).astype(np.uint8)
+
+            im = Image.fromarray(img_rescaled)
+            file_dir = path / (filename + '_' + str(i) + '.png')
+            im.save(file_dir)
+
+    def _save_data(self, x):
+        if "fname" in self.par.keys():
+            filename = self.par["fname"]
+        else:
+            filename = 'Recon_R_' + str(self.par["R"]) + '_lambda_' + '{:.0e}'.format(self.ss_par["lambd"])
+        path = self.par["outdir"] / 'data'
+        if not path.exists():
+            path.mkdir(parents=True, exist_ok=True)
+        file_dir = path / (filename + '.hdf5')
+
+        with h5py.File(file_dir, 'w') as f:
+            dset = f.create_dataset(self._reg_type+'_result', x.shape,
+                                    dtype=self._DTYPE, data=x)
+            dset.attrs["R"] = self.par["R"]
+            dset.attrs["linesearch"] = self.ss_par["linesearch"]
+            dset.attrs["lambd"] = self.ss_par["lambd"]
+            dset.attrs["streamed"] = self._streamed
+            dset.attrs["elapsed_time"] = self._elapsed_time
+            if self._reg_type == 'TGV':
+                dset.attrs["alpha0"] = self.ss_par["alpha0"]
+                dset.attrs["alpha1"] = self.ss_par["alpha1"]
+
     def _power_iterations(self, x, cmap, op, iters=100):
         x = x.astype(self._DTYPE)
 
@@ -232,7 +276,7 @@ class SoftSenseOptimizer:
                 y = op.adjoop([[op.fwdoop([[x, cmap]]), cmap]]) if len(cmap) > 0 \
                     else op.adjoop([op.fwdoop([x])])
             else:
-                x = clarray.to_device(self._queue, x)
+                x = clarray.to_device(self._queue[0], x)
                 y = op.adjoop([op.fwdoop([x, cmap]), cmap]).get() if len(cmap) > 0 \
                     else op.adjoop(op.fwdoop(x)).get()
 
@@ -308,8 +352,8 @@ class SoftSenseOptimizer:
             reg_cost = np.sum(np.abs(grad))
         if self._reg_type == 'TGV':
             data_cost *= self.ss_par["lambd"]
-            reg_cost = self.par['alpha1'] * np.sum(np.abs(grad - self._v)) \
-                + self.par['alpha0'] * np.sum(np.abs(symgrad))
+            reg_cost = self.ss_par['alpha1'] * np.sum(np.abs(grad - self._v)) \
+                + self.ss_par['alpha0'] * np.sum(np.abs(symgrad))
 
         self._fval = data_cost + reg_cost
         self._fval_init = self._fval
@@ -366,16 +410,18 @@ class SoftSenseOptimizer:
 
         self._calculate_cost(img_init, data)
 
-        # if False:
-        #     tau, sigma = self._calc_step_size()
+        # tau, sigma = self._calc_step_size()
 
         start_time = time.time()
         result = self._solve(x, data, iters)
-        time_elapsed = time.time() - start_time
+        self._elapsed_time = time.time() - start_time
 
         print("-" * 75)
-        print("Elapsed time PD algorithm: %f seconds" % time_elapsed)
+        print("Elapsed time PD algorithm: %f seconds" % self._elapsed_time)
         print("-" * 75)
+
+        self._save_data(result)
+        self._save_imgs(sqrt_sum_of_squares(result))
 
         return result
 
