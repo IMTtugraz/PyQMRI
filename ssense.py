@@ -69,11 +69,12 @@ def _setup_par(par, myargs, ksp_data, cmaps):
 def _setup_ss_par(ss_par, myargs):
     ss_par["display_iterations"] = True
     ss_par["accelerated"] = myargs.accelerated
+    ss_par["adaptivestepsize"] = myargs.adapt_stepsize
     ss_par["tol"] = 1e-8
     ss_par["stag"] = 1e10
     ss_par["sigma"] = np.float32(1 / np.sqrt(12))
     ss_par["lambd"] = myargs.lamda
-    ss_par["alpha0"] = np.sqrt(2)  # 2D --> np.sqrt(2), 3D --> np.sqrt(3)
+    ss_par["alpha0"] = np.sqrt(2) if myargs.recon_type == '2D' else np.sqrt(3)
     ss_par["alpha1"] = 1   # 1
     ss_par["delta"] = 10
     ss_par["gamma"] = 1e-5
@@ -281,22 +282,26 @@ if __name__ == '__main__':
     args.add_argument(
         '--outdir', default='', dest='outdir', type=str,
         help='Output directory.')
+    args.add_argument(
+        '--adapt_stepsize', default='0', dest='adapt_stepsize', type=_str2bool,
+        help='Enable accelerated optimization by adaptive step size computation.')
 
     args = args.parse_args()
 
     args.trafo = False
     args.use_GPU = True
-    # args.streamed = False
+    args.streamed = False
     args.devices = -1
     args.kspfile = Path.cwd() / 'data_soft_sense_test' / 'kspace.mat'
     args.csfile = Path.cwd() / 'data_soft_sense_test' / 'sensitivities_ecalib.mat'
 
     #args.type = '2D'
     #args.reg_type = 'TGV'  # 'NoReg', 'TV', or 'TGV'
-    #args.reco_slices = 4
+    # args.reco_slices = 4
     args.linesearch = False
     args.accelerated = False
-    #args.lamda = 1.0
+    #args.adapt_stepsize = True
+    #args.lamda = 8.0
     args.dim_us = 'y'
     args.acceleration_factor = 4
 

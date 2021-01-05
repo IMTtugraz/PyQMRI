@@ -2789,6 +2789,7 @@ class PDSoftSenseBaseSolver:
         self.gamma = self._DTYPE_real(ss_par["gamma"])
         self.lambd = self._DTYPE_real(ss_par["lambd"])
         self.accelerated = ss_par["accelerated"]
+        self.adaptive_stepsize = ss_par["adaptivestepsize"]
         self.stag = ss_par["stag"]
         self.tol = ss_par["tol"]
         self.display_iterations = ss_par["display_iterations"]
@@ -2951,6 +2952,9 @@ class PDSoftSenseBaseSolver:
         gamma = self.gamma
         lambd = self.lambd
         theta = np.float32(1.0)
+        # theta_adapt = np.float32(1.0)
+        # if self.adaptive_stepsize:
+        #     theta = np.float32(0.0)
         primal = np.float32(0.0)
         primal_new = np.float32(0)
         dual = np.float32(0.0)
@@ -2977,12 +2981,17 @@ class PDSoftSenseBaseSolver:
             self._updateDual(
                 out_dual=dual_vars_new,
                 out_adj=tmp_results_adjoint,
-                in_primal=primal_vars,
+                in_primal=primal_vars_new,
                 in_dual=dual_vars,
                 in_precomp_fwd=tmp_results_forward,
                 data=data,
                 sigma=sigma
             )
+
+            if self.accelerated:
+                theta = 1 / np.sqrt(1 + 2*gamma*tau)
+                tau = theta * tau
+                sigma = sigma / theta
 
             self._updatePrimal(
                 out_primal=primal_vars_new,
@@ -2993,16 +3002,34 @@ class PDSoftSenseBaseSolver:
                 theta=theta
                 )
 
-            if self.accelerated:
-                theta = 1 / np.sqrt(1 + 2*gamma*tau)
-                tau = theta * tau
-                sigma = sigma / theta
+            if self.adaptive_stepsize:
+                tau, sigma = self._updateStepSize(
+                    primal_vars=primal_vars,
+                    primal_vars_new=primal_vars_new,
+                    theta=theta,
+                    tau=tau,
+                    sigma=sigma
+                )
+                if not np.mod(i, 10):
+                    print("Calculated step size: %f" %tau)
+
+            self._extrapolatePrimal(
+                out_primal=primal_vars,
+                out_fwd=tmp_results_forward,
+                in_primal=primal_vars_new,
+                theta=theta)
 
             for j in primal_vars_new:
-                primal_vars[j] = primal_vars_new[j]
+                (primal_vars[j],
+                 primal_vars_new[j]) = \
+                    (primal_vars_new[j],
+                     primal_vars[j])
 
             for k in dual_vars_new:
-                dual_vars[k] = dual_vars_new[k]
+                (dual_vars[k],
+                 dual_vars_new[k]) = \
+                    (dual_vars_new[k],
+                     dual_vars[k])
 
             if not np.mod(i, 10):
 
@@ -3075,17 +3102,44 @@ class PDSoftSenseBaseSolver:
                     sigma):
         pass
 
+    def _updateStepSize(self,
+                        primal_vars,
+                        primal_vars_new,
+                        theta,
+                        tau,
+                        sigma):
+        return {}, {}
+
+    def _extrapolatePrimal(self,
+                           out_primal,
+                           out_fwd,
+                           in_primal,
+                           theta):
+        pass
+
     def _calcResidual(self,
                       in_primal,
                       in_dual,
                       in_precomp_fwd,
                       data):
-        pass
+        return {}, {}, {}
 
     def _setupVariables(self,
                         inp,
                         data):
         pass
+
+    def extrapolate(self, outp, inp, par=None, idx=0, idxq=0,
+                    bound_cond=0, wait_for=None):
+        if wait_for is None:
+            wait_for = []
+        return self._prg[idx].extrapolate(
+            self._queue[4*idx+idxq], (outp.size,), None,
+            outp.data,
+            inp[0].data,
+            inp[1].data,
+            self._DTYPE_real(par[0]),
+            wait_for=outp.events + inp[0].events + inp[1].events + wait_for)
 
     def update_x(self, outp, inp, par=None, idx=0, idxq=0,
                  bound_cond=0, wait_for=None):
@@ -3265,7 +3319,6 @@ class PDSoftSenseBaseSolver:
         ----
           zn1 (PyOpenCL.Array): The result of the update step
           zn (PyOpenCL.Array): The previous values of z2
-          gx (PyOpenCL.Array): Linear gradient operator applied to x
           symgv (PyOpenCL.Array): Linear symmetrized gradient operator
             applied to v
           sigma (float): Dual step size
@@ -3406,10 +3459,10 @@ class PDSoftSenseSolver(PDSoftSenseBaseSolver):
         out_primal["x"].add_event(self.update_x(
             outp=out_primal["x"],
             inp=(in_primal["x"], in_precomp_adj["Kay"]),
-            par=(tau, theta)))
+            par=(tau, 0)))  # theta should be zero for primal x update
 
-        out_fwd["Kx"].add_event(self._op.fwd(
-            out_fwd["Kx"], [out_primal["x"], self._coils]))
+        # out_fwd["Kx"].add_event(self._op.fwd(
+        #     out_fwd["Kx"], [out_primal["x"], self._coils]))
 
     def _updateDual(self,
                     out_dual,
@@ -3432,18 +3485,64 @@ class PDSoftSenseSolver(PDSoftSenseBaseSolver):
                  self._coils],
                ))
 
+    def _updateStepSize(self,
+                        primal_vars,
+                        primal_vars_new,
+                        theta,
+                        tau,
+                        sigma):
+        diffx = primal_vars_new["x"] - primal_vars["x"]
+        nx = (clarray.vdot(diffx, diffx) ** (1 / 2)).real.get()
+        fwddiffx = self._op.fwdoop([diffx, self._coils])
+        nKx = (clarray.vdot(fwddiffx, fwddiffx) ** (1 / 2)).real.get()
+        n = nx / nKx if nKx != 0 else 0
+        s = np.sqrt(sigma * tau)
+        fac = np.sqrt(theta * sigma * tau)
+
+        if fac >= n > 0:
+            s = n
+        elif s >= n > fac:
+            s = np.sqrt(theta * sigma * tau)
+        else:
+            s = np.sqrt(sigma * tau)
+
+        return s, s
+
+    def _extrapolatePrimal(self,
+                           out_primal,
+                           out_fwd,
+                           in_primal,
+                           theta):
+        out_primal["x"].add_event(
+            self.extrapolate(
+                outp=out_primal["x"],
+                inp=(in_primal["x"], out_primal["x"]),
+                par=(theta,)))
+
+        out_fwd["Kx"].add_event(self._op.fwd(
+            out_fwd["Kx"], [out_primal["x"], self._coils]))
+
     def _calcResidual(self,
                       in_primal,
                       in_dual,
                       in_precomp_fwd,
                       data):
 
+        Kx = self._op.fwdoop([in_primal["x"], self._coils])
+
         primal = (
             clarray.vdot(
-                (in_precomp_fwd["Kx"] - data),
-                (in_precomp_fwd["Kx"] - data)
+                (Kx - data),
+                (Kx - data)
             )
         ).real
+
+        # primal = (
+        #     clarray.vdot(
+        #         (in_precomp_fwd["Kx"] - data),
+        #         (in_precomp_fwd["Kx"] - data)
+        #     )
+        # ).real
 
         dual = (
             clarray.vdot(
@@ -3543,13 +3642,13 @@ class PDSoftSenseSolverTV(PDSoftSenseBaseSolver):
         out_primal["x"].add_event(self.update_x(
             outp=out_primal["x"],
             inp=(in_primal["x"], in_precomp_adj["Kyk1"]),
-            par=(tau, theta)))
+            par=(tau, 0)))
 
-        out_fwd["Kx"].add_event(self._op.fwd(
-            out_fwd["Kx"], [out_primal["x"], self._coils]))
-
-        out_fwd["gradx"].add_event(self._grad_op.fwd(
-            out_fwd["gradx"], out_primal["x"]))
+        # out_fwd["Kx"].add_event(self._op.fwd(
+        #     out_fwd["Kx"], [out_primal["x"], self._coils]))
+        #
+        # out_fwd["gradx"].add_event(self._grad_op.fwd(
+        #     out_fwd["gradx"], out_primal["x"]))
 
     def _updateDual(self,
                     out_dual,
@@ -3575,20 +3674,83 @@ class PDSoftSenseSolverTV(PDSoftSenseBaseSolver):
             out=out_adj["Kyk1"],
             inp=[out_dual["y"], self._coils, out_dual["z"], self._grad_op.ratio]))
 
+    def _updateStepSize(self,
+                        primal_vars,
+                        primal_vars_new,
+                        theta,
+                        tau,
+                        sigma):
+        diffx = primal_vars_new["x"] - primal_vars["x"]
+        nx = (clarray.vdot(diffx, diffx) ** (1 / 2)).real.get()
+        fwddiffx = self._op.fwdoop([diffx, self._coils])
+        graddiffx = self._grad_op.fwdoop(diffx)
+        nKx = (
+                (
+                    clarray.vdot(
+                        fwddiffx,
+                        fwddiffx
+                    )
+                    + clarray.vdot(
+                      graddiffx,
+                      graddiffx
+                  )
+              ) ** (1 / 2)).real.get()
+        n = nx / nKx if nKx != 0 else 0
+        s = np.sqrt(sigma * tau)
+        fac = np.sqrt(theta * sigma * tau)
+
+        if fac >= n > 0:
+            s = n
+        elif s >= n > fac:
+            s = np.sqrt(theta * sigma * tau)
+        else:
+            s = np.sqrt(sigma * tau)
+
+        return s, s
+
+    def _extrapolatePrimal(self,
+                           out_primal,
+                           out_fwd,
+                           in_primal,
+                           theta):
+        out_primal["x"].add_event(
+            self.extrapolate(
+                outp=out_primal["x"],
+                inp=(in_primal["x"], out_primal["x"]),
+                par=(theta,)))
+
+        out_fwd["Kx"].add_event(self._op.fwd(
+            out_fwd["Kx"], [out_primal["x"], self._coils]))
+
+        out_fwd["gradx"].add_event(self._grad_op.fwd(
+            out_fwd["gradx"], out_primal["x"]))
+
     def _calcResidual(self,
                       in_primal,
                       in_dual,
                       in_precomp_fwd,
                       data):
 
+        Kx = self._op.fwdoop([in_primal["x"], self._coils])
+        gradx = self._grad_op.fwdoop(in_primal["x"])
+
         primal = (
             self.lambd / 2 * clarray.vdot(
-                in_precomp_fwd["Kx"] - data,
-                in_precomp_fwd["Kx"] - data)
+                Kx - data,
+                Kx - data)
             + clarray.sum(
-                abs(in_precomp_fwd["gradx"])
+                abs(gradx)
                 )
         ).real
+
+        # primal = (
+        #     self.lambd / 2 * clarray.vdot(
+        #         in_precomp_fwd["Kx"] - data,
+        #         in_precomp_fwd["Kx"] - data)
+        #     + clarray.sum(
+        #         abs(in_precomp_fwd["gradx"])
+        #         )
+        # ).real
 
         dual = (
             1 / (2 * self.lambd) * clarray.vdot(
@@ -3721,21 +3883,12 @@ class PDSoftSenseSolverTGV(PDSoftSenseBaseSolver):
         out_primal["x"].add_event(self.update_x(
             outp=out_primal["x"],
             inp=(in_primal["x"], in_precomp_adj["Kyk1"]),
-            par=(tau, theta)))
+            par=(tau, 0)))
 
         out_primal["v"].add_event(self.update_x(
             outp=out_primal["v"],
             inp=(in_primal["v"], in_precomp_adj["Kyk2"]),
-            par=(tau, theta)))
-
-        out_fwd["Kx"].add_event(self._op.fwd(
-            out_fwd["Kx"], [out_primal["x"], self._coils]))
-
-        out_fwd["gradx"].add_event(self._grad_op.fwd(
-            out_fwd["gradx"], out_primal["x"]))
-
-        out_fwd["symgradv"].add_event(self._symgrad_op.fwd(
-            out_fwd["symgradv"], out_primal["v"]))
+            par=(tau, 0)))
 
     def _updateDual(self,
                     out_dual,
@@ -3756,7 +3909,7 @@ class PDSoftSenseSolverTGV(PDSoftSenseBaseSolver):
             self.update_z1_tgv(
                 outp=out_dual["z1"],
                 inp=(in_dual["z1"], in_precomp_fwd["gradx"], in_primal["v"]),
-                par=(sigma, self.alpha_0)))
+                par=(sigma, self.alpha_1)))
 
         out_adj["Kyk1"].add_event(self._op.adjKyk1(
             out=out_adj["Kyk1"],
@@ -3766,13 +3919,93 @@ class PDSoftSenseSolverTGV(PDSoftSenseBaseSolver):
             self.update_z2_tgv(
                 outp=out_dual["z2"],
                 inp=(in_dual["z2"], in_precomp_fwd["symgradv"]),
-                par=(sigma, self.alpha_1)))
+                par=(sigma, self.alpha_0)))
 
         out_adj["Kyk2"].add_event(
             self.update_Kyk2(
                 outp=out_adj["Kyk2"],
                 inp=(out_dual["z2"], out_dual["z1"]),
                 par=[self._symgrad_op.ratio]))
+
+    def _updateStepSize(self,
+                        primal_vars,
+                        primal_vars_new,
+                        theta,
+                        tau,
+                        sigma):
+        diffx = primal_vars_new["x"] - primal_vars["x"]
+        diffv = primal_vars_new["v"] - primal_vars["v"]
+        nx = (
+                (
+                    clarray.vdot(
+                        diffx,
+                        diffx
+                    )
+                    + clarray.vdot(
+                        diffv,
+                        diffv,
+                    )
+                ) ** (1 / 2)).real.get()
+
+        fwddiffx = self._op.fwdoop([diffx, self._coils])
+        graddiffx = self._grad_op.fwdoop(diffx)
+        symgraddiffv = self._symgrad_op.fwdoop(diffv)
+        nKx = (
+                (
+                    clarray.vdot(
+                        fwddiffx,
+                        fwddiffx
+                    )
+                    + clarray.vdot(
+                        graddiffx - diffv,
+                        graddiffx - diffv
+                    )
+                    + clarray.vdot(
+                        symgraddiffv,
+                        symgraddiffv
+                    )
+                ) ** (1 / 2)).real.get()
+        n = nx / nKx if nKx != 0 else 0
+        s = np.sqrt(sigma * tau)
+        fac = np.sqrt(theta * sigma * tau)
+
+        if fac >= n > 0:
+            s = n
+        elif s >= n > fac:
+            s = np.sqrt(theta * sigma * tau)
+        else:
+            s = np.sqrt(sigma * tau)
+
+        if s < 0.01:
+            s = 0.01
+
+        return s, s
+
+    def _extrapolatePrimal(self,
+                           out_primal,
+                           out_fwd,
+                           in_primal,
+                           theta):
+        out_primal["x"].add_event(
+            self.extrapolate(
+                outp=out_primal["x"],
+                inp=(in_primal["x"], out_primal["x"]),
+                par=(theta,)))
+
+        out_primal["v"].add_event(
+            self.extrapolate(
+                outp=out_primal["v"],
+                inp=(in_primal["v"], out_primal["v"]),
+                par=(theta,)))
+
+        out_fwd["Kx"].add_event(self._op.fwd(
+            out_fwd["Kx"], [out_primal["x"], self._coils]))
+
+        out_fwd["gradx"].add_event(self._grad_op.fwd(
+            out_fwd["gradx"], out_primal["x"]))
+
+        out_fwd["symgradv"].add_event(self._symgrad_op.fwd(
+            out_fwd["symgradv"], out_primal["v"]))
 
     def _calcResidual(
             self,
@@ -3781,17 +4014,33 @@ class PDSoftSenseSolverTGV(PDSoftSenseBaseSolver):
             in_precomp_fwd,
             data):
 
+        Kx = self._op.fwdoop([in_primal["x"], self._coils])
+        gradx = self._grad_op.fwdoop(in_primal["x"])
+        symgradv = self._symgrad_op.fwdoop(in_primal["v"])
+
         primal = (
             self.lambd / 2 * clarray.vdot(
-                in_precomp_fwd["Kx"] - data,
-                in_precomp_fwd["Kx"] - data)
+                Kx - data,
+                Kx - data)
             + self.alpha_0 * clarray.sum(
-                abs(in_precomp_fwd["gradx"] - in_primal["v"])
+                abs(gradx - in_primal["v"])
                 )
             + self.alpha_1 * clarray.sum(
-                abs(in_precomp_fwd["symgradv"])
+                abs(symgradv)
                 )
         ).real
+
+        # primal = (
+        #     self.lambd / 2 * clarray.vdot(
+        #         in_precomp_fwd["Kx"] - data,
+        #         in_precomp_fwd["Kx"] - data)
+        #     + self.alpha_0 * clarray.sum(
+        #         abs(in_precomp_fwd["gradx"] - in_primal["v"])
+        #         )
+        #     + self.alpha_1 * clarray.sum(
+        #         abs(in_precomp_fwd["symgradv"])
+        #         )
+        # ).real
 
         dual = (
             1 / (2 * self.lambd) * clarray.vdot(
@@ -3862,7 +4111,7 @@ class PDALSoftSenseBaseSolver:
         self.display_iterations = ss_par["display_iterations"]
         self.mu = 1 / self.delta
         self.tau = tau
-        self.beta_line = 1.0  # choice of beta_line and mu crucial for faster convergence
+        self.beta_line = 1e5  # choice of beta_line and mu crucial for faster convergence
         self.theta_line = np.float32(1.0)
         self.unknowns = par["unknowns"]
         self.num_dev = len(par["num_dev"])

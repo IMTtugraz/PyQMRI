@@ -1,3 +1,13 @@
+__kernel void extrapolate(
+                __global float2 *xn1_,
+                __global float2 *xn1,
+                __global float2 *xn,
+                const float theta)
+{
+    size_t i = get_global_id(0);
+    xn1_[i] = xn1[i] * (1 + theta) - theta * xn[i];
+}
+
 __kernel void update_x(
                 __global float2 *xn1,
                 __global float2 *xn,

@@ -86,8 +86,15 @@ class SoftSenseOptimizer:
         self.ss_par["lambd"] = myargs.lamda
         self.ss_par["linesearch"] = myargs.linesearch
         self.ss_par["accelerated"] = myargs.accelerated
+        self.ss_par["adaptivestepsize"] = myargs.adapt_stepsize
         self.ss_par["display_iterations"] = True
         self.ss_par["sigma"] = np.float32(1 / np.sqrt(12))
+
+        if self.ss_par["accelerated"] and self.ss_par["adaptivestepsize"]:
+            raise ValueError(
+                "Choose between accelerated optimization and adaptive step size."
+                "Can not use both!"
+            )
 
         self._elapsed_time = None
 
@@ -251,7 +258,7 @@ class SoftSenseOptimizer:
                 dset.attrs["alpha0"] = self.ss_par["alpha0"]
                 dset.attrs["alpha1"] = self.ss_par["alpha1"]
 
-    def _power_iterations(self, x, cmap, op, iters=100):
+    def _power_iterations(self, x, cmap, op, iters=10):
         x = x.astype(self._DTYPE)
 
         if len(cmap) > 0:
@@ -298,36 +305,47 @@ class SoftSenseOptimizer:
         opnorm_1 = self._power_iterations(x, self._cmaps[0], self._MRI_operator)
         opnorm_2 = self._power_iterations(x, self._cmaps[1], self._MRI_operator)
 
-        opnorm_grad = self._power_iterations(x, [], self._grad_op)
-
-        if self._streamed:
-            x_symgrad = np.random.randn(self.par["NSlice"], 1, self.par["dimY"], self.par["dimX"], 4) + \
-                        1j * np.random.randn(self.par["NSlice"], 1, self.par["dimY"], self.par["dimX"], 4)
-        else:
-            x_symgrad = np.random.randn(1, self.par["NSlice"], self.par["dimY"], self.par["dimX"], 4) + \
-                        1j * np.random.randn(1, self.par["NSlice"], self.par["dimY"], self.par["dimX"], 4)
-
-        opnorm_symgrad = self._power_iterations(x_symgrad, [], self._symgrad_op)
-
         K_ssense = np.array([opnorm_1, opnorm_2])
-        K_ssense_tv = np.array([[opnorm_1, opnorm_2],
-                                [opnorm_grad, 0],
-                                [0, opnorm_grad]])
 
-        K_ssense_tgv = np.array([[opnorm_1, opnorm_2, 0, 0],
-                                 [opnorm_grad, 0, 1, 0],
-                                 [0, 0, opnorm_symgrad, 0],
-                                 [0, opnorm_grad, 0, 1],
-                                 [0, 0, 0, opnorm_symgrad]])
+        if self._reg_type != 'NoReg':
+            opnorm_grad = self._power_iterations(x, [], self._grad_op)
 
-        if self._reg_type == '':
-            tau = 1 / np.sqrt(np.vdot(K_ssense, K_ssense))
+            K_ssense_tv = np.array([[opnorm_1, opnorm_2],
+                                    [opnorm_grad, 0],
+                                    [0, opnorm_grad]])
+
+        if self._reg_type == 'TGV':
+            if self._streamed:
+                x_symgrad = np.random.randn(self.par["NSlice"], 1, self.par["dimY"], self.par["dimX"], 4) + \
+                            1j * np.random.randn(self.par["NSlice"], 1, self.par["dimY"], self.par["dimX"], 4)
+            else:
+                x_symgrad = np.random.randn(1, self.par["NSlice"], self.par["dimY"], self.par["dimX"], 4) + \
+                            1j * np.random.randn(1, self.par["NSlice"], self.par["dimY"], self.par["dimX"], 4)
+
+            opnorm_symgrad = self._power_iterations(x_symgrad, [], self._symgrad_op)
+
+            K_ssense_tgv = np.array([[opnorm_1, opnorm_2, 0, 0],
+                                     [opnorm_grad, 0, -1, 0],
+                                     [0, 0, opnorm_symgrad, 0],
+                                     [0, opnorm_grad, 0, -1],
+                                     [0, 0, 0, opnorm_symgrad]])
+
+        tau = 1 / np.sqrt(np.vdot(K_ssense, K_ssense))
+
         if self._reg_type == 'TV':
             tau = 1 / np.sqrt(np.vdot(K_ssense_tv, K_ssense_tv))
         if self._reg_type == 'TGV':
             tau = 1 / np.sqrt(np.vdot(K_ssense_tgv, K_ssense_tgv))
+
+        if tau < 0.1:  # or tau > 1.0:
+            tau = self._DTYPE_real(1 / np.sqrt(12))
         sigma = tau
-        return tau, sigma
+        self._pdop.tau = tau
+        self._pdop.sigma = sigma
+
+        print("-" * 75)
+        print("Calculated step size: %f" % tau)
+        print("-" * 75)
 
     def _calculate_cost(self, x, data):
         if self._streamed:
@@ -362,7 +380,7 @@ class SoftSenseOptimizer:
         print("-" * 75)
         print("Initial Cost: %f" % self._fval_init)
         print("Costs of Data: %f" % data_cost)
-        if self._reg_type != '':
+        if self._reg_type != 'NoReg':
             print("Costs of T(G)V: %f" % reg_cost)
         print("-" * 75)
 
@@ -410,7 +428,17 @@ class SoftSenseOptimizer:
 
         self._calculate_cost(img_init, data)
 
-        # tau, sigma = self._calc_step_size()
+        if not self.ss_par["linesearch"] and not self.ss_par["accelerated"]\
+                and not self.ss_par["adaptivestepsize"]:
+            self._calc_step_size()
+
+        if self.ss_par["adaptivestepsize"]:
+            self._pdop.tau = 2.0
+            self._pdop.sigma = 2.0
+
+        # if self.ss_par["accelerated"]:
+        #     self._pdop.tau = 1
+        #     self._pdop.sigma = 0.1
 
         start_time = time.time()
         result = self._solve(x, data, iters)
