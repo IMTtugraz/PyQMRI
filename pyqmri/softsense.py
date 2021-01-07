@@ -69,6 +69,15 @@ class SoftSenseOptimizer:
                  DTYPE_real=np.float32):
         self.par = par
         self.ss_par = utils.read_config('', optimizer="SSense", reg_type=reg_type)
+
+        # temporary solution
+        self.ss_par["lambd"] = myargs.lamda
+        self.ss_par["linesearch"] = myargs.linesearch
+        self.ss_par["accelerated"] = myargs.accelerated
+        self.ss_par["adaptivestepsize"] = myargs.adapt_stepsize
+        self.ss_par["display_iterations"] = True
+        self.ss_par["sigma"] = np.float32(1 / np.sqrt(12))
+
         utils.save_config(self.ss_par, str(par["outdir"]), reg_type)
         num_dev = len(par["num_dev"])
         self._fval_old = 0
@@ -81,14 +90,6 @@ class SoftSenseOptimizer:
 
         self._DTYPE = DTYPE
         self._DTYPE_real = DTYPE_real
-
-        # temporary solution
-        self.ss_par["lambd"] = myargs.lamda
-        self.ss_par["linesearch"] = myargs.linesearch
-        self.ss_par["accelerated"] = myargs.accelerated
-        self.ss_par["adaptivestepsize"] = myargs.adapt_stepsize
-        self.ss_par["display_iterations"] = True
-        self.ss_par["sigma"] = np.float32(1 / np.sqrt(12))
 
         if self.ss_par["accelerated"] and self.ss_par["adaptivestepsize"]:
             raise ValueError(

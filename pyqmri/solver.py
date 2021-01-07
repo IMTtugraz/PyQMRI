@@ -3129,12 +3129,24 @@ class PDSoftSenseBaseSolver:
                         data):
         pass
 
-    def extrapolate(self, outp, inp, par=None, idx=0, idxq=0,
+    def extrapolate_x(self, outp, inp, par=None, idx=0, idxq=0,
                     bound_cond=0, wait_for=None):
         if wait_for is None:
             wait_for = []
         return self._prg[idx].extrapolate(
             self._queue[4*idx+idxq], (outp.size,), None,
+            outp.data,
+            inp[0].data,
+            inp[1].data,
+            self._DTYPE_real(par[0]),
+            wait_for=outp.events + inp[0].events + inp[1].events + wait_for)
+
+    def extrapolate_v(self, outp, inp, par=None, idx=0, idxq=0,
+                    bound_cond=0, wait_for=None):
+        if wait_for is None:
+            wait_for = []
+        return self._prg[idx].extrapolate(
+            self._queue[4*idx+idxq], (outp[..., 0].size,), None,
             outp.data,
             inp[0].data,
             inp[1].data,
@@ -3359,11 +3371,11 @@ class PDSoftSenseBaseSolver:
         """
         if wait_for is None:
             wait_for = []
-        return self._prg[idx].update_v_explicit(
-            self._queue[4*idx+idxq], (outp.size,), None,
-            outp.data, inp[0].data, inp[1].data, inp[2].data,
-            self._DTYPE_real(par[0]), self._DTYPE_real(par[1]),
-            wait_for=outp.events+inp[0].events+inp[1].events+inp[2].events+wait_for)
+        return self._prg[idx].update_v(
+            self._queue[4*idx+idxq], (outp[..., 0].size,), None,
+            outp.data, inp[0].data, inp[1].data,
+            self._DTYPE_real(par[0]),
+            wait_for=outp.events+inp[0].events+inp[1].events+wait_for)
 
     def setFvalInit(self, fval):
         """Set the initial value of the cost function.
@@ -3459,10 +3471,7 @@ class PDSoftSenseSolver(PDSoftSenseBaseSolver):
         out_primal["x"].add_event(self.update_x(
             outp=out_primal["x"],
             inp=(in_primal["x"], in_precomp_adj["Kay"]),
-            par=(tau, 0)))  # theta should be zero for primal x update
-
-        # out_fwd["Kx"].add_event(self._op.fwd(
-        #     out_fwd["Kx"], [out_primal["x"], self._coils]))
+            par=(tau, 0)))
 
     def _updateDual(self,
                     out_dual,
@@ -3514,7 +3523,7 @@ class PDSoftSenseSolver(PDSoftSenseBaseSolver):
                            in_primal,
                            theta):
         out_primal["x"].add_event(
-            self.extrapolate(
+            self.extrapolate_x(
                 outp=out_primal["x"],
                 inp=(in_primal["x"], out_primal["x"]),
                 par=(theta,)))
@@ -3536,13 +3545,6 @@ class PDSoftSenseSolver(PDSoftSenseBaseSolver):
                 (Kx - data)
             )
         ).real
-
-        # primal = (
-        #     clarray.vdot(
-        #         (in_precomp_fwd["Kx"] - data),
-        #         (in_precomp_fwd["Kx"] - data)
-        #     )
-        # ).real
 
         dual = (
             clarray.vdot(
@@ -3644,12 +3646,6 @@ class PDSoftSenseSolverTV(PDSoftSenseBaseSolver):
             inp=(in_primal["x"], in_precomp_adj["Kyk1"]),
             par=(tau, 0)))
 
-        # out_fwd["Kx"].add_event(self._op.fwd(
-        #     out_fwd["Kx"], [out_primal["x"], self._coils]))
-        #
-        # out_fwd["gradx"].add_event(self._grad_op.fwd(
-        #     out_fwd["gradx"], out_primal["x"]))
-
     def _updateDual(self,
                     out_dual,
                     out_adj,
@@ -3714,7 +3710,7 @@ class PDSoftSenseSolverTV(PDSoftSenseBaseSolver):
                            in_primal,
                            theta):
         out_primal["x"].add_event(
-            self.extrapolate(
+            self.extrapolate_x(
                 outp=out_primal["x"],
                 inp=(in_primal["x"], out_primal["x"]),
                 par=(theta,)))
@@ -3742,15 +3738,6 @@ class PDSoftSenseSolverTV(PDSoftSenseBaseSolver):
                 abs(gradx)
                 )
         ).real
-
-        # primal = (
-        #     self.lambd / 2 * clarray.vdot(
-        #         in_precomp_fwd["Kx"] - data,
-        #         in_precomp_fwd["Kx"] - data)
-        #     + clarray.sum(
-        #         abs(in_precomp_fwd["gradx"])
-        #         )
-        # ).real
 
         dual = (
             1 / (2 * self.lambd) * clarray.vdot(
@@ -3869,8 +3856,7 @@ class PDSoftSenseSolverTGV(PDSoftSenseBaseSolver):
             out_fwd["gradx"], in_primal["x"]))
 
         out_fwd["symgradv"].add_event(self._symgrad_op.fwd(
-            out_fwd["symgradv"], in_primal["v"]
-        ))
+            out_fwd["symgradv"], in_primal["v"]))
 
     def _updatePrimal(self,
                       out_primal,
@@ -3885,7 +3871,7 @@ class PDSoftSenseSolverTGV(PDSoftSenseBaseSolver):
             inp=(in_primal["x"], in_precomp_adj["Kyk1"]),
             par=(tau, 0)))
 
-        out_primal["v"].add_event(self.update_x(
+        out_primal["v"].add_event(self.update_v(
             outp=out_primal["v"],
             inp=(in_primal["v"], in_precomp_adj["Kyk2"]),
             par=(tau, 0)))
@@ -3976,8 +3962,8 @@ class PDSoftSenseSolverTGV(PDSoftSenseBaseSolver):
         else:
             s = np.sqrt(sigma * tau)
 
-        if s < 0.01:
-            s = 0.01
+        # if s < 0.01:
+        #     s = 0.01
 
         return s, s
 
@@ -3987,13 +3973,13 @@ class PDSoftSenseSolverTGV(PDSoftSenseBaseSolver):
                            in_primal,
                            theta):
         out_primal["x"].add_event(
-            self.extrapolate(
+            self.extrapolate_x(
                 outp=out_primal["x"],
                 inp=(in_primal["x"], out_primal["x"]),
                 par=(theta,)))
 
         out_primal["v"].add_event(
-            self.extrapolate(
+            self.extrapolate_v(
                 outp=out_primal["v"],
                 inp=(in_primal["v"], out_primal["v"]),
                 par=(theta,)))
