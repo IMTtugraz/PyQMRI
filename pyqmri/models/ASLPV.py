@@ -97,8 +97,8 @@ class Model(BaseModel):
         self.alpha = par["file"]["alpha"][sliceind]
         self.gm_mask = par["file"]["gm_mask"][()]
         self.wm_mask = par["file"]["wm_mask"][()]
-        self.gm_mask[self.gm_mask <= 0.1] = 0
-        self.wm_mask[self.wm_mask <= 0.1] = 0
+        # self.gm_mask[self.gm_mask <= 0.1] = 0
+        # self.wm_mask[self.wm_mask <= 0.1] = 0
 
         par["unknowns_TGV"] = 4
         par["unknowns_H1"] = 0
@@ -135,13 +135,36 @@ class Model(BaseModel):
         self._ind1 = 35
         self._ind2 = 46
 
-    def _execute_forward_2D(self, x, islice):
-        print("2D Functions not implemented")
-        raise NotImplementedError
+    def rescale(self, x):
+        """Rescale the unknowns with the scaling factors.
 
-    def _execute_gradient_2D(self, x, islice):
-        print("2D Functions not implemented")
-        raise NotImplementedError
+        Rescales each unknown with the corresponding scaling factor.
+
+        Parameters
+        ----------
+          x : numpy.array
+            The array of unknowns to be rescaled
+
+        Returns
+        -------
+          numpy.array:
+            The rescaled unknowns
+        """
+        tmp_x = np.copy(x)
+        uk_names = []
+        for i in range(x.shape[0]):
+            if i < 2:
+                mask = self.hard_wm_mask
+            else:
+                mask = self.hard_gm_mask
+            tmp_x[i] *= self.uk_scale[i]*mask
+            uk_names.append("Unkown_"+str(i))
+        const = []
+        for constrained in self.constraints:
+            const.append(constrained.real)
+        return {"data": tmp_x,
+                "unknown_name": uk_names,
+                "real_valued": const}
         
     def _execute_forward_WM(self, x):
         f = x[0, ...] * self.uk_scale[0]
@@ -323,11 +346,11 @@ class Model(BaseModel):
         
         images = self._execute_forward_3D(x) / self.dscale
 
-        f = np.abs(tmp_x[0, ...]/ self.dscale)*self.hard_wm_mask
-        del_t = np.abs(tmp_x[1, ...])*60*self.hard_wm_mask
+        f = np.abs(tmp_x[0, ...]/ self.dscale)
+        del_t = np.abs(tmp_x[1, ...])*60
         
-        fgm = np.abs(tmp_x[2, ...]/ self.dscale)*self.hard_gm_mask
-        del_t_gm = np.abs(tmp_x[3, ...])*60*self.hard_gm_mask
+        fgm = np.abs(tmp_x[2, ...]/ self.dscale)
+        del_t_gm = np.abs(tmp_x[3, ...])*60
 #        del_t[f <= 15] = 0
         f_min = f.min()
         f_max = f.max()

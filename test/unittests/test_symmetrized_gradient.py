@@ -157,8 +157,8 @@ class SymmetrizedGradientTest(unittest.TestCase):
         a2 = 2*np.vdot(outgrad[..., 3:6].flatten(),
                        self.symdivin[..., 3:6].flatten())/self.symgradin.size*4
         a = a1+a2
-        b = np.vdot(self.symgradin.flatten(),
-                    -outdiv.flatten())/self.symgradin.size*4
+        b = np.vdot(self.symgradin[..., :3].flatten(),
+                    -outdiv[..., :3].flatten())/self.symgradin.size*4
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
@@ -182,8 +182,8 @@ class SymmetrizedGradientTest(unittest.TestCase):
         a2 = 2*np.vdot(outgrad[..., 3:6].flatten(),
                        self.symdivin[..., 3:6].flatten())/self.symgradin.size*4
         a = a1+a2
-        b = np.vdot(self.symgradin.flatten(),
-                    -outdiv.flatten())/self.symgradin.size*4
+        b = np.vdot(self.symgradin[..., :3].flatten(),
+                    -outdiv[..., :3].flatten())/self.symgradin.size*4
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
@@ -301,8 +301,8 @@ class SymmetrizedGradientStreamedTest(unittest.TestCase):
         a2 = 2*np.vdot(outgrad[..., 3:6].flatten(),
                        self.symdivin[..., 3:6].flatten())/self.symgradin.size*4
         a = a1+a2
-        b = np.vdot(self.symgradin.flatten(),
-                    -outdiv.flatten())/self.symgradin.size*4
+        b = np.vdot(self.symgradin[..., :3].flatten(),
+                    -outdiv[..., :3].flatten())/self.symgradin.size*4
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
@@ -321,8 +321,8 @@ class SymmetrizedGradientStreamedTest(unittest.TestCase):
         a2 = 2*np.vdot(outgrad[..., 3:6].flatten(),
                        self.symdivin[..., 3:6].flatten())/self.symgradin.size*4
         a = a1+a2
-        b = np.vdot(self.symgradin.flatten(),
-                    -outdiv.flatten())/self.symgradin.size*4
+        b = np.vdot(self.symgradin[..., :3].flatten(),
+                    -outdiv[..., :3].flatten())/self.symgradin.size*4
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
