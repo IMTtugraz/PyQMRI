@@ -365,7 +365,7 @@ class Model(BaseModel):
         # self.b *= args[1]
         for j in range(self.numT1Scale):
             test_Ca.append(
-                1 *
+                1-0.1*j *
                 np.ones(
                     (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE))
 
