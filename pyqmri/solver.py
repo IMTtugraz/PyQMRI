@@ -8,6 +8,7 @@ import numpy as np
 from pkg_resources import resource_filename
 import pyopencl as cl
 import pyopencl.array as clarray
+import pyopencl.reduction as clred
 import pyqmri.operator as operator
 from pyqmri._helper_fun import CLProgram as Program
 import pyqmri.streaming as streaming
@@ -383,6 +384,30 @@ class PDBaseSolver:
         self.real_const = None
         self._kernelsize = (par["par_slices"] + par["overlap"], par["dimY"],
                             par["dimX"])
+        self.abskrnl = clred.ReductionKernel(
+            par["ctx"][0], self._DTYPE_real, 0, 
+            reduce_expr="a+b", map_expr="hypot(x[i].s0,x[i].s1)",
+            arguments="__global float2 *x")
+        self.abskrnldiff = clred.ReductionKernel(
+            par["ctx"][0], self._DTYPE_real, 0, 
+            reduce_expr="a+b", map_expr="hypot(x[i].s0-y[i].s0,x[i].s1-y[i].s1)",
+            arguments="__global float2 *x, __global float2 *y")
+        self.normkrnl = clred.ReductionKernel(
+            par["ctx"][0], self._DTYPE_real, 0, 
+            reduce_expr="a+b", map_expr="pown(x[i].s0,2)+pown(x[i].s1,2)",
+            arguments="__global float2 *x")
+        self.normkrnlweighted = clred.ReductionKernel(
+            par["ctx"][0], self._DTYPE_real, 0, 
+            reduce_expr="a+b", map_expr="(pown(x[i].s0,2)+pown(x[i].s1,2))*w[i]",
+            arguments="__global float2 *x, __global float *w")
+        self.normkrnldiff = clred.ReductionKernel(
+            par["ctx"][0], self._DTYPE_real, 0, 
+            reduce_expr="a+b", map_expr="pown(x[i].s0-y[i].s0,2)+pown(x[i].s1-y[i].s1,2)",
+            arguments="__global float2 *x, __global float2 *y")
+        self.normkrnlweighteddiff = clred.ReductionKernel(
+            par["ctx"][0], self._DTYPE_real, 0, 
+            reduce_expr="a+b", map_expr="(pown(x[i].s0-y[i].s0,2)+pown(x[i].s1-y[i].s1,2))*w[i]",
+            arguments="__global float2 *x, __global float2 *y, __global float *w")
 
     @staticmethod
     def factory(
@@ -567,7 +592,7 @@ class PDBaseSolver:
         theta_line = self.theta_line
         beta_line = self.beta_line
         beta_new = self._DTYPE_real(0)
-        mu_line = self._DTYPE_real(0.5)
+        mu_line = self._DTYPE_real(0.9)
         delta_line = self._DTYPE_real(1)
         ynorm = self._DTYPE_real(0.0)
         lhs = self._DTYPE_real(0.0)
@@ -667,44 +692,44 @@ class PDBaseSolver:
                             np.swapaxes(primal_vars["x"], 0, 1))
                     else:
                         self.model.plot_unknowns(primal_vars["x"].get())
-                if np.abs(primal[-2] - primal[-1])/primal[1] <\
-                   self.tol:
-                    print(
-            "Terminated at iteration %d because the energy "
-            "decrease in the primal problem was %.3e which is below the "
-            "relative tolerance of %.3e" %
-            (i+1,
-             np.abs(primal[-2] - primal[-1])/primal[1],
-             self.tol))
-                    return primal_vars
-                if np.abs(np.abs(dual[-2] - dual[-1])/dual[1]) <\
-                   self.tol:
-                    print(
-            "Terminated at iteration %d because the energy "
-            "decrease in the dual problem was %.3e which is below the "
-            "relative tolerance of %.3e" %
-            (i+1,
-             np.abs(np.abs(dual[-2] - dual[-1])/dual[1]),
-             self.tol))
-                    return primal_vars
-                if (
-                    len(gap)>40 and 
-                    np.abs(np.mean(gap[-40:-20]) - np.mean(gap[-20:]))
-                     /np.mean(gap[-40:]) < self.stag
-                    ):
-                    print(
-            "Terminated at iteration %d "
-            "because the method stagnated. Relative difference: %.3e" % 
-            (i+1, np.abs(np.mean(gap[-20:-10]) - np.mean(gap[-10:]))
-                     /np.mean(gap[-20:-10])))
-                    return primal_vars
-                if np.abs((gap[-1] - gap[-2]) / gap[1]) < self.tol:
-                    print(
-            "Terminated at iteration %d because the energy "
-            "decrease in the PD-gap was %.3e which is below the "
-            "relative tolerance of %.3e" 
-            % (i+1, np.abs((gap[-1] - gap[-2]) / gap[1]), self.tol))
-                    return primal_vars
+            if np.abs(primal[-2] - primal[-1])/primal[1] <\
+               self.tol:
+                print(
+        "Terminated at iteration %d because the energy "
+        "decrease in the primal problem was %.3e which is below the "
+        "relative tolerance of %.3e" %
+        (i+1,
+         np.abs(primal[-2] - primal[-1])/primal[1],
+         self.tol))
+                return primal_vars
+            if np.abs(np.abs(dual[-2] - dual[-1])/dual[1]) <\
+               self.tol:
+                print(
+        "Terminated at iteration %d because the energy "
+        "decrease in the dual problem was %.3e which is below the "
+        "relative tolerance of %.3e" %
+        (i+1,
+         np.abs(np.abs(dual[-2] - dual[-1])/dual[1]),
+         self.tol))
+                return primal_vars
+            if (
+                len(gap)>40 and 
+                np.abs(np.mean(gap[-40:-20]) - np.mean(gap[-20:]))
+                 /np.mean(gap[-40:]) < self.stag
+                ):
+                print(
+        "Terminated at iteration %d "
+        "because the method stagnated. Relative difference: %.3e" % 
+        (i+1, np.abs(np.mean(gap[-20:-10]) - np.mean(gap[-10:]))
+                 /np.mean(gap[-20:-10])))
+                return primal_vars
+            if np.abs((gap[-1] - gap[-2]) / gap[1]) < self.tol:
+                print(
+        "Terminated at iteration %d because the energy "
+        "decrease in the PD-gap was %.3e which is below the "
+        "relative tolerance of %.3e" 
+        % (i+1, np.abs((gap[-1] - gap[-2]) / gap[1]), self.tol))
+                return primal_vars
             sys.stdout.write(
                 "Iteration: %04d ---- Primal: %2.2e, "
                 "Dual: %2.2e, Gap: %2.2e, Beta: %2.2e \r" %
@@ -1281,22 +1306,25 @@ class PDSolverTV(PDBaseSolver):
 
         ynorm = (
             (
-                clarray.vdot(
-                    out_dual["r"] - in_dual["r"],
-                    out_dual["r"] - in_dual["r"]
-                    )
-                + clarray.vdot(
-                    out_dual["z1"] - in_dual["z1"],
-                    out_dual["z1"] - in_dual["z1"]
-                    )
-            )**(1 / 2)).real
+                # clarray.vdot(
+                    # out_dual["r"] - in_dual["r"],
+                    # out_dual["r"] - in_dual["r"]
+                    # )
+                self.normkrnldiff(out_dual["r"], in_dual["r"])
+                # + clarray.vdot(
+                    # out_dual["z1"] - in_dual["z1"],
+                    # out_dual["z1"] - in_dual["z1"]
+                    # )
+                + self.normkrnldiff(out_dual["z1"], in_dual["z1"])
+            )**(1 / 2))
         lhs = np.sqrt(beta) * tau * (
             (
-                clarray.vdot(
-                    out_adj["Kyk1"] - in_precomp_adj["Kyk1"],
-                    out_adj["Kyk1"] - in_precomp_adj["Kyk1"]
-                    )
-            )**(1 / 2)).real
+                # clarray.vdot(
+                    # out_adj["Kyk1"] - in_precomp_adj["Kyk1"],
+                    # out_adj["Kyk1"] - in_precomp_adj["Kyk1"]
+                    # )
+                self.normkrnldiff(out_adj["Kyk1"], in_precomp_adj["Kyk1"])
+            )**(1 / 2))
         return lhs.get(), ynorm.get()
 
     def _calcResidual(
@@ -1308,43 +1336,37 @@ class PDSolverTV(PDBaseSolver):
             data):
 
         primal_new = (
-            self.lambd / 2 * clarray.vdot(
-                in_precomp_fwd["Ax"] - data,
-                in_precomp_fwd["Ax"] - data)
+            self.lambd / 2 * 
+            self.normkrnldiff(in_precomp_fwd["Ax"], data)
             + self.alpha * clarray.sum(
                 abs(in_precomp_fwd["gradx"])
                 )
-            + 1 / (2 * self.delta) * clarray.vdot(
-                (in_primal["x"] - in_primal["xk"])*self.jacobi,
-                in_primal["x"] - in_primal["xk"]
-                )
+            + 1 / (2 * self.delta) *
+                self.normkrnlweighteddiff(in_primal["x"],
+                                      in_primal["xk"],
+                                      self.jacobi)
             ).real
 
         dual = (
-            -self.delta / 2 * clarray.vdot(
-                - in_precomp_adj["Kyk1"],
-                - in_precomp_adj["Kyk1"])
+            -self.delta / 2 * self.normkrnlweighted(in_precomp_adj["Kyk1"],
+                                                    self.jacobi)
             - clarray.vdot(
                 in_primal["xk"],
                 - in_precomp_adj["Kyk1"]
                 )
-            - 1 / (2 * self.lambd) * clarray.vdot(
-                in_dual["r"],
-                in_dual["r"])
+            - 1 / (2 * self.lambd) * self.normkrnl(in_dual["r"])
             - clarray.vdot(data, in_dual["r"])
             ).real
 
         if self.unknowns_H1 > 0:
             primal_new += (
-                 self.omega / 2 * clarray.vdot(
-                     in_precomp_fwd["gradx"][self.unknowns_TGV:],
+                 self.omega / 2 * self.normkrnl(
                      in_precomp_fwd["gradx"][self.unknowns_TGV:]
                      )
                  ).real
 
             dual += (
-                - 1 / (2 * self.omega) * clarray.vdot(
-                    in_dual["z1"][self.unknowns_TGV:],
+                - 1 / (2 * self.omega) * self.normkrnl(
                     in_dual["z1"][self.unknowns_TGV:]
                     )
                 ).real
@@ -1587,31 +1609,16 @@ class PDSolverTGV(PDBaseSolver):
                 par=[self._symgrad_op.ratio]))
 
         ynorm = (
-            (
-                clarray.vdot(
-                    out_dual["r"] - in_dual["r"],
-                    out_dual["r"] - in_dual["r"]
-                    )
-                + clarray.vdot(
-                    out_dual["z1"] - in_dual["z1"],
-                    out_dual["z1"] - in_dual["z1"]
-                    )
-                + clarray.vdot(
-                    out_dual["z2"] - in_dual["z2"],
-                    out_dual["z2"] - in_dual["z2"]
-                    )
-            )**(1 / 2)).real
+            self.normkrnldiff(out_dual["r"], in_dual["r"])
+            + self.normkrnldiff(out_dual["z1"], in_dual["z1"])
+            + self.normkrnldiff(out_dual["z2"], in_dual["z2"])       
+            )**(1/2)
+
         lhs = np.sqrt(beta) * tau * (
-            (
-                clarray.vdot(
-                    out_adj["Kyk1"] - in_precomp_adj["Kyk1"],
-                    out_adj["Kyk1"] - in_precomp_adj["Kyk1"]
-                    )
-                + clarray.vdot(
-                    out_adj["Kyk2"] - in_precomp_adj["Kyk2"],
-                    out_adj["Kyk2"] - in_precomp_adj["Kyk2"]
-                    )
-            )**(1 / 2)).real
+            self.normkrnldiff(out_adj["Kyk1"], in_precomp_adj["Kyk1"])
+            + self.normkrnldiff(out_adj["Kyk2"], in_precomp_adj["Kyk2"])
+            )**(1/2)
+
         return lhs.get(), ynorm.get()
 
     def _calcResidual(
@@ -1623,47 +1630,37 @@ class PDSolverTGV(PDBaseSolver):
             data):
 
         primal_new = (
-            self.lambd / 2 * clarray.vdot(
-                in_precomp_fwd["Ax"] - data,
-                in_precomp_fwd["Ax"] - data)
-            + self.alpha * clarray.sum(
-                abs(in_precomp_fwd["gradx"] - in_primal["v"])
-                )
-            + self.beta * clarray.sum(
-                abs(in_precomp_fwd["symgradx"])
-                )
-            + 1 / (2 * self.delta) * clarray.vdot(
-                (in_primal["x"] - in_primal["xk"])*self.jacobi,
-                in_primal["x"] - in_primal["xk"]
-                )
-            ).real
+            self.lambd / 2 * self.normkrnldiff(in_precomp_fwd["Ax"], data)
+            + self.alpha * self.abskrnldiff(in_precomp_fwd["gradx"], 
+                                             in_primal["v"])
+            + self.beta * self.abskrnl(in_precomp_fwd["symgradx"])
+            + 1 / (2 * self.delta) * self.normkrnlweighteddiff(in_primal["x"],
+                                      in_primal["xk"],
+                                      self.jacobi)
+                
+            )
 
         dual = (
-            -self.delta / 2 * clarray.vdot(
-                - in_precomp_adj["Kyk1"]*self.jacobi,
-                - in_precomp_adj["Kyk1"])
+            -self.delta / 2 * self.normkrnlweighted(in_precomp_adj["Kyk1"],
+                                                    self.jacobi)
             - clarray.vdot(
                 in_primal["xk"],
                 - in_precomp_adj["Kyk1"]
                 )
             + clarray.sum(in_precomp_adj["Kyk2"])
-            - 1 / (2 * self.lambd) * clarray.vdot(
-                in_dual["r"],
-                in_dual["r"])
+            - 1 / (2 * self.lambd) * self.normkrnl(in_dual["r"])
             - clarray.vdot(data, in_dual["r"])
             ).real
 
         if self.unknowns_H1 > 0:
             primal_new += (
-                 self.omega / 2 * clarray.vdot(
-                     in_precomp_fwd["gradx"][self.unknowns_TGV:],
+                 self.omega / 2 * self.normkrnl(
                      in_precomp_fwd["gradx"][self.unknowns_TGV:]
                      )
                  ).real
 
             dual += (
-                - 1 / (2 * self.omega) * clarray.vdot(
-                    in_dual["z1"][self.unknowns_TGV:],
+                - 1 / (2 * self.omega) * self.normkrnl(
                     in_dual["z1"][self.unknowns_TGV:]
                     )
                 ).real
