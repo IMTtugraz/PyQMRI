@@ -196,8 +196,8 @@ class CGSolver:
         if wait_for is None:
             wait_for = []
         return self._prg.operator_fwd_cg(self._queue,
-                                         (np.prod((self._NSlice, self._dimY,
-                                          self._dimX)),),
+                                         (self._NSlice, self._dimY,
+                                          self._dimX),
                                          None,
                                          y.data, x.data, self._coils,
                                          np.int32(self._NC),
@@ -252,8 +252,8 @@ class CGSolver:
             self._tmp_result, x, wait_for=wait_for+x.events,
             scan_offset=self._scan_offset))
         return self._prg.operator_ad_cg(self._queue,
-                                        (np.prod((self._NSlice, self._dimY,
-                                          self._dimX)),),
+                                        (self._NSlice, self._dimY,
+                                         self._dimX),
                                         None,
                                         out.data, self._tmp_result.data,
                                         self._coils, np.int32(self._NC),
@@ -365,7 +365,7 @@ class PDBaseSolver:
         self.display_iterations = irgn_par["display_iterations"]
         self.mu = 1 / self.delta
         self.tau = tau
-        self.beta_line = 1#e3  # 1e10#1e12
+        self.beta_line = irgn_par["beta"]#e3  # 1e10#1e12
         self.theta_line = DTYPE_real(1.0)
         self.unknowns_TGV = par["unknowns_TGV"]
         self.unknowns_H1 = par["unknowns_H1"]
@@ -381,17 +381,8 @@ class PDBaseSolver:
         self.min_const = None
         self.max_const = None
         self.real_const = None
-        self._kernelsize = (np.prod((par["par_slices"] + par["overlap"], 
-                                   par["dimY"],
-                                   par["dimX"])),)
-        self._kernelsize_uk = (np.prod((par["unknowns"], 
-                                       par["par_slices"] + par["overlap"], 
-                                       par["dimY"],
-                                       par["dimX"])),)
-        self._unknown_size = (par["unknowns"], 
-                              par["par_slices"] + par["overlap"], 
-                              par["dimY"],
-                              par["dimX"])
+        self._kernelsize = (par["par_slices"] + par["overlap"], par["dimY"],
+                            par["dimX"])
 
     @staticmethod
     def factory(
@@ -580,9 +571,9 @@ class PDBaseSolver:
         delta_line = self._DTYPE_real(1)
         ynorm = self._DTYPE_real(0.0)
         lhs = self._DTYPE_real(0.0)
-        primal = []
-        dual = []
-        gap = []
+        primal = [0]
+        dual = [0]
+        gap = [0]
 
         (primal_vars,
          primal_vars_new,
@@ -609,6 +600,7 @@ class PDBaseSolver:
                 in_precomp_adj=tmp_results_adjoint,
                 tau=tau
                 )
+
             beta_new = beta_line * (1 + self.mu * tau)
             tau_new = tau * np.sqrt(beta_line / beta_new*(1 + theta_line))
             beta_line = beta_new
@@ -668,31 +660,31 @@ class PDBaseSolver:
             dual.append(dual_val)
             gap.append(gap_val)
                 
-            if not np.mod(i+1, 100):
+            if not np.mod(i+1, 10):
                 if self.display_iterations:
                     if isinstance(primal_vars["x"], np.ndarray):
                         self.model.plot_unknowns(
                             np.swapaxes(primal_vars["x"], 0, 1))
                     else:
                         self.model.plot_unknowns(primal_vars["x"].get())
-                if np.abs(primal[-2] - primal[-1])/primal[0] <\
+                if np.abs(primal[-2] - primal[-1])/primal[1] <\
                    self.tol:
                     print(
             "Terminated at iteration %d because the energy "
             "decrease in the primal problem was %.3e which is below the "
             "relative tolerance of %.3e" %
             (i+1,
-             np.abs(primal[-2] - primal[-1])/primal[0],
+             np.abs(primal[-2] - primal[-1])/primal[1],
              self.tol))
                     return primal_vars
-                if np.abs(np.abs(dual[-2] - dual[-1])/dual[0]) <\
+                if np.abs(np.abs(dual[-2] - dual[-1])/dual[1]) <\
                    self.tol:
                     print(
             "Terminated at iteration %d because the energy "
             "decrease in the dual problem was %.3e which is below the "
             "relative tolerance of %.3e" %
             (i+1,
-             np.abs(np.abs(dual[-2] - dual[-1])/dual[0]),
+             np.abs(np.abs(dual[-2] - dual[-1])/dual[1]),
              self.tol))
                     return primal_vars
                 if (
@@ -706,19 +698,19 @@ class PDBaseSolver:
             (i+1, np.abs(np.mean(gap[-20:-10]) - np.mean(gap[-10:]))
                      /np.mean(gap[-20:-10])))
                     return primal_vars
-                if np.abs((gap[-1] - gap[-2]) / gap[0]) < self.tol:
+                if np.abs((gap[-1] - gap[-2]) / gap[1]) < self.tol:
                     print(
             "Terminated at iteration %d because the energy "
             "decrease in the PD-gap was %.3e which is below the "
             "relative tolerance of %.3e" 
-            % (i+1, np.abs((gap[-1] - gap[-2]) / gap[0]), self.tol))
+            % (i+1, np.abs((gap[-1] - gap[-2]) / gap[1]), self.tol))
                     return primal_vars
             sys.stdout.write(
                 "Iteration: %04d ---- Primal: %2.2e, "
                 "Dual: %2.2e, Gap: %2.2e, Beta: %2.2e \r" %
-                (i+1, 1000*primal[-1] / gap[0],
-                 1000*dual[-1] / gap[0],
-                 1000*gap[-1] / gap[0],
+                (i+1, 1000*primal[-1] / gap[1],
+                 1000*dual[-1] / gap[1],
+                 1000*gap[-1] / gap[1],
                  beta_line))
             sys.stdout.flush()
 
@@ -837,13 +829,12 @@ class PDBaseSolver:
             wait_for = []
         return self._prg[idx].update_primal_LM(
             self._queue[4*idx+idxq],
-            self._kernelsize_uk, None,
+            self._kernelsize, None,
             outp.data, inp[0].data, inp[1].data, inp[2].data, inp[3].data,
             self._DTYPE_real(par[0]),
             self._DTYPE_real(par[0]/par[1]),
             self.min_const[idx].data, self.max_const[idx].data,
-            self.real_const[idx].data, 
-            *np.int32(self._unknown_size),
+            self.real_const[idx].data, np.int32(self.unknowns),
             wait_for=(outp.events +
                       inp[0].events+inp[1].events +
                       inp[2].events+wait_for))
@@ -877,7 +868,7 @@ class PDBaseSolver:
         if wait_for is None:
             wait_for = []
         return self._prg[idx].update_v(
-            self._queue[4*idx+idxq], self._kernelsize_uk, None,
+            self._queue[4*idx+idxq], (outp[..., 0].size,), None,
             outp.data, inp[0].data, inp[1].data, self._DTYPE_real(par[0]),
             wait_for=outp.events+inp[0].events+inp[1].events+wait_for)
 
@@ -916,10 +907,8 @@ class PDBaseSolver:
             outp.data, inp[0].data, inp[1].data,
             inp[2].data, inp[3].data, inp[4].data,
             self._DTYPE_real(par[0]), self._DTYPE_real(par[1]),
-            self._DTYPE_real(1/par[2]), 
-            np.int32(self.unknowns_TGV),
+            self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
             np.int32(self.unknowns_H1),
-            *np.int32(self._unknown_size[1:]),
             self._DTYPE_real(1 / (1 + par[0] / par[3])),
             wait_for=(outp.events+inp[0].events+inp[1].events +
                       inp[2].events+inp[3].events+inp[4].events+wait_for))
@@ -958,10 +947,8 @@ class PDBaseSolver:
             outp.data, inp[0].data, inp[1].data, inp[2].data,
             self._DTYPE_real(par[0]),
             self._DTYPE_real(par[1]),
-            self._DTYPE_real(1/par[2]), 
-            np.int32(self.unknowns_TGV),
+            self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
             np.int32(self.unknowns_H1),
-            *np.int32(self._unknown_size[1:]),
             self._DTYPE_real(1 / (1 + par[0] / par[3])),
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
@@ -1000,7 +987,7 @@ class PDBaseSolver:
             outp.data, inp[0].data, inp[1].data, inp[2].data,
             self._DTYPE_real(par[0]),
             self._DTYPE_real(par[1]),
-            self._DTYPE_real(1/par[2]), *np.int32(self._unknown_size),
+            self._DTYPE_real(1/par[2]), np.int32(self.unknowns),
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
 
@@ -1041,9 +1028,9 @@ class PDBaseSolver:
             wait_for = []
         return self._prg[idx].update_Kyk2(
             self._queue[4*idx+idxq],
-            self._kernelsize_uk, None,
+            self._kernelsize, None,
             outp.data, inp[0].data, inp[1].data,
-            *np.int32(outp.shape[:-1]),
+            np.int32(self.unknowns),
             par[idx].data,
             np.int32(bound_cond),
             self._DTYPE_real(self.dz),
@@ -1081,8 +1068,7 @@ class PDBaseSolver:
             self._queue[4*idx+idxq], (outp.size,), None,
             outp.data, inp[0].data,
             inp[1].data, inp[2].data, inp[3].data,
-            self._DTYPE_real(par[0]), 
-            self._DTYPE_real(par[1]),
+            self._DTYPE_real(par[0]), self._DTYPE_real(par[1]),
             self._DTYPE_real(1/(1+par[0]/par[2])),
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
@@ -1754,8 +1740,8 @@ class PDSolverStreamed(PDBaseSolver):
 
         self._op = None
         self.symgrad_shape = None
-        self._packs = None
-        self._numofpacks = None
+        # self._packs = None
+        # self._numofpacks = None
 
         self.unknown_shape = (par["NSlice"], par["unknowns"],
                               par["dimY"], par["dimX"])
@@ -2341,7 +2327,7 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
         self._op.adjKyk1(
             [out_adj["Kyk1"]],
             [[in_dual["r"], in_dual["z1"], self._coils, self.modelgrad, []]],
-            [[self._grad_op.ratio]])
+            par=[self._grad_op.ratio])
 
         self._symgrad_op.fwd(
             [out_fwd["symgradx"]],
@@ -2412,7 +2398,7 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
             [[out_dual["r"],
               out_dual["z1"],
               self._coils, self.modelgrad, in_precomp_adj["Kyk1"]]],
-            [[self._grad_op.ratio]])
+            par=[self._grad_op.ratio])
 
         (lhs4, ynorm4) = self.update_dual_2.evalwithnorm(
             [out_dual["z2"],
@@ -2736,7 +2722,7 @@ class PDSolverStreamedTVSMS(PDSolverStreamedTV):
         self._op.adjKyk1(
             [out_adj["Kyk1"]],
             [[in_dual["r"], in_dual["z1"], self._coils, self.modelgrad, []]],
-            [[self._grad_op.ratio]])
+            par=[self._grad_op.ratio])
 
     def _updatePrimal(self,
                       out_primal, out_fwd,
@@ -2786,7 +2772,7 @@ class PDSolverStreamedTVSMS(PDSolverStreamedTV):
             [[out_dual["r"],
               out_dual["z1"],
               self._coils, self.modelgrad, in_precomp_adj["Kyk1"]]],
-            [[self._grad_op.ratio]])
+            par=[self._grad_op.ratio])
 
         ynorm = np.abs(ynorm1+ynorm2+ynorm3)**(1/2)
         lhs = np.sqrt(beta)*tau*np.abs(lhs1+lhs2+lhs3)**(1/2)

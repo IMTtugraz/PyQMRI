@@ -469,10 +469,10 @@ class OperatorImagespace(Operator):
         else:
             wait_for = []
         return self.prg.operator_fwd_imagespace(
-            self.queue, (np.prod((np.prod((self.NSlice, self.dimY, self.dimX)),)),), None,
+            self.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data, inp[0].data, inp[2].data,
             np.int32(self.NScan),
-            *np.int32(self._unknown_shape),
+            np.int32(self.unknowns),
             wait_for=inp[0].events + out.events + wait_for)
 
     def fwdoop(self, inp, **kwargs):
@@ -504,10 +504,10 @@ class OperatorImagespace(Operator):
             self.queue, (self.NScan, self.NSlice, self.dimY, self.dimX),
             self.DTYPE, "C")
         tmp_result.add_event(self.prg.operator_fwd_imagespace(
-            self.queue, (np.prod((np.prod((self.NSlice, self.dimY, self.dimX)),)),), None,
+            self.queue, (self.NSlice, self.dimY, self.dimX), None,
             tmp_result.data, inp[0].data, inp[2].data,
             np.int32(self.NScan),
-            *np.int32(self._unknown_shape),
+            np.int32(self.unknowns),
             wait_for=inp[0].events + wait_for))
         return tmp_result
 
@@ -537,10 +537,10 @@ class OperatorImagespace(Operator):
         else:
             wait_for = []
         return self.prg.operator_ad_imagespace(
-            out.queue, (np.prod((self.NSlice, self.dimY, self.dimX)),), None,
+            out.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data, inp[0].data, inp[2].data,
             np.int32(self.NScan),
-            *np.int32(self._unknown_shape),
+            np.int32(self.unknowns),
             wait_for=wait_for + inp[0].events + out.events)
 
     def adjoop(self, inp, **kwargs):
@@ -572,10 +572,10 @@ class OperatorImagespace(Operator):
             self.queue, (self.unknowns, self.NSlice, self.dimY, self.dimX),
             dtype=self.DTYPE)
         self.prg.operator_ad_imagespace(
-            out.queue, (np.prod((self.NSlice, self.dimY, self.dimX)),), None,
+            out.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data, inp[0].data, inp[2].data,
             np.int32(self.NScan),
-            *np.int32(self._unknown_shape),
+            np.int32(self.unknowns),
             wait_for=wait_for + inp[0].events + out.events).wait()
         return out
 
@@ -604,11 +604,11 @@ class OperatorImagespace(Operator):
         else:
             wait_for = []
         return self.prg.update_Kyk1_imagespace(
-            self.queue, (np.prod((self.NSlice, self.dimY, self.dimX)),), None,
+            self.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data, inp[0].data, inp[3].data, inp[1].data,
             np.int32(self.NScan),
             inp[4].data,
-            *np.int32(out.shape),
+            np.int32(self.unknowns),
             self.DTYPE_real(self._dz),
             wait_for=(inp[0].events + out.events
                       + inp[1].events + wait_for))
@@ -699,13 +699,13 @@ class OperatorKspace(Operator):
         self._tmp_result.add_event(
             self.prg.operator_fwd(
                 self.queue,
-                (np.prod((self.NSlice, self.dimY, self.dimX)),),
+                (self.NSlice, self.dimY, self.dimX),
                 None,
                 self._tmp_result.data, inp[0].data,
                 inp[1].data,
                 inp[2].data, np.int32(self.NC),
                 np.int32(self.NScan),
-                *np.int32(self._unknown_shape),
+                np.int32(self.unknowns),
                 wait_for=(self._tmp_result.events + inp[0].events
                           + wait_for)))
         return self.NUFFT.FFT(
@@ -742,13 +742,13 @@ class OperatorKspace(Operator):
         self._tmp_result.add_event(
             self.prg.operator_fwd(
                 self.queue,
-                (np.prod((self.NSlice, self.dimY, self.dimX)),),
+                (self.NSlice, self.dimY, self.dimX),
                 None,
                 self._tmp_result.data, inp[0].data,
                 inp[1].data,
                 inp[2].data, np.int32(self.NC),
                 np.int32(self.NScan),
-                *np.int32(self._unknown_shape),
+                np.int32(self.unknowns),
                 wait_for=(self._tmp_result.events + inp[0].events
                           + wait_for)))
         tmp_sino = clarray.empty(
@@ -789,11 +789,11 @@ class OperatorKspace(Operator):
                 self._tmp_result, inp[0], wait_for=(wait_for
                                                     + inp[0].events)))
         return self.prg.operator_ad(
-            self.queue, (np.prod((self.NSlice, self.dimY, self.dimX)),), None,
+            self.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data, self._tmp_result.data, inp[1].data,
             inp[2].data, np.int32(self.NC),
             np.int32(self.NScan),
-            *np.int32(self._unknown_shape),
+            np.int32(self.unknowns),
             wait_for=self._tmp_result.events + out.events)
 
     def adjoop(self, inp, **kwargs):
@@ -829,11 +829,11 @@ class OperatorKspace(Operator):
             self.queue, (self.unknowns, self.NSlice, self.dimY, self.dimX),
             dtype=self.DTYPE)
         self.prg.operator_ad(
-            out.queue, (np.prod((self.NSlice, self.dimY, self.dimX)),), None,
+            out.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data, self._tmp_result.data, inp[1].data,
             inp[2].data, np.int32(self.NC),
             np.int32(self.NScan),
-            *np.int32(self._unknown_shape),
+            np.int32(self.unknowns),
             wait_for=(self._tmp_result.events
                       + out.events)).wait()
         return out
@@ -866,12 +866,12 @@ class OperatorKspace(Operator):
                 self._tmp_result, inp[0], wait_for=(wait_for
                                                     + inp[0].events)))
         return self.prg.update_Kyk1(
-            self.queue, (np.prod((self.NSlice, self.dimY, self.dimX)),), None,
+            self.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data, self._tmp_result.data, inp[2].data,
             inp[3].data, inp[1].data, np.int32(self.NC),
             np.int32(self.NScan),
             inp[4].data,
-            *np.int32(out.shape), self.DTYPE_real(self._dz),
+            np.int32(self.unknowns), self.DTYPE_real(self._dz),
             wait_for=(self._tmp_result.events +
                       out.events + inp[1].events))
 
@@ -964,13 +964,13 @@ class OperatorKspaceSMS(Operator):
         self._tmp_result.add_event(
             self.prg.operator_fwd(
                 self.queue,
-                (np.prod((self.NSlice, self.dimY, self.dimX)),),
+                (self.NSlice, self.dimY, self.dimX),
                 None,
                 self._tmp_result.data, inp[0].data,
                 inp[1].data,
                 inp[2].data, np.int32(self.NC),
                 np.int32(self.NScan),
-                *np.int32(self._unknown_shape),
+                np.int32(self.unknowns),
                 wait_for=(self._tmp_result.events + inp[0].events
                           + wait_for)))
         return self.NUFFT.FFT(
@@ -1006,13 +1006,13 @@ class OperatorKspaceSMS(Operator):
         self._tmp_result.add_event(
             self.prg.operator_fwd(
                 self.queue,
-                (np.prod((self.NSlice, self.dimY, self.dimX)),),
+                (self.NSlice, self.dimY, self.dimX),
                 None,
                 self._tmp_result.data, inp[0].data,
                 inp[1].data,
                 inp[2].data, np.int32(self.NC),
                 np.int32(self.NScan),
-                *np.int32(self._unknown_shape),
+                np.int32(self.unknowns),
                 wait_for=(self._tmp_result.events + inp[0].events
                           + wait_for)))
         tmp_sino = clarray.empty(
@@ -1053,11 +1053,11 @@ class OperatorKspaceSMS(Operator):
                 self._tmp_result, inp[0], wait_for=(wait_for
                                                     + inp[0].events)))
         return self.prg.operator_ad(
-            self.queue, (np.prod((self.NSlice, self.dimY, self.dimX)),), None,
+            self.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data, self._tmp_result.data, inp[1].data,
             inp[2].data, np.int32(self.NC),
             np.int32(self.NScan),
-            *np.int32(self._unknown_shape),
+            np.int32(self.unknowns),
             wait_for=self._tmp_result.events + out.events)
 
     def adjoop(self, inp, **kwargs):
@@ -1093,11 +1093,11 @@ class OperatorKspaceSMS(Operator):
             self.queue, (self.unknowns, self.NSlice, self.dimY, self.dimX),
             dtype=self.DTYPE)
         self.prg.operator_ad(
-            out.queue, (np.prod((self.NSlice, self.dimY, self.dimX)),), None,
+            out.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data, self._tmp_result.data, inp[1].data,
             inp[2].data, np.int32(self.NC),
             np.int32(self.NScan),
-            *np.int32(self._unknown_shape),
+            np.int32(self.unknowns),
             wait_for=self._tmp_result.events + out.events).wait()
         return out
 
@@ -1129,12 +1129,12 @@ class OperatorKspaceSMS(Operator):
                 self._tmp_result, inp[0], wait_for=(wait_for
                                                     + inp[0].events)))
         return self.prg.update_Kyk1(
-            self.queue, (np.prod((self.NSlice, self.dimY, self.dimX)),), None,
+            self.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data, self._tmp_result.data, inp[2].data,
             inp[3].data, inp[1].data, np.int32(self.NC),
             np.int32(self.NScan),
             inp[4].data,
-            *np.int32(out.shape), self.DTYPE_real(self._dz),
+            np.int32(self.unknowns), self.DTYPE_real(self._dz),
             wait_for=(self._tmp_result.events +
                       out.events + inp[1].events))
 
@@ -1342,10 +1342,10 @@ class OperatorImagespaceStreamed(Operator):
             wait_for = []
         return (self.prg[idx].operator_fwd_imagespace(
             self.queue[4*idx+idxq],
-            (np.prod(self._unknown_shape[1:]),), None,
+            (self.par_slices+self._overlap, self.dimY, self.dimX), None,
             outp.data, inp[0].data,
             inp[2].data,
-            np.int32(self.NScan), *np.int32(self._unknown_shape),
+            np.int32(self.NScan), np.int32(self.unknowns),
             wait_for=outp.events+inp[0].events+inp[2].events+wait_for))
 
     def _adjstreamedKyk1(self, outp, inp, par=None, idx=0, idxq=0,
@@ -1354,12 +1354,12 @@ class OperatorImagespaceStreamed(Operator):
             wait_for = []
         return self.prg[idx].update_Kyk1_imagespace(
             self.queue[4*idx+idxq],
-            (np.prod(self._unknown_shape[1:]),), None,
+            (self.par_slices+self._overlap, self.dimY, self.dimX), None,
             outp.data, inp[0].data,
             inp[3].data,
             inp[1].data,
             np.int32(self.NScan),
-            par[0][idx].data, *np.int32(self._unknown_shape),
+            par[0][idx].data, np.int32(self.unknowns),
             np.int32(bound_cond), self.DTYPE_real(self._dz),
             wait_for=(outp.events+inp[0].events+inp[1].events +
                       inp[3].events+wait_for))
@@ -1370,10 +1370,10 @@ class OperatorImagespaceStreamed(Operator):
             wait_for = []
         return self.prg[idx].operator_ad_imagespace(
             self.queue[4*idx+idxq],
-            (np.prod(self._unknown_shape[1:]),), None,
+            (self.par_slices+self._overlap, self.dimY, self.dimX), None,
             outp.data, inp[0].data,
             inp[2].data,
-            np.int32(self.NScan), *np.int32(self._unknown_shape),
+            np.int32(self.NScan), np.int32(self.unknowns),
             wait_for=(outp.events+inp[0].events +
                       inp[2].events+wait_for))
 
@@ -1614,12 +1614,12 @@ class OperatorKspaceStreamed(Operator):
             wait_for = []
         self._tmp_result[2*idx+idxq].add_event(self.prg[idx].operator_fwd(
             self.queue[4*idx+idxq],
-            (np.prod(self._unknown_shape[1:]),), None,
+            (self.par_slices+self._overlap, self.dimY, self.dimX), None,
             self._tmp_result[2*idx+idxq].data, inp[0].data,
             inp[1].data,
             inp[2].data,
             np.int32(self.NC),
-            np.int32(self.NScan), *np.int32(self._unknown_shape),
+            np.int32(self.NScan), np.int32(self.unknowns),
             wait_for=(self._tmp_result[2*idx+idxq].events +
                       inp[0].events+wait_for)))
         return self.NUFFT[2*idx+idxq].FFT(
@@ -1637,12 +1637,12 @@ class OperatorKspaceStreamed(Operator):
                           self._tmp_result[2*idx+idxq].events)))
         return self.prg[idx].update_Kyk1(
             self.queue[4*idx+idxq],
-            (np.prod(self._unknown_shape[1:]),), None,
+            (self.par_slices+self._overlap, self.dimY, self.dimX), None,
             outp.data, self._tmp_result[2*idx+idxq].data,
             inp[2].data,
             inp[3].data,
             inp[1].data, np.int32(self.NC), np.int32(self.NScan),
-            par[0][idx].data, *np.int32(self._unknown_shape),
+            par[0][idx].data, np.int32(self.unknowns),
             np.int32(bound_cond), self.DTYPE_real(self._dz),
             wait_for=(
                 self._tmp_result[2*idx+idxq].events +
@@ -1660,12 +1660,12 @@ class OperatorKspaceStreamed(Operator):
                           self._tmp_result[2*idx+idxq].events)))
         return self.prg[idx].operator_ad(
             self.queue[4*idx+idxq],
-            (np.prod(self._unknown_shape[1:]),), None,
+            (self.par_slices+self._overlap, self.dimY, self.dimX), None,
             outp.data, self._tmp_result[2*idx+idxq].data,
             inp[1].data,
             inp[2].data,
             np.int32(self.NC),
-            np.int32(self.NScan), *np.int32(self._unknown_shape),
+            np.int32(self.NScan), np.int32(self.unknowns),
             wait_for=(self._tmp_result[2*idx+idxq].events +
                       inp[1].events+inp[2].events+wait_for))
 
@@ -1996,12 +1996,12 @@ class OperatorKspaceSMSStreamed(Operator):
             wait_for = []
         return self.prg[idx].operator_fwd(
             self.queue[4*idx+idxq],
-            (np.prod(self._unknown_shape[1:]),), None,
+            (self.par_slices+self._overlap, self.dimY, self.dimX), None,
             outp.data, inp[0].data,
             inp[1].data,
             inp[2].data,
             np.int32(self.NC),
-            np.int32(self.NScan), *np.int32(self._unknown_shape),
+            np.int32(self.NScan), np.int32(self.unknowns),
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
 
@@ -2011,12 +2011,12 @@ class OperatorKspaceSMSStreamed(Operator):
             wait_for = []
         return self.prg[idx].operator_ad(
             self.queue[4*idx+idxq],
-            (np.prod(self._unknown_shape[1:]),), None,
+            (self.par_slices+self._overlap, self.dimY, self.dimX), None,
             outp.data, inp[0].data,
             inp[1].data,
             inp[2].data,
             np.int32(self.NC), np.int32(self.NScan),
-            *np.int32(self._unknown_shape),
+            np.int32(self.unknowns),
             wait_for=(
                 inp[0].events +
                 outp.events+inp[1].events +
@@ -2040,10 +2040,10 @@ class OperatorKspaceSMSStreamed(Operator):
             wait_for = []
         return self.prg[idx].update_Kyk1SMS(
             self.queue[4*idx+idxq],
-            (np.prod(self._unknown_shape[1:]),), None,
+            (self.par_slices+self._overlap, self.dimY, self.dimX), None,
             outp.data, inp[0].data,
             inp[1].data,
-            par[0][idx].data, *np.int32(self._unknown_shape),
+            par[0][idx].data, np.int32(self.unknowns),
             np.int32(bound_cond), self.DTYPE_real(self._dz),
             wait_for=(
                 inp[0].events +
@@ -2139,8 +2139,8 @@ class OperatorFiniteGradient(Operator):
         else:
             wait_for = []
         return self.prg.gradient(
-            self.queue, (inp.size,), None, out.data, inp.data,
-            *np.int32(inp.shape),
+            self.queue, inp.shape[1:], None, out.data, inp.data,
+            np.int32(self.unknowns),
             self.ratio.data, self.DTYPE_real(self._dz),
             wait_for=out.events + inp.events + wait_for)
 
@@ -2174,8 +2174,8 @@ class OperatorFiniteGradient(Operator):
                          self.NSlice, self.dimY, self.dimX, 4),
             self.DTYPE, "C")
         tmp_result.add_event(self.prg.gradient(
-            self.queue, (inp.size,), None, tmp_result.data, inp.data,
-            *np.int32(inp.shape),
+            self.queue, inp.shape[1:], None, tmp_result.data, inp.data,
+            np.int32(self.unknowns),
             self.ratio.data, self.DTYPE_real(self._dz),
             wait_for=tmp_result.events + inp.events + wait_for))
         return tmp_result
@@ -2206,8 +2206,8 @@ class OperatorFiniteGradient(Operator):
         else:
             wait_for = []
         return self.prg.divergence(
-            self.queue, (out.size,), None, out.data, inp.data,
-            *np.int32(out.shape), self.ratio.data,
+            self.queue, inp.shape[1:-1], None, out.data, inp.data,
+            np.int32(self.unknowns), self.ratio.data,
             self.DTYPE_real(self._dz),
             wait_for=out.events + inp.events + wait_for)
 
@@ -2377,8 +2377,8 @@ class OperatorFiniteSymGradient(Operator):
         else:
             wait_for = []
         return self.prg.sym_grad(
-            self.queue, (np.prod(inp.shape[:-1]),), None, out.data, inp.data,
-            *np.int32(inp.shape[:-1]),
+            self.queue, inp.shape[1:-1], None, out.data, inp.data,
+            np.int32(self.unknowns_TGV),
             self.ratio.data,
             self.DTYPE_real(self._dz),
             wait_for=out.events + inp.events + wait_for)
@@ -2413,9 +2413,8 @@ class OperatorFiniteSymGradient(Operator):
                          self.NSlice, self.dimY, self.dimX, 8),
             self.DTYPE, "C")
         tmp_result.add_event(self.prg.sym_grad(
-            self.queue, (np.prod(inp.shape[:-1]),), None, tmp_result.data, 
-            inp.data,
-            *np.int32(inp.shape[:-1]),
+            self.queue, inp.shape[1:-1], None, tmp_result.data, inp.data,
+            np.int32(self.unknowns_TGV),
             self.ratio.data,
             self.DTYPE_real(self._dz),
             wait_for=tmp_result.events + inp.events + wait_for))
@@ -2447,8 +2446,8 @@ class OperatorFiniteSymGradient(Operator):
         else:
             wait_for = []
         return self.prg.sym_divergence(
-            self.queue, (np.prod(inp.shape[:-1]),), None, out.data, inp.data,
-            *np.int32(inp.shape[:-1]),
+            self.queue, inp.shape[1:-1], None, out.data, inp.data,
+            np.int32(self.unknowns_TGV),
             self.ratio.data,
             self.DTYPE_real(self._dz),
             wait_for=out.events + inp.events + wait_for)
@@ -2483,9 +2482,8 @@ class OperatorFiniteSymGradient(Operator):
                          self.NSlice, self.dimY, self.dimX, 4),
             self.DTYPE, "C")
         tmp_result.add_event(self.prg.sym_divergence(
-            self.queue, (np.prod(inp.shape[:-1]),), None, tmp_result.data, 
-            inp.data,
-            *np.int32(inp.shape[:-1]),
+            self.queue, inp.shape[1:-1], None, tmp_result.data, inp.data,
+            np.int32(self.unknowns_TGV),
             self.ratio.data,
             self.DTYPE_real(self._dz),
             wait_for=tmp_result.events + inp.events + wait_for))
@@ -2666,9 +2664,9 @@ class OperatorFiniteGradientStreamed(Operator):
             wait_for = []
         return self.prg[idx].gradient(
             self.queue[4*idx+idxq],
-            (inp[0].size,),
+            (self._overlap+self.par_slices, self.dimY, self.dimX),
             None, outp.data, inp[0].data,
-            *np.int32(self._unknown_shape),
+            np.int32(self.unknowns),
             self.ratio[idx].data, self.DTYPE_real(self._dz),
             wait_for=outp.events + inp[0].events + wait_for)
 
@@ -2678,11 +2676,9 @@ class OperatorFiniteGradientStreamed(Operator):
             wait_for = []
         return self.prg[idx].divergence(
             self.queue[4*idx+idxq],
-            (outp.size,), None,
-            outp.data, inp[0].data, 
-            *np.int32(self._unknown_shape),
-            self.ratio[idx].data, 
-            np.int32(bound_cond),
+            (self._overlap+self.par_slices, self.dimY, self.dimX), None,
+            outp.data, inp[0].data, np.int32(self.unknowns),
+            self.ratio[idx].data, np.int32(bound_cond),
             self.DTYPE_real(self._dz),
             wait_for=outp.events + inp[0].events + wait_for)
 
@@ -2913,9 +2909,8 @@ class OperatorFiniteSymGradientStreamed(Operator):
             wait_for = []
         return self.prg[idx].sym_grad(
             self.queue[4*idx+idxq],
-            (np.prod(inp[0].shape[:-1]),), None,
-            outp.data, inp[0].data, 
-            *np.int32(self._unknown_shape),
+            (self._overlap+self.par_slices, self.dimY, self.dimX), None,
+            outp.data, inp[0].data, np.int32(self.unknowns),
             self.ratio[idx].data,
             self.DTYPE_real(self._dz),
             wait_for=outp.events + inp[0].events + wait_for)
@@ -2926,9 +2921,9 @@ class OperatorFiniteSymGradientStreamed(Operator):
             wait_for = []
         return self.prg[idx].sym_divergence(
             self.queue[4*idx+idxq],
-            (np.prod(inp[0].shape[:-1]),), None,
+            (self._overlap+self.par_slices, self.dimY, self.dimX), None,
             outp.data, inp[0].data,
-            *np.int32(self._unknown_shape),
+            np.int32(self.unknowns),
             self.ratio[idx].data,
             np.int32(bound_cond),
             self.DTYPE_real(self._dz),
