@@ -366,7 +366,7 @@ class PDBaseSolver:
         self.display_iterations = irgn_par["display_iterations"]
         self.mu = 1 / self.delta
         self.tau = tau
-        self.beta_line = irgn_par["beta"]#e3  # 1e10#1e12
+        self.beta_line = irgn_par["beta"]
         self.theta_line = DTYPE_real(1.0)
         self.unknowns_TGV = par["unknowns_TGV"]
         self.unknowns_H1 = par["unknowns_H1"]
@@ -685,7 +685,7 @@ class PDBaseSolver:
             dual.append(dual_val)
             gap.append(gap_val)
                 
-            if not np.mod(i+1, 10):
+            if not np.mod(i+1, 100):
                 if self.display_iterations:
                     if isinstance(primal_vars["x"], np.ndarray):
                         self.model.plot_unknowns(
@@ -1306,23 +1306,11 @@ class PDSolverTV(PDBaseSolver):
 
         ynorm = (
             (
-                # clarray.vdot(
-                    # out_dual["r"] - in_dual["r"],
-                    # out_dual["r"] - in_dual["r"]
-                    # )
                 self.normkrnldiff(out_dual["r"], in_dual["r"])
-                # + clarray.vdot(
-                    # out_dual["z1"] - in_dual["z1"],
-                    # out_dual["z1"] - in_dual["z1"]
-                    # )
                 + self.normkrnldiff(out_dual["z1"], in_dual["z1"])
             )**(1 / 2))
         lhs = np.sqrt(beta) * tau * (
             (
-                # clarray.vdot(
-                    # out_adj["Kyk1"] - in_precomp_adj["Kyk1"],
-                    # out_adj["Kyk1"] - in_precomp_adj["Kyk1"]
-                    # )
                 self.normkrnldiff(out_adj["Kyk1"], in_precomp_adj["Kyk1"])
             )**(1 / 2))
         return lhs.get(), ynorm.get()
@@ -1737,8 +1725,6 @@ class PDSolverStreamed(PDBaseSolver):
 
         self._op = None
         self.symgrad_shape = None
-        # self._packs = None
-        # self._numofpacks = None
 
         self.unknown_shape = (par["NSlice"], par["unknowns"],
                               par["dimY"], par["dimX"])
@@ -1947,7 +1933,8 @@ class PDSolverStreamed(PDBaseSolver):
             self.num_dev,
             reverse_dir,
             posofnorm,
-            DTYPE=self._DTYPE)
+            DTYPE=self._DTYPE,
+            DTYPE_real=self._DTYPE_real)
 
 
 class PDSolverStreamedTGV(PDSolverStreamed):

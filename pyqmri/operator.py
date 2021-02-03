@@ -402,7 +402,8 @@ class Operator(ABC):
             self.num_dev,
             reverse_dir,
             posofnorm,
-            DTYPE=self.DTYPE)
+            DTYPE=self.DTYPE,
+            DTYPE_real=self.DTYPE_real)
 
 
 class OperatorImagespace(Operator):
@@ -2240,8 +2241,9 @@ class OperatorFiniteGradient(Operator):
             self.queue, (self.unknowns, self.NSlice, self.dimY, self.dimX),
             self.DTYPE, "C")
         tmp_result.add_event(self.prg.divergence(
-            self.queue, (tmp_result.size,), None, tmp_result.data, inp.data,
-            *np.int32(tmp_result.shape), self.ratio.data,
+            self.queue, tmp_result.shape[1:], None, tmp_result.data, inp.data,
+            np.int32(self.unknowns),
+            self.ratio.data,
             self.DTYPE_real(self._dz),
             wait_for=tmp_result.events + inp.events + wait_for))
         return tmp_result
