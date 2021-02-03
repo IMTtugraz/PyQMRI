@@ -133,11 +133,15 @@ class IRGNOptimizer:
         if imagespace:
             self._coils = []
             self.sliceaxis = 1
+            if self._streamed:
+                self._data_trans_axes = (1, 0, 2, 3)
+                self._grad_trans_axes = (2, 0, 1, 3, 4)
         else:
             self._data_shape = (par["NScan"], par["NC"],
                                 par["NSlice"], par["Nproj"], par["N"])
             if self._streamed:
                 self._data_trans_axes = (2, 0, 1, 3, 4)
+                self._grad_trans_axes = (2, 0, 1, 3, 4)
                 self._coils = np.require(
                     np.swapaxes(par["C"], 0, 1), requirements='C',
                     dtype=DTYPE)
@@ -263,6 +267,13 @@ class IRGNOptimizer:
                 self._model.execute_gradient(result))
 
             self._balanceModelGradients(result)
+
+            # if not np.mod(ign, 1):
+            #     self._pdop._grad_op.updateRatio(result)
+            #     if self._reg_type == 'TGV':
+            #         self._pdop._symgrad_op.updateRatio(
+            #             self._pdop._grad_op.ratio)
+
             self._step_val = np.nan_to_num(self._model.execute_forward(result))
 
             if self._streamed:
@@ -270,7 +281,7 @@ class IRGNOptimizer:
                     self._step_val = np.require(
                         np.swapaxes(self._step_val, 0, 1), requirements='C')
                 self._modelgrad = np.require(
-                    np.transpose(self._modelgrad, self._data_trans_axes),
+                    np.transpose(self._modelgrad, self._grad_trans_axes),
                     requirements='C')
                 self._pdop.model = self._model
                 self._pdop.modelgrad = self._modelgrad
@@ -307,10 +318,15 @@ class IRGNOptimizer:
         self._calcResidual(result, data, ign+1)
 
     def _updateIRGNRegPar(self, ign):
-        self.irgn_par["delta"] = np.minimum(
-            self._delta
-            * self.irgn_par["delta_inc"]**ign,
-            self.irgn_par["delta_max"])
+        try:
+            self.irgn_par["delta"] = np.minimum(
+                self._delta
+                * self.irgn_par["delta_inc"]**ign,
+                self.irgn_par["delta_max"])
+        except OverflowError:
+            self.irgn_par["delta"] = np.minimum(
+                np.finfo(self._delta).max,
+                self.irgn_par["delta_max"])
         self.irgn_par["gamma"] = np.maximum(
             self._gamma * self.irgn_par["gamma_dec"]**ign,
             self.irgn_par["gamma_min"])
@@ -350,7 +366,8 @@ class IRGNOptimizer:
 # New .hdf5 save files ########################################################
 ###############################################################################
     def _saveToFile(self, myit, result):
-        f = h5py.File(self.par["outdir"]+"output_" + self.par["fname"], "a")
+        f = h5py.File(self.par["outdir"]+"output_" + self.par["fname"] + ".h5",
+                      "a")
         if self._reg_type == 'TGV':
             f.create_dataset("tgv_result_iter_"+str(myit), result.shape,
                              dtype=self._DTYPE, data=result)
@@ -382,7 +399,6 @@ class IRGNOptimizer:
             res = data - b + self._MRI_operator.fwdoop(
                 [tmpx, self._coils, self._modelgrad]).get()
             del tmpx
-
         tmpres = self._pdop.run(x, res, iters)
         for key in tmpres:
             if key == 'x':

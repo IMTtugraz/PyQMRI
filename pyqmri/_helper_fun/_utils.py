@@ -74,6 +74,7 @@ def gen_default_config():
     config['TGV']["delta_inc"] = '10'
     config['TGV']["gamma_dec"] = '0.5'
     config['TGV']["omega_dec"] = '0.5'
+    config['TGV']["beta"] = '15'
 
     config['TV'] = {}
     config['TV']["max_iters"] = '1000'
@@ -92,6 +93,7 @@ def gen_default_config():
     config['TV']["delta_inc"] = '10'
     config['TV']["gamma_dec"] = '0.5'
     config['TV']["omega_dec"] = '0.5'
+    config['TV']["beta"] = '1'
 
     with open('default.ini', 'w') as configfile:
         config.write(configfile)
