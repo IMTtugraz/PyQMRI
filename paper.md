@@ -1,5 +1,5 @@
 ---
-title: 'PyQMRI: An accelerated Python based Quantitative MRI Python toolbox'
+title: 'PyQMRI: An accelerated Python based Quantitative MRI toolbox'
 tags:
   - Python
   - MRI
@@ -12,17 +12,19 @@ authors:
     affiliation: "1" # (Multiple affiliations must be quoted)
   - name: Stefan M Spann
     affiliation: "1"
-  - name: Markues Bödenler
+  - name: Markus Bödenler
     orcid: 0000-0001-6018-7821
-    affiliation: "1"
+    affiliation: "1, 2"
   - name: Rudolf Stollberger
     orcid: 0000-0002-4969-3878
-    affiliation: "1, 2"
+    affiliation: "1, 3"
 affiliations:
  - name: Institute of Medical Engineering, Graz University of Technology, Graz, Austria
    index: 1
- - name: BioTechMed Graz
+ - name: Institute of eHealth, University of Applied Sciences FH JOANNEUM, Graz, Austria
    index: 2
+ - name: BioTechMed Graz, Austria
+   index: 3
 date: 15 September 2020
 bibliography: paper.bib
 
@@ -34,34 +36,35 @@ bibliography: paper.bib
 
 # Summary
 
-Quantitative MR imaging (qMRI) and the associated possibility of finding imaging biomarkers has gained considerably in importance with the development towards stratified and quantitative medicine. qMRI aims to identify the underlying bio-physical and tissue parameters that determine contrast in an imaging experiment. In addition to the contrast information from conventional MRI examinations, qMRI provides insights into diseases based on biophysical, microstructural, and also functional information in absolute quantitative values. For quantification, biophysical models are used, which describe the relationship between image intensity and physical properties of the tissue for certain scanning sequences and sequence parameters. By performing several measurements with different sequence parameters (e.g. flip angle, repetition time, echo time) the related inverse problem of identifying the tissue parameters sought can be solved.
+Various medical examinations are seeing a shift to a more patient centric and personalized view, based on quantitative instead of qualitative observations and comparisons. 
+This trend has also affected medical imaging, and particularly quantitative MRI (qMRI) gained importance in recent years. qMRI aims to identify the underlying biophysical and tissue parameters that determine contrast in an MR imaging experiment. In addition to contrast information, qMRI permits insights into diseases by providing biophysical, microstructural, and functional information in absolute quantitative values. For quantification, biophysical models are used, which describe the relationship between image intensity and physical properties of the tissue for certain scanning sequences and sequence parameters. By performing several measurements with different sequence parameters (e.g. flip angle, repetition time, echo time) the related inverse problem of identifying the tissue parameters sought can be solved.
 
-Quantitative MR typically suffers from an increased measurement time due to repeated imaging experiments. Therefore, methods to reduce scanning time by means of optimal scanning protocols and subsampled data acquisition have been extensively studied but these approaches are typically associated with a reduced SNR and can suffers from subsampling artifacts in the images. To address both aspects, it has been shown that the inclusion of the biophysical model in the reconstruction process leads to a much faster data acquisition while simultaneously improving image quality. The inverse problem associated with this special reconstruction approach requires dedicated numerical solution strategies [@Donoho2006; @Lustig2007; @Block2009; @Doneva2010; @Sumpf2012; @Roeloffs2016; @Maier2019c], commonly known as model-based reconstruction. Model-based reconstruction is based on variational modeling and combines parallel imaging and compressed sensing to achieve very high acceleration factors above ten, compared to fully sampled acquisitions. The method directly solves for the unknown parameter maps from raw k-space data. The repeated transition from k-space to image-space combined with the involved non-linear iterative reconstruction techniques to identify the unknown parameters often leads to prolonged reconstruction times. An effect that gets even more demanding if 3D image volumes are of interest. 
+Quantitative MR typically suffers from increased measurement time due to repeated imaging experiments. Therefore, methods to reduce scanning time by means of optimal scanning protocols and subsampled data acquisition have been extensively studied. However, these approaches are typically associated with a reduced SNR, and can suffer from subsampling artifacts. To address both aspects, it has been shown that the inclusion of a biophysical model in the reconstruction process leads to much faster data acquisition, while simultaneously improving image quality. The inverse problem associated with this special reconstruction approach requires dedicated numerical solution strategies [@Donoho2006; @Lustig2007; @Block2009; @Doneva2010; @Sumpf2012; @Roeloffs2016; @Maier2019c], commonly known as model-based reconstruction. Model-based reconstruction is based on variational modeling, and combines parallel imaging and compressed sensing to achieve acceleration factors as high as 10x the speed of fully sampled acquisitions. The method directly solves for the unknown parameter maps from raw k-space data. The repeated transition from k-space to image-space, combined with the involved non-linear iterative reconstruction techniques to identify the unknown parameters, often leads to prolonged reconstruction times. This effect gets even more demanding if 3D image volumes are of interest. 
 
-In recent years the upsurge of computationally powerful GPUs has led to a variety of GPU based implementations to speed up computation time of highly parallelizeable operations 
-(e.g., the Fourier transformation in MRI [@Knoll2014g]). As model-based approaches possibly deal with hundred Gigabytes of data (e.g. diffusion tensor imaging), available memory on current GPUs (e.g. 12 GB) can be a limiting factor. Thus, most reconstruction and fitting algorithms are applied in a slice-by-slice fashion to the volumetric data by taking a Fourier transformation along a fully sampled acquisition direction, effectively yielding a set of 2D problems. Hence the additional information in form of the third dimension of volumetric data is neglected, leading to a loss in performance.
+Recently, the upsurge of computationally powerful GPUs has led to a variety of GPU based implementations to speed up computation time of highly parallelizeable operations 
+(e.g., the Fourier transformation in MRI [@Knoll2014g]). As model-based approaches possibly deal with hundred Gigabytes of data (e.g. diffusion tensor imaging), available memory on current GPUs (e.g. 12 GB) can be a limiting factor. Thus, most reconstruction and fitting algorithms are applied in a slice-by-slice fashion to the volumetric data by taking a Fourier transformation along a fully sampled acquisition direction, effectively yielding a set of 2D problems. Hence, the additional information in form of the third dimension of volumetric data is neglected, leading to a loss in performance.
 
 To utilize full 3D information in advanced reconstruction and fitting algorithms on memory limited GPUs, 
-special solutions strategies are necessary to leverage the speed advantage, e.g., hide memory latency of repeated transfers to/from the GPU to host memory.
-This can be achieved using asynchronous execution strategies but correct synchronization of critical operations can be error prone.
-To this end, we propose `PyQMRI`, a simple to use python toolbox for quantitative MRI.
+special solutions strategies are necessary to leverage the speed advantage, e.g., hiding memory latency of repeated transfers to/from the GPU to host memory.
+This can be achieved using asynchronous execution strategies. However, correct synchronization of critical operations can be error prone.
+To this end, we propose `PyQMRI`, a simple to use Python toolbox for quantitative MRI.
 
 # Statement of need 
 
-`PyQMRI` aims at reducing the required reconstruction time by means of a
-highly parallelized `PyOpenCL` [@Klockner2012a] implementation of a state-of-the-art model-based reconstruction and fitting algorithm 
+`PyQMRI` aims at reducing the required reconstruction time by means of a highly parallelized   
+`PyOpenCL`&nbsp;[@Klockner2012a] implementation of a state-of-the-art model-based reconstruction and fitting algorithm, 
 while maintaining the easy-to-use properties of a Python package.
-In addition to processing small data (e.g. 2D slices) completely on the GPU an efficient
+In addition to processing small data (e.g. 2D slices) completely on the GPU, an efficient
 double-buffering based solution strategy is implemented. Double-buffering 
-allows to overlap computation and memory transfer from/to the GPU, thus
-hiding the associated memory latency. By overlapping the transfered blocks
+allows overlapping computation and memory transfer from/to the GPU, thus
+hiding the associated memory latency. By overlapping the transferred blocks
 it is possible to pass on 3D information utilizing finite differences based
 regularization strategies [@Maier2019d]. \autoref{fig:db} shows a schematic of the employed double-buffering scheme.
-To make sure that this asynchronous execution strategy yields the expected results unit-testing is employed.
+To make sure that this asynchronous execution strategy yields the expected results, unit-testing is employed.
 
 ![Simple double-buffering scheme using two separate command queues and overlaping transfer/compute operations. \label{fig:db}](doublebuffering.png)
 
-Currently 3D acquisitions with at least one fully sampled dimension can
+Currently, 3D acquisitions with at least one fully sampled dimension can
 be reconstructed on the GPU, including stack-of-X acquisitions or 3D Cartesian
 based imaging. Of course 2D data can be reconstructed as well. The combination of reconstruction and non-linear fitting is based
 on an iteratively regularized Gauss-Newton (IRGN) approach combined with 
@@ -74,20 +77,40 @@ of complex or real valued image data. The main advantage of fitting the complex 
 `PyQMRI` comes with several pre-implemented quantiative models. In addition,
 new models can be introduced via a simple text file, utilizing the power
 of `SymPy` to generate numerical models as well as their partial derivatives in Python. Fitting can be initiated via a command line interface (CLI) or by importing the package
-into a Python script. To the best of the authors knowledge `PyQMRI`
-is the only available Python toolbox that offers real 3D regularization 
-in an iterative solver for inverse quantitative MRI problems
-and for arbitrary large volumetric data while simultaneously utilizing the computation
-power of recent GPUs. Due to `PyQMRI`'s OpenCL backend no vendor specific hardware restrictions are present, however,
-current limitations of the `gpyfft` package used to wrap the `clfft`, constrain the use to GPU devices only.
-A switch to other `clfft` wrappers might solve this limitation in future releases but `gpyfft` is the only one that currently supports fast non-power-of-two transformations up to 13.
+into a Python script. Due to `PyQMRI`'s OpenCL backend, no vendor specific hardware restrictions are present. However,
+current limitations of the `gpyfft` package, used to wrap the `clfft`, constrain the use to GPU devices only.
+A switch to other `clfft` wrappers might solve this limitation in future releases, but `gpyfft` is the only one that currently supports fast non-power-of-two transformations up to 13.
 
 `PyQMRI` and its predecessors have been succesfully used in several scientific
 publications. Examples include $T_1$ quantification from subsampled radial FLASH 
 and inversion-recovery Look-Locker data [@Maier2019c], diffusion tensor imaging [@Maier2020a], 
 and ongoing work on aterial spin labeling [@Maier2020b; @Maier2020c], as well as low-field $T_1$ mapping at multiple fields using fast field-cycling MRI. 
 
-# Algorithmic
+# Related Work
+The increased importance of qMRI is reflected by a multitude of open-source toolboxes, each focusing on a subset or combination of qMRI applications. 
+Most tools show a strong focus on neurological applications (mostly brain) but are usually not limited to this application area.
+hMRI [@hMRI] is Matlab based and builds upon SPM [@SPM]. It extends the spatial registration and statistical inference capabilities of SPM by relaxometry and quantification of the magnetisation transfer effect.
+mrQ [@mrQ] offers relaxometry combined with the ability to quantify the macromolecular tissue volume, apparent volume of interacting water protons, and the water-surface interaction rate and is completely written in Matlab.
+Another Matlab based project is qMRlab [@qMRLab] which offers a multitude of quantification algorithms including relaxometry, diffusion imaging, quantitative susceptibility mapping, field mapping, and quantitative magnetization transfer.
+It further offers routines for visualization, simulation, and protocol optimization of quantitative MRI examinations.
+Another Matlab based software is qmap [@QMAP] which offers a collection of tools for quantitative MRI. 
+
+qMRI is also present in the Python community with PyMRT [@PYMRT] offering tools for image analysis and relaxometry. 
+Another powerful Pyhton package, with a focus on neuroimaing, is DIPY [@DIPY], offering a multitude of ways to evaluated diffusion and perfusion MRI data.
+Other software packages focus on fast execution and fitting, like the QUIT [@QUIT] toolbox, which is entirely written in C++ to speed up the computations.
+All of the above mentioned qMRI toolboxes have in common that they usually require image data for the fitting process and, thus, are not suitable for accelerated acquired data or require dedicated reconstruction algorithms prior to fitting.
+
+A recent extensions to BART [@BART] allows for $T_1$ quantification from 2D radially acquired inversion recovery Look-Locker data.
+The approach utilizes a model-based reconstruction algorithm to estimate $T_1$ directly from k-space [@wang2018; @wang2019].
+Even though this approach can handle undersampled data and incorporates the whole MRI acquisition pipeline, it is currently limited to this single quantification model.
+
+To the best of the authors knowledge `PyQMRI` is the only available Python toolbox that offers real 3D regularization 
+in an iterative solver for model-based qMRI problems and for arbitrary large volumetric data, while simultaneously utilizing the computation
+power of recent GPUs. Further, the ability to use symbolic equations to generate new models seems to be unique as other tools require modifications of the code to include new quantification models.
+
+\pagebreak
+
+# Algorithms
 `PyQMRI` deals with the following general problem structure:
 
 $$
@@ -108,14 +131,14 @@ $$
 \underset{u,v}{\min}\quad 
 \frac{1}{2}\|\mathrm{D}A\rvert_{u=u^{k}} u-\tilde{d}^k
 \|_2^2 + \nonumber\gamma_k(\alpha_0\|\nabla u - v\|_{1,2,F} + \alpha_1|\|\mathcal{E}v\|_{1,2,F}) +
-\nonumber \frac{\delta_k}{2}\|u-u^k\|_{M_k}^2.
+\nonumber \frac{\delta_k}{2}\|u-u^k\|_{M_k}^2
 $$
 needs to be solved to find a solution of the overall problem. The matrix $\mathrm{D}A
 \rvert_{u=u^{k}} = \frac{\partial{A}}{\partial 
 u}(u^k)$ resembles the Jacobian of the system. The subproblems can be recast into a saddle-point structure by application of the Fenchel duality
 \begin{equation}\label{eq:PD}
 \underset{u}{\min}\,\underset{y}{\max}~ \left<\mathrm{K}u,y\right> + G(u) - 
-F^*(y),
+F^*(y), \nonumber
 \end{equation}
 and solved utilizing a well established primal-dual algorithm [@Chambolle2011]
  combined with a line-search [@Malitsky2018] to speed-up convergence. Constant terms, stemming from the linearization, are precomputed and fused with the data $d$, yielding $\tilde{d}^k$.
