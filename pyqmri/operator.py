@@ -504,12 +504,12 @@ class OperatorImagespace(Operator):
         tmp_result = clarray.empty(
             self.queue, (self.NScan, self.NSlice, self.dimY, self.dimX),
             self.DTYPE, "C")
-        tmp_result.add_event(self.prg.operator_fwd_imagespace(
+        self.prg.operator_fwd_imagespace(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
             tmp_result.data, inp[0].data, inp[2].data,
             np.int32(self.NScan),
             np.int32(self.unknowns),
-            wait_for=inp[0].events + wait_for))
+            wait_for=inp[0].events + wait_for).wait()
         return tmp_result
 
     def adj(self, out, inp, **kwargs):
@@ -712,8 +712,7 @@ class OperatorKspace(Operator):
         return self.NUFFT.FFT(
             out,
             self._tmp_result,
-            wait_for=wait_for +
-            self._tmp_result.events)
+            wait_for=wait_for + self._tmp_result.events + out.events)
 
     def fwdoop(self, inp, **kwargs):
         """Forward operator application out-of-place.
@@ -756,8 +755,8 @@ class OperatorKspace(Operator):
             self.queue,
             (self.NScan, self.NC, self.NSlice, self.Nproj, self.N),
             self.DTYPE, "C")
-        tmp_sino.add_event(
-            self.NUFFT.FFT(tmp_sino, self._tmp_result))
+        self.NUFFT.FFT(tmp_sino, self._tmp_result, 
+                       wait_for=tmp_sino.events).wait()
         return tmp_sino
 
     def adj(self, out, inp, **kwargs):
@@ -1020,8 +1019,8 @@ class OperatorKspaceSMS(Operator):
             self.queue,
             (self.NScan, self.NC, self.packs, self.Nproj, self.N),
             self.DTYPE, "C")
-        tmp_sino.add_event(
-            self.NUFFT.FFT(tmp_sino, self._tmp_result))
+        
+        self.NUFFT.FFT(tmp_sino, self._tmp_result).wait()
         return tmp_sino
 
     def adj(self, out, inp, **kwargs):
@@ -2174,11 +2173,11 @@ class OperatorFiniteGradient(Operator):
             self.queue, (self.unknowns,
                          self.NSlice, self.dimY, self.dimX, 4),
             self.DTYPE, "C")
-        tmp_result.add_event(self.prg.gradient(
+        self.prg.gradient(
             self.queue, inp.shape[1:], None, tmp_result.data, inp.data,
             np.int32(self.unknowns),
             self.ratio.data, self.DTYPE_real(self._dz),
-            wait_for=tmp_result.events + inp.events + wait_for))
+            wait_for=tmp_result.events + inp.events + wait_for).wait()
         return tmp_result
 
     def adj(self, out, inp, **kwargs):
@@ -2240,12 +2239,12 @@ class OperatorFiniteGradient(Operator):
         tmp_result = clarray.empty(
             self.queue, (self.unknowns, self.NSlice, self.dimY, self.dimX),
             self.DTYPE, "C")
-        tmp_result.add_event(self.prg.divergence(
+        self.prg.divergence(
             self.queue, tmp_result.shape[1:], None, tmp_result.data, inp.data,
             np.int32(self.unknowns),
             self.ratio.data,
             self.DTYPE_real(self._dz),
-            wait_for=tmp_result.events + inp.events + wait_for))
+            wait_for=tmp_result.events + inp.events + wait_for).wait()
         return tmp_result
 
     def updateRatio(self, inp):
@@ -2414,12 +2413,12 @@ class OperatorFiniteSymGradient(Operator):
             self.queue, (self.unknowns,
                          self.NSlice, self.dimY, self.dimX, 8),
             self.DTYPE, "C")
-        tmp_result.add_event(self.prg.sym_grad(
+        self.prg.sym_grad(
             self.queue, inp.shape[1:-1], None, tmp_result.data, inp.data,
             np.int32(self.unknowns_TGV),
             self.ratio.data,
             self.DTYPE_real(self._dz),
-            wait_for=tmp_result.events + inp.events + wait_for))
+            wait_for=tmp_result.events + inp.events + wait_for).wait()
         return tmp_result
 
     def adj(self, out, inp, **kwargs):
@@ -2483,12 +2482,12 @@ class OperatorFiniteSymGradient(Operator):
             self.queue, (self.unknowns,
                          self.NSlice, self.dimY, self.dimX, 4),
             self.DTYPE, "C")
-        tmp_result.add_event(self.prg.sym_divergence(
+        self.prg.sym_divergence(
             self.queue, inp.shape[1:-1], None, tmp_result.data, inp.data,
             np.int32(self.unknowns_TGV),
             self.ratio.data,
             self.DTYPE_real(self._dz),
-            wait_for=tmp_result.events + inp.events + wait_for))
+            wait_for=tmp_result.events + inp.events + wait_for).wait()
         return tmp_result
 
     def updateRatio(self, inp):

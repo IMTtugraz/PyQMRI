@@ -44,7 +44,7 @@ class GradientTest(unittest.TestCase):
         parser = tmpArgs()
         parser.streamed = False
         parser.devices = -1
-        parser.use_GPU = True
+        parser.use_GPU = False
 
         par = {}
         pyqmri.pyqmri._setupOCL(parser, par)
@@ -159,116 +159,6 @@ class GradientTest(unittest.TestCase):
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
         self.assertAlmostEqual(a, b, places=15)
-
-
-class GradientStreamedTest(unittest.TestCase):
-    def setUp(self):
-        parser = tmpArgs()
-        parser.streamed = True
-        parser.devices = -1
-        parser.use_GPU = True
-
-        par = {}
-        pyqmri.pyqmri._setupOCL(parser, par)
-        setupPar(par)
-        if DTYPE == np.complex128:
-            file = resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_double_streamed.c')
-        else:
-            file = resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_streamed.c')
-
-        prg = []
-        for j in range(len(par["ctx"])):
-          with open(file) as myfile:
-            prg.append(Program(
-                par["ctx"][j],
-                myfile.read()))
-
-        par["par_slices"] = 1
-
-        self.grad = pyqmri.operator.OperatorFiniteGradientStreamed(
-            par, prg,
-            DTYPE=DTYPE,
-            DTYPE_real=DTYPE_real)
-
-        self.gradin = np.random.randn(par["NSlice"], par["unknowns"],
-                                      par["dimY"], par["dimX"]) +\
-            1j * np.random.randn(par["NSlice"], par["unknowns"],
-                                 par["dimY"], par["dimX"])
-        self.divin = np.random.randn(par["NSlice"], par["unknowns"],
-                                     par["dimY"], par["dimX"], 4) +\
-            1j * np.random.randn(par["NSlice"], par["unknowns"],
-                                 par["dimY"], par["dimX"], 4)
-        self.gradin = self.gradin.astype(DTYPE)
-        self.divin = self.divin.astype(DTYPE)
-        self.dz = par["dz"]
-
-    def test_grad_outofplace(self):
-        gradx = np.zeros_like(self.gradin)
-        grady = np.zeros_like(self.gradin)
-        gradz = np.zeros_like(self.gradin)
-
-        gradx[..., :-1] = np.diff(self.gradin, axis=-1)
-        grady[..., :-1, :] = np.diff(self.gradin, axis=-2)
-        gradz[:-1, ...] = np.diff(self.gradin, axis=0)*self.dz
-
-        grad = np.stack((gradx,
-                         grady,
-                         gradz), axis=-1)
-
-        outp = self.grad.fwdoop([[self.gradin]])
-
-        np.testing.assert_allclose(outp[..., :-1], grad, rtol=0)
-
-    def test_grad_inplace(self):
-        gradx = np.zeros_like(self.gradin)
-        grady = np.zeros_like(self.gradin)
-        gradz = np.zeros_like(self.gradin)
-
-        gradx[..., :-1] = np.diff(self.gradin, axis=-1)
-        grady[..., :-1, :] = np.diff(self.gradin, axis=-2)
-        gradz[:-1, ...] = np.diff(self.gradin, axis=0)*self.dz
-
-        grad = np.stack((gradx,
-                         grady,
-                         gradz), axis=-1)
-
-        outp = np.zeros_like(self.divin)
-
-        self.grad.fwd([outp], [[self.gradin]])
-
-        np.testing.assert_allclose(outp[..., :-1], grad, rtol=0)
-
-    def test_adj_outofplace(self):
-
-        outgrad = self.grad.fwdoop([[self.gradin]])
-        outdiv = self.grad.adjoop([[self.divin]])
-
-        a = np.vdot(outgrad[..., :-1].flatten(),
-                    self.divin[..., :-1].flatten())/self.gradin.size
-        b = np.vdot(self.gradin.flatten(), -outdiv.flatten())/self.gradin.size
-
-        print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
-
-        self.assertAlmostEqual(a, b, places=15)
-
-    def test_adj_inplace(self):
-
-        outgrad = np.zeros_like(self.divin)
-        outdiv = np.zeros_like(self.gradin)
-
-        self.grad.fwd([outgrad], [[self.gradin]])
-        self.grad.adj([outdiv], [[self.divin]])
-
-        a = np.vdot(outgrad[..., :-1].flatten(),
-                    self.divin[..., :-1].flatten())/self.gradin.size
-        b = np.vdot(self.gradin.flatten(), -outdiv.flatten())/self.gradin.size
-
-        print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
-
-        self.assertAlmostEqual(a, b, places=15)
-
 
 if __name__ == '__main__':
     unittest.main()
