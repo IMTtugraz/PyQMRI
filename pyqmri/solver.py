@@ -1526,7 +1526,7 @@ class PDSolverTGV(PDBaseSolver):
             outp=out_primal["v"],
             inp=(in_primal["v"], in_precomp_adj["Kyk2"]),
             par=(tau,)))
-
+        self._queue[0].finish()
         out_fwd["gradx"].add_event(
             self._grad_op.fwd(
                 out_fwd["gradx"], out_primal["x"]))
@@ -1587,7 +1587,7 @@ class PDSolverTGV(PDBaseSolver):
                 par=(beta*tau, theta, self.lambd)
                 )
             )
-
+        self._queue[0].finish()
         out_adj["Kyk1"].add_event(
             self._op.adjKyk1(
                 out_adj["Kyk1"],
