@@ -1488,53 +1488,56 @@ class PDSolverTGV(PDBaseSolver):
     def _updateInitial(self,
                        out_fwd, out_adj,
                        in_primal, in_dual):
-        out_adj["Kyk1"].add_event(
+        # out_adj["Kyk1"].add_event(
             self._op.adjKyk1(out_adj["Kyk1"],
                              [in_dual["r"], in_dual["z1"],
                               self._coils,
                               self.modelgrad,
-                              self._grad_op.ratio]))
+                              self._grad_op.ratio]).wait()
 
-        out_adj["Kyk2"].add_event(
+        # out_adj["Kyk2"].add_event(
             self.update_Kyk2(
                 outp=out_adj["Kyk2"],
                 inp=(in_dual["z2"], in_dual["z1"]),
-                par=[self._symgrad_op.ratio]))
+                par=[self._symgrad_op.ratio]).wait()
 
-        out_fwd["Ax"].add_event(self._op.fwd(
-            out_fwd["Ax"], [in_primal["x"], self._coils, self.modelgrad]))
-        out_fwd["gradx"].add_event(
-            self._grad_op.fwd(out_fwd["gradx"], in_primal["x"]))
-        out_fwd["symgradx"].add_event(
-            self._symgrad_op.fwd(out_fwd["symgradx"], in_primal["v"]))
+        # out_fwd["Ax"].add_event(
+            self._op.fwd(
+            out_fwd["Ax"], [in_primal["x"], self._coils, self.modelgrad]).wait()
+        # out_fwd["gradx"].add_event(
+            self._grad_op.fwd(out_fwd["gradx"], in_primal["x"]).wait()
+        # out_fwd["symgradx"].add_event(
+            self._symgrad_op.fwd(out_fwd["symgradx"], in_primal["v"]).wait()
 
     def _updatePrimal(self,
                       out_primal, out_fwd,
                       in_primal, in_precomp_adj,
                       tau):
-        out_primal["x"].add_event(self.update_primal(
+        # out_primal["x"].add_event(
+            self.update_primal(
             outp=out_primal["x"],
             inp=(in_primal["x"], in_precomp_adj["Kyk1"],
                  in_primal["xk"], self.jacobi),
-            par=(tau, self.delta)))
+            par=(tau, self.delta)).wait()
 
-        out_primal["v"].add_event(self.update_v(
+        # out_primal["v"].add_event(
+            self.update_v(
             outp=out_primal["v"],
             inp=(in_primal["v"], in_precomp_adj["Kyk2"]),
-            par=(tau,)))
+            par=(tau,)).wait()
 
-        out_fwd["gradx"].add_event(
+        # out_fwd["gradx"].add_event(
             self._grad_op.fwd(
-                out_fwd["gradx"], out_primal["x"]))
+                out_fwd["gradx"], out_primal["x"]).wait()
 
-        out_fwd["symgradx"].add_event(
+        # out_fwd["symgradx"].add_event(
             self._symgrad_op.fwd(
-                out_fwd["symgradx"], out_primal["v"]))
-        out_fwd["Ax"].add_event(
+                out_fwd["symgradx"], out_primal["v"]).wait()
+        # out_fwd["Ax"].add_event(
             self._op.fwd(out_fwd["Ax"],
                          [out_primal["x"],
                           self._coils,
-                          self.modelgrad]))
+                          self.modelgrad]).wait()
 
     def _updateDual(self,
                     out_dual, out_adj,
@@ -1548,7 +1551,7 @@ class PDSolverTGV(PDBaseSolver):
                     beta,
                     tau,
                     theta):
-        out_dual["z1"].add_event(
+        # out_dual["z1"].add_event(
             self.update_z1(
                 outp=out_dual["z1"],
                 inp=(
@@ -1559,9 +1562,9 @@ class PDSolverTGV(PDBaseSolver):
                         in_primal["v"]
                     ),
                 par=(beta*tau, theta, self.alpha, self.omega)
-                )
-            )
-        out_dual["z2"].add_event(
+                ).wait()
+            # )
+        # out_dual["z2"].add_event(
             self.update_z2(
                 outp=out_dual["z2"],
                 inp=(
@@ -1569,8 +1572,8 @@ class PDSolverTGV(PDBaseSolver):
                         in_precomp_fwd_new["symgradx"],
                         in_precomp_fwd["symgradx"]
                     ),
-                par=(beta*tau, theta, self.beta)))
-        out_dual["r"].add_event(
+                par=(beta*tau, theta, self.beta)).wait()
+        # out_dual["r"].add_event(
             self.update_r(
                 outp=out_dual["r"],
                 inp=(
@@ -1580,34 +1583,34 @@ class PDSolverTGV(PDBaseSolver):
                         data
                      ),
                 par=(beta*tau, theta, self.lambd)
-                )
-            )
-
-        out_adj["Kyk1"].add_event(
+                ).wait()
+            # )
+# 
+        # out_adj["Kyk1"].add_event(
             self._op.adjKyk1(
                 out_adj["Kyk1"],
                 [out_dual["r"], out_dual["z1"],
                  self._coils,
                  self.modelgrad,
-                 self._grad_op.ratio]))
-        out_adj["Kyk2"].add_event(
+                 self._grad_op.ratio]).wait()
+        # out_adj["Kyk2"].add_event(
             self.update_Kyk2(
                 outp=out_adj["Kyk2"],
                 inp=(out_dual["z2"], out_dual["z1"]),
-                par=[self._symgrad_op.ratio]))
+                par=[self._symgrad_op.ratio]).wait()
 
-        ynorm = (
-            self.normkrnldiff(out_dual["r"], in_dual["r"])
-            + self.normkrnldiff(out_dual["z1"], in_dual["z1"])
-            + self.normkrnldiff(out_dual["z2"], in_dual["z2"])       
-            )**(1/2)
-
-        lhs = np.sqrt(beta) * tau * (
-            self.normkrnldiff(out_adj["Kyk1"], in_precomp_adj["Kyk1"])
-            + self.normkrnldiff(out_adj["Kyk2"], in_precomp_adj["Kyk2"])
-            )**(1/2)
-
-        return lhs.get(), ynorm.get()
+            ynorm = (
+                self.normkrnldiff(out_dual["r"], in_dual["r"])
+                + self.normkrnldiff(out_dual["z1"], in_dual["z1"])
+                + self.normkrnldiff(out_dual["z2"], in_dual["z2"])       
+                )**(1/2)
+    
+            lhs = np.sqrt(beta) * tau * (
+                self.normkrnldiff(out_adj["Kyk1"], in_precomp_adj["Kyk1"])
+                + self.normkrnldiff(out_adj["Kyk2"], in_precomp_adj["Kyk2"])
+                )**(1/2)
+    
+            return lhs.get(), ynorm.get()
 
     def _calcResidual(
             self,
