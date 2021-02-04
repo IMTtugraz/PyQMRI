@@ -1600,14 +1600,14 @@ class PDSolverTGV(PDBaseSolver):
                 par=[self._symgrad_op.ratio]).wait()
 
             ynorm = (
-                self.normkrnldiff(out_dual["r"], in_dual["r"])
-                + self.normkrnldiff(out_dual["z1"], in_dual["z1"])
-                + self.normkrnldiff(out_dual["z2"], in_dual["z2"])       
+                self.normkrnldiff(out_dual["r"], in_dual["r"], wait_for=out_dual["r"].events + in_dual["r"].events)
+                + self.normkrnldiff(out_dual["z1"], in_dual["z1"], wait_for=out_dual["z1"].events + in_dual["z1"].events)
+                + self.normkrnldiff(out_dual["z2"], in_dual["z2"], wait_for=out_dual["z2"].events + in_dual["z2"].events)      
                 )**(1/2)
     
             lhs = np.sqrt(beta) * tau * (
-                self.normkrnldiff(out_adj["Kyk1"], in_precomp_adj["Kyk1"])
-                + self.normkrnldiff(out_adj["Kyk2"], in_precomp_adj["Kyk2"])
+                self.normkrnldiff(out_adj["Kyk1"], in_precomp_adj["Kyk1"], wait_for=out_adj["Kyk1"].events + in_precomp_adj["Kyk1"].events)
+                + self.normkrnldiff(out_adj["Kyk2"], in_precomp_adj["Kyk2"], wait_for=out_adj["Kyk2"].events + in_precomp_adj["Kyk2"].events)
                 )**(1/2)
     
             return lhs.get(), ynorm.get()
