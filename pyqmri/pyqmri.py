@@ -111,6 +111,10 @@ def _setupOCL(myargs, par):
     platforms = _choosePlatform(myargs, par)
     par["ctx"] = []
     par["queue"] = []
+    if par["use_GPU"]:
+        queue_par = cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE
+    else:
+        queue_par = None
     if isinstance(myargs.devices, int):
         myargs.devices = [myargs.devices]
     if myargs.streamed:
@@ -135,8 +139,7 @@ def _setupOCL(myargs, par):
                 cl.CommandQueue(
                    tmpxtx,
                    platforms[par["Platform_Indx"]].get_devices()[device],
-                   properties=(
-                     cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE)
+                   properties=queue_par
                    )
                 )
 
