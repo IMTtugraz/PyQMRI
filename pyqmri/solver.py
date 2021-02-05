@@ -1599,7 +1599,7 @@ class PDSolverTGV(PDBaseSolver):
                 outp=out_adj["Kyk2"],
                 inp=(out_dual["z2"], out_dual["z1"]),
                 par=[self._symgrad_op.ratio]))
-
+        self._queue[0].finish()
         ynorm = (
             self.normkrnldiff(out_dual["r"], in_dual["r"], 
                         wait_for=out_dual["r"].events + in_dual["r"].events).get()
@@ -1661,6 +1661,7 @@ class PDSolverTGV(PDBaseSolver):
                     in_dual["z1"][self.unknowns_TGV:]
                     )
                 ).get()
+        self._queue[0].finish()
         gap = np.abs(primal_new - dual)
         return primal_new, dual, gap
 
