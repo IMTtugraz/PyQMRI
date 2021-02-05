@@ -463,7 +463,7 @@ class IRGNOptimizer:
 
     def _calcFwdGNPartLinear(self, x):
         if self._imagespace is False:
-            b = clarray.empty(self._queue[0],
+            b = clarray.zeros(self._queue[0],
                               self._data_shape,
                               dtype=self._DTYPE)
             self._FT.FFT(b, clarray.to_device(

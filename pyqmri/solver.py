@@ -73,20 +73,20 @@ class CGSolver:
             )
 
         if SMS:
-            self._tmp_sino = clarray.empty(
+            self._tmp_sino = clarray.zeros(
                 self._queue,
                 (self._NScan, self._NC,
                  int(self._NSlice/par["MB"]), par["Nproj"], par["N"]),
                 self._DTYPE, "C")
         else:
-            self._tmp_sino = clarray.empty(
+            self._tmp_sino = clarray.zeros(
                 self._queue,
                 (self._NScan, self._NC,
                  self._NSlice, par["Nproj"], par["N"]),
                 self._DTYPE, "C")
         self._FT = FT.FFT
         self._FTH = FT.FFTH
-        self._tmp_result = clarray.empty(
+        self._tmp_result = clarray.zeros(
             self._queue,
             (self._NScan, self._NC,
              self._NSlice, self._dimY, self._dimX),
@@ -140,11 +140,11 @@ class CGSolver:
                               (self._NScan, 1,
                                self._NSlice, self._dimY, self._dimX),
                               self._DTYPE, "C")
-        b = clarray.empty(self._queue,
+        b = clarray.zeros(self._queue,
                           (self._NScan, 1,
                            self._NSlice, self._dimY, self._dimX),
                           self._DTYPE, "C")
-        Ax = clarray.empty(self._queue,
+        Ax = clarray.zeros(self._queue,
                            (self._NScan, 1,
                             self._NSlice, self._dimY, self._dimX),
                            self._DTYPE, "C")
@@ -1187,10 +1187,10 @@ class PDSolverTV(PDBaseSolver):
 
         primal_vars["x"] = clarray.to_device(self._queue[0], inp)
         primal_vars["xk"] = primal_vars["x"].copy()
-        primal_vars_new["x"] = clarray.empty_like(primal_vars["x"])
+        primal_vars_new["x"] = clarray.zeros_like(primal_vars["x"])
 
-        tmp_results_adjoint["Kyk1"] = clarray.empty_like(primal_vars["x"])
-        tmp_results_adjoint_new["Kyk1"] = clarray.empty_like(primal_vars["x"])
+        tmp_results_adjoint["Kyk1"] = clarray.zeros_like(primal_vars["x"])
+        tmp_results_adjoint_new["Kyk1"] = clarray.zeros_like(primal_vars["x"])
 
         dual_vars = {}
         dual_vars_new = {}
@@ -1200,19 +1200,19 @@ class PDSolverTV(PDBaseSolver):
             self._queue[0],
             data.shape,
             dtype=self._DTYPE)
-        dual_vars_new["r"] = clarray.empty_like(dual_vars["r"])
+        dual_vars_new["r"] = clarray.zeros_like(dual_vars["r"])
 
         dual_vars["z1"] = clarray.zeros(self._queue[0],
                                         primal_vars["x"].shape+(4,),
                                         dtype=self._DTYPE)
-        dual_vars_new["z1"] = clarray.empty_like(dual_vars["z1"])
+        dual_vars_new["z1"] = clarray.zeros_like(dual_vars["z1"])
 
-        tmp_results_forward["gradx"] = clarray.empty_like(
+        tmp_results_forward["gradx"] = clarray.zeros_like(
             dual_vars["z1"])
-        tmp_results_forward_new["gradx"] = clarray.empty_like(
+        tmp_results_forward_new["gradx"] = clarray.zeros_like(
             dual_vars["z1"])
-        tmp_results_forward["Ax"] = clarray.empty_like(data)
-        tmp_results_forward_new["Ax"] = clarray.empty_like(data)
+        tmp_results_forward["Ax"] = clarray.zeros_like(data)
+        tmp_results_forward_new["Ax"] = clarray.zeros_like(data)
 
         return (primal_vars,
                 primal_vars_new,
@@ -1434,16 +1434,16 @@ class PDSolverTGV(PDBaseSolver):
 
         primal_vars["x"] = clarray.to_device(self._queue[0], inp)
         primal_vars["xk"] = primal_vars["x"].copy()
-        primal_vars_new["x"] = clarray.empty_like(primal_vars["x"])
+        primal_vars_new["x"] = clarray.zeros_like(primal_vars["x"])
         primal_vars["v"] = clarray.zeros(self._queue[0],
                                          primal_vars["x"].shape+(4,),
                                          dtype=self._DTYPE)
-        primal_vars_new["v"] = clarray.empty_like(primal_vars["v"])
+        primal_vars_new["v"] = clarray.zeros_like(primal_vars["v"])
 
-        tmp_results_adjoint["Kyk1"] = clarray.empty_like(primal_vars["x"])
-        tmp_results_adjoint_new["Kyk1"] = clarray.empty_like(primal_vars["x"])
-        tmp_results_adjoint["Kyk2"] = clarray.empty_like(primal_vars["v"])
-        tmp_results_adjoint_new["Kyk2"] = clarray.empty_like(primal_vars["v"])
+        tmp_results_adjoint["Kyk1"] = clarray.zeros_like(primal_vars["x"])
+        tmp_results_adjoint_new["Kyk1"] = clarray.zeros_like(primal_vars["x"])
+        tmp_results_adjoint["Kyk2"] = clarray.zeros_like(primal_vars["v"])
+        tmp_results_adjoint_new["Kyk2"] = clarray.zeros_like(primal_vars["v"])
 
         dual_vars = {}
         dual_vars_new = {}
@@ -1453,27 +1453,27 @@ class PDSolverTGV(PDBaseSolver):
             self._queue[0],
             data.shape,
             dtype=self._DTYPE)
-        dual_vars_new["r"] = clarray.empty_like(dual_vars["r"])
+        dual_vars_new["r"] = clarray.zeros_like(dual_vars["r"])
 
         dual_vars["z1"] = clarray.zeros(self._queue[0],
                                         primal_vars["x"].shape+(4,),
                                         dtype=self._DTYPE)
-        dual_vars_new["z1"] = clarray.empty_like(dual_vars["z1"])
+        dual_vars_new["z1"] = clarray.zeros_like(dual_vars["z1"])
         dual_vars["z2"] = clarray.zeros(self._queue[0],
                                         primal_vars["x"].shape+(8,),
                                         dtype=self._DTYPE)
-        dual_vars_new["z2"] = clarray.empty_like(dual_vars["z2"])
+        dual_vars_new["z2"] = clarray.zeros_like(dual_vars["z2"])
 
-        tmp_results_forward["gradx"] = clarray.empty_like(
+        tmp_results_forward["gradx"] = clarray.zeros_like(
             dual_vars["z1"])
-        tmp_results_forward_new["gradx"] = clarray.empty_like(
+        tmp_results_forward_new["gradx"] = clarray.zeros_like(
             dual_vars["z1"])
-        tmp_results_forward["symgradx"] = clarray.empty_like(
+        tmp_results_forward["symgradx"] = clarray.zeros_like(
             dual_vars["z2"])
-        tmp_results_forward_new["symgradx"] = clarray.empty_like(
+        tmp_results_forward_new["symgradx"] = clarray.zeros_like(
             dual_vars["z2"])
-        tmp_results_forward["Ax"] = clarray.empty_like(data)
-        tmp_results_forward_new["Ax"] = clarray.empty_like(data)
+        tmp_results_forward["Ax"] = clarray.zeros_like(data)
+        tmp_results_forward_new["Ax"] = clarray.zeros_like(data)
 
         return (primal_vars,
                 primal_vars_new,
@@ -1614,7 +1614,7 @@ class PDSolverTGV(PDBaseSolver):
             + self.normkrnldiff(out_adj["Kyk2"], in_precomp_adj["Kyk2"], 
               wait_for=out_adj["Kyk2"].events + in_precomp_adj["Kyk2"].events).get()
             )**(1/2)
-        self._queue[0].finish()
+
         return lhs, ynorm
 
     def _calcResidual(
@@ -1660,7 +1660,6 @@ class PDSolverTGV(PDBaseSolver):
                     in_dual["z1"][self.unknowns_TGV:]
                     )
                 ).get()
-        self._queue[0].finish()
         gap = np.abs(primal_new - dual)
         return primal_new, dual, gap
 

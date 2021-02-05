@@ -139,8 +139,8 @@ class OperatorKspaceRadial(unittest.TestCase):
         outfwd = clarray.zeros_like(inpadj)
         outadj = clarray.zeros_like(inpfwd)
 
-        self.op.fwd(outfwd, [inpfwd, self.coil_buf, self.grad_buf]).wait()
-        self.op.adj(outadj, [inpadj, self.coil_buf, self.grad_buf]).wait()
+        outfwd.add_event(self.op.fwd(outfwd, [inpfwd, self.coil_buf, self.grad_buf]))
+        outadj.add_event(self.op.adj(outadj, [inpadj, self.coil_buf, self.grad_buf]))
 
         outfwd = outfwd.map_to_host(wait_for=outfwd.events)
         outadj = outadj.map_to_host(wait_for=outadj.events)
@@ -243,11 +243,12 @@ class OperatorKspaceCartesian(unittest.TestCase):
         outadj = clarray.zeros_like(inpfwd)
 
 
-        self.op.fwd(outfwd, [inpfwd, self.coil_buf, self.grad_buf]).wait()
-        self.op.adj(outadj, [inpadj, self.coil_buf, self.grad_buf]).wait()
-
+        outfwd.add_event(self.op.fwd(outfwd, [inpfwd, self.coil_buf, self.grad_buf]))
+        outadj.add_event(self.op.adj(outadj, [inpadj, self.coil_buf, self.grad_buf]))
+    
         outfwd = outfwd.map_to_host(wait_for=outfwd.events)
         outadj = outadj.map_to_host(wait_for=outadj.events)
+        
 
         a = np.vdot(outfwd.flatten(),
                     self.opinadj.flatten())/self.opinadj.size
@@ -352,9 +353,9 @@ class OperatorKspaceSMSCartesian(unittest.TestCase):
         outadj = clarray.zeros_like(inpfwd)
 
 
-        self.op.fwd(outfwd, [inpfwd, self.coil_buf, self.grad_buf]).wait()
-        self.op.adj(outadj, [inpadj, self.coil_buf, self.grad_buf]).wait()
-
+        outfwd.add_event(self.op.fwd(outfwd, [inpfwd, self.coil_buf, self.grad_buf]))
+        outadj.add_event(self.op.adj(outadj, [inpadj, self.coil_buf, self.grad_buf]))
+        
         outfwd = outfwd.map_to_host(wait_for=outfwd.events)
         outadj = outadj.map_to_host(wait_for=outadj.events)
 

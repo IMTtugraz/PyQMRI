@@ -316,7 +316,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
         self.dcf = clarray.to_device(self.queue, par["dcf"])
         self.traj = clarray.to_device(self.queue, par["traj"])
         self._tmp_fft_array = (
-            clarray.empty(
+            clarray.zeros(
                 self.queue,
                 (self.fft_shape),
                 dtype=DTYPE))
@@ -611,7 +611,7 @@ class PyOpenCLCartNUFFT(PyOpenCLnuFFT):
             self.fft_scale = DTYPE_real(
                 np.sqrt(np.prod(self.fft_shape[self.fft_dim[0]:])))
             self._tmp_fft_array = (
-                clarray.empty(
+                clarray.zeros(
                     self.queue,
                     self.fft_shape,
                     dtype=DTYPE))
@@ -847,7 +847,7 @@ class PyOpenCLSMSNUFFT(PyOpenCLnuFFT):
             self.fft_scale = DTYPE_real(
                 np.sqrt(np.prod(self.fft_shape[self.fft_dim[0]:])))
             self._tmp_fft_array = (
-                clarray.empty(
+                clarray.zeros(
                     self.queue,
                     self.fft_shape,
                     dtype=DTYPE))
