@@ -1526,7 +1526,7 @@ class PDSolverTGV(PDBaseSolver):
             outp=out_primal["v"],
             inp=(in_primal["v"], in_precomp_adj["Kyk2"]),
             par=(tau,)))
-        self._queue[0].finish()
+
         out_fwd["gradx"].add_event(
             self._grad_op.fwd(
                 out_fwd["gradx"], out_primal["x"]))
@@ -1539,8 +1539,7 @@ class PDSolverTGV(PDBaseSolver):
                          [out_primal["x"],
                           self._coils,
                           self.modelgrad]))
-        self._queue[0].finish()
-
+ 
     def _updateDual(self,
                     out_dual, out_adj,
                     in_primal,
@@ -1587,7 +1586,7 @@ class PDSolverTGV(PDBaseSolver):
                 par=(beta*tau, theta, self.lambd)
                 )
             )
-        self._queue[0].finish()
+ 
         out_adj["Kyk1"].add_event(
             self._op.adjKyk1(
                 out_adj["Kyk1"],
@@ -1600,7 +1599,7 @@ class PDSolverTGV(PDBaseSolver):
                 outp=out_adj["Kyk2"],
                 inp=(out_dual["z2"], out_dual["z1"]),
                 par=[self._symgrad_op.ratio]))
-        self._queue[0].finish()
+
         ynorm = (
             self.normkrnldiff(out_dual["r"], in_dual["r"], 
                         wait_for=out_dual["r"].events + in_dual["r"].events).get()

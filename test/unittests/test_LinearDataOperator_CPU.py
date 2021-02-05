@@ -351,11 +351,10 @@ class OperatorKspaceSMSCartesian(unittest.TestCase):
         outfwd = clarray.zeros_like(inpadj)
         outadj = clarray.zeros_like(inpfwd)
 
-        outfwd.add_event(
-            self.op.fwd(outfwd, [inpfwd, self.coil_buf, self.grad_buf]))
-        outadj.add_event(
-            self.op.adj(outadj, [inpadj, self.coil_buf, self.grad_buf]))
-        
+
+        self.op.fwd(outfwd, [inpfwd, self.coil_buf, self.grad_buf]).wait()
+        self.op.adj(outadj, [inpadj, self.coil_buf, self.grad_buf]).wait()
+
         outfwd = outfwd.map_to_host(wait_for=outfwd.events)
         outadj = outadj.map_to_host(wait_for=outadj.events)
 
