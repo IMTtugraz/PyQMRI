@@ -137,8 +137,13 @@ class IRGNOptimizer:
                 self._data_trans_axes = (1, 0, 2, 3)
                 self._grad_trans_axes = (2, 0, 1, 3, 4)
         else:
-            self._data_shape = (par["NScan"], par["NC"],
-                                par["NSlice"], par["Nproj"], par["N"])
+            if SMS:
+                self._data_shape = (par["NScan"], par["NC"],
+                                        par["packs"]*par["numofpacks"], 
+                                        par["Nproj"], par["N"])
+            else:
+                self._data_shape = (par["NScan"], par["NC"],
+                                    par["NSlice"], par["Nproj"], par["N"])
             if self._streamed:
                 self._data_trans_axes = (2, 0, 1, 3, 4)
                 self._grad_trans_axes = (2, 0, 1, 3, 4)
