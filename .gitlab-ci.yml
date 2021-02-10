@@ -39,6 +39,12 @@ test-job:
         - coverage xml -o coverage_unittests_grad.xml
         - pytest --junitxml results_unittests_symgrad.xml --cov=pyqmri test/unittests/test_symmetrized_gradient.py
         - coverage xml -o coverage_unittests_symgrad.xml
+        - pytest --junitxml results_unittests_LinOp_CPU.xml --cov=pyqmri test/unittests/test_LinearDataOperator_CPU.py
+        - coverage xml -o coverage_unittests_LinOp_CPU.xml
+        - pytest --junitxml results_unittests_grad_CPU.xml --cov=pyqmri test/unittests/test_gradient_CPU.py
+        - coverage xml -o coverage_unittests_grad_CPU.xml
+        - pytest --junitxml results_unittests_symgrad_CPU.xml --cov=pyqmri test/unittests/test_symmetrized_gradient_CPU.py
+        - coverage xml -o coverage_unittests_symgrad_CPU.xml
     artifacts: 
         reports:    
             junit: results_unittests_*.xml
