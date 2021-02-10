@@ -356,6 +356,7 @@ __kernel void fftshift(__global float2* ksp, __global float *check)
     ksp[x+dimX*y+dimX*dimY*n] = ksp[x+dimX*y+dimX*dimY*n]*check[x]*check[y];
 }
 
+
 __kernel void copy_SMS_fwdkspace(
                 __global float2 *out,
                 __global float2 *in,

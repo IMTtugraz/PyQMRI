@@ -48,7 +48,7 @@ def setupPar(par):
                      par["traj"]), dtype=DTYPE_real)).astype(DTYPE_real)
     par["dcf"] = np.require(np.abs(par["dcf"]),
                             DTYPE_real, requirements='C')
-    par["fft_dim"] = (-2, -1)
+    par["fft_dim"] = [-2, -1]
 
 
 class tmpArgs():
@@ -112,6 +112,33 @@ class OperatorKspaceRadial(unittest.TestCase):
         self.queue = par["queue"][0]
         self.grad_buf = clarray.to_device(self.queue, self.model_gradient)
         self.coil_buf = clarray.to_device(self.queue, self.C)
+        
+        parser = tmpArgs()
+        parser.streamed = False
+        parser.devices = -1
+        parser.use_GPU = True
+
+        par = {}
+        pyqmri.pyqmri._setupOCL(parser, par)
+        setupPar(par)
+        
+        prg = []
+        for j in range(len(par["ctx"])):
+            with open(file) as myfile:
+                prg.append(Program(
+                    par["ctx"][j],
+                    myfile.read()))
+        prg = prg[0]
+
+        self.op_GPU = pyqmri.operator.OperatorKspace(
+            par, prg,
+            DTYPE=DTYPE,
+            DTYPE_real=DTYPE_real)
+        
+        self.queue_GPU = par["queue"][0]
+        self.grad_buf_GPU = clarray.to_device(self.queue_GPU, self.model_gradient)
+        self.coil_buf_GPU = clarray.to_device(self.queue_GPU, self.C)
+        
 
     def test_adj_outofplace(self):
         inpfwd = clarray.to_device(self.queue, self.opinfwd)
@@ -153,7 +180,33 @@ class OperatorKspaceRadial(unittest.TestCase):
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
         self.assertAlmostEqual(a, b, places=6)
+    
+    def test_CPU_vs_GPU_fwd(self):
+        inpfwd_CPU = clarray.to_device(self.queue, self.opinfwd)
+        outfwd_CPU = clarray.zeros(self.queue, self.opinadj.shape, dtype=DTYPE)
+        outfwd_CPU.add_event(self.op.fwd(outfwd_CPU, [inpfwd_CPU, self.coil_buf, self.grad_buf]))
+        outfwd_CPU = outfwd_CPU.map_to_host(wait_for=outfwd_CPU.events)
+        
+        inpfwd_GPU = clarray.to_device(self.queue_GPU, self.opinfwd)
+        outfwd_GPU = clarray.zeros(self.queue_GPU, self.opinadj.shape, dtype=DTYPE)
+        outfwd_GPU.add_event(self.op_GPU.fwd(outfwd_GPU, [inpfwd_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
+        outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
+        
+        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=1e-10)
 
+        
+    def test_CPU_vs_GPU_adj(self):
+        inpadj_CPU = clarray.to_device(self.queue, self.opinadj)
+        outadj_CPU = clarray.zeros(self.queue, self.opinfwd.shape, dtype=DTYPE)
+        outadj_CPU.add_event(self.op.adj(outadj_CPU, [inpadj_CPU, self.coil_buf, self.grad_buf]))
+        outadj_CPU = outadj_CPU.map_to_host(wait_for=outadj_CPU.events)
+        
+        inpadj_GPU = clarray.to_device(self.queue_GPU, self.opinadj)
+        outadj_GPU = clarray.zeros(self.queue_GPU, self.opinfwd.shape, dtype=DTYPE)
+        outadj_GPU.add_event(self.op_GPU.adj(outadj_GPU, [inpadj_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
+        outadj_GPU = outadj_GPU.map_to_host(wait_for=outadj_GPU.events)     
+        
+        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=1e-10)
 
 class OperatorKspaceCartesian(unittest.TestCase):
     def setUp(self):
@@ -189,24 +242,24 @@ class OperatorKspaceCartesian(unittest.TestCase):
             DTYPE_real=DTYPE_real, trafo=False)
 
         self.opinfwd = np.random.randn(par["unknowns"], par["NSlice"],
-                                       par["dimY"], par["dimX"]) +\
+                                        par["dimY"], par["dimX"]) +\
             1j * np.random.randn(par["unknowns"], par["NSlice"],
-                                 par["dimY"], par["dimX"])
+                                  par["dimY"], par["dimX"])
         self.opinadj = np.random.randn(par["NScan"], par["NC"], par["NSlice"],
-                                       par["dimY"], par["dimX"]) +\
+                                        par["dimY"], par["dimX"]) +\
             1j * np.random.randn(par["NScan"], par["NC"], par["NSlice"],
-                                 par["dimY"], par["dimX"])
+                                  par["dimY"], par["dimX"])
 
         self.model_gradient = np.random.randn(par["unknowns"], par["NScan"],
                                               par["NSlice"],
                                               par["dimY"], par["dimX"]) + \
             1j * np.random.randn(par["unknowns"], par["NScan"],
-                                 par["NSlice"],
-                                 par["dimY"], par["dimX"])
+                                  par["NSlice"],
+                                  par["dimY"], par["dimX"])
         self.C = np.random.randn(par["NC"], par["NSlice"],
-                                 par["dimY"], par["dimX"]) + \
+                                  par["dimY"], par["dimX"]) + \
             1j * np.random.randn(par["NC"], par["NSlice"],
-                                 par["dimY"], par["dimX"])
+                                  par["dimY"], par["dimX"])
 
         self.model_gradient = self.model_gradient.astype(DTYPE)
         self.C = self.C.astype(DTYPE)
@@ -215,6 +268,34 @@ class OperatorKspaceCartesian(unittest.TestCase):
         self.queue = par["queue"][0]
         self.grad_buf = clarray.to_device(self.queue, self.model_gradient)
         self.coil_buf = clarray.to_device(self.queue, self.C)
+        
+        parser = tmpArgs()
+        parser.streamed = False
+        parser.devices = -1
+        parser.use_GPU = True
+
+        par = {}
+        pyqmri.pyqmri._setupOCL(parser, par)
+        setupPar(par)
+        
+        prg = []
+        for j in range(len(par["ctx"])):
+            with open(file) as myfile:
+                prg.append(Program(
+                    par["ctx"][j],
+                    myfile.read()))
+        prg = prg[0]
+        par["mask"] = np.ones((par["dimY"], par["dimX"]),
+                              dtype=DTYPE_real)
+        
+        self.op_GPU = pyqmri.operator.OperatorKspace(
+            par, prg,
+            DTYPE=DTYPE,
+            DTYPE_real=DTYPE_real, trafo=False)
+        
+        self.queue_GPU = par["queue"][0]
+        self.grad_buf_GPU = clarray.to_device(self.queue_GPU, self.model_gradient)
+        self.coil_buf_GPU = clarray.to_device(self.queue_GPU, self.C)
 
     def test_adj_outofplace(self):
         inpfwd = clarray.to_device(self.queue, self.opinfwd)
@@ -259,7 +340,33 @@ class OperatorKspaceCartesian(unittest.TestCase):
 
         self.assertAlmostEqual(a, b, places=12)
 
+    def test_CPU_vs_GPU_fwd(self):
+        inpfwd_CPU = clarray.to_device(self.queue, self.opinfwd)
+        outfwd_CPU = clarray.zeros(self.queue, self.opinadj.shape, dtype=DTYPE)
+        outfwd_CPU.add_event(self.op.fwd(outfwd_CPU, [inpfwd_CPU, self.coil_buf, self.grad_buf]))
+        outfwd_CPU = outfwd_CPU.map_to_host(wait_for=outfwd_CPU.events)
+        
+        inpfwd_GPU = clarray.to_device(self.queue_GPU, self.opinfwd)
+        outfwd_GPU = clarray.zeros(self.queue_GPU, self.opinadj.shape, dtype=DTYPE)
+        outfwd_GPU.add_event(self.op_GPU.fwd(outfwd_GPU, [inpfwd_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
+        outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
+        
+        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=1e-10)
 
+        
+    def test_CPU_vs_GPU_adj(self):
+        inpadj_CPU = clarray.to_device(self.queue, self.opinadj)
+        outadj_CPU = clarray.zeros(self.queue, self.opinfwd.shape, dtype=DTYPE)
+        outadj_CPU.add_event(self.op.adj(outadj_CPU, [inpadj_CPU, self.coil_buf, self.grad_buf]))
+        outadj_CPU = outadj_CPU.map_to_host(wait_for=outadj_CPU.events)
+        
+        inpadj_GPU = clarray.to_device(self.queue_GPU, self.opinadj)
+        outadj_GPU = clarray.zeros(self.queue_GPU, self.opinfwd.shape, dtype=DTYPE)
+        outadj_GPU.add_event(self.op_GPU.adj(outadj_GPU, [inpadj_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
+        outadj_GPU = outadj_GPU.map_to_host(wait_for=outadj_GPU.events)     
+        
+        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=1e-10)
+        
 class OperatorKspaceSMSCartesian(unittest.TestCase):
     def setUp(self):
         parser = tmpArgs()
@@ -299,24 +406,24 @@ class OperatorKspaceSMSCartesian(unittest.TestCase):
             DTYPE_real=DTYPE_real)
 
         self.opinfwd = np.random.randn(par["unknowns"], par["NSlice"],
-                                       par["dimY"], par["dimX"]) +\
+                                        par["dimY"], par["dimX"]) +\
             1j * np.random.randn(par["unknowns"], par["NSlice"],
-                                 par["dimY"], par["dimX"])
+                                  par["dimY"], par["dimX"])
         self.opinadj = np.random.randn(par["NScan"], par["NC"], par["packs"],
-                                       par["dimY"], par["dimX"]) +\
+                                        par["dimY"], par["dimX"]) +\
             1j * np.random.randn(par["NScan"], par["NC"], par["packs"],
-                                 par["dimY"], par["dimX"])
+                                  par["dimY"], par["dimX"])
 
         self.model_gradient = np.random.randn(par["NSlice"], par["unknowns"],
                                               par["NScan"],
                                               par["dimY"], par["dimX"]) + \
             1j * np.random.randn(par["NSlice"], par["unknowns"],
-                                 par["NScan"],
-                                 par["dimY"], par["dimX"])
+                                  par["NScan"],
+                                  par["dimY"], par["dimX"])
         self.C = np.random.randn(par["NC"], par["NSlice"],
-                                 par["dimY"], par["dimX"]) + \
+                                  par["dimY"], par["dimX"]) + \
             1j * np.random.randn(par["NC"], par["NSlice"],
-                                 par["dimY"], par["dimX"])
+                                  par["dimY"], par["dimX"])
 
         self.model_gradient = self.model_gradient.astype(DTYPE)
         self.C = self.C.astype(DTYPE)
@@ -325,6 +432,38 @@ class OperatorKspaceSMSCartesian(unittest.TestCase):
         self.queue = par["queue"][0]
         self.grad_buf = clarray.to_device(self.queue, self.model_gradient)
         self.coil_buf = clarray.to_device(self.queue, self.C)
+        
+        parser = tmpArgs()
+        parser.streamed = False
+        parser.devices = -1
+        parser.use_GPU = True
+
+        par = {}
+        par["packs"] = 6
+        par["MB"] = 2
+        par["shift"] = np.array([0, 64]).astype(DTYPE_real)
+        par["numofpacks"] = 1
+        pyqmri.pyqmri._setupOCL(parser, par)
+        setupPar(par)
+        par["mask"] = np.ones((par["dimY"], par["dimX"]),
+                              dtype=DTYPE_real)
+        
+        prg = []
+        for j in range(len(par["ctx"])):
+            with open(file) as myfile:
+                prg.append(Program(
+                    par["ctx"][j],
+                    myfile.read()))
+        prg = prg[0]
+
+        self.op_GPU = pyqmri.operator.OperatorKspaceSMS(
+            par, prg,
+            DTYPE=DTYPE,
+            DTYPE_real=DTYPE_real)
+        
+        self.queue_GPU = par["queue"][0]
+        self.grad_buf_GPU = clarray.to_device(self.queue_GPU, self.model_gradient)
+        self.coil_buf_GPU = clarray.to_device(self.queue_GPU, self.C)
 
     def test_adj_outofplace(self):
         inpfwd = clarray.to_device(self.queue, self.opinfwd)
@@ -367,6 +506,34 @@ class OperatorKspaceSMSCartesian(unittest.TestCase):
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
         self.assertAlmostEqual(a, b, places=12)
+        
+    def test_CPU_vs_GPU_fwd(self):
+        inpfwd_CPU = clarray.to_device(self.queue, self.opinfwd)
+        outfwd_CPU = clarray.zeros(self.queue, self.opinadj.shape, dtype=DTYPE)
+        outfwd_CPU.add_event(self.op.fwd(outfwd_CPU, [inpfwd_CPU, self.coil_buf, self.grad_buf]))
+        outfwd_CPU = outfwd_CPU.map_to_host(wait_for=outfwd_CPU.events)
+        
+        inpfwd_GPU = clarray.to_device(self.queue_GPU, self.opinfwd)
+        outfwd_GPU = clarray.zeros(self.queue_GPU, self.opinadj.shape, dtype=DTYPE)
+        outfwd_GPU.add_event(self.op_GPU.fwd(outfwd_GPU, [inpfwd_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
+        outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
+        
+        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=1e-10)
+
+        
+    def test_CPU_vs_GPU_adj(self):
+        inpadj_CPU = clarray.to_device(self.queue, self.opinadj)
+        outadj_CPU = clarray.zeros(self.queue, self.opinfwd.shape, dtype=DTYPE)
+        outadj_CPU.add_event(self.op.adj(outadj_CPU, [inpadj_CPU, self.coil_buf, self.grad_buf]))
+        outadj_CPU = outadj_CPU.map_to_host(wait_for=outadj_CPU.events)
+        
+        inpadj_GPU = clarray.to_device(self.queue_GPU, self.opinadj)
+        outadj_GPU = clarray.zeros(self.queue_GPU, self.opinfwd.shape, dtype=DTYPE)
+        outadj_GPU.add_event(self.op_GPU.adj(outadj_GPU, [inpadj_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
+        outadj_GPU = outadj_GPU.map_to_host(wait_for=outadj_GPU.events)     
+        
+        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=1e-10)
+        
 
 
 class OperatorImageSpace(unittest.TestCase):
@@ -399,25 +566,50 @@ class OperatorImageSpace(unittest.TestCase):
             DTYPE=DTYPE,
             DTYPE_real=DTYPE_real)
         self.opinfwd = np.random.randn(par["unknowns"], par["NSlice"],
-                                       par["dimY"], par["dimX"]) +\
+                                        par["dimY"], par["dimX"]) +\
             1j * np.random.randn(par["unknowns"], par["NSlice"],
-                                 par["dimY"], par["dimX"])
+                                  par["dimY"], par["dimX"])
         self.opinadj = np.random.randn(par["NScan"], 1, par["NSlice"],
-                                       par["dimY"], par["dimX"]) +\
+                                        par["dimY"], par["dimX"]) +\
             1j * np.random.randn(par["NScan"], 1, par["NSlice"],
-                                 par["dimY"], par["dimX"])
+                                  par["dimY"], par["dimX"])
         self.model_gradient = np.random.randn(par["unknowns"], par["NScan"],
                                               par["NSlice"],
                                               par["dimY"], par["dimX"]) + \
             1j * np.random.randn(par["unknowns"], par["NScan"],
-                                 par["NSlice"],
-                                 par["dimY"], par["dimX"])
+                                  par["NSlice"],
+                                  par["dimY"], par["dimX"])
 
         self.model_gradient = self.model_gradient.astype(DTYPE)
         self.opinfwd = self.opinfwd.astype(DTYPE)
         self.opinadj = self.opinadj.astype(DTYPE)
         self.queue = par["queue"][0]
         self.grad_buf = clarray.to_device(self.queue, self.model_gradient)
+        
+        parser = tmpArgs()
+        parser.streamed = False
+        parser.devices = -1
+        parser.use_GPU = True
+
+        par = {}
+        pyqmri.pyqmri._setupOCL(parser, par)
+        setupPar(par)
+        
+        prg = []
+        for j in range(len(par["ctx"])):
+            with open(file) as myfile:
+                prg.append(Program(
+                    par["ctx"][j],
+                    myfile.read()))
+        prg = prg[0]
+
+        self.op_GPU = pyqmri.operator.OperatorImagespace(
+            par, prg,
+            DTYPE=DTYPE,
+            DTYPE_real=DTYPE_real)
+        
+        self.queue_GPU = par["queue"][0]
+        self.grad_buf_GPU = clarray.to_device(self.queue_GPU, self.model_gradient)
 
     def test_adj_outofplace(self):
         inpfwd = clarray.to_device(self.queue, self.opinfwd)
@@ -461,3 +653,31 @@ class OperatorImageSpace(unittest.TestCase):
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
         self.assertAlmostEqual(a, b, places=12)
+        
+    def test_CPU_vs_GPU_fwd(self):
+        inpfwd_CPU = clarray.to_device(self.queue, self.opinfwd)
+        outfwd_CPU = clarray.zeros(self.queue, self.opinadj.shape, dtype=DTYPE)
+        outfwd_CPU.add_event(self.op.fwd(outfwd_CPU, [inpfwd_CPU, [], self.grad_buf]))
+        outfwd_CPU = outfwd_CPU.map_to_host(wait_for=outfwd_CPU.events)
+        
+        inpfwd_GPU = clarray.to_device(self.queue_GPU, self.opinfwd)
+        outfwd_GPU = clarray.zeros(self.queue_GPU, self.opinadj.shape, dtype=DTYPE)
+        outfwd_GPU.add_event(self.op_GPU.fwd(outfwd_GPU, [inpfwd_GPU, [], self.grad_buf_GPU]))
+        outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
+        
+        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=1e-10)
+
+        
+    def test_CPU_vs_GPU_adj(self):
+        inpadj_CPU = clarray.to_device(self.queue, self.opinadj)
+        outadj_CPU = clarray.zeros(self.queue, self.opinfwd.shape, dtype=DTYPE)
+        outadj_CPU.add_event(self.op.adj(outadj_CPU, [inpadj_CPU, [], self.grad_buf]))
+        outadj_CPU = outadj_CPU.map_to_host(wait_for=outadj_CPU.events)
+        
+        inpadj_GPU = clarray.to_device(self.queue_GPU, self.opinadj)
+        outadj_GPU = clarray.zeros(self.queue_GPU, self.opinfwd.shape, dtype=DTYPE)
+        outadj_GPU.add_event(self.op_GPU.adj(outadj_GPU, [inpadj_GPU, [], self.grad_buf_GPU]))
+        outadj_GPU = outadj_GPU.map_to_host(wait_for=outadj_GPU.events)     
+        
+        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=1e-10)
+        
