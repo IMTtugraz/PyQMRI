@@ -23,14 +23,15 @@ ENV JENKINS_SLAVE_AGENT_PORT 50000
 RUN useradd -d "$JENKINS_HOME" -u 971 -m -s /bin/bash jenkins
 VOLUME /var/jenkins_home
 
-RUN ls -lah /var/jenkins_home
-
 ENV PATH="/var/jenkins_home/.local:${PATH}"
 
 RUN python3.8 -m pip install cython 
 RUN python3.8 -m pip install mako
 RUN python3.8 -m pip install pybind11
-RUN python3.8 -m pip install pyopencl
+RUN git clone https://github.com/inducer/pyopencl.git
+RUN cd pyopencl && python3.8 configure.py --cl-pretend-version=1.2
+RUN cd pyopencl && python3.8 setup.py install
+
     
 RUN git clone https://github.com/geggo/gpyfft.git &&\
     python3.8 -m pip install gpyfft/. &&\
