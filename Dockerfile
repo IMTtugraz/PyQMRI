@@ -12,7 +12,9 @@ RUN apt-get update &&\
     apt-get install -y python3-tk && \
     apt-get install -y ocl-icd* opencl-headers &&\
     apt-get install -y libclfft* &&\
-    apt-get install -y git
+    apt-get install -y git &&\
+    apt-get install -y libpocl &&\
+    apt-get install -y pocl-opencl-icd
 
 ENV JENKINS_HOME /var/jenkins_home
 ENV JENKINS_SLAVE_AGENT_PORT 50000
