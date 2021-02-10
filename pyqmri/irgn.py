@@ -86,6 +86,11 @@ class IRGNOptimizer:
         self._model = model
         self._reg_type = reg_type
         self._prg = []
+        
+        #SR 08.02.2021 add reg params to save
+        self._datacost = 0
+        self._regcost = 0
+        self._L2Cost = 0
 
         self._DTYPE = DTYPE
         self._DTYPE_real = DTYPE_real
@@ -359,6 +364,9 @@ class IRGNOptimizer:
             f.create_dataset("tv_result_"+str(myit), result.shape,
                              dtype=self._DTYPE, data=result)
             f.attrs['res_tv_iter_'+str(myit)] = self._fval
+        f.attrs['datacost_iter_'+str(myit)] = self._datacost
+        f.attrs['regcost_iter_'+str(myit)] = self._regcost 
+        f.attrs['L2Cost_iter_'+str(myit)] = self._L2Cost 
         f.close()
 
 ###############################################################################
@@ -411,21 +419,22 @@ class IRGNOptimizer:
             grad_H1 = grad[self.par["unknowns_TGV"]:]
         del grad
 
-        datacost = self.irgn_par["lambd"] / 2 * np.linalg.norm(data - b)**2
-        L2Cost = np.linalg.norm(x)/(2.0*self.irgn_par["delta"])
+        #SR: change datacost, L2Cost, regcost to self params
+        self._datacost = self.irgn_par["lambd"] / 2 * np.linalg.norm(data - b)**2
+        self._L2Cost = np.linalg.norm(x)/(2.0*self.irgn_par["delta"])
         if self._reg_type == 'TV':
-            regcost = self.irgn_par["gamma"] * \
+            self._regcost = self.irgn_par["gamma"] * \
                 np.sum(np.abs(grad_tv))
         else:
-            regcost = self.irgn_par["gamma"] * np.sum(
+            self._regcost = self.irgn_par["gamma"] * np.sum(
                   np.abs(grad_tv -
                          self._v)) + self.irgn_par["gamma"] * 2 * np.sum(
                              np.abs(sym_grad))
             del sym_grad
 
-        self._fval = (datacost +
-                      regcost +
-                      L2Cost +
+        self._fval = (self._datacost +
+                      self._regcost +
+                      self._L2Cost +
                       self.irgn_par["omega"] / 2 *
                       np.linalg.norm(grad_H1)**2)
         del grad_tv, grad_H1
@@ -436,9 +445,9 @@ class IRGNOptimizer:
 
         print("-" * 75)
         print("Initial Cost: %f" % (self._fval_init))
-        print("Costs of Data: %f" % (1e3*datacost / self._fval_init))
-        print("Costs of T(G)V: %f" % (1e3*regcost / self._fval_init))
-        print("Costs of L2 Term: %f" % (1e3*L2Cost / self._fval_init))
+        print("Costs of Data: %f" % (1e3*self._datacost / self._fval_init))
+        print("Costs of T(G)V: %f" % (1e3*self._regcost / self._fval_init))
+        print("Costs of L2 Term: %f" % (1e3*self._L2Cost / self._fval_init))
         print("-" * 75)
         print("Function value at GN-Step %i: %f" %
               (GN_it, 1e3*self._fval / self._fval_init))

@@ -26,9 +26,6 @@ from pyqmri.irgn import IRGNOptimizer
 
 np.seterr(divide='ignore')
 
-#debug
-
-
 
 
 def _choosePlatform(myargs, par):
@@ -337,7 +334,7 @@ def _read_data_from_file(par, myargs):
     if reco_Slices == -1:
         reco_Slices = NSlice
     off = 0
-
+   
     if myargs.sms:
         data = par["file"]['real_dat'][()].astype(par["DTYPE"])\
                + 1j*par["file"]['imag_dat'][()].astype(par["DTYPE"])
@@ -451,9 +448,20 @@ def _populate_par_w_sequencepar(par,
                                 imagespace,
                                 streamded,
                                 par_slices,
-                                trafo):
+                                trafo, 
+                                dz):
     for att in par["file"].attrs:
         par[att] = par["file"].attrs[att]
+    
+    # ratio of z direction to x,y, important for finite differences
+    if "dz" in par.keys() and np.allclose(dz, -1):
+        par["dz"] = par["dz"].item()
+    elif dz >= 0:
+        par["dz"] = dz
+    else:
+        par["dz"] = 1
+    par["dz"] = par["DTYPE_real"](par["dz"])
+        
     par["NC"] = datashape[1]
     par["dimY"] = imagedims[-2]
     par["dimX"] = imagedims[-1]
@@ -552,7 +560,8 @@ def _start_recon(myargs):
                                 myargs.imagespace,
                                 myargs.streamed,
                                 myargs.par_slices,
-                                myargs.trafo)
+                                myargs.trafo, 
+                                myargs.dz)
     if not myargs.trafo:
         tmpmask = np.ones(data.shape[2:])
         tmpmask[np.abs(data[0, 0, ...]) == 0] = 0
@@ -562,10 +571,6 @@ def _start_recon(myargs):
         del tmpmask
     else:
         par['mask'] = None
-###############################################################################
-# ratio of z direction to x,y, important for finite differences ###############
-###############################################################################
-    par["dz"] = par["DTYPE_real"](myargs.dz)
 ###############################################################################
 # Create OpenCL Context and Queues ############################################
 ###############################################################################
@@ -603,7 +608,7 @@ def _start_recon(myargs):
 ###############################################################################
 # Scale data norm  ############################################################
 ###############################################################################
-    data, images = _estScaleNorm(myargs, par, images, data)
+    data, images = _estScaleNorm(myargs, par, images, data)    
     if np.allclose(myargs.weights, -1):
         par["weights"] = np.ones((par["unknowns"]), dtype=par["DTYPE_real"])
     else:
@@ -612,8 +617,9 @@ def _start_recon(myargs):
 # Compute initial guess #######################################################
 ###############################################################################
     model.computeInitialGuess(
-        images,
-        par["dscale"])
+        images, 
+        par["dscale"],
+        myargs.initial_guess)
 ###############################################################################
 # initialize operator  ########################################################
 ###############################################################################
@@ -663,13 +669,14 @@ def run(reg_type='TGV',
         imagespace=False,
         sms=False,
         devices=0,
-        dz=1,
+        dz=-1,
         weights=-1,
         useCGguess=True,
         out='',
         modelfile="models.ini",
         modelname="VFA-E1",
-        double_precision=False):
+        double_precision=False, 
+        initial_guess=-1):
     """
     Start a 3D model based reconstruction.
 
@@ -718,8 +725,9 @@ def run(reg_type='TGV',
         Defaults to 0
       devices : list of int, 0
         The device ID of device(s) to use for streaming/reconstruction
-      dz : float, 1
+      dz : float, -1
         Ratio of physical Z to X/Y dimension. X/Y is assumed to be isotropic.
+        Defaults to isotropic in 3D (dz=1).
       useCGguess : bool, True
         Switch between CG sense and simple FFT as initial guess for the images.
       out : str, ''
@@ -733,6 +741,10 @@ def run(reg_type='TGV',
         weights are used.
       double_precision : bool, False
         Enable double precission computation.
+      initial_guess : list of float, -1
+        Optional initial guess for the selected model. Defaults to -1, i.e. 
+        default setting is used. Number of elements need to match the 
+        unknowns of the selected model. 
     """
     params = [('--recon_type', "TGV"),
               ('--reg_type', str(reg_type)),
@@ -753,7 +765,8 @@ def run(reg_type='TGV',
               ('--modelfile', str(modelfile)),
               ('--modelname', str(modelname)),
               ('--outdir', str(out)),
-              ('--double_precision', str(double_precision))
+              ('--double_precision', str(double_precision)),
+              ('--initial_guess', str(initial_guess))
               ]
 
     sysargs = sys.argv[1:]
@@ -851,6 +864,10 @@ def _parseArguments(args):
       help="Switch between single (False, default) and double "
            "precision (True). Usually, single precision gives high enough "
            "accuracy.")
+    argparmain.add_argument(
+        '--initial_guess', dest='initial_guess', type=float,
+        help="Initial guess for the model parameters.", 
+        nargs='*')
 
     arguments, unknown = argparmain.parse_known_args(args)
     return arguments, unknown
