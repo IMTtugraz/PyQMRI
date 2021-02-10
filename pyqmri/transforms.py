@@ -411,6 +411,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
                 self._tmp_fft_array.data,
                 self._check.data,
                 wait_for=self._tmp_fft_array.events))  
+        cl.wait_for_events(self._tmp_fft_array.events)
         fft_events = []
         for j in range(self.iternumber):
                 fft_events.append(self.fft.enqueue_arrays(
@@ -418,8 +419,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
                         j * self.par_fft:(j + 1) * self.par_fft, ...],
                     result=self._tmp_fft_array[
                         j * self.par_fft:(j + 1) * self.par_fft, ...],
-                    forward=False,
-                    wait_for_events=self._tmp_fft_array.events)[0])
+                    forward=False)[0])
         self._tmp_fft_array.add_event(
             self.prg.fftshift(
                 self.queue,
@@ -500,6 +500,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
                 self._check.data,
                 wait_for=self._tmp_fft_array.events))
         
+        cl.wait_for_events(self._tmp_fft_array.events)
         fft_events = []
         for j in range(self.iternumber):
                 fft_events.append(self.fft.enqueue_arrays(
@@ -507,8 +508,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
                         j * self.par_fft:(j + 1) * self.par_fft, ...],
                     result=self._tmp_fft_array[
                         j * self.par_fft:(j + 1) * self.par_fft, ...],
-                    forward=True,
-                    wait_for_events=self._tmp_fft_array.events)[0])
+                    forward=True)[0])
         self._tmp_fft_array.add_event(
             self.prg.fftshift(
                 self.queue,
@@ -668,6 +668,7 @@ class PyOpenCLCartNUFFT(PyOpenCLnuFFT):
                     s.data,
                     self.mask.data,
                     wait_for=s.events+self._tmp_fft_array.events+wait_for))
+            cl.wait_for_events(self._tmp_fft_array.events)
             fft_events = []
             for j in range(self.iternumber):
                     fft_events.append(self.fft.enqueue_arrays(
@@ -675,8 +676,7 @@ class PyOpenCLCartNUFFT(PyOpenCLnuFFT):
                             j * self.par_fft:(j + 1) * self.par_fft, ...],
                         result=self._tmp_fft_array[
                             j * self.par_fft:(j + 1) * self.par_fft, ...],
-                        forward=False,
-                        wait_for_events=self._tmp_fft_array.events)[0])
+                        forward=False)[0])
             return (
                 self.prg.copy(
                     self.queue,
@@ -732,6 +732,7 @@ class PyOpenCLCartNUFFT(PyOpenCLnuFFT):
                         1 /
                         self.fft_scale),
                     wait_for=sg.events+self._tmp_fft_array.events+wait_for))
+            cl.wait_for_events(self._tmp_fft_array.events)
             fft_events = []
             for j in range(self.iternumber):
                     fft_events.append(self.fft.enqueue_arrays(
@@ -739,8 +740,7 @@ class PyOpenCLCartNUFFT(PyOpenCLnuFFT):
                             j * self.par_fft:(j + 1) * self.par_fft, ...],
                         result=self._tmp_fft_array[
                             j * self.par_fft:(j + 1) * self.par_fft, ...],
-                        forward=True,
-                        wait_for_events=self._tmp_fft_array.events)[0])
+                        forward=True)[0])
 
             return (
                 self.prg.maskingcpy(
@@ -911,6 +911,7 @@ class PyOpenCLSMSNUFFT(PyOpenCLnuFFT):
                     self.DTYPE_real(self.fft_scale),
                     np.int32(sg.shape[2]/self.packs/self.MB),
                     wait_for=s.events+wait_for+self._tmp_fft_array.events))
+            cl.wait_for_events(self._tmp_fft_array.events)
             fft_events = []
             for j in range(self.iternumber):
                     fft_events.append(self.fft.enqueue_arrays(
@@ -918,8 +919,7 @@ class PyOpenCLSMSNUFFT(PyOpenCLnuFFT):
                             j * self.par_fft:(j + 1) * self.par_fft, ...],
                         result=self._tmp_fft_array[
                             j * self.par_fft:(j + 1) * self.par_fft, ...],
-                        forward=False,
-                        wait_for_events=self._tmp_fft_array.events)[0])
+                        forward=False)[0])
 
             return (self.prg.copy(self.queue,
                                   (sg.size,),
@@ -975,6 +975,7 @@ class PyOpenCLSMSNUFFT(PyOpenCLnuFFT):
                     sg.data,
                     self.DTYPE_real(1 / self.fft_scale),
                     wait_for=self._tmp_fft_array.events+sg.events+wait_for))
+            cl.wait_for_events(self._tmp_fft_array.events)
             fft_events = []
             for j in range(self.iternumber):
                     fft_events.append(self.fft.enqueue_arrays(
@@ -982,8 +983,7 @@ class PyOpenCLSMSNUFFT(PyOpenCLnuFFT):
                             j * self.par_fft:(j + 1) * self.par_fft, ...],
                         result=self._tmp_fft_array[
                             j * self.par_fft:(j + 1) * self.par_fft, ...],
-                        forward=True,
-                        wait_for_events=self._tmp_fft_array.events)[0])
+                        forward=True)[0])
 
             return (
                 self.prg.copy_SMS_fwdkspace(
