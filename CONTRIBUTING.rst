@@ -9,6 +9,8 @@ Thank you for taking your time to consider to contribute to PyQMRI, whether it's
 
 If you want to contribute please first contact the owner of this repository (e.g. via opening an Issue) and discuss the changes you want to change.
 By contributing you accept and adhere to our `Code of Conduct`_
+Development and code contributaions should be done at our GitLab_ site to facilitate the CI integration and GPU availability there.
+Please contact us for further information.
 
 Found a Bug?
 ------------
@@ -30,7 +32,11 @@ Pull requests are the best way to propose changes to the codebase (we use `Githu
 
 By contributing you accept that any contributions you make will be under the `Apache-2`_ license. Feel free to contact the maintainers if that's a concern to you. 
 
-
+.. role:: bash(code)
+   :language: bash
+.. role:: python(code)
+   :language: python
+   
 Contributing Code/Fixing bugs
 -----------------------------
 For code contributions, it is mandatory that you make sure that all current unittests and integrationtest pass after your changes. 
