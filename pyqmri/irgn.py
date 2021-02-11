@@ -401,9 +401,8 @@ class IRGNOptimizer:
                 [[x, self._coils, self._modelgrad]])
         else:
             tmpx = clarray.to_device(self._queue[0], x)
-            tmpfwd = self._MRI_operator.fwdoop(
-                [tmpx, self._coils, self._modelgrad]).wait()
-            res = data - b + tmpfwd.get()
+            res = data - b + elf._MRI_operator.fwdoop(
+                [tmpx, self._coils, self._modelgrad]).get()
             del tmpx
         tmpres = self._pdop.run(x, res, iters)
         for key in tmpres:
