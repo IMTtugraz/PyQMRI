@@ -45,23 +45,24 @@ class SymmetrizedGradientTest(unittest.TestCase):
         parser = tmpArgs()
         parser.streamed = False
         parser.devices = -1
-        parser.use_GPU = True
+        parser.use_GPU = False
 
         par = {}
         pyqmri.pyqmri._setupOCL(parser, par)
         setupPar(par)
         if DTYPE == np.complex128:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_double.c'))
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels_double.c')
         else:
-            file = open(
-                    resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels.c'))
-        prg = Program(
-            par["ctx"][0],
-            file.read())
-        file.close()
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels.c')
+        prg = []
+        for j in range(len(par["ctx"])):
+          with open(file) as myfile:
+            prg.append(Program(
+                par["ctx"][j],
+                myfile.read()))
+        prg = prg[0]
 
         self.weights = par["weights"]
 
@@ -82,6 +83,30 @@ class SymmetrizedGradientTest(unittest.TestCase):
         self.symdivin = self.symdivin.astype(DTYPE)
         self.dz = par["dz"]
         self.queue = par["queue"][0]
+        
+        parser = tmpArgs()
+        parser.streamed = False
+        parser.devices = -1
+        parser.use_GPU = True
+
+        par = {}
+        pyqmri.pyqmri._setupOCL(parser, par)
+        setupPar(par)
+        
+        prg = []
+        for j in range(len(par["ctx"])):
+            with open(file) as myfile:
+                prg.append(Program(
+                    par["ctx"][j],
+                    myfile.read()))
+        prg = prg[0]
+
+        self.symgrad_GPU = pyqmri.operator.OperatorFiniteSymGradient(
+            par, prg,
+            DTYPE=DTYPE,
+            DTYPE_real=DTYPE_real)
+        
+        self.queue_GPU = par["queue"][0]  
 
     def test_sym_grad_outofplace(self):
         gradx = np.zeros_like(self.symgradin)
@@ -188,145 +213,32 @@ class SymmetrizedGradientTest(unittest.TestCase):
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
         self.assertAlmostEqual(a, b, places=12)
-
-
-class SymmetrizedGradientStreamedTest(unittest.TestCase):
-    def setUp(self):
-        parser = tmpArgs()
-        parser.streamed = True
-        parser.devices = -1
-        parser.use_GPU = True
-
-        par = {}
-        pyqmri.pyqmri._setupOCL(parser, par)
-        setupPar(par)
-        if DTYPE == np.complex128:
-            file = resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_double_streamed.c')
-        else:
-            file = resource_filename(
-                        'pyqmri', 'kernels/OpenCL_Kernels_streamed.c')
-
-        prg = []
-        for j in range(len(par["ctx"])):
-          with open(file) as myfile:
-            prg.append(Program(
-                par["ctx"][j],
-                myfile.read()))
-
-        par["par_slices"] = 1
-
-        self.weights = par["weights"]
-
-        self.symgrad = pyqmri.operator.OperatorFiniteSymGradientStreamed(
-            par, prg,
-            DTYPE=DTYPE,
-            DTYPE_real=DTYPE_real)
-
-        self.symgradin = np.random.randn(par["NSlice"], par["unknowns"],
-                                         par["dimY"], par["dimX"], 4) +\
-            1j * np.random.randn(par["NSlice"], par["unknowns"],
-                                 par["dimY"], par["dimX"], 4)
-        self.symdivin = np.random.randn(par["NSlice"], par["unknowns"],
-                                        par["dimY"], par["dimX"], 8) +\
-            1j * np.random.randn(par["NSlice"], par["unknowns"],
-                                 par["dimY"], par["dimX"], 8)
-        self.symgradin = self.symgradin.astype(DTYPE)
-        self.symdivin = self.symdivin.astype(DTYPE)
-        self.dz = par["dz"]
-
-    def test_grad_outofplace(self):
-        gradx = np.zeros_like(self.symgradin)
-        grady = np.zeros_like(self.symgradin)
-        gradz = np.zeros_like(self.symgradin)
-
-        gradx[..., 1:, :] = -np.flip(
-            np.diff(
-                np.flip(self.symgradin, axis=-2), axis=-2), axis=-2)
-        grady[..., 1:, :, :] = -np.flip(
-            np.diff(
-                np.flip(self.symgradin, axis=-3), axis=-3), axis=-3)
-        gradz[1:, ...] = -np.flip(
-            np.diff(
-                np.flip(self.symgradin, axis=0), axis=0), axis=0)
-
-        symgrad = np.stack((gradx[..., 0],
-                            grady[..., 1],
-                            gradz[..., 2]*self.dz,
-                            1/2 * (gradx[..., 1] + grady[..., 0]),
-                            1/2 * (gradx[..., 2] + gradz[..., 0]*self.dz),
-                            1/2 * (grady[..., 2] + gradz[..., 1]*self.dz)),
-                           axis=-1)
-        symgrad *= self.weights[None, :, None, None, None]
-        outp = self.symgrad.fwdoop([[self.symgradin]])
-
-        np.testing.assert_allclose(outp[..., :6], symgrad)
-
-    def test_grad_inplace(self):
-        gradx = np.zeros_like(self.symgradin)
-        grady = np.zeros_like(self.symgradin)
-        gradz = np.zeros_like(self.symgradin)
-
-        gradx[..., 1:, :] = -np.flip(
-            np.diff(
-                np.flip(self.symgradin, axis=-2), axis=-2), axis=-2)
-        grady[..., 1:, :, :] = -np.flip(
-            np.diff(
-                np.flip(self.symgradin, axis=-3), axis=-3), axis=-3)
-        gradz[1:, ...] = -np.flip(
-            np.diff(
-                np.flip(self.symgradin, axis=0), axis=0), axis=0)
-
-        symgrad = np.stack((gradx[..., 0],
-                            grady[..., 1],
-                            gradz[..., 2]*self.dz,
-                            1/2 * (gradx[..., 1] + grady[..., 0]),
-                            1/2 * (gradx[..., 2] + gradz[..., 0]*self.dz),
-                            1/2 * (grady[..., 2] + gradz[..., 1]*self.dz)),
-                           axis=-1)
-        symgrad *= self.weights[None, :, None, None, None]
-        outp = np.zeros_like(self.symdivin)
-
-        self.symgrad.fwd([outp], [[self.symgradin]])
-
-        np.testing.assert_allclose(outp[..., :6], symgrad)
-
-    def test_adj_outofplace(self):
-
-        outgrad = self.symgrad.fwdoop([[self.symgradin]])
-        outdiv = self.symgrad.adjoop([[self.symdivin]])
-
-        a1 = np.vdot(outgrad[..., :3].flatten(),
-                     self.symdivin[..., :3].flatten())/self.symgradin.size*4
-        a2 = 2*np.vdot(outgrad[..., 3:6].flatten(),
-                       self.symdivin[..., 3:6].flatten())/self.symgradin.size*4
-        a = a1+a2
-        b = np.vdot(self.symgradin.flatten(),
-                    -outdiv.flatten())/self.symgradin.size*4
-
-        print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
-
-        self.assertAlmostEqual(a, b, places=12)
-
-    def test_adj_inplace(self):
-
-        outgrad = np.zeros_like(self.symdivin)
-        outdiv = np.zeros_like(self.symgradin)
-
-        self.symgrad.fwd([outgrad], [[self.symgradin]])
-        self.symgrad.adj([outdiv], [[self.symdivin]])
-
-        a1 = np.vdot(outgrad[..., :3].flatten(),
-                     self.symdivin[..., :3].flatten())/self.symgradin.size*4
-        a2 = 2*np.vdot(outgrad[..., 3:6].flatten(),
-                       self.symdivin[..., 3:6].flatten())/self.symgradin.size*4
-        a = a1+a2
-        b = np.vdot(self.symgradin.flatten(),
-                    -outdiv.flatten())/self.symgradin.size*4
-
-        print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
-
-        self.assertAlmostEqual(a, b, places=12)
+        
+    def test_CPU_vs_GPU_fwd(self):
+        inpfwd_CPU = clarray.to_device(self.queue, self.symgradin)
+        outfwd_CPU = clarray.zeros(self.queue, self.symdivin.shape, dtype=DTYPE)
+        outfwd_CPU.add_event(self.symgrad.fwd(outfwd_CPU, inpfwd_CPU))
+        outfwd_CPU = outfwd_CPU.map_to_host(wait_for=outfwd_CPU.events)
+        
+        inpfwd_GPU = clarray.to_device(self.queue_GPU, self.symgradin)
+        outfwd_GPU = clarray.zeros(self.queue_GPU, self.symdivin.shape, dtype=DTYPE)
+        outfwd_GPU.add_event(self.symgrad_GPU.fwd(outfwd_GPU, inpfwd_GPU))
+        outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
+        
+        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=1e-10)
+        
+    def test_CPU_vs_GPU_adj(self):
+        inpadj_CPU = clarray.to_device(self.queue, self.symdivin)
+        outadj_CPU = clarray.zeros(self.queue, self.symgradin.shape, dtype=DTYPE)
+        outadj_CPU.add_event(self.symgrad.adj(outadj_CPU, inpadj_CPU))
+        outadj_CPU = outadj_CPU.map_to_host(wait_for=outadj_CPU.events)
+        
+        inpadj_GPU = clarray.to_device(self.queue_GPU, self.symdivin)
+        outadj_GPU = clarray.zeros(self.queue_GPU, self.symgradin.shape, dtype=DTYPE)
+        outadj_GPU.add_event(self.symgrad_GPU.adj(outadj_GPU, inpadj_GPU))
+        outadj_GPU = outadj_GPU.map_to_host(wait_for=outadj_GPU.events)     
+        
+        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=1e-10)
 
 
 if __name__ == '__main__':

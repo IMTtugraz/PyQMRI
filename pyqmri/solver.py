@@ -73,20 +73,20 @@ class CGSolver:
             )
 
         if SMS:
-            self._tmp_sino = clarray.empty(
+            self._tmp_sino = clarray.zeros(
                 self._queue,
                 (self._NScan, self._NC,
                  int(self._NSlice/par["MB"]), par["Nproj"], par["N"]),
                 self._DTYPE, "C")
         else:
-            self._tmp_sino = clarray.empty(
+            self._tmp_sino = clarray.zeros(
                 self._queue,
                 (self._NScan, self._NC,
                  self._NSlice, par["Nproj"], par["N"]),
                 self._DTYPE, "C")
         self._FT = FT.FFT
         self._FTH = FT.FFTH
-        self._tmp_result = clarray.empty(
+        self._tmp_result = clarray.zeros(
             self._queue,
             (self._NScan, self._NC,
              self._NSlice, self._dimY, self._dimX),
@@ -140,11 +140,11 @@ class CGSolver:
                               (self._NScan, 1,
                                self._NSlice, self._dimY, self._dimX),
                               self._DTYPE, "C")
-        b = clarray.empty(self._queue,
+        b = clarray.zeros(self._queue,
                           (self._NScan, 1,
                            self._NSlice, self._dimY, self._dimX),
                           self._DTYPE, "C")
-        Ax = clarray.empty(self._queue,
+        Ax = clarray.zeros(self._queue,
                            (self._NScan, 1,
                             self._NSlice, self._dimY, self._dimX),
                            self._DTYPE, "C")
@@ -685,7 +685,7 @@ class PDBaseSolver:
             dual.append(dual_val)
             gap.append(gap_val)
                 
-            if not np.mod(i+1, 100):
+            if not np.mod(i+1, 10):
                 if self.display_iterations:
                     if isinstance(primal_vars["x"], np.ndarray):
                         self.model.plot_unknowns(
@@ -862,7 +862,7 @@ class PDBaseSolver:
             self.real_const[idx].data, np.int32(self.unknowns),
             wait_for=(outp.events +
                       inp[0].events+inp[1].events +
-                      inp[2].events+wait_for))
+                      inp[2].events+inp[3].events + wait_for))
 
     def update_v(self, outp, inp, par=None, idx=0, idxq=0,
                  bound_cond=0, wait_for=None):
@@ -1187,10 +1187,10 @@ class PDSolverTV(PDBaseSolver):
 
         primal_vars["x"] = clarray.to_device(self._queue[0], inp)
         primal_vars["xk"] = primal_vars["x"].copy()
-        primal_vars_new["x"] = clarray.empty_like(primal_vars["x"])
+        primal_vars_new["x"] = clarray.zeros_like(primal_vars["x"])
 
-        tmp_results_adjoint["Kyk1"] = clarray.empty_like(primal_vars["x"])
-        tmp_results_adjoint_new["Kyk1"] = clarray.empty_like(primal_vars["x"])
+        tmp_results_adjoint["Kyk1"] = clarray.zeros_like(primal_vars["x"])
+        tmp_results_adjoint_new["Kyk1"] = clarray.zeros_like(primal_vars["x"])
 
         dual_vars = {}
         dual_vars_new = {}
@@ -1200,19 +1200,19 @@ class PDSolverTV(PDBaseSolver):
             self._queue[0],
             data.shape,
             dtype=self._DTYPE)
-        dual_vars_new["r"] = clarray.empty_like(dual_vars["r"])
+        dual_vars_new["r"] = clarray.zeros_like(dual_vars["r"])
 
         dual_vars["z1"] = clarray.zeros(self._queue[0],
                                         primal_vars["x"].shape+(4,),
                                         dtype=self._DTYPE)
-        dual_vars_new["z1"] = clarray.empty_like(dual_vars["z1"])
+        dual_vars_new["z1"] = clarray.zeros_like(dual_vars["z1"])
 
-        tmp_results_forward["gradx"] = clarray.empty_like(
+        tmp_results_forward["gradx"] = clarray.zeros_like(
             dual_vars["z1"])
-        tmp_results_forward_new["gradx"] = clarray.empty_like(
+        tmp_results_forward_new["gradx"] = clarray.zeros_like(
             dual_vars["z1"])
-        tmp_results_forward["Ax"] = clarray.empty_like(data)
-        tmp_results_forward_new["Ax"] = clarray.empty_like(data)
+        tmp_results_forward["Ax"] = clarray.zeros_like(data)
+        tmp_results_forward_new["Ax"] = clarray.zeros_like(data)
 
         return (primal_vars,
                 primal_vars_new,
@@ -1434,16 +1434,16 @@ class PDSolverTGV(PDBaseSolver):
 
         primal_vars["x"] = clarray.to_device(self._queue[0], inp)
         primal_vars["xk"] = primal_vars["x"].copy()
-        primal_vars_new["x"] = clarray.empty_like(primal_vars["x"])
+        primal_vars_new["x"] = clarray.zeros_like(primal_vars["x"])
         primal_vars["v"] = clarray.zeros(self._queue[0],
                                          primal_vars["x"].shape+(4,),
                                          dtype=self._DTYPE)
-        primal_vars_new["v"] = clarray.empty_like(primal_vars["v"])
+        primal_vars_new["v"] = clarray.zeros_like(primal_vars["v"])
 
-        tmp_results_adjoint["Kyk1"] = clarray.empty_like(primal_vars["x"])
-        tmp_results_adjoint_new["Kyk1"] = clarray.empty_like(primal_vars["x"])
-        tmp_results_adjoint["Kyk2"] = clarray.empty_like(primal_vars["v"])
-        tmp_results_adjoint_new["Kyk2"] = clarray.empty_like(primal_vars["v"])
+        tmp_results_adjoint["Kyk1"] = clarray.zeros_like(primal_vars["x"])
+        tmp_results_adjoint_new["Kyk1"] = clarray.zeros_like(primal_vars["x"])
+        tmp_results_adjoint["Kyk2"] = clarray.zeros_like(primal_vars["v"])
+        tmp_results_adjoint_new["Kyk2"] = clarray.zeros_like(primal_vars["v"])
 
         dual_vars = {}
         dual_vars_new = {}
@@ -1453,27 +1453,27 @@ class PDSolverTGV(PDBaseSolver):
             self._queue[0],
             data.shape,
             dtype=self._DTYPE)
-        dual_vars_new["r"] = clarray.empty_like(dual_vars["r"])
+        dual_vars_new["r"] = clarray.zeros_like(dual_vars["r"])
 
         dual_vars["z1"] = clarray.zeros(self._queue[0],
                                         primal_vars["x"].shape+(4,),
                                         dtype=self._DTYPE)
-        dual_vars_new["z1"] = clarray.empty_like(dual_vars["z1"])
+        dual_vars_new["z1"] = clarray.zeros_like(dual_vars["z1"])
         dual_vars["z2"] = clarray.zeros(self._queue[0],
                                         primal_vars["x"].shape+(8,),
                                         dtype=self._DTYPE)
-        dual_vars_new["z2"] = clarray.empty_like(dual_vars["z2"])
+        dual_vars_new["z2"] = clarray.zeros_like(dual_vars["z2"])
 
-        tmp_results_forward["gradx"] = clarray.empty_like(
+        tmp_results_forward["gradx"] = clarray.zeros_like(
             dual_vars["z1"])
-        tmp_results_forward_new["gradx"] = clarray.empty_like(
+        tmp_results_forward_new["gradx"] = clarray.zeros_like(
             dual_vars["z1"])
-        tmp_results_forward["symgradx"] = clarray.empty_like(
+        tmp_results_forward["symgradx"] = clarray.zeros_like(
             dual_vars["z2"])
-        tmp_results_forward_new["symgradx"] = clarray.empty_like(
+        tmp_results_forward_new["symgradx"] = clarray.zeros_like(
             dual_vars["z2"])
-        tmp_results_forward["Ax"] = clarray.empty_like(data)
-        tmp_results_forward_new["Ax"] = clarray.empty_like(data)
+        tmp_results_forward["Ax"] = clarray.zeros_like(data)
+        tmp_results_forward_new["Ax"] = clarray.zeros_like(data)
 
         return (primal_vars,
                 primal_vars_new,
@@ -1501,7 +1501,8 @@ class PDSolverTGV(PDBaseSolver):
                 inp=(in_dual["z2"], in_dual["z1"]),
                 par=[self._symgrad_op.ratio]))
 
-        out_fwd["Ax"].add_event(self._op.fwd(
+        out_fwd["Ax"].add_event(
+            self._op.fwd(
             out_fwd["Ax"], [in_primal["x"], self._coils, self.modelgrad]))
         out_fwd["gradx"].add_event(
             self._grad_op.fwd(out_fwd["gradx"], in_primal["x"]))
@@ -1512,13 +1513,15 @@ class PDSolverTGV(PDBaseSolver):
                       out_primal, out_fwd,
                       in_primal, in_precomp_adj,
                       tau):
-        out_primal["x"].add_event(self.update_primal(
+        out_primal["x"].add_event(
+            self.update_primal(
             outp=out_primal["x"],
             inp=(in_primal["x"], in_precomp_adj["Kyk1"],
                  in_primal["xk"], self.jacobi),
             par=(tau, self.delta)))
 
-        out_primal["v"].add_event(self.update_v(
+        out_primal["v"].add_event(
+            self.update_v(
             outp=out_primal["v"],
             inp=(in_primal["v"], in_precomp_adj["Kyk2"]),
             par=(tau,)))
@@ -1535,7 +1538,7 @@ class PDSolverTGV(PDBaseSolver):
                          [out_primal["x"],
                           self._coils,
                           self.modelgrad]))
-
+ 
     def _updateDual(self,
                     out_dual, out_adj,
                     in_primal,
@@ -1582,7 +1585,7 @@ class PDSolverTGV(PDBaseSolver):
                 par=(beta*tau, theta, self.lambd)
                 )
             )
-
+ 
         out_adj["Kyk1"].add_event(
             self._op.adjKyk1(
                 out_adj["Kyk1"],
@@ -1597,17 +1600,22 @@ class PDSolverTGV(PDBaseSolver):
                 par=[self._symgrad_op.ratio]))
 
         ynorm = (
-            self.normkrnldiff(out_dual["r"], in_dual["r"])
-            + self.normkrnldiff(out_dual["z1"], in_dual["z1"])
-            + self.normkrnldiff(out_dual["z2"], in_dual["z2"])       
+            self.normkrnldiff(out_dual["r"], in_dual["r"], 
+                        wait_for=out_dual["r"].events + in_dual["r"].events).get()
+            + self.normkrnldiff(out_dual["z1"], in_dual["z1"], 
+                        wait_for=out_dual["z1"].events + in_dual["z1"].events).get()
+            + self.normkrnldiff(out_dual["z2"], in_dual["z2"], 
+                        wait_for=out_dual["z2"].events + in_dual["z2"].events).get()      
             )**(1/2)
 
         lhs = np.sqrt(beta) * tau * (
-            self.normkrnldiff(out_adj["Kyk1"], in_precomp_adj["Kyk1"])
-            + self.normkrnldiff(out_adj["Kyk2"], in_precomp_adj["Kyk2"])
+            self.normkrnldiff(out_adj["Kyk1"], in_precomp_adj["Kyk1"], 
+              wait_for=out_adj["Kyk1"].events + in_precomp_adj["Kyk1"].events).get()
+            + self.normkrnldiff(out_adj["Kyk2"], in_precomp_adj["Kyk2"], 
+              wait_for=out_adj["Kyk2"].events + in_precomp_adj["Kyk2"].events).get()
             )**(1/2)
 
-        return lhs.get(), ynorm.get()
+        return lhs, ynorm
 
     def _calcResidual(
             self,
@@ -1618,26 +1626,26 @@ class PDSolverTGV(PDBaseSolver):
             data):
 
         primal_new = (
-            self.lambd / 2 * self.normkrnldiff(in_precomp_fwd["Ax"], data)
+            self.lambd / 2 * self.normkrnldiff(in_precomp_fwd["Ax"], data).get()
             + self.alpha * self.abskrnldiff(in_precomp_fwd["gradx"], 
-                                             in_primal["v"])
-            + self.beta * self.abskrnl(in_precomp_fwd["symgradx"])
+                                             in_primal["v"]).get()
+            + self.beta * self.abskrnl(in_precomp_fwd["symgradx"]).get()
             + 1 / (2 * self.delta) * self.normkrnlweighteddiff(in_primal["x"],
                                       in_primal["xk"],
-                                      self.jacobi)
+                                      self.jacobi).get()
                 
             )
 
         dual = (
             -self.delta / 2 * self.normkrnlweighted(in_precomp_adj["Kyk1"],
-                                                    self.jacobi)
+                                                    self.jacobi).get()
             - clarray.vdot(
                 in_primal["xk"],
                 - in_precomp_adj["Kyk1"]
-                )
-            + clarray.sum(in_precomp_adj["Kyk2"])
-            - 1 / (2 * self.lambd) * self.normkrnl(in_dual["r"])
-            - clarray.vdot(data, in_dual["r"])
+                ).get()
+            + clarray.sum(in_precomp_adj["Kyk2"]).get()
+            - 1 / (2 * self.lambd) * self.normkrnl(in_dual["r"]).get()
+            - clarray.vdot(data, in_dual["r"]).get()
             ).real
 
         if self.unknowns_H1 > 0:
@@ -1645,15 +1653,15 @@ class PDSolverTGV(PDBaseSolver):
                  self.omega / 2 * self.normkrnl(
                      in_precomp_fwd["gradx"][self.unknowns_TGV:]
                      )
-                 ).real
+                 ).get()
 
             dual += (
                 - 1 / (2 * self.omega) * self.normkrnl(
                     in_dual["z1"][self.unknowns_TGV:]
                     )
-                ).real
+                ).get()
         gap = np.abs(primal_new - dual)
-        return primal_new.get(), dual.get(), gap.get()
+        return primal_new, dual, gap
 
 
 class PDSolverStreamed(PDBaseSolver):

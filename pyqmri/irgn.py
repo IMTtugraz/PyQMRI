@@ -137,8 +137,13 @@ class IRGNOptimizer:
                 self._data_trans_axes = (1, 0, 2, 3)
                 self._grad_trans_axes = (2, 0, 1, 3, 4)
         else:
-            self._data_shape = (par["NScan"], par["NC"],
-                                par["NSlice"], par["Nproj"], par["N"])
+            if SMS:
+                self._data_shape = (par["NScan"], par["NC"],
+                                        par["packs"]*par["numofpacks"], 
+                                        par["Nproj"], par["N"])
+            else:
+                self._data_shape = (par["NScan"], par["NC"],
+                                    par["NSlice"], par["Nproj"], par["N"])
             if self._streamed:
                 self._data_trans_axes = (2, 0, 1, 3, 4)
                 self._grad_trans_axes = (2, 0, 1, 3, 4)
@@ -463,7 +468,7 @@ class IRGNOptimizer:
 
     def _calcFwdGNPartLinear(self, x):
         if self._imagespace is False:
-            b = clarray.empty(self._queue[0],
+            b = clarray.zeros(self._queue[0],
                               self._data_shape,
                               dtype=self._DTYPE)
             self._FT.FFT(b, clarray.to_device(
@@ -477,12 +482,11 @@ class IRGNOptimizer:
         x = clarray.to_device(self._queue[0], np.require(x, requirements="C"))
         grad = clarray.to_device(self._queue[0],
                                  np.zeros(x.shape+(4,), dtype=self._DTYPE))
-        grad.add_event(
-            self._grad_op.fwd(
-                grad,
-                x,
-                wait_for=grad.events +
-                x.events))
+        self._grad_op.fwd(
+            grad,
+            x,
+            wait_for=grad.events +
+            x.events).wait()
         x = x.get()
         grad = grad.get()
         sym_grad = None
@@ -491,12 +495,12 @@ class IRGNOptimizer:
             sym_grad = clarray.to_device(self._queue[0],
                                          np.zeros(x.shape+(8,),
                                                   dtype=self._DTYPE))
-            sym_grad.add_event(
-                self._symgrad_op.fwd(
-                    sym_grad,
-                    v,
-                    wait_for=sym_grad.events +
-                    v.events))
+
+            self._symgrad_op.fwd(
+                sym_grad,
+                v,
+                wait_for=sym_grad.events +
+                v.events).wait()
             sym_grad = sym_grad.get()
 
         return b, grad, sym_grad
