@@ -98,7 +98,8 @@ __kernel void grid_lut(
                 const double kwidth,
                 __global double *dcf,
                 __constant double* kerneltable,
-                const int nkernelpts )
+                const int nkernelpts,
+                const int scanoffset )
 {
     size_t k = get_global_id(2);
     size_t kDim = get_global_size(2);
@@ -178,7 +179,8 @@ __kernel void invgrid_lut(
                 const double kwidth,
                 __global double *dcf,
                 __constant double* kerneltable,
-                const int nkernelpts
+                const int nkernelpts,
+                const int scanoffset 
                 )
 {
     size_t k = get_global_id(2);

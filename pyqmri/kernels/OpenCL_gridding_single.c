@@ -90,6 +90,7 @@ __kernel void grid_lut(
                 __global float2 *s,
                 __global float2 *kpos,
                 const int gridsize,
+                const int NC,
                 const float kwidth,
                 __global float *dcf,
                 __constant float* kerneltable,
@@ -171,6 +172,7 @@ __kernel void invgrid_lut(
                 __global float2 *sg,
                 __global float2 *kpos,
                 const int gridsize,
+                const int NC,
                 const float kwidth,
                 __global float *dcf,
                 __constant float* kerneltable,
@@ -353,6 +355,7 @@ __kernel void fftshift(__global float2* ksp, __global float *check)
 
     ksp[x+dimX*y+dimX*dimY*n] = ksp[x+dimX*y+dimX*dimY*n]*check[x]*check[y];
 }
+
 
 __kernel void copy_SMS_fwdkspace(
                 __global float2 *out,

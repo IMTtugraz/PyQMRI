@@ -34,7 +34,7 @@ np.seterr(divide='ignore')
 def _choosePlatform(myargs, par):
     platforms = cl.get_platforms()
     use_GPU = False
-    par["Platform_Indx"] = 0
+    par["Platform_Indx"] = None
     if myargs.use_GPU:
         for j, platfrom in enumerate(platforms):
             if platfrom.get_devices(device_type=cl.device_type.GPU):
@@ -55,10 +55,13 @@ def _choosePlatform(myargs, par):
                       "with %i device(s) and OpenCL-version <%s>"
                       % (str(platfrom.get_info(cl.platform_info.NAME)),
                          len(platfrom.get_devices(
-                             device_type=cl.device_type.GPU)),
+                             device_type=cl.device_type.CPU)),
                          str(platfrom.get_info(cl.platform_info.VERSION))))
                 use_GPU = False
                 par["Platform_Indx"] = j
+        if not par["Platform_Indx"]:
+            raise(ValueError("No OpenCL CPU device found."))
+    par["use_GPU"] = use_GPU
     return platforms
 
 
@@ -112,6 +115,10 @@ def _setupOCL(myargs, par):
     platforms = _choosePlatform(myargs, par)
     par["ctx"] = []
     par["queue"] = []
+    if par["use_GPU"]:
+        queue_par = cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE
+    else:
+        queue_par = None
     if isinstance(myargs.devices, int):
         myargs.devices = [myargs.devices]
     if myargs.streamed:
@@ -136,8 +143,7 @@ def _setupOCL(myargs, par):
                 cl.CommandQueue(
                    tmpxtx,
                    platforms[par["Platform_Indx"]].get_devices()[device],
-                   properties=(
-                     cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE)
+                   properties=queue_par
                    )
                 )
 
@@ -475,7 +481,7 @@ def _populate_par_w_sequencepar(par,
         par["par_slices"] = par_slices
         par["overlap"] = 1
     else:
-        par["par_slices"] = datashape[2]
+        par["par_slices"] = par["NSlice"]
         par["overlap"] = 0
     par["transpXY"] = False
 
@@ -744,7 +750,7 @@ def run(reg_type='TGV',
               ('--config', str(config)),
               ('--imagespace', str(imagespace)),
               ('--sms', str(sms)),
-              ('--OCL_GPU', "True"),
+              ('--use_GPU', "True"),
               ('--devices', str(devices)),
               ('--dz', str(dz)),
               ('--weights', str(weights)),
@@ -810,7 +816,7 @@ def _parseArguments(args):
       '--sms', dest='sms', type=_str2bool,
       help="Switch to SMS reconstruction")
     argparmain.add_argument(
-      '--OCL_GPU', dest='use_GPU', type=_str2bool,
+      '--use_GPU', dest='use_GPU', type=_str2bool,
       help="Select if CPU or GPU should be used as OpenCL platform. "
            "Defaults to GPU (1). CAVE: CPU FFT not working")
     argparmain.add_argument(

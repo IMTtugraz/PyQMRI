@@ -92,6 +92,7 @@ def est_coils(data, par, file, args, off):
             par_coils["dimX"] = par["dimX"]
             par_coils["dimY"] = par["dimY"]
             par_coils["fft_dim"] = [-2, -1]
+            par_coils["use_GPU"] = par["use_GPU"]
             FFT = utils.NUFFT(par_coils)
 
             result = []
@@ -275,6 +276,7 @@ def est_coils(data, par, file, args, off):
             par_coils["ctx"] = par["ctx"]
             par_coils["queue"] = par["queue"]
             par_coils["fft_dim"] = [-2, -1]
+            par_coils["use_GPU"] = par["use_GPU"]
             FFT = utils.NUFFT(par_coils)
 
             result = []
