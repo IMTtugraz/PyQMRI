@@ -87,7 +87,6 @@ class IRGNOptimizer:
         self._reg_type = reg_type
         self._prg = []
         
-        #SR 08.02.2021 add reg params to save
         self._datacost = 0
         self._regcost = 0
         self._L2Cost = 0
@@ -419,7 +418,6 @@ class IRGNOptimizer:
             grad_H1 = grad[self.par["unknowns_TGV"]:]
         del grad
 
-        #SR: change datacost, L2Cost, regcost to self params
         self._datacost = self.irgn_par["lambd"] / 2 * np.linalg.norm(data - b)**2
         self._L2Cost = np.linalg.norm(x)/(2.0*self.irgn_par["delta"])
         if self._reg_type == 'TV':
