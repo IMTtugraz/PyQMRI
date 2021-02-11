@@ -862,7 +862,7 @@ class PDBaseSolver:
             self.real_const[idx].data, np.int32(self.unknowns),
             wait_for=(outp.events +
                       inp[0].events+inp[1].events +
-                      inp[2].events+wait_for))
+                      inp[2].events+inp[3].events + wait_for))
 
     def update_v(self, outp, inp, par=None, idx=0, idxq=0,
                  bound_cond=0, wait_for=None):

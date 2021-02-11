@@ -476,7 +476,7 @@ def _populate_par_w_sequencepar(par,
         par["par_slices"] = par_slices
         par["overlap"] = 1
     else:
-        par["par_slices"] = datashape[2]
+        par["par_slices"] = par["NSlice"]
         par["overlap"] = 0
     par["transpXY"] = False
 
