@@ -193,8 +193,7 @@ class Model(BaseModel):
             test_M0 = self.b0
         else:
             test_M0 = args[0][0]
-        #ADC = np.ones((self.NSlice, self.dimY, self.dimX), dtype=DTYPE)
-        ADC = np.ones((self.NSlice, self.dimX, self.dimY), dtype = DTYPE)   # SR
+        ADC = 1 * np.ones(args[0].shape[-3:], dtype = self._DTYPE)
 
         x = np.array((test_M0, ADC))
         self.guess = x
