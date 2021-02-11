@@ -971,7 +971,8 @@ class OperatorKspaceSMS(Operator):
                 inp[2].data, np.int32(self.NC),
                 np.int32(self.NScan),
                 np.int32(self.unknowns),
-                wait_for=(self._tmp_result.events + inp[0].events
+                wait_for=(self._tmp_result.events + inp[0].events +
+                          inp[1].events + inp[2].events
                           + wait_for)))
         return self.NUFFT.FFT(
             out,
@@ -1013,7 +1014,8 @@ class OperatorKspaceSMS(Operator):
                 inp[2].data, np.int32(self.NC),
                 np.int32(self.NScan),
                 np.int32(self.unknowns),
-                wait_for=(self._tmp_result.events + inp[0].events
+                wait_for=(self._tmp_result.events + inp[0].events +
+                          inp[1].events + inp[2].events
                           + wait_for)))
         tmp_sino = clarray.zeros(
             self.queue,
@@ -1744,12 +1746,6 @@ class OperatorKspaceSMSStreamed(Operator):
 
         for j in range(self.num_dev):
             for i in range(2):
-                self._tmp_result.append(
-                    clarray.zeros(
-                        self.queue[4*j+i],
-                        (self.par_slices+self._overlap, self.NScan,
-                         self.NC, self.dimY, self.dimX),
-                        self.DTYPE, "C"))
                 self.NUFFT.append(
                     CLnuFFT.create(self.ctx[j],
                                    self.queue[4*j+i], par,

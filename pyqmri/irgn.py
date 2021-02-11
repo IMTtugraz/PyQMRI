@@ -401,8 +401,9 @@ class IRGNOptimizer:
                 [[x, self._coils, self._modelgrad]])
         else:
             tmpx = clarray.to_device(self._queue[0], x)
-            res = data - b + self._MRI_operator.fwdoop(
-                [tmpx, self._coils, self._modelgrad]).get()
+            tmpfwd = self._MRI_operator.fwdoop(
+                [tmpx, self._coils, self._modelgrad]).wait()
+            res = data - b + tmpfwd.get()
             del tmpx
         tmpres = self._pdop.run(x, res, iters)
         for key in tmpres:
@@ -482,12 +483,11 @@ class IRGNOptimizer:
         x = clarray.to_device(self._queue[0], np.require(x, requirements="C"))
         grad = clarray.to_device(self._queue[0],
                                  np.zeros(x.shape+(4,), dtype=self._DTYPE))
-        grad.add_event(
-            self._grad_op.fwd(
-                grad,
-                x,
-                wait_for=grad.events +
-                x.events))
+        self._grad_op.fwd(
+            grad,
+            x,
+            wait_for=grad.events +
+            x.events).wait()
         x = x.get()
         grad = grad.get()
         sym_grad = None
@@ -496,12 +496,12 @@ class IRGNOptimizer:
             sym_grad = clarray.to_device(self._queue[0],
                                          np.zeros(x.shape+(8,),
                                                   dtype=self._DTYPE))
-            sym_grad.add_event(
-                self._symgrad_op.fwd(
-                    sym_grad,
-                    v,
-                    wait_for=sym_grad.events +
-                    v.events))
+
+            self._symgrad_op.fwd(
+                sym_grad,
+                v,
+                wait_for=sym_grad.events +
+                v.events).wait()
             sym_grad = sym_grad.get()
 
         return b, grad, sym_grad
