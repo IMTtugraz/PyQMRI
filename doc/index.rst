@@ -38,13 +38,15 @@ need to be deleted prior to reconstruction. This invokes a new conputation of co
 matching the data within the fitting.
 
 
-Limitations and known Issues:
+Changelog:
 ------------------------------
-Currently runs only on GPUs due to having only basic CPU support for the clfft_.
+v1.1 Added the first iteration of CPU support. Tested on Intel CPUS using pocl_ on Ubuntu and Arch Linux.
 
 Citation:
 ----------
-Please cite "Oliver Maier, Matthias Schloegl, Kristian Bredies, and Rudolf Stollberger; 3D Model-Based Parameter Quantification on Resource Constrained Hardware using Double-Buffering. Proceedings of the 27th meeting of the ISMRM, 2019, Montreal, Canada" if using the software or parts of it, specifically the PyOpenCL based NUFFT, in your work.
+If using the toolbox, please consider citing: "Maier et al., (2020). PyQMRI: An accelerated Python based Quantitative MRI toolbox. Journal of Open Source Software, 5(56), 2727, https://doi.org/10.21105/joss.02727"
+
+Also consider citing "Oliver Maier, Matthias Schloegl, Kristian Bredies, and Rudolf Stollberger; 3D Model-Based Parameter Quantification on Resource Constrained Hardware using Double-Buffering. Proceedings of the 27th meeting of the ISMRM, 2019, Montreal, Canada" if using parts of the software, specifically the PyOpenCL based NUFFT and the double buffering capabilities, in your work.
 
 Older Releases:
 ----------------
@@ -61,3 +63,4 @@ at `[v0.1.0] <(https://github.com/IMTtugraz/PyQMRI/tree/v.0.1.0)>`_
 .. _zenodo: https://doi.org/10.5281/zenodo.1410918
 .. _clfft: https://github.com/clMathLibraries/clFFT
 .. _GoogleColab: https://colab.research.google.com/drive/19BfSJmDPinZDY0m1sMAhETutIiJG3b33?usp=sharing
+.. _pocl : http://portablecl.org/

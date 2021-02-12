@@ -18,3 +18,4 @@ A default config file will be generated if no path to a config file is passed as
 - delta_inc: Increase factor for delta after each GN step
 - gamma_dec: Decrease factor for gamma after each GN step
 - omega_dec: Decrease factor for omega after each GN step
+- beta: The initial ratio between primal and dual step size of the PD algorithm. Will be adapted during the linesearch.
