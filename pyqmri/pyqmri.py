@@ -55,7 +55,7 @@ def _choosePlatform(myargs, par):
                          str(platfrom.get_info(cl.platform_info.VERSION))))
                 use_GPU = False
                 par["Platform_Indx"] = j
-        if not par["Platform_Indx"]:
+        if par["Platform_Indx"] is None:
             raise(ValueError("No OpenCL CPU device found."))
     par["use_GPU"] = use_GPU
     return platforms
