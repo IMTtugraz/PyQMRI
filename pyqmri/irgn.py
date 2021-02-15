@@ -371,7 +371,7 @@ class IRGNOptimizer:
 # New .hdf5 save files ########################################################
 ###############################################################################
     def _saveToFile(self, myit, result):
-        f = h5py.File(self.par["outdir"]+"output_" + self.par["fname"] + ".h5",
+        f = h5py.File(self.par["outdir"]+"output_" + self.par["fname"],
                       "a")
         if self._reg_type == 'TGV':
             f.create_dataset("tgv_result_iter_"+str(myit), result.shape,
