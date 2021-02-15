@@ -192,7 +192,7 @@ class OperatorKspaceRadial(unittest.TestCase):
         outfwd_GPU.add_event(self.op_GPU.fwd(outfwd_GPU, [inpfwd_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
         outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
         
-        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=1e-10)
+        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=1e-8)
 
         
     def test_CPU_vs_GPU_adj(self):
@@ -206,7 +206,7 @@ class OperatorKspaceRadial(unittest.TestCase):
         outadj_GPU.add_event(self.op_GPU.adj(outadj_GPU, [inpadj_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
         outadj_GPU = outadj_GPU.map_to_host(wait_for=outadj_GPU.events)     
         
-        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=1e-10)
+        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=1e-8)
 
 class OperatorKspaceCartesian(unittest.TestCase):
     def setUp(self):
@@ -351,7 +351,7 @@ class OperatorKspaceCartesian(unittest.TestCase):
         outfwd_GPU.add_event(self.op_GPU.fwd(outfwd_GPU, [inpfwd_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
         outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
         
-        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=1e-10)
+        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=1e-8)
 
         
     def test_CPU_vs_GPU_adj(self):
@@ -365,7 +365,7 @@ class OperatorKspaceCartesian(unittest.TestCase):
         outadj_GPU.add_event(self.op_GPU.adj(outadj_GPU, [inpadj_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
         outadj_GPU = outadj_GPU.map_to_host(wait_for=outadj_GPU.events)     
         
-        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=1e-10)
+        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=1e-8)
         
 class OperatorKspaceSMSCartesian(unittest.TestCase):
     def setUp(self):
@@ -518,7 +518,7 @@ class OperatorKspaceSMSCartesian(unittest.TestCase):
         outfwd_GPU.add_event(self.op_GPU.fwd(outfwd_GPU, [inpfwd_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
         outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
         
-        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=1e-10)
+        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=1e-8)
 
         
     def test_CPU_vs_GPU_adj(self):
@@ -532,7 +532,7 @@ class OperatorKspaceSMSCartesian(unittest.TestCase):
         outadj_GPU.add_event(self.op_GPU.adj(outadj_GPU, [inpadj_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
         outadj_GPU = outadj_GPU.map_to_host(wait_for=outadj_GPU.events)     
         
-        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=1e-10)
+        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=1e-8)
         
 
 
@@ -665,7 +665,7 @@ class OperatorImageSpace(unittest.TestCase):
         outfwd_GPU.add_event(self.op_GPU.fwd(outfwd_GPU, [inpfwd_GPU, [], self.grad_buf_GPU]))
         outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
         
-        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=1e-10)
+        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=1e-8)
 
         
     def test_CPU_vs_GPU_adj(self):
@@ -679,5 +679,5 @@ class OperatorImageSpace(unittest.TestCase):
         outadj_GPU.add_event(self.op_GPU.adj(outadj_GPU, [inpadj_GPU, [], self.grad_buf_GPU]))
         outadj_GPU = outadj_GPU.map_to_host(wait_for=outadj_GPU.events)     
         
-        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=1e-10)
+        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=1e-8)
         
