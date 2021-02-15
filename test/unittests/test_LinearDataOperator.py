@@ -86,24 +86,24 @@ class OperatorKspaceRadial(unittest.TestCase):
             DTYPE_real=DTYPE_real)
 
         self.opinfwd = np.random.randn(par["unknowns"], par["NSlice"],
-                                       par["dimY"], par["dimX"]) +\
+                                        par["dimY"], par["dimX"]) +\
             1j * np.random.randn(par["unknowns"], par["NSlice"],
-                                 par["dimY"], par["dimX"])
+                                  par["dimY"], par["dimX"])
         self.opinadj = np.random.randn(par["NScan"], par["NC"], par["NSlice"],
-                                       par["Nproj"], par["N"]) +\
+                                        par["Nproj"], par["N"]) +\
             1j * np.random.randn(par["NScan"], par["NC"], par["NSlice"],
-                                 par["Nproj"], par["N"])
+                                  par["Nproj"], par["N"])
         self.model_gradient = np.random.randn(par["unknowns"], par["NScan"],
                                               par["NSlice"],
                                               par["dimY"], par["dimX"]) + \
             1j * np.random.randn(par["unknowns"], par["NScan"],
-                                 par["NSlice"],
-                                 par["dimY"], par["dimX"])
+                                  par["NSlice"],
+                                  par["dimY"], par["dimX"])
 
         self.C = np.random.randn(par["NC"], par["NSlice"],
-                                 par["dimY"], par["dimX"]) + \
+                                  par["dimY"], par["dimX"]) + \
             1j * np.random.randn(par["NC"], par["NSlice"],
-                                 par["dimY"], par["dimX"])
+                                  par["dimY"], par["dimX"])
 
         self.model_gradient = self.model_gradient.astype(DTYPE)
         self.C = self.C.astype(DTYPE)
@@ -189,24 +189,24 @@ class OperatorKspaceCartesian(unittest.TestCase):
             DTYPE_real=DTYPE_real, trafo=False)
 
         self.opinfwd = np.random.randn(par["unknowns"], par["NSlice"],
-                                       par["dimY"], par["dimX"]) +\
+                                        par["dimY"], par["dimX"]) +\
             1j * np.random.randn(par["unknowns"], par["NSlice"],
-                                 par["dimY"], par["dimX"])
+                                  par["dimY"], par["dimX"])
         self.opinadj = np.random.randn(par["NScan"], par["NC"], par["NSlice"],
-                                       par["dimY"], par["dimX"]) +\
+                                        par["dimY"], par["dimX"]) +\
             1j * np.random.randn(par["NScan"], par["NC"], par["NSlice"],
-                                 par["dimY"], par["dimX"])
+                                  par["dimY"], par["dimX"])
 
         self.model_gradient = np.random.randn(par["unknowns"], par["NScan"],
                                               par["NSlice"],
                                               par["dimY"], par["dimX"]) + \
             1j * np.random.randn(par["unknowns"], par["NScan"],
-                                 par["NSlice"],
-                                 par["dimY"], par["dimX"])
+                                  par["NSlice"],
+                                  par["dimY"], par["dimX"])
         self.C = np.random.randn(par["NC"], par["NSlice"],
-                                 par["dimY"], par["dimX"]) + \
+                                  par["dimY"], par["dimX"]) + \
             1j * np.random.randn(par["NC"], par["NSlice"],
-                                 par["dimY"], par["dimX"])
+                                  par["dimY"], par["dimX"])
 
         self.model_gradient = self.model_gradient.astype(DTYPE)
         self.C = self.C.astype(DTYPE)
@@ -297,24 +297,24 @@ class OperatorKspaceSMSCartesian(unittest.TestCase):
             DTYPE_real=DTYPE_real)
 
         self.opinfwd = np.random.randn(par["unknowns"], par["NSlice"],
-                                       par["dimY"], par["dimX"]) +\
+                                        par["dimY"], par["dimX"]) +\
             1j * np.random.randn(par["unknowns"], par["NSlice"],
-                                 par["dimY"], par["dimX"])
+                                  par["dimY"], par["dimX"])
         self.opinadj = np.random.randn(par["NScan"], par["NC"], par["packs"],
-                                       par["dimY"], par["dimX"]) +\
+                                        par["dimY"], par["dimX"]) +\
             1j * np.random.randn(par["NScan"], par["NC"], par["packs"],
-                                 par["dimY"], par["dimX"])
+                                  par["dimY"], par["dimX"])
 
         self.model_gradient = np.random.randn(par["NSlice"], par["unknowns"],
                                               par["NScan"],
                                               par["dimY"], par["dimX"]) + \
             1j * np.random.randn(par["NSlice"], par["unknowns"],
-                                 par["NScan"],
-                                 par["dimY"], par["dimX"])
+                                  par["NScan"],
+                                  par["dimY"], par["dimX"])
         self.C = np.random.randn(par["NC"], par["NSlice"],
-                                 par["dimY"], par["dimX"]) + \
+                                  par["dimY"], par["dimX"]) + \
             1j * np.random.randn(par["NC"], par["NSlice"],
-                                 par["dimY"], par["dimX"])
+                                  par["dimY"], par["dimX"])
 
         self.model_gradient = self.model_gradient.astype(DTYPE)
         self.C = self.C.astype(DTYPE)
@@ -369,7 +369,7 @@ class OperatorKspaceSMSCartesian(unittest.TestCase):
 class OperatorImageSpace(unittest.TestCase):
     def setUp(self):
         parser = tmpArgs()
-        parser.streamed = True
+        parser.streamed = False
         parser.devices = -1
         parser.use_GPU = True
 
@@ -396,19 +396,19 @@ class OperatorImageSpace(unittest.TestCase):
             DTYPE=DTYPE,
             DTYPE_real=DTYPE_real)
         self.opinfwd = np.random.randn(par["unknowns"], par["NSlice"],
-                                       par["dimY"], par["dimX"]) +\
+                                        par["dimY"], par["dimX"]) +\
             1j * np.random.randn(par["unknowns"], par["NSlice"],
-                                 par["dimY"], par["dimX"])
+                                  par["dimY"], par["dimX"])
         self.opinadj = np.random.randn(par["NScan"], 1, par["NSlice"],
-                                       par["dimY"], par["dimX"]) +\
+                                        par["dimY"], par["dimX"]) +\
             1j * np.random.randn(par["NScan"], 1, par["NSlice"],
-                                 par["dimY"], par["dimX"])
+                                  par["dimY"], par["dimX"])
         self.model_gradient = np.random.randn(par["unknowns"], par["NScan"],
                                               par["NSlice"],
                                               par["dimY"], par["dimX"]) + \
             1j * np.random.randn(par["unknowns"], par["NScan"],
-                                 par["NSlice"],
-                                 par["dimY"], par["dimX"])
+                                  par["NSlice"],
+                                  par["dimY"], par["dimX"])
 
         self.model_gradient = self.model_gradient.astype(DTYPE)
         self.opinfwd = self.opinfwd.astype(DTYPE)

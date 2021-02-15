@@ -480,7 +480,7 @@ class Stream:
 
     def _calcnormreverse(self, rhs, lhs, idev, ifun, odd=0):
         if self.lhs[ifun] is False:
-            rhs += self.normkrnldiff[2*idev+odd](
+            rhs += self.normkrnldiff[4*idev+odd](
                 self.outp[
                     ifun][
                         2*idev+odd][self.overlap:, ...],
@@ -489,7 +489,7 @@ class Stream:
                         2*idev+odd][0][self.overlap:, ...]        
                 ).get()
         else:
-            lhs += self.normkrnldiff[2*idev+odd](
+            lhs += self.normkrnldiff[4*idev+odd](
                 self.outp[
                     ifun][
                         2*idev+odd][self.overlap:, ...],
@@ -501,7 +501,7 @@ class Stream:
 
     def _calcnormforward(self, rhs, lhs, idev, ifun, odd=0):
         if self.lhs[ifun] is False:
-            rhs += self.normkrnldiff[2*idev+odd](
+            rhs += self.normkrnldiff[4*idev+odd](
                 self.outp[
                     ifun][
                         2*idev+odd][:self.slices, ...] ,
@@ -510,7 +510,7 @@ class Stream:
                         2*idev+odd][0][:self.slices, ...]
                 ).get()
         else:
-            lhs += self.normkrnldiff[2*idev+odd](
+            lhs += self.normkrnldiff[4*idev+odd](
                 self.outp[
                     ifun][
                         2*idev+odd][:self.slices, ...],
