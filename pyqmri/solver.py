@@ -1213,7 +1213,6 @@ class PDSolverTV(PDBaseSolver):
             dual_vars["z1"])
         tmp_results_forward["Ax"] = clarray.zeros_like(data)
         tmp_results_forward_new["Ax"] = clarray.zeros_like(data)
-        cl.enqueue_barrier(self._queue[0])
 
         return (primal_vars,
                 primal_vars_new,
@@ -1239,7 +1238,6 @@ class PDSolverTV(PDBaseSolver):
             out_fwd["Ax"], [in_primal["x"], self._coils, self.modelgrad]))
         out_fwd["gradx"].add_event(
             self._grad_op.fwd(out_fwd["gradx"], in_primal["x"]))
-        cl.enqueue_barrier(self._queue[0])
 
     def _updatePrimal(self,
                       out_primal, out_fwd,
@@ -1260,7 +1258,6 @@ class PDSolverTV(PDBaseSolver):
                          [out_primal["x"],
                           self._coils,
                           self.modelgrad]))
-        cl.enqueue_barrier(self._queue[0])
 
     def _updateDual(self,
                     out_dual, out_adj,
@@ -1306,8 +1303,6 @@ class PDSolverTV(PDBaseSolver):
                  self._coils,
                  self.modelgrad,
                  self._grad_op.ratio]))
-        
-        cl.enqueue_barrier(self._queue[0])
 
         ynorm = (
             (
@@ -1364,7 +1359,6 @@ class PDSolverTV(PDBaseSolver):
                     )
                 ).real
         gap = np.abs(primal_new - dual)
-        cl.enqueue_barrier(self._queue[0])
         return primal_new.get(), dual.get(), gap.get()
 
 

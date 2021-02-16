@@ -195,7 +195,7 @@ class GradientTest(unittest.TestCase):
         outfwd_GPU.add_event(self.grad_GPU.fwd(outfwd_GPU, inpfwd_GPU))
         outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
         
-        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=1e-10)
+        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=1e-8)
         
     def test_CPU_vs_GPU_adj(self):
         inpadj_CPU = clarray.to_device(self.queue, self.divin)
@@ -208,7 +208,7 @@ class GradientTest(unittest.TestCase):
         outadj_GPU.add_event(self.grad_GPU.adj(outadj_GPU, inpadj_GPU))
         outadj_GPU = outadj_GPU.map_to_host(wait_for=outadj_GPU.events)     
         
-        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=1e-10)
+        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=1e-8)
 
 if __name__ == '__main__':
     unittest.main()

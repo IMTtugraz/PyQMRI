@@ -56,7 +56,7 @@ def _choosePlatform(myargs, par):
                          str(platfrom.get_info(cl.platform_info.VERSION))))
                 use_GPU = False
                 par["Platform_Indx"] = j
-        if not par["Platform_Indx"]:
+        if par["Platform_Indx"] is None:
             raise(ValueError("No OpenCL CPU device found."))
     par["use_GPU"] = use_GPU
     return platforms
@@ -318,6 +318,9 @@ def _readInput(myargs, par):
         file = myargs.file
     name = os.path.normpath(file)
     par["fname"] = name.split(os.sep)[-1]
+    
+    if not par["fname"].endswith((('.h5'), ('.hdf5'))):
+        par["fname"] += '.h5'
 
     if myargs.outdir == '':
         outdir = os.sep.join(name.split(os.sep)[:-1]) + os.sep + \
@@ -326,7 +329,7 @@ def _readInput(myargs, par):
             time.strftime("%Y-%m-%d  %H-%M-%S") + os.sep
     else:
         outdir = myargs.outdir + os.sep + "PyQMRI_out" + \
-            os.sep + myargs.sig_model + os.sep + par["fname"] + os.sep + \
+            os.sep + myargs.sig_model + os.sep + \
             time.strftime("%Y-%m-%d  %H-%M-%S") + os.sep
     if not os.path.exists(outdir):
         os.makedirs(outdir)

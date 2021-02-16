@@ -166,7 +166,7 @@ class Stream:
                 for k in range(len(inp_shape[j])):
                     if not len(inp_shape[j][k]) == 0:
                         self.inp[j][i].append(
-                            clarray.empty(
+                            clarray.zeros(
                                 self.queue[4*int(i/2)],
                                 ((block_size, )+inp_shape[j][k][1:]),
                                 dtype=self.dtype))
@@ -177,7 +177,7 @@ class Stream:
             self.outp.append([])
             for i in range(2*self.num_dev):
                 self.outp[j].append(
-                    clarray.empty(
+                    clarray.zeros(
                         self.queue[4*int(i/2)],
                         ((block_size, )+outp_shape[j][1:]),
                         dtype=self.dtype))
