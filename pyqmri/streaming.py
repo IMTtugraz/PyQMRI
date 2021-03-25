@@ -166,7 +166,7 @@ class Stream:
                 for k in range(len(inp_shape[j])):
                     if not len(inp_shape[j][k]) == 0:
                         self.inp[j][i].append(
-                            clarray.empty(
+                            clarray.zeros(
                                 self.queue[4*int(i/2)],
                                 ((block_size, )+inp_shape[j][k][1:]),
                                 dtype=self.dtype))
@@ -177,7 +177,7 @@ class Stream:
             self.outp.append([])
             for i in range(2*self.num_dev):
                 self.outp[j].append(
-                    clarray.empty(
+                    clarray.zeros(
                         self.queue[4*int(i/2)],
                         ((block_size, )+outp_shape[j][1:]),
                         dtype=self.dtype))
@@ -480,7 +480,7 @@ class Stream:
 
     def _calcnormreverse(self, rhs, lhs, idev, ifun, odd=0):
         if self.lhs[ifun] is False:
-            rhs += self.normkrnldiff[2*idev+odd](
+            rhs += self.normkrnldiff[4*idev+odd](
                 self.outp[
                     ifun][
                         2*idev+odd][self.overlap:, ...],
@@ -489,7 +489,7 @@ class Stream:
                         2*idev+odd][0][self.overlap:, ...]        
                 ).get()
         else:
-            lhs += self.normkrnldiff[2*idev+odd](
+            lhs += self.normkrnldiff[4*idev+odd](
                 self.outp[
                     ifun][
                         2*idev+odd][self.overlap:, ...],
@@ -501,7 +501,7 @@ class Stream:
 
     def _calcnormforward(self, rhs, lhs, idev, ifun, odd=0):
         if self.lhs[ifun] is False:
-            rhs += self.normkrnldiff[2*idev+odd](
+            rhs += self.normkrnldiff[4*idev+odd](
                 self.outp[
                     ifun][
                         2*idev+odd][:self.slices, ...] ,
@@ -510,7 +510,7 @@ class Stream:
                         2*idev+odd][0][:self.slices, ...]
                 ).get()
         else:
-            lhs += self.normkrnldiff[2*idev+odd](
+            lhs += self.normkrnldiff[4*idev+odd](
                 self.outp[
                     ifun][
                         2*idev+odd][:self.slices, ...],

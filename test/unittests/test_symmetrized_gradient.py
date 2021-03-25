@@ -100,10 +100,10 @@ class SymmetrizedGradientTest(unittest.TestCase):
 
         symgrad = np.stack((gradx[..., 0],
                             grady[..., 1],
-                            gradz[..., 2]/self.dz,
+                            gradz[..., 2]*self.dz,
                             1/2 * (gradx[..., 1] + grady[..., 0]),
-                            1/2 * (gradx[..., 2] + gradz[..., 0]/self.dz),
-                            1/2 * (grady[..., 2] + gradz[..., 1]/self.dz)),
+                            1/2 * (gradx[..., 2] + gradz[..., 0]*self.dz),
+                            1/2 * (grady[..., 2] + gradz[..., 1]*self.dz)),
                            axis=-1)
         symgrad *= self.weights[:, None, None, None, None]
 
@@ -130,15 +130,15 @@ class SymmetrizedGradientTest(unittest.TestCase):
 
         symgrad = np.stack((gradx[..., 0],
                             grady[..., 1],
-                            gradz[..., 2]/self.dz,
+                            gradz[..., 2]*self.dz,
                             1/2 * (gradx[..., 1] + grady[..., 0]),
-                            1/2 * (gradx[..., 2] + gradz[..., 0]/self.dz),
-                            1/2 * (grady[..., 2] + gradz[..., 1]/self.dz)),
+                            1/2 * (gradx[..., 2] + gradz[..., 0]*self.dz),
+                            1/2 * (grady[..., 2] + gradz[..., 1]*self.dz)),
                            axis=-1)
         symgrad *= self.weights[:, None, None, None, None]
         inp = clarray.to_device(self.queue, self.symgradin)
         outp = clarray.to_device(self.queue, self.symdivin)
-        self.symgrad.fwd(outp, inp)
+        outp.add_event(self.symgrad.fwd(outp, inp))
         outp = outp.get()
 
         np.testing.assert_allclose(outp[..., :6], symgrad)
@@ -171,8 +171,8 @@ class SymmetrizedGradientTest(unittest.TestCase):
         outgrad = clarray.zeros_like(inpdiv)
         outdiv = clarray.zeros_like(inpgrad)
 
-        self.symgrad.fwd(outgrad, inpgrad)
-        self.symgrad.adj(outdiv, inpdiv)
+        outgrad.add_event(self.symgrad.fwd(outgrad, inpgrad))
+        outdiv.add_event(self.symgrad.adj(outdiv, inpdiv))
 
         outgrad = outgrad.get()
         outdiv = outdiv.get()
@@ -252,10 +252,10 @@ class SymmetrizedGradientStreamedTest(unittest.TestCase):
 
         symgrad = np.stack((gradx[..., 0],
                             grady[..., 1],
-                            gradz[..., 2]/self.dz,
+                            gradz[..., 2]*self.dz,
                             1/2 * (gradx[..., 1] + grady[..., 0]),
-                            1/2 * (gradx[..., 2] + gradz[..., 0]/self.dz),
-                            1/2 * (grady[..., 2] + gradz[..., 1]/self.dz)),
+                            1/2 * (gradx[..., 2] + gradz[..., 0]*self.dz),
+                            1/2 * (grady[..., 2] + gradz[..., 1]*self.dz)),
                            axis=-1)
         symgrad *= self.weights[None, :, None, None, None]
         outp = self.symgrad.fwdoop([[self.symgradin]])
@@ -279,10 +279,10 @@ class SymmetrizedGradientStreamedTest(unittest.TestCase):
 
         symgrad = np.stack((gradx[..., 0],
                             grady[..., 1],
-                            gradz[..., 2]/self.dz,
+                            gradz[..., 2]*self.dz,
                             1/2 * (gradx[..., 1] + grady[..., 0]),
-                            1/2 * (gradx[..., 2] + gradz[..., 0]/self.dz),
-                            1/2 * (grady[..., 2] + gradz[..., 1]/self.dz)),
+                            1/2 * (gradx[..., 2] + gradz[..., 0]*self.dz),
+                            1/2 * (grady[..., 2] + gradz[..., 1]*self.dz)),
                            axis=-1)
         symgrad *= self.weights[None, :, None, None, None]
         outp = np.zeros_like(self.symdivin)

@@ -501,15 +501,15 @@ class OperatorImagespace(Operator):
             wait_for = kwargs["wait_for"]
         else:
             wait_for = []
-        tmp_result = clarray.empty(
+        tmp_result = clarray.zeros(
             self.queue, (self.NScan, self.NSlice, self.dimY, self.dimX),
             self.DTYPE, "C")
-        tmp_result.add_event(self.prg.operator_fwd_imagespace(
+        self.prg.operator_fwd_imagespace(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
             tmp_result.data, inp[0].data, inp[2].data,
             np.int32(self.NScan),
             np.int32(self.unknowns),
-            wait_for=inp[0].events + wait_for))
+            wait_for=inp[0].events + wait_for).wait()
         return tmp_result
 
     def adj(self, out, inp, **kwargs):
@@ -569,7 +569,7 @@ class OperatorImagespace(Operator):
             wait_for = kwargs["wait_for"]
         else:
             wait_for = []
-        out = clarray.empty(
+        out = clarray.zeros(
             self.queue, (self.unknowns, self.NSlice, self.dimY, self.dimX),
             dtype=self.DTYPE)
         self.prg.operator_ad_imagespace(
@@ -657,7 +657,7 @@ class OperatorKspace(Operator):
         super().__init__(par, prg, DTYPE, DTYPE_real)
         self.queue = self.queue[0]
         self.ctx = self.ctx[0]
-        self._tmp_result = clarray.empty(
+        self._tmp_result = clarray.zeros(
             self.queue, (self.NScan, self.NC,
                          self.NSlice, self.dimY, self.dimX),
             self.DTYPE, "C")
@@ -712,8 +712,7 @@ class OperatorKspace(Operator):
         return self.NUFFT.FFT(
             out,
             self._tmp_result,
-            wait_for=wait_for +
-            self._tmp_result.events)
+            wait_for=wait_for + self._tmp_result.events + out.events)
 
     def fwdoop(self, inp, **kwargs):
         """Forward operator application out-of-place.
@@ -752,12 +751,12 @@ class OperatorKspace(Operator):
                 np.int32(self.unknowns),
                 wait_for=(self._tmp_result.events + inp[0].events
                           + wait_for)))
-        tmp_sino = clarray.empty(
+        tmp_sino = clarray.zeros(
             self.queue,
             (self.NScan, self.NC, self.NSlice, self.Nproj, self.N),
             self.DTYPE, "C")
-        tmp_sino.add_event(
-            self.NUFFT.FFT(tmp_sino, self._tmp_result))
+        self.NUFFT.FFT(tmp_sino, self._tmp_result, 
+                       wait_for=tmp_sino.events).wait()
         return tmp_sino
 
     def adj(self, out, inp, **kwargs):
@@ -826,7 +825,7 @@ class OperatorKspace(Operator):
             self.NUFFT.FFTH(
                 self._tmp_result, inp[0], wait_for=(wait_for
                                                     + inp[0].events)))
-        out = clarray.empty(
+        out = clarray.zeros(
             self.queue, (self.unknowns, self.NSlice, self.dimY, self.dimX),
             dtype=self.DTYPE)
         self.prg.operator_ad(
@@ -921,7 +920,7 @@ class OperatorKspaceSMS(Operator):
         self.queue = self.queue[0]
         self.ctx = self.ctx[0]
         self.packs = par["packs"]*par["numofpacks"]
-        self._tmp_result = clarray.empty(
+        self._tmp_result = clarray.zeros(
             self.queue, (self.NScan, self.NC,
                          self.NSlice, self.dimY, self.dimX),
             self.DTYPE, "C")
@@ -972,7 +971,8 @@ class OperatorKspaceSMS(Operator):
                 inp[2].data, np.int32(self.NC),
                 np.int32(self.NScan),
                 np.int32(self.unknowns),
-                wait_for=(self._tmp_result.events + inp[0].events
+                wait_for=(self._tmp_result.events + inp[0].events +
+                          inp[1].events + inp[2].events
                           + wait_for)))
         return self.NUFFT.FFT(
             out,
@@ -1014,14 +1014,15 @@ class OperatorKspaceSMS(Operator):
                 inp[2].data, np.int32(self.NC),
                 np.int32(self.NScan),
                 np.int32(self.unknowns),
-                wait_for=(self._tmp_result.events + inp[0].events
+                wait_for=(self._tmp_result.events + inp[0].events +
+                          inp[1].events + inp[2].events
                           + wait_for)))
-        tmp_sino = clarray.empty(
+        tmp_sino = clarray.zeros(
             self.queue,
             (self.NScan, self.NC, self.packs, self.Nproj, self.N),
             self.DTYPE, "C")
-        tmp_sino.add_event(
-            self.NUFFT.FFT(tmp_sino, self._tmp_result))
+        
+        self.NUFFT.FFT(tmp_sino, self._tmp_result).wait()
         return tmp_sino
 
     def adj(self, out, inp, **kwargs):
@@ -1090,7 +1091,7 @@ class OperatorKspaceSMS(Operator):
             self.NUFFT.FFTH(
                 self._tmp_result, inp[0], wait_for=(wait_for
                                                     + inp[0].events)))
-        out = clarray.empty(
+        out = clarray.zeros(
             self.queue, (self.unknowns, self.NSlice, self.dimY, self.dimX),
             dtype=self.DTYPE)
         self.prg.operator_ad(
@@ -1446,7 +1447,7 @@ class OperatorKspaceStreamed(Operator):
         for j in range(self.num_dev):
             for i in range(2):
                 self._tmp_result.append(
-                    clarray.empty(
+                    clarray.zeros(
                         self.queue[4*j+i],
                         (self.par_slices+self._overlap, self.NScan,
                          self.NC, self.dimY, self.dimX),
@@ -1745,12 +1746,6 @@ class OperatorKspaceSMSStreamed(Operator):
 
         for j in range(self.num_dev):
             for i in range(2):
-                self._tmp_result.append(
-                    clarray.empty(
-                        self.queue[4*j+i],
-                        (self.par_slices+self._overlap, self.NScan,
-                         self.NC, self.dimY, self.dimX),
-                        self.DTYPE, "C"))
                 self.NUFFT.append(
                     CLnuFFT.create(self.ctx[j],
                                    self.queue[4*j+i], par,
@@ -2170,15 +2165,15 @@ class OperatorFiniteGradient(Operator):
             wait_for = kwargs["wait_for"]
         else:
             wait_for = []
-        tmp_result = clarray.empty(
+        tmp_result = clarray.zeros(
             self.queue, (self.unknowns,
                          self.NSlice, self.dimY, self.dimX, 4),
             self.DTYPE, "C")
-        tmp_result.add_event(self.prg.gradient(
+        self.prg.gradient(
             self.queue, inp.shape[1:], None, tmp_result.data, inp.data,
             np.int32(self.unknowns),
             self.ratio.data, self.DTYPE_real(self._dz),
-            wait_for=tmp_result.events + inp.events + wait_for))
+            wait_for=tmp_result.events + inp.events + wait_for).wait()
         return tmp_result
 
     def adj(self, out, inp, **kwargs):
@@ -2237,15 +2232,15 @@ class OperatorFiniteGradient(Operator):
             wait_for = kwargs["wait_for"]
         else:
             wait_for = []
-        tmp_result = clarray.empty(
+        tmp_result = clarray.zeros(
             self.queue, (self.unknowns, self.NSlice, self.dimY, self.dimX),
             self.DTYPE, "C")
-        tmp_result.add_event(self.prg.divergence(
+        self.prg.divergence(
             self.queue, tmp_result.shape[1:], None, tmp_result.data, inp.data,
             np.int32(self.unknowns),
             self.ratio.data,
             self.DTYPE_real(self._dz),
-            wait_for=tmp_result.events + inp.events + wait_for))
+            wait_for=tmp_result.events + inp.events + wait_for).wait()
         return tmp_result
 
     def updateRatio(self, inp):
@@ -2410,16 +2405,16 @@ class OperatorFiniteSymGradient(Operator):
             wait_for = kwargs["wait_for"]
         else:
             wait_for = []
-        tmp_result = clarray.empty(
+        tmp_result = clarray.zeros(
             self.queue, (self.unknowns,
                          self.NSlice, self.dimY, self.dimX, 8),
             self.DTYPE, "C")
-        tmp_result.add_event(self.prg.sym_grad(
+        self.prg.sym_grad(
             self.queue, inp.shape[1:-1], None, tmp_result.data, inp.data,
             np.int32(self.unknowns_TGV),
             self.ratio.data,
             self.DTYPE_real(self._dz),
-            wait_for=tmp_result.events + inp.events + wait_for))
+            wait_for=tmp_result.events + inp.events + wait_for).wait()
         return tmp_result
 
     def adj(self, out, inp, **kwargs):
@@ -2479,16 +2474,16 @@ class OperatorFiniteSymGradient(Operator):
             wait_for = kwargs["wait_for"]
         else:
             wait_for = []
-        tmp_result = clarray.empty(
+        tmp_result = clarray.zeros(
             self.queue, (self.unknowns,
                          self.NSlice, self.dimY, self.dimX, 4),
             self.DTYPE, "C")
-        tmp_result.add_event(self.prg.sym_divergence(
+        self.prg.sym_divergence(
             self.queue, inp.shape[1:-1], None, tmp_result.data, inp.data,
             np.int32(self.unknowns_TGV),
             self.ratio.data,
             self.DTYPE_real(self._dz),
-            wait_for=tmp_result.events + inp.events + wait_for))
+            wait_for=tmp_result.events + inp.events + wait_for).wait()
         return tmp_result
 
     def updateRatio(self, inp):
