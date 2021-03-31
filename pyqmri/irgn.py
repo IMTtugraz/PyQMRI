@@ -185,22 +185,32 @@ class IRGNOptimizer:
             DTYPE,
             DTYPE_real)
 
-        self._pdop = optimizer.PDBaseSolver.factory(
-            self._prg,
-            self._queue,
-            self.par,
-            self.irgn_par,
-            self._fval_init,
-            self._coils,
-            linops=(self._MRI_operator, self._grad_op, self._symgrad_op),
-            model=model,
-            reg_type=self._reg_type,
-            SMS=self._SMS,
-            streamed=self._streamed,
-            imagespace=self._imagespace,
-            DTYPE=DTYPE,
-            DTYPE_real=DTYPE_real
-            )
+        if not reg_type=="H1":
+            self._pdop = optimizer.PDBaseSolver.factory(
+                self._prg,
+                self._queue,
+                self.par,
+                self.irgn_par,
+                self._fval_init,
+                self._coils,
+                linops=(self._MRI_operator, self._grad_op, self._symgrad_op),
+                model=model,
+                reg_type=self._reg_type,
+                SMS=self._SMS,
+                streamed=self._streamed,
+                imagespace=self._imagespace,
+                DTYPE=DTYPE,
+                DTYPE_real=DTYPE_real
+                )
+        else: 
+            self._pdop = optimizer.CGSolver_H1(
+                self._prg,
+                self._queue,
+                self.par,
+                self.irgn_par,
+                self._coils,
+                linops=(self._MRI_operator, self._grad_op)
+                )
 
         self._gamma = None
         self._delta = None
@@ -437,18 +447,21 @@ class IRGNOptimizer:
         if self._reg_type == 'TV':
             regcost = self.irgn_par["gamma"] * \
                 np.sum(np.abs(grad_tv))
-        else:
+        elif self._reg_type == 'TGV':
             regcost = self.irgn_par["gamma"] * np.sum(
                   np.abs(grad_tv -
                          self._v)) + self.irgn_par["gamma"] * 2 * np.sum(
                              np.abs(sym_grad))
             del sym_grad
+        else:
+            regcost = self.irgn_par["gamma"]/2 * \
+                np.linalg.norm(grad_tv)**2
 
         self._fval = (datacost +
                       regcost +
                        # L2Cost +
                       self.irgn_par["omega"] / 2 *
-                      np.linalg.norm(grad_H1)**2)
+                      np.linalg.norm(grad_H1.flatten())**2)
         del grad_tv, grad_H1
 
         if GN_it == 0:
@@ -456,7 +469,7 @@ class IRGNOptimizer:
             self._pdop.setFvalInit(self._fval)
 
         print("-" * 75)
-        print("Initial Cost: %f" % (self._fval_init))
+        # print("Initial Cost: %f" % (self._fval_init))
         print("Costs of Data: %f" % (1e3*datacost / self._fval_init))
         print("Costs of T(G)V: %f" % (1e3*regcost / self._fval_init))
         # print("Costs of L2 Term: %f" % (1e3*L2Cost / self._fval_init))

@@ -34,14 +34,14 @@ class Model(BaseModel):
 
         self.unknowns = par["unknowns"]
         
-        t1min = 0 #np.min(self.t)/3
+        t1min = 10 #np.min(self.t)/3
 
         for j in range(par["unknowns"]):
             self.uk_scale.append(1)
             
         for j in range(self.numC):
             self.constraints.append(
-                constraints(0,
+                constraints(0.01,
                             1000,
                             False))
         for j in range(self.numAlpha):
