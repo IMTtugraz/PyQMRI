@@ -27,8 +27,8 @@ lint-job:
         paths: 
             - pylint.log
 
-test-job:
-    stage: test
+test-job-single:
+    stage: test-single-precision
     before_script:
         - python3.8 -m pip install -r requirements.txt --no-cache-dir
         - python3.8 -m pip install -e . --no-cache-dir
@@ -49,6 +49,30 @@ test-job:
         reports:    
             junit: results_unittests_*.xml
             cobertura: coverage_unittests_*.xml
+            
+test-job-double:
+    stage: test-double-precision
+    before_script:
+        - python3.8 -m pip install -r requirements.txt --no-cache-dir
+        - python3.8 -m pip install -e . --no-cache-dir
+    script:       
+        - pytest --junitxml results_unittests_LinOp_double.xml --cov=pyqmri test/unittests/test_LinearDataOperator_double.py
+        - coverage xml -o coverage_unittests_LinOp_double.xml
+        - pytest --junitxml results_unittests_grad_double.xml --cov=pyqmri test/unittests/test_gradient_double.py
+        - coverage xml -o coverage_unittests_grad_double.xml
+        - pytest --junitxml results_unittests_symgrad_double.xml --cov=pyqmri test/unittests/test_symmetrized_gradient_double.py
+        - coverage xml -o coverage_unittests_symgrad_double.xml
+        - pytest --junitxml results_unittests_LinOp_CPU_double.xml --cov=pyqmri test/unittests/test_LinearDataOperator_CPU_double.py
+        - coverage xml -o coverage_unittests_LinOp_CPU_double.xml
+        - pytest --junitxml results_unittests_grad_CPU_double.xml --cov=pyqmri test/unittests/test_gradient_CPU_double.py
+        - coverage xml -o coverage_unittests_grad_CPU_double.xml
+        - pytest --junitxml results_unittests_symgrad_CPU_double.xml --cov=pyqmri test/unittests/test_symmetrized_gradient_CPU_double.py
+        - coverage xml -o coverage_unittests_symgrad_CPU_double.xml
+    artifacts: 
+        reports:    
+            junit: results_unittests_*.xml
+            cobertura: coverage_unittests_*.xml
+
 
 integration-job:
     stage: integration-test

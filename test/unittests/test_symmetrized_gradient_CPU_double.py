@@ -17,10 +17,10 @@ import pyopencl.array as clarray
 import numpy as np
 
 
-DTYPE = np.complex64
-DTYPE_real = np.float32
-ATOL=1e-7
-RTOL=1e-4
+DTYPE = np.complex128
+DTYPE_real = np.float64
+ATOL=1e-14
+RTOL=1e-12
 
 class tmpArgs():
     pass

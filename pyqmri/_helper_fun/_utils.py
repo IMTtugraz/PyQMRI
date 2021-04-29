@@ -43,9 +43,11 @@ def NUFFT(par, trafo=True, SMS=False):
     NScan = par["NScan"]
     par["NC"] = 1
     par["NScan"] = 1
-
+    
     FFT = (PyOpenCLnuFFT.create(
         par["ctx"][0], par["queue"][0], par,
+        DTYPE=par["DTYPE"],
+        DTYPE_real=par["DTYPE_real"],
         radial=trafo, SMS=SMS))
     par["NC"] = NC
     par["NScan"] = NScan

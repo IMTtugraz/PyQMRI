@@ -102,6 +102,101 @@ def test_VFA_model_kspace_TGV_cart_coilguess_radial(
         ) is None
 
 
+@pytest.mark.integration_test
+def test_VFA_model_kspace_TGV_double():
+    assert pyqmri.run(data=pjoin(data_dir, 'smalltest.h5'),
+                      model='VFA',
+                      double_precision=True,
+                      config=pjoin(data_dir, 'default.ini')
+                      ) is None
+
+
+@pytest.mark.integration_test
+def test_VFA_model_imagespace_TGV_double():
+    assert pyqmri.run(data=pjoin(data_dir, 'smalltest.h5'),
+                      model='VFA',
+                      imagespace=True,
+                      double_precision=True,
+                      config=pjoin(data_dir, 'default.ini')
+                      ) is None
+
+
+@pytest.mark.integration_test
+def test_General_model_kspace_TGV_double():
+    assert pyqmri.run(data=pjoin(data_dir, 'smalltest.h5'),
+                      config=pjoin(data_dir, 'default.ini'),
+                      modelfile=pjoin(data_dir, 'models.ini'),
+                      double_precision=True,
+                      ) is None
+
+
+@pytest.mark.integration_test
+def test_VFA_model_kspace_TV_double():
+    assert pyqmri.run(data=pjoin(data_dir, 'smalltest.h5'),
+                      model='VFA',
+                      config=pjoin(data_dir, 'default.ini'),
+                      reg_type='TV',
+                      double_precision=True,
+                      ) is None
+
+
+@pytest.mark.integration_test
+def test_VFA_model_kspace_TGV_cart_double():
+    assert pyqmri.run(data=pjoin(data_dir, 'VFA_cart_smalltest.h5'),
+                      model='VFA',
+                      config=pjoin(data_dir, 'default.ini'),
+                      trafo=False,
+                      double_precision=True,
+                      ) is None
+
+
+@pytest.mark.integration_test
+def test_VFA_model_kspace_TGV_cart_imageguess_CG_double(
+        gen_noimageguess):
+    assert pyqmri.run(data=pjoin(data_dir, 'VFA_cart_test_imageguess.h5'),
+                      model='VFA',
+                      config=pjoin(data_dir, 'default.ini'),
+                      trafo=False,
+                      double_precision=True,
+                      ) is None
+
+
+@pytest.mark.integration_test
+def test_VFA_model_kspace_TGV_cart_imageguess_double(
+        gen_noimageguess):
+    assert pyqmri.run(data=pjoin(data_dir, 'VFA_cart_test_imageguess.h5'),
+                      model='VFA',
+                      config=pjoin(data_dir, 'default.ini'),
+                      trafo=False,
+                      useCGguess=False,
+                      double_precision=True,
+                      ) is None
+
+
+@pytest.mark.integration_test
+def test_VFA_model_kspace_TGV_cart_coilguess_double(
+        gen_data_nocoils):
+    assert pyqmri.run(data=pjoin(data_dir, 'VFA_cart_test_coilguess.h5'),
+                      model='VFA',
+                      config=pjoin(data_dir, 'default.ini'),
+                      trafo=False,
+                      useCGguess=False,
+                      double_precision=True,
+                      ) is None
+
+
+@pytest.mark.integration_test
+def test_VFA_model_kspace_TGV_cart_coilguess_radial_double(
+        gen_data_nocoils_radial):
+    assert pyqmri.run(
+        data=pjoin(data_dir, 'VFA_radial_test_coilguess.h5'),
+        model='VFA',
+        config=pjoin(data_dir, 'default.ini'),
+        trafo=True,
+        useCGguess=False,
+        double_precision=True,
+        ) is None
+
 @pytest.fixture(scope="function")
 def gen_noimageguess():
     file = h5py.File(pjoin(data_dir, 'VFA_cart_smalltest.h5'), 'r')

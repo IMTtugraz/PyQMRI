@@ -16,8 +16,10 @@ from pkg_resources import resource_filename
 import pyopencl.array as clarray
 import numpy as np
 
-DTYPE = np.complex128
-DTYPE_real = np.float64
+DTYPE = np.complex64
+DTYPE_real = np.float32
+RTOL=1e-4
+ATOL=1e-7
 
 
 class tmpArgs():
@@ -123,7 +125,7 @@ class GradientTest(unittest.TestCase):
         outp = self.grad.fwdoop(inp)
         outp = outp.get()
 
-        np.testing.assert_allclose(outp[..., :-1], grad, rtol=0)
+        np.testing.assert_allclose(outp[..., :-1], grad, rtol=RTOL, atol=ATOL)
 
     def test_grad_inplace(self):
         gradx = np.zeros_like(self.gradin)
@@ -143,7 +145,7 @@ class GradientTest(unittest.TestCase):
         outp.add_event(self.grad.fwd(outp, inp))
         outp = outp.get()
 
-        np.testing.assert_allclose(outp[..., :-1], grad, rtol=0)
+        np.testing.assert_allclose(outp[..., :-1], grad, rtol=RTOL, atol=ATOL)
 
     def test_adj_outofplace(self):
         inpgrad = clarray.to_device(self.queue, self.gradin)
@@ -161,7 +163,7 @@ class GradientTest(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=15)
+        np.testing.assert_allclose(a, b, rtol=RTOL, atol=ATOL)
 
     def test_adj_inplace(self):
         inpgrad = clarray.to_device(self.queue, self.gradin)
@@ -182,7 +184,7 @@ class GradientTest(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=15)
+        np.testing.assert_allclose(a, b, rtol=RTOL, atol=ATOL)
         
     def test_CPU_vs_GPU_fwd(self):
         inpfwd_CPU = clarray.to_device(self.queue, self.gradin)
@@ -195,7 +197,7 @@ class GradientTest(unittest.TestCase):
         outfwd_GPU.add_event(self.grad_GPU.fwd(outfwd_GPU, inpfwd_GPU))
         outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
         
-        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=1e-8)
+        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=RTOL, atol=ATOL)
         
     def test_CPU_vs_GPU_adj(self):
         inpadj_CPU = clarray.to_device(self.queue, self.divin)
@@ -208,7 +210,7 @@ class GradientTest(unittest.TestCase):
         outadj_GPU.add_event(self.grad_GPU.adj(outadj_GPU, inpadj_GPU))
         outadj_GPU = outadj_GPU.map_to_host(wait_for=outadj_GPU.events)     
         
-        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=1e-8)
+        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=RTOL, atol=ATOL)
 
 if __name__ == '__main__':
     unittest.main()

@@ -382,32 +382,64 @@ class PDBaseSolver:
         self.min_const = None
         self.max_const = None
         self.real_const = None
-        self._kernelsize = (par["par_slices"] + par["overlap"], par["dimY"],
-                            par["dimX"])
-        self.abskrnl = clred.ReductionKernel(
-            par["ctx"][0], self._DTYPE_real, 0, 
-            reduce_expr="a+b", map_expr="hypot(x[i].s0,x[i].s1)",
-            arguments="__global float2 *x")
-        self.abskrnldiff = clred.ReductionKernel(
-            par["ctx"][0], self._DTYPE_real, 0, 
-            reduce_expr="a+b", map_expr="hypot(x[i].s0-y[i].s0,x[i].s1-y[i].s1)",
-            arguments="__global float2 *x, __global float2 *y")
-        self.normkrnl = clred.ReductionKernel(
-            par["ctx"][0], self._DTYPE_real, 0, 
-            reduce_expr="a+b", map_expr="pown(x[i].s0,2)+pown(x[i].s1,2)",
-            arguments="__global float2 *x")
-        self.normkrnlweighted = clred.ReductionKernel(
-            par["ctx"][0], self._DTYPE_real, 0, 
-            reduce_expr="a+b", map_expr="(pown(x[i].s0,2)+pown(x[i].s1,2))*w[i]",
-            arguments="__global float2 *x, __global float *w")
-        self.normkrnldiff = clred.ReductionKernel(
-            par["ctx"][0], self._DTYPE_real, 0, 
-            reduce_expr="a+b", map_expr="pown(x[i].s0-y[i].s0,2)+pown(x[i].s1-y[i].s1,2)",
-            arguments="__global float2 *x, __global float2 *y")
-        self.normkrnlweighteddiff = clred.ReductionKernel(
-            par["ctx"][0], self._DTYPE_real, 0, 
-            reduce_expr="a+b", map_expr="(pown(x[i].s0-y[i].s0,2)+pown(x[i].s1-y[i].s1,2))*w[i]",
-            arguments="__global float2 *x, __global float2 *y, __global float *w")
+        
+        if self._DTYPE_real==np.float32:
+            self._kernelsize = (par["par_slices"] + par["overlap"], par["dimY"],
+                                par["dimX"])
+            self.abskrnl = clred.ReductionKernel(
+                par["ctx"][0], self._DTYPE_real, 0, 
+                reduce_expr="a+b", map_expr="hypot(x[i].s0,x[i].s1)",
+                arguments="__global float2 *x")
+            self.abskrnldiff = clred.ReductionKernel(
+                par["ctx"][0], self._DTYPE_real, 0, 
+                reduce_expr="a+b", map_expr="hypot(x[i].s0-y[i].s0,x[i].s1-y[i].s1)",
+                arguments="__global float2 *x, __global float2 *y")
+            self.normkrnl = clred.ReductionKernel(
+                par["ctx"][0], self._DTYPE_real, 0, 
+                reduce_expr="a+b", map_expr="pown(x[i].s0,2)+pown(x[i].s1,2)",
+                arguments="__global float2 *x")
+            self.normkrnlweighted = clred.ReductionKernel(
+                par["ctx"][0], self._DTYPE_real, 0, 
+                reduce_expr="a+b", map_expr="(pown(x[i].s0,2)+pown(x[i].s1,2))*w[i]",
+                arguments="__global float2 *x, __global float *w")
+            self.normkrnldiff = clred.ReductionKernel(
+                par["ctx"][0], self._DTYPE_real, 0, 
+                reduce_expr="a+b", map_expr="pown(x[i].s0-y[i].s0,2)+pown(x[i].s1-y[i].s1,2)",
+                arguments="__global float2 *x, __global float2 *y")
+            self.normkrnlweighteddiff = clred.ReductionKernel(
+                par["ctx"][0], self._DTYPE_real, 0, 
+                reduce_expr="a+b", map_expr="(pown(x[i].s0-y[i].s0,2)+pown(x[i].s1-y[i].s1,2))*w[i]",
+                arguments="__global float2 *x, __global float2 *y, __global float *w")
+            
+        elif self._DTYPE_real==np.float64:
+            self._kernelsize = (par["par_slices"] + par["overlap"], par["dimY"],
+                                par["dimX"])
+            self.abskrnl = clred.ReductionKernel(
+                par["ctx"][0], self._DTYPE_real, 0, 
+                reduce_expr="a+b", map_expr="hypot(x[i].s0,x[i].s1)",
+                arguments="__global double2 *x")
+            self.abskrnldiff = clred.ReductionKernel(
+                par["ctx"][0], self._DTYPE_real, 0, 
+                reduce_expr="a+b", map_expr="hypot(x[i].s0-y[i].s0,x[i].s1-y[i].s1)",
+                arguments="__global double2 *x, __global double2 *y")
+            self.normkrnl = clred.ReductionKernel(
+                par["ctx"][0], self._DTYPE_real, 0, 
+                reduce_expr="a+b", map_expr="pown(x[i].s0,2)+pown(x[i].s1,2)",
+                arguments="__global double2 *x")
+            self.normkrnlweighted = clred.ReductionKernel(
+                par["ctx"][0], self._DTYPE_real, 0, 
+                reduce_expr="a+b", map_expr="(pown(x[i].s0,2)+pown(x[i].s1,2))*w[i]",
+                arguments="__global double2 *x, __global double *w")
+            self.normkrnldiff = clred.ReductionKernel(
+                par["ctx"][0], self._DTYPE_real, 0, 
+                reduce_expr="a+b", map_expr="pown(x[i].s0-y[i].s0,2)+pown(x[i].s1-y[i].s1,2)",
+                arguments="__global double2 *x, __global double2 *y")
+            self.normkrnlweighteddiff = clred.ReductionKernel(
+                par["ctx"][0], self._DTYPE_real, 0, 
+                reduce_expr="a+b", map_expr="(pown(x[i].s0-y[i].s0,2)+pown(x[i].s1-y[i].s1,2))*w[i]",
+                arguments="__global double2 *x, __global double2 *y, __global double *w")
+        else:
+            raise NotImplementedError("Requested floating point precission not implemented.")
 
     @staticmethod
     def factory(

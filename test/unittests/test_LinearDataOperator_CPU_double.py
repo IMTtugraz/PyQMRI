@@ -16,15 +16,16 @@ except ImportError:
 from pyqmri._helper_fun import CLProgram as Program
 from pyqmri._helper_fun import _goldcomp as goldcomp
 from pkg_resources import resource_filename
+import pyopencl as cl
 import pyopencl.array as clarray
 import numpy as np
 import h5py
 
 
-DTYPE = np.complex64
-DTYPE_real = np.float32
-RTOL=1e-2
-ATOL=1e-4
+DTYPE = np.complex128
+DTYPE_real = np.float64
+RTOL=1e-12
+ATOL=1e-14
 data_dir = os.path.realpath(pjoin(os.path.dirname(__file__), '..'))
 
 def setupPar(par):
@@ -184,13 +185,19 @@ class OperatorKspaceRadial(unittest.TestCase):
     def test_CPU_vs_GPU_fwd(self):
         inpfwd_CPU = clarray.to_device(self.queue, self.opinfwd)
         outfwd_CPU = clarray.zeros(self.queue, self.opinadj.shape, dtype=DTYPE)
+        cl.enqueue_barrier(self.queue)
         outfwd_CPU.add_event(self.op.fwd(outfwd_CPU, [inpfwd_CPU, self.coil_buf, self.grad_buf]))
+        cl.enqueue_barrier(self.queue)
         outfwd_CPU = outfwd_CPU.map_to_host(wait_for=outfwd_CPU.events)
+        cl.enqueue_barrier(self.queue)
         
         inpfwd_GPU = clarray.to_device(self.queue_GPU, self.opinfwd)
         outfwd_GPU = clarray.zeros(self.queue_GPU, self.opinadj.shape, dtype=DTYPE)
+        cl.enqueue_barrier(self.queue_GPU)
         outfwd_GPU.add_event(self.op_GPU.fwd(outfwd_GPU, [inpfwd_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
+        cl.enqueue_barrier(self.queue_GPU)
         outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
+        cl.enqueue_barrier(self.queue_GPU)
         
         np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=RTOL, atol=ATOL)
 
