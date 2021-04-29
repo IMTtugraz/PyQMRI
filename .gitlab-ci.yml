@@ -27,7 +27,7 @@ lint-job:
         paths: 
             - pylint.log
 
-test-job-single:
+test-job:
     stage: test-single-precision
     before_script:
         - python3.8 -m pip install -r requirements.txt --no-cache-dir
@@ -50,7 +50,7 @@ test-job-single:
             junit: results_unittests_*.xml
             cobertura: coverage_unittests_*.xml
             
-test-job-double:
+test-job:
     stage: test-double-precision
     before_script:
         - python3.8 -m pip install -r requirements.txt --no-cache-dir
