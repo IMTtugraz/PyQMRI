@@ -23,8 +23,8 @@ import h5py
 
 DTYPE = np.complex64
 DTYPE_real = np.float32
-RTOL=1e-4
-ATOL=1e-7
+RTOL=1e-3
+ATOL=1e-5
 data_dir = os.path.realpath(pjoin(os.path.dirname(__file__), '..'))
 
 def setupPar(par):
