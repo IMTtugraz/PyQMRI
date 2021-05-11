@@ -32,3 +32,4 @@ def cmp(k):
     w = np.reshape(w, (N, nspokes)).T
 
     return np.array(w)
+

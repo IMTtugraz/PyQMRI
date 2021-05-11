@@ -23,6 +23,7 @@ from pyqmri._helper_fun._est_coils import est_coils
 from pyqmri._helper_fun import _utils as utils
 from pyqmri.solver import CGSolver
 from pyqmri.irgn import IRGNOptimizer
+np.seterr(divide='ignore', invalid='ignore')
 
 np.seterr(divide='ignore')
 
@@ -55,7 +56,7 @@ def _choosePlatform(myargs, par):
                          str(platfrom.get_info(cl.platform_info.VERSION))))
                 use_GPU = False
                 par["Platform_Indx"] = j
-        if par["Platform_Indx"] is None:
+        if not par["Platform_Indx"]:
             raise(ValueError("No OpenCL CPU device found."))
     par["use_GPU"] = use_GPU
     return platforms
@@ -315,19 +316,18 @@ def _readInput(myargs, par):
             sys.exit()
         file = myargs.file
     name = os.path.normpath(file)
-    par["fname"] = name.split(os.sep)[-1]
-    
-    if not par["fname"].endswith((('.h5'), ('.hdf5'))):
-        par["fname"] += '.h5'
+    par["fname"] = name.split(os.sep)[-1].split(".")[0]
 
     if myargs.outdir == '':
         outdir = os.sep.join(name.split(os.sep)[:-1]) + os.sep + \
             "PyQMRI_out" + \
             os.sep + myargs.sig_model + os.sep + \
             time.strftime("%Y-%m-%d  %H-%M-%S") + os.sep
+        if not os.sep.join(name.split(os.sep)[:-1]):
+            outdir = '.'+outdir
     else:
         outdir = myargs.outdir + os.sep + "PyQMRI_out" + \
-            os.sep + myargs.sig_model + os.sep + \
+            os.sep + myargs.sig_model + os.sep + par["fname"] + os.sep + \
             time.strftime("%Y-%m-%d  %H-%M-%S") + os.sep
     if not os.path.exists(outdir):
         os.makedirs(outdir)
@@ -631,7 +631,7 @@ def _start_recon(myargs):
                         reg_type=myargs.reg,
                         DTYPE=par["DTYPE"],
                         DTYPE_real=par["DTYPE_real"])
-    f = h5py.File(par["outdir"]+"output_" + par["fname"], "a")
+    f = h5py.File(par["outdir"]+"output_" + par["fname"]+".h5", "a")
     f.create_dataset("images_ifft", data=images)
     f.attrs['data_norm'] = par["dscale"]
     f.close()
@@ -756,7 +756,7 @@ def run(reg_type='TGV',
               ('--model', str(model)),
               ('--modelfile', str(modelfile)),
               ('--modelname', str(modelname)),
-              ('--outdir', str(out)),
+              ('--out', str(out)),
               ('--double_precision', str(double_precision))
               ]
 
@@ -847,9 +847,6 @@ def _parseArguments(args):
     argparmain.add_argument(
       '--modelname', dest='modelname', type=str,
       help="Name of the model to use.")
-    argparmain.add_argument('--outdir', dest='outdir', type=str,
-                            help="The path to the output directory. Defaults "
-                            "to the location of the input.")
     argparmain.add_argument(
       '--double_precision', dest='double_precision', type=_str2bool,
       help="Switch between single (False, default) and double "

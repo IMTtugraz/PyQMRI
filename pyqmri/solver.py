@@ -176,34 +176,153 @@ class CGSolver:
             (res, res_new) = (res_new, res)
         del Ax, b, res, p, data, res_new
         return np.squeeze(x.get())
+    
+class CGSolver_H1:
+    """
+    Conjugate Gradient Optimization Algorithm.
 
-    def eval_fwd_kspace_cg(self, y, x, wait_for=None):
-        """Apply forward operator for image reconstruction.
+    This Class performs a CG reconstruction on single precission complex input
+    data.
+
+    Parameters
+    ----------
+      par : dict
+        A python dict containing the necessary information to
+        setup the object. Needs to contain the number of slices (NSlice),
+        number of scans (NScan), image dimensions (dimX, dimY), number of
+        coils (NC), sampling points (N) and read outs (NProj)
+        a PyOpenCL queue (queue) and the complex coil
+        sensitivities (C).
+      irgn_par : dict
+        A python dict containing the regularization
+        parameters for a given gauss newton step.
+      queue : list of PyOpenCL.Queues
+        A list of PyOpenCL queues to perform the optimization.
+      prg : PyOpenCL Program A PyOpenCL Program containing the
+        kernels for optimization.
+      linops : PyQMRI Operator The operator to traverse from
+        parameter to data space.
+      coils : PyOpenCL Buffer or empty list
+        coil buffer, empty list if image based fitting is used.
+    """
+
+    def __init__(self, prg, queue, par, irgn_par, coils, linops):
+        self._NSlice = par["NSlice"]
+        self._NScan = par["NScan"]
+        self._dimX = par["dimX"]
+        self._dimY = par["dimY"]
+        self._NC = par["NC"]
+        self._DTYPE = par["DTYPE"]
+        self._DTYPE_real = par["DTYPE_real"]
+        self.unknowns = par["unknowns"]
+        self._op = linops[0]
+        self._gradop = linops[1]
+        self._queue = queue
+        self.tol = irgn_par["tol"]
+        self._coils = coils
+        self.display_iterations = irgn_par["display_iterations"]
+        self._prg = prg
+        self.num_dev = len(par["num_dev"])
+        
+        self._tmp_result = clarray.zeros(
+            self._queue[0],
+            (self._NScan, self._NC,
+             self._NSlice, self._dimY, self._dimX),
+            self._DTYPE, "C")
+        
+
+    def run(self, guess, data, iters=30):
+        """
+        Start the CG reconstruction.
+
+        All attributes after data are considered keyword only.
 
         Parameters
         ----------
-          y : PyOpenCL.Array
-            The result of the computation
-          x : PyOpenCL.Array
-            The input array
-          wait_for : list of PyopenCL.Event, None
-            A List of PyOpenCL events to wait for.
+          guess : numpy.array
+            An optional initial guess for the images. If None, zeros is used.
+          data : numpy.array
+            The complex k-space data which serves as the basis for the images.
+          iters : int
+            Maximum number of CG iterations
 
         Returns
         -------
-            PyOpenCL.Event:
-                A PyOpenCL.Event to wait for.
+          dict of numpy.Array:
+              The result of the fitting.
         """
-        if wait_for is None:
-            wait_for = []
-        return self._prg.operator_fwd_cg(self._queue,
-                                         (self._NSlice, self._dimY,
-                                          self._dimX),
-                                         None,
-                                         y.data, x.data, self._coils,
-                                         np.int32(self._NC),
-                                         np.int32(self._NScan),
-                                         wait_for=wait_for)
+        self._updateConstraints()
+        if guess is not None:
+            x = clarray.to_device(self._queue[0], guess)
+        else:
+            x = clarray.zeros(self._queue[0],
+                              (self.unknowns,
+                               self._NSlice, self._dimY, self._dimX),
+                              self._DTYPE, "C")
+        x_old = x.copy()
+        y = x.copy()
+        b = clarray.zeros(self._queue[0],
+                          (self.unknowns,
+                           self._NSlice, self._dimY, self._dimX),
+                          self._DTYPE, "C")
+        Ax = clarray.zeros(self._queue[0],
+                           (self.unknowns,
+                            self._NSlice, self._dimY, self._dimX),
+                           self._DTYPE, "C")
+        
+        tau1 = self.lambd**4*(self.power_iteration(x))
+        tau2 = self.alpha**4*(self.power_iteration_grad(x))
+        tau = self._DTYPE_real(1/np.sqrt(tau1+tau2+1/self.delta**4))
+
+        x0 = x.copy()
+        data = clarray.to_device(self._queue[0], data)
+        self._operator_rhs(b, data).wait()
+        # theta = 0.1
+
+
+        for i in range(iters):
+            y = x + self._DTYPE_real((iters-2)/(iters+1))*(x-x_old)
+            self._operator_lhs(Ax, y).wait()
+            # imgrad = self._gradop.fwdoop(y)
+            # tmpsum = np.sum(np.abs(imgrad.get()),axis=-1)**2
+            # tmpsum = clarray.to_device(self._queue[0],tmpsum)
+            # grad = self._DTYPE_real(self.lambd)*(Ax-b) - self._DTYPE_real(self.alpha)*self._gradop.adjoop(imgrad)/(1+tmpsum) + self._DTYPE_real(1/self.delta)*(y-x0)
+            grad = self._DTYPE_real(self.lambd)*(Ax-b) - self._DTYPE_real(self.alpha)*self._gradop.adjoop(self._gradop.fwdoop(y)) + self._DTYPE_real(1/self.delta)*(y-x0)
+            
+            x_old = (y - tau*grad)
+            (x, x_old) = (x_old, x)
+            self.update_box(x, [x], []).wait()
+            
+            # sigma = np.linalg.norm((x-x_old).get())/np.sqrt(
+            #     self.lambd**4*np.linalg.norm(self._op.fwdoop([x-x_old, self._coils, self.modelgrad]).get())**2
+            #     + self.alpha**4*np.linalg.norm(self._gradop.fwdoop(x-x_old).get())**2
+            #     + 1/self.delta**4*np.linalg.norm((x-x_old-x0).get())**2)
+            
+            # if theta*tau >= sigma:
+            #     tau = sigma
+            # elif tau >= sigma > theta*tau:
+            #     tau = np.sqrt(theta*tau)
+            # else:
+            #     tau = np.sqrt(tau)
+            # tau = self._DTYPE_real(tau)
+            
+        
+
+            if not np.mod(i+1, 100):
+                datres = self._DTYPE_real(self.lambd/2)*np.linalg.norm(self._op.fwdoop([x, self._coils, self.modelgrad]).get()-data.get())**2 
+                regres = self._DTYPE_real(self.alpha/2)*np.linalg.norm(self._gradop.fwdoop(x).get())**2
+                l2res = self._DTYPE_real(1/self.delta/2)*np.linalg.norm((x-x0).get())**2
+                sys.stdout.write(
+                    "Iteration: %04d ---- data: %2.2e, H1: %2.2e, L2: %2.2e\r" %
+                    (i+1, datres, regres, l2res))
+                sys.stdout.flush()
+                if self.display_iterations:
+                    if isinstance(x, np.ndarray):
+                        self.model.plot_unknowns(
+                            np.swapaxes(x, 0, 1))
+                    else:
+                        self.model.plot_unknowns(x.get())
+        return {'x':(x.get())}
 
     def _operator_lhs(self, out, x, wait_for=None):
         """Compute the left hand side of the CG equation.
@@ -224,11 +343,9 @@ class CGSolver:
         """
         if wait_for is None:
             wait_for = []
-        self._tmp_result.add_event(self.eval_fwd_kspace_cg(
-            self._tmp_result, x, wait_for=self._tmp_result.events+x.events))
-        self._tmp_sino.add_event(self._FT(
-            self._tmp_sino, self._tmp_result, scan_offset=self._scan_offset))
-        return self._operator_rhs(out, self._tmp_sino)
+        (self._op.fwd(
+            self._tmp_result, [x, self._coils, self.modelgrad], wait_for=self._tmp_result.events+x.events)).wait()
+        return self._operator_rhs(out, self._tmp_result)
 
     def _operator_rhs(self, out, x, wait_for=None):
         """Compute the right hand side of the CG equation.
@@ -249,18 +366,132 @@ class CGSolver:
         """
         if wait_for is None:
             wait_for = []
-        self._tmp_result.add_event(self._FTH(
-            self._tmp_result, x, wait_for=wait_for+x.events,
-            scan_offset=self._scan_offset))
-        return self._prg.operator_ad_cg(self._queue,
-                                        (self._NSlice, self._dimY,
-                                         self._dimX),
-                                        None,
-                                        out.data, self._tmp_result.data,
-                                        self._coils, np.int32(self._NC),
-                                        np.int32(self._NScan),
-                                        wait_for=(self._tmp_result.events +
-                                                  out.events+wait_for))
+        return self._op.adj(out, [x, self._coils, self.modelgrad])
+    
+    def updateRegPar(self, irgn_par):
+        """Update the regularization parameters.
+
+          Performs an update of the regularization parameters as these usually
+          vary from one to another Gauss-Newton step.
+
+        Parameters
+        ----------
+          irgn_par (dic): A dictionary containing the new parameters.
+        """
+        self.alpha = irgn_par["gamma"]
+        self.delta = irgn_par["delta"]
+        self.lambd = irgn_par["lambd"]
+        
+    def setFvalInit(self, fval):
+        """Set the initial value of the cost function.
+
+        Parameters
+        ----------
+          fval : float
+            The initial cost of the optimization problem
+        """
+        self._fval_init = fval
+        
+    def update_box(self, outp, inp, par, idx=0, idxq=0,
+                      bound_cond=0, wait_for=None):
+        """Primal update of the x variable in the Primal-Dual Algorithm.
+
+        Parameters
+        ----------
+          outp : PyOpenCL.Array
+            The result of the update step
+          inp : PyOpenCL.Array
+            The previous values of x
+          par : list
+            List of necessary parameters for the update
+          idx : int
+            Index of the device to use
+          idxq : int
+            Index of the queue to use
+          bound_cond : int
+            Apply boundary condition (1) or not (0).
+          wait_for : list of PyOpenCL.Events, None
+            A optional list for PyOpenCL.Events to wait for
+
+        Returns
+        -------
+            PyOpenCL.Event:
+                A PyOpenCL.Event to wait for.
+        """
+        if wait_for is None:
+            wait_for = []
+        return self._prg[idx].update_box(
+            self._queue[4*idx+idxq],
+            outp.shape[1:], None,
+            outp.data, inp[0].data,
+            self.min_const[idx].data, self.max_const[idx].data,
+            self.real_const[idx].data, np.int32(self.unknowns),
+            wait_for=(outp.events +
+                      inp[0].events + wait_for))
+                                          
+
+    def _updateConstraints(self):
+        num_const = (len(self.model.constraints))
+        min_const = np.zeros((num_const), dtype=self._DTYPE_real)
+        max_const = np.zeros((num_const), dtype=self._DTYPE_real)
+        real_const = np.zeros((num_const), dtype=np.int32)
+        for j in range(num_const):
+            min_const[j] = self._DTYPE_real(self.model.constraints[j].min)
+            max_const[j] = self._DTYPE_real(self.model.constraints[j].max)
+            real_const[j] = np.int32(self.model.constraints[j].real)
+
+        self.min_const = []
+        self.max_const = []
+        self.real_const = []
+        for j in range(self.num_dev):
+            self.min_const.append(
+                clarray.to_device(self._queue[4*j], min_const))
+            self.max_const.append(
+                clarray.to_device(self._queue[4*j], max_const))
+            self.real_const.append(
+                clarray.to_device(self._queue[4*j], real_const))
+            
+    def power_iteration(self, x, num_simulations=50):
+        # Ideally choose a random vector
+        # To decrease the chance that our vector
+        # Is orthogonal to the eigenvector
+        b_k = clarray.to_device(self._queue[0], (np.random.randn(*(x.shape))+1j*np.random.randn(*(x.shape))).astype(self._DTYPE))
+        b_k1 = clarray.zeros_like(b_k)
+    
+        for _ in range(num_simulations):
+            # calculate the matrix-by-vector product Ab
+            self._operator_lhs(b_k1, b_k).wait()
+    
+            # calculate the norm
+            b_k1_norm = np.linalg.norm(b_k1.get())
+    
+            # re normalize the vector
+            b_k = b_k1 / self._DTYPE_real(b_k1_norm)
+            
+            lmax = np.abs((clarray.vdot(b_k1,b_k)/np.linalg.norm(b_k.get())**2).get())
+    
+        return lmax
+    
+    def power_iteration_grad(self, x, num_simulations=50):
+        # Ideally choose a random vector
+        # To decrease the chance that our vector
+        # Is orthogonal to the eigenvector
+        b_k = clarray.to_device(self._queue[0], (np.random.randn(*(x.shape))+1j*np.random.randn(*(x.shape))).astype(self._DTYPE))
+        b_k1 = clarray.zeros_like(b_k)
+    
+        for _ in range(num_simulations):
+            # calculate the matrix-by-vector product Ab
+            b_k1 = self._gradop.adjoop(self._gradop.fwdoop(b_k))
+    
+            # calculate the norm
+            b_k1_norm = np.linalg.norm(b_k1.get())
+    
+            # re normalize the vector
+            b_k = b_k1 / self._DTYPE_real(b_k1_norm)
+            
+            lmax = np.abs((clarray.vdot(b_k1,b_k)/np.linalg.norm(b_k.get())**2).get())
+    
+        return lmax
 
 
 class PDBaseSolver:
@@ -382,64 +613,32 @@ class PDBaseSolver:
         self.min_const = None
         self.max_const = None
         self.real_const = None
-        
-        if self._DTYPE_real==np.float32:
-            self._kernelsize = (par["par_slices"] + par["overlap"], par["dimY"],
-                                par["dimX"])
-            self.abskrnl = clred.ReductionKernel(
-                par["ctx"][0], self._DTYPE_real, 0, 
-                reduce_expr="a+b", map_expr="hypot(x[i].s0,x[i].s1)",
-                arguments="__global float2 *x")
-            self.abskrnldiff = clred.ReductionKernel(
-                par["ctx"][0], self._DTYPE_real, 0, 
-                reduce_expr="a+b", map_expr="hypot(x[i].s0-y[i].s0,x[i].s1-y[i].s1)",
-                arguments="__global float2 *x, __global float2 *y")
-            self.normkrnl = clred.ReductionKernel(
-                par["ctx"][0], self._DTYPE_real, 0, 
-                reduce_expr="a+b", map_expr="pown(x[i].s0,2)+pown(x[i].s1,2)",
-                arguments="__global float2 *x")
-            self.normkrnlweighted = clred.ReductionKernel(
-                par["ctx"][0], self._DTYPE_real, 0, 
-                reduce_expr="a+b", map_expr="(pown(x[i].s0,2)+pown(x[i].s1,2))*w[i]",
-                arguments="__global float2 *x, __global float *w")
-            self.normkrnldiff = clred.ReductionKernel(
-                par["ctx"][0], self._DTYPE_real, 0, 
-                reduce_expr="a+b", map_expr="pown(x[i].s0-y[i].s0,2)+pown(x[i].s1-y[i].s1,2)",
-                arguments="__global float2 *x, __global float2 *y")
-            self.normkrnlweighteddiff = clred.ReductionKernel(
-                par["ctx"][0], self._DTYPE_real, 0, 
-                reduce_expr="a+b", map_expr="(pown(x[i].s0-y[i].s0,2)+pown(x[i].s1-y[i].s1,2))*w[i]",
-                arguments="__global float2 *x, __global float2 *y, __global float *w")
-            
-        elif self._DTYPE_real==np.float64:
-            self._kernelsize = (par["par_slices"] + par["overlap"], par["dimY"],
-                                par["dimX"])
-            self.abskrnl = clred.ReductionKernel(
-                par["ctx"][0], self._DTYPE_real, 0, 
-                reduce_expr="a+b", map_expr="hypot(x[i].s0,x[i].s1)",
-                arguments="__global double2 *x")
-            self.abskrnldiff = clred.ReductionKernel(
-                par["ctx"][0], self._DTYPE_real, 0, 
-                reduce_expr="a+b", map_expr="hypot(x[i].s0-y[i].s0,x[i].s1-y[i].s1)",
-                arguments="__global double2 *x, __global double2 *y")
-            self.normkrnl = clred.ReductionKernel(
-                par["ctx"][0], self._DTYPE_real, 0, 
-                reduce_expr="a+b", map_expr="pown(x[i].s0,2)+pown(x[i].s1,2)",
-                arguments="__global double2 *x")
-            self.normkrnlweighted = clred.ReductionKernel(
-                par["ctx"][0], self._DTYPE_real, 0, 
-                reduce_expr="a+b", map_expr="(pown(x[i].s0,2)+pown(x[i].s1,2))*w[i]",
-                arguments="__global double2 *x, __global double *w")
-            self.normkrnldiff = clred.ReductionKernel(
-                par["ctx"][0], self._DTYPE_real, 0, 
-                reduce_expr="a+b", map_expr="pown(x[i].s0-y[i].s0,2)+pown(x[i].s1-y[i].s1,2)",
-                arguments="__global double2 *x, __global double2 *y")
-            self.normkrnlweighteddiff = clred.ReductionKernel(
-                par["ctx"][0], self._DTYPE_real, 0, 
-                reduce_expr="a+b", map_expr="(pown(x[i].s0-y[i].s0,2)+pown(x[i].s1-y[i].s1,2))*w[i]",
-                arguments="__global double2 *x, __global double2 *y, __global double *w")
-        else:
-            raise NotImplementedError("Requested floating point precission not implemented.")
+        self._kernelsize = (par["par_slices"] + par["overlap"], par["dimY"],
+                            par["dimX"])
+        self.abskrnl = clred.ReductionKernel(
+            par["ctx"][0], self._DTYPE_real, 0, 
+            reduce_expr="a+b", map_expr="hypot(x[i].s0,x[i].s1)",
+            arguments="__global float2 *x")
+        self.abskrnldiff = clred.ReductionKernel(
+            par["ctx"][0], self._DTYPE_real, 0, 
+            reduce_expr="a+b", map_expr="hypot(x[i].s0-y[i].s0,x[i].s1-y[i].s1)",
+            arguments="__global float2 *x, __global float2 *y")
+        self.normkrnl = clred.ReductionKernel(
+            par["ctx"][0], self._DTYPE_real, 0, 
+            reduce_expr="a+b", map_expr="pown(x[i].s0,2)+pown(x[i].s1,2)",
+            arguments="__global float2 *x")
+        self.normkrnlweighted = clred.ReductionKernel(
+            par["ctx"][0], self._DTYPE_real, 0, 
+            reduce_expr="a+b", map_expr="(pown(x[i].s0,2)+pown(x[i].s1,2))*w[i]",
+            arguments="__global float2 *x, __global float *w")
+        self.normkrnldiff = clred.ReductionKernel(
+            par["ctx"][0], self._DTYPE_real, 0, 
+            reduce_expr="a+b", map_expr="pown(x[i].s0-y[i].s0,2)+pown(x[i].s1-y[i].s1,2)",
+            arguments="__global float2 *x, __global float2 *y")
+        self.normkrnlweighteddiff = clred.ReductionKernel(
+            par["ctx"][0], self._DTYPE_real, 0, 
+            reduce_expr="a+b", map_expr="(pown(x[i].s0-y[i].s0,2)+pown(x[i].s1-y[i].s1,2))*w[i]",
+            arguments="__global float2 *x, __global float2 *y, __global float *w")
 
     @staticmethod
     def factory(

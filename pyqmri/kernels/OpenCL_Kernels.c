@@ -284,6 +284,58 @@ __global int* real, const int NUk
     }
 }
 
+__kernel void update_box(
+__global float2 *u_new,
+__global float2 *u,
+__global float* min,
+__global float* max,
+__global int* real, const int NUk
+)
+{
+    size_t Nx = get_global_size(2), Ny = get_global_size(1);
+    size_t NSl = get_global_size(0);
+    size_t x = get_global_id(2), y = get_global_id(1);
+    size_t k = get_global_id(0);
+    size_t i = k*Nx*Ny+Nx*y + x;
+    float norm = 0;
+
+    for (int uk=0; uk<NUk; uk++)
+    {
+        u_new[i] = u[i];
+
+        if(real[uk]>=1)
+        {
+            u_new[i].s1 = 0.0f;
+            if (u_new[i].s0<min[uk])
+            {
+                u_new[i].s0 = min[uk];
+            }
+            if(u_new[i].s0>max[uk])
+            {
+                u_new[i].s0 = max[uk];
+            }
+        }
+        else
+        {
+            norm =  sqrt(
+              pow(
+                (float)(u_new[i].s0),(float)(2.0))
+              + pow((float)(u_new[i].s1),(float)(2.0)));
+            if (norm<min[uk])
+            {
+                u_new[i].s0 *= 1/norm*min[uk];
+                u_new[i].s1 *= 1/norm*min[uk];
+            }
+            if(norm>max[uk])
+            {
+                u_new[i].s0 *= 1/norm*max[uk];
+                u_new[i].s1 *= 1/norm*max[uk];
+            }
+        }
+        i += NSl*Nx*Ny;
+    }
+}
+
 
 __kernel void update_primal_LM(
                 __global float2 *u_new,
