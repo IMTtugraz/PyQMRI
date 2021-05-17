@@ -46,7 +46,7 @@ class Model(BaseModel):
                             False))
         for j in range(self.numAlpha):
             self.constraints.append(
-                constraints(0,
+                constraints(0.01,
                             2,
                             False))
         for j in range(self.numT1Scale):
@@ -174,7 +174,9 @@ class Model(BaseModel):
         images = np.reshape(images, self.t.shape+images.shape[-3:])
 
         tmp_x[:self.numC] = np.abs(tmp_x[:self.numC])/self.dscale
-        tmp_x = np.abs(tmp_x)
+        tmp_x[self.numC:self.numC+self.numAlpha] = np.angle(tmp_x[self.numC:self.numC+self.numAlpha])
+        tmp_x[-self.numT1Scale:] = np.abs(tmp_x[-self.numT1Scale:])
+        tmp_x = np.real(tmp_x)
 
         if dim_2D:
             pass
