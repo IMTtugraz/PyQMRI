@@ -177,6 +177,85 @@ class CGSolver:
         del Ax, b, res, p, data, res_new
         return np.squeeze(x.get())
     
+    def eval_fwd_kspace_cg(self, y, x, wait_for=None):
+        """Apply forward operator for image reconstruction.
+        Parameters
+        ----------
+          y : PyOpenCL.Array
+            The result of the computation
+          x : PyOpenCL.Array
+            The input array
+          wait_for : list of PyopenCL.Event, None
+            A List of PyOpenCL events to wait for.
+        Returns
+        -------
+            PyOpenCL.Event:
+                A PyOpenCL.Event to wait for.
+        """
+        if wait_for is None:
+            wait_for = []
+        return self._prg.operator_fwd_cg(self._queue,
+                                         (self._NSlice, self._dimY,
+                                          self._dimX),
+                                         None,
+                                         y.data, x.data, self._coils,
+                                         np.int32(self._NC),
+                                         np.int32(self._NScan),
+                                         wait_for=wait_for)
+
+    def _operator_lhs(self, out, x, wait_for=None):
+        """Compute the left hand side of the CG equation.
+        Parameters
+        ----------
+          out : PyOpenCL.Array
+            The result of the computation
+          x : PyOpenCL.Array
+            The input array
+          wait_for : list of PyopenCL.Event, None
+            A List of PyOpenCL events to wait for.
+        Returns
+        -------
+            PyOpenCL.Event:
+                A PyOpenCL.Event to wait for.
+        """
+        if wait_for is None:
+            wait_for = []
+        self._tmp_result.add_event(self.eval_fwd_kspace_cg(
+            self._tmp_result, x, wait_for=self._tmp_result.events+x.events))
+        self._tmp_sino.add_event(self._FT(
+            self._tmp_sino, self._tmp_result, scan_offset=self._scan_offset))
+        return self._operator_rhs(out, self._tmp_sino)
+
+    def _operator_rhs(self, out, x, wait_for=None):
+        """Compute the right hand side of the CG equation.
+        Parameters
+        ----------
+          out : PyOpenCL.Array
+            The result of the computation
+          x : PyOpenCL.Array
+            The input array
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+        Returns
+        -------
+            PyOpenCL.Event:
+                A PyOpenCL.Event to wait for.
+        """
+        if wait_for is None:
+            wait_for = []
+        self._tmp_result.add_event(self._FTH(
+            self._tmp_result, x, wait_for=wait_for+x.events,
+            scan_offset=self._scan_offset))
+        return self._prg.operator_ad_cg(self._queue,
+                                        (self._NSlice, self._dimY,
+                                         self._dimX),
+                                        None,
+                                        out.data, self._tmp_result.data,
+                                        self._coils, np.int32(self._NC),
+                                        np.int32(self._NScan),
+                                        wait_for=(self._tmp_result.events +
+                                                  out.events+wait_for))
+    
 class CGSolver_H1:
     """
     Conjugate Gradient Optimization Algorithm.
