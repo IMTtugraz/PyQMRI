@@ -62,10 +62,11 @@ For more detailed instructions on how to contribute have a look at contributing_
 Changelog:
 ------------------------------
 * v1.1 
-  * Added the first iteration of CPU support. Tested on Intel CPUS using pocl_ on Ubuntu and Arch Linux.
-  * Changed stagnation to use inverse of exponential. Adapted default config accordingly
-  * Added ASL model
-    
+   * Added the first iteration of CPU support. Tested on Intel CPUS using pocl_ on Ubuntu and Arch Linux.
+   * Changed stagnation to use inverse of exponential. Adapted default config accordingly
+   * Added ASL model
+* v1.0 
+   * Initial Release
 
 Citation:
 ----------
