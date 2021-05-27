@@ -182,38 +182,38 @@ class OperatorKspaceRadial(unittest.TestCase):
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
         np.testing.assert_allclose(a, b, rtol=RTOL, atol=ATOL)
     
-    def test_CPU_vs_GPU_fwd(self):
-        inpfwd_CPU = clarray.to_device(self.queue, self.opinfwd)
-        outfwd_CPU = clarray.zeros(self.queue, self.opinadj.shape, dtype=DTYPE)
-        cl.enqueue_barrier(self.queue)
-        outfwd_CPU.add_event(self.op.fwd(outfwd_CPU, [inpfwd_CPU, self.coil_buf, self.grad_buf]))
-        cl.enqueue_barrier(self.queue)
-        outfwd_CPU = outfwd_CPU.map_to_host(wait_for=outfwd_CPU.events)
-        cl.enqueue_barrier(self.queue)
+    # def test_CPU_vs_GPU_fwd(self):
+    #     inpfwd_CPU = clarray.to_device(self.queue, self.opinfwd)
+    #     outfwd_CPU = clarray.zeros(self.queue, self.opinadj.shape, dtype=DTYPE)
+    #     cl.enqueue_barrier(self.queue)
+    #     outfwd_CPU.add_event(self.op.fwd(outfwd_CPU, [inpfwd_CPU, self.coil_buf, self.grad_buf]))
+    #     cl.enqueue_barrier(self.queue)
+    #     outfwd_CPU = outfwd_CPU.map_to_host(wait_for=outfwd_CPU.events)
+    #     cl.enqueue_barrier(self.queue)
         
-        inpfwd_GPU = clarray.to_device(self.queue_GPU, self.opinfwd)
-        outfwd_GPU = clarray.zeros(self.queue_GPU, self.opinadj.shape, dtype=DTYPE)
-        cl.enqueue_barrier(self.queue_GPU)
-        outfwd_GPU.add_event(self.op_GPU.fwd(outfwd_GPU, [inpfwd_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
-        cl.enqueue_barrier(self.queue_GPU)
-        outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
-        cl.enqueue_barrier(self.queue_GPU)
+    #     inpfwd_GPU = clarray.to_device(self.queue_GPU, self.opinfwd)
+    #     outfwd_GPU = clarray.zeros(self.queue_GPU, self.opinadj.shape, dtype=DTYPE)
+    #     cl.enqueue_barrier(self.queue_GPU)
+    #     outfwd_GPU.add_event(self.op_GPU.fwd(outfwd_GPU, [inpfwd_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
+    #     cl.enqueue_barrier(self.queue_GPU)
+    #     outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
+    #     cl.enqueue_barrier(self.queue_GPU)
         
-        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=RTOL, atol=ATOL)
+    #     np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=RTOL, atol=ATOL)
 
         
-    def test_CPU_vs_GPU_adj(self):
-        inpadj_CPU = clarray.to_device(self.queue, self.opinadj)
-        outadj_CPU = clarray.zeros(self.queue, self.opinfwd.shape, dtype=DTYPE)
-        outadj_CPU.add_event(self.op.adj(outadj_CPU, [inpadj_CPU, self.coil_buf, self.grad_buf]))
-        outadj_CPU = outadj_CPU.map_to_host(wait_for=outadj_CPU.events)
+    # def test_CPU_vs_GPU_adj(self):
+    #     inpadj_CPU = clarray.to_device(self.queue, self.opinadj)
+    #     outadj_CPU = clarray.zeros(self.queue, self.opinfwd.shape, dtype=DTYPE)
+    #     outadj_CPU.add_event(self.op.adj(outadj_CPU, [inpadj_CPU, self.coil_buf, self.grad_buf]))
+    #     outadj_CPU = outadj_CPU.map_to_host(wait_for=outadj_CPU.events)
         
-        inpadj_GPU = clarray.to_device(self.queue_GPU, self.opinadj)
-        outadj_GPU = clarray.zeros(self.queue_GPU, self.opinfwd.shape, dtype=DTYPE)
-        outadj_GPU.add_event(self.op_GPU.adj(outadj_GPU, [inpadj_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
-        outadj_GPU = outadj_GPU.map_to_host(wait_for=outadj_GPU.events)     
+    #     inpadj_GPU = clarray.to_device(self.queue_GPU, self.opinadj)
+    #     outadj_GPU = clarray.zeros(self.queue_GPU, self.opinfwd.shape, dtype=DTYPE)
+    #     outadj_GPU.add_event(self.op_GPU.adj(outadj_GPU, [inpadj_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
+    #     outadj_GPU = outadj_GPU.map_to_host(wait_for=outadj_GPU.events)     
         
-        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=RTOL, atol=ATOL)
+    #     np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=RTOL, atol=ATOL)
 
 class OperatorKspaceCartesian(unittest.TestCase):
     def setUp(self):
@@ -345,32 +345,32 @@ class OperatorKspaceCartesian(unittest.TestCase):
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
         np.testing.assert_allclose(a, b, rtol=RTOL, atol=ATOL)
 
-    def test_CPU_vs_GPU_fwd(self):
-        inpfwd_CPU = clarray.to_device(self.queue, self.opinfwd)
-        outfwd_CPU = clarray.zeros(self.queue, self.opinadj.shape, dtype=DTYPE)
-        outfwd_CPU.add_event(self.op.fwd(outfwd_CPU, [inpfwd_CPU, self.coil_buf, self.grad_buf]))
-        outfwd_CPU = outfwd_CPU.map_to_host(wait_for=outfwd_CPU.events)
+    # def test_CPU_vs_GPU_fwd(self):
+    #     inpfwd_CPU = clarray.to_device(self.queue, self.opinfwd)
+    #     outfwd_CPU = clarray.zeros(self.queue, self.opinadj.shape, dtype=DTYPE)
+    #     outfwd_CPU.add_event(self.op.fwd(outfwd_CPU, [inpfwd_CPU, self.coil_buf, self.grad_buf]))
+    #     outfwd_CPU = outfwd_CPU.map_to_host(wait_for=outfwd_CPU.events)
         
-        inpfwd_GPU = clarray.to_device(self.queue_GPU, self.opinfwd)
-        outfwd_GPU = clarray.zeros(self.queue_GPU, self.opinadj.shape, dtype=DTYPE)
-        outfwd_GPU.add_event(self.op_GPU.fwd(outfwd_GPU, [inpfwd_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
-        outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
+    #     inpfwd_GPU = clarray.to_device(self.queue_GPU, self.opinfwd)
+    #     outfwd_GPU = clarray.zeros(self.queue_GPU, self.opinadj.shape, dtype=DTYPE)
+    #     outfwd_GPU.add_event(self.op_GPU.fwd(outfwd_GPU, [inpfwd_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
+    #     outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
         
-        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=RTOL, atol=ATOL)
+    #     np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=RTOL, atol=ATOL)
 
         
-    def test_CPU_vs_GPU_adj(self):
-        inpadj_CPU = clarray.to_device(self.queue, self.opinadj)
-        outadj_CPU = clarray.zeros(self.queue, self.opinfwd.shape, dtype=DTYPE)
-        outadj_CPU.add_event(self.op.adj(outadj_CPU, [inpadj_CPU, self.coil_buf, self.grad_buf]))
-        outadj_CPU = outadj_CPU.map_to_host(wait_for=outadj_CPU.events)
+    # def test_CPU_vs_GPU_adj(self):
+    #     inpadj_CPU = clarray.to_device(self.queue, self.opinadj)
+    #     outadj_CPU = clarray.zeros(self.queue, self.opinfwd.shape, dtype=DTYPE)
+    #     outadj_CPU.add_event(self.op.adj(outadj_CPU, [inpadj_CPU, self.coil_buf, self.grad_buf]))
+    #     outadj_CPU = outadj_CPU.map_to_host(wait_for=outadj_CPU.events)
         
-        inpadj_GPU = clarray.to_device(self.queue_GPU, self.opinadj)
-        outadj_GPU = clarray.zeros(self.queue_GPU, self.opinfwd.shape, dtype=DTYPE)
-        outadj_GPU.add_event(self.op_GPU.adj(outadj_GPU, [inpadj_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
-        outadj_GPU = outadj_GPU.map_to_host(wait_for=outadj_GPU.events)     
+    #     inpadj_GPU = clarray.to_device(self.queue_GPU, self.opinadj)
+    #     outadj_GPU = clarray.zeros(self.queue_GPU, self.opinfwd.shape, dtype=DTYPE)
+    #     outadj_GPU.add_event(self.op_GPU.adj(outadj_GPU, [inpadj_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
+    #     outadj_GPU = outadj_GPU.map_to_host(wait_for=outadj_GPU.events)     
         
-        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=RTOL, atol=ATOL)
+    #     np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=RTOL, atol=ATOL)
         
 class OperatorKspaceSMSCartesian(unittest.TestCase):
     def setUp(self):
@@ -510,32 +510,32 @@ class OperatorKspaceSMSCartesian(unittest.TestCase):
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
         np.testing.assert_allclose(a, b, rtol=RTOL, atol=ATOL)
         
-    def test_CPU_vs_GPU_fwd(self):
-        inpfwd_CPU = clarray.to_device(self.queue, self.opinfwd)
-        outfwd_CPU = clarray.zeros(self.queue, self.opinadj.shape, dtype=DTYPE)
-        outfwd_CPU.add_event(self.op.fwd(outfwd_CPU, [inpfwd_CPU, self.coil_buf, self.grad_buf]))
-        outfwd_CPU = outfwd_CPU.map_to_host(wait_for=outfwd_CPU.events)
+    # def test_CPU_vs_GPU_fwd(self):
+    #     inpfwd_CPU = clarray.to_device(self.queue, self.opinfwd)
+    #     outfwd_CPU = clarray.zeros(self.queue, self.opinadj.shape, dtype=DTYPE)
+    #     outfwd_CPU.add_event(self.op.fwd(outfwd_CPU, [inpfwd_CPU, self.coil_buf, self.grad_buf]))
+    #     outfwd_CPU = outfwd_CPU.map_to_host(wait_for=outfwd_CPU.events)
         
-        inpfwd_GPU = clarray.to_device(self.queue_GPU, self.opinfwd)
-        outfwd_GPU = clarray.zeros(self.queue_GPU, self.opinadj.shape, dtype=DTYPE)
-        outfwd_GPU.add_event(self.op_GPU.fwd(outfwd_GPU, [inpfwd_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
-        outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
+    #     inpfwd_GPU = clarray.to_device(self.queue_GPU, self.opinfwd)
+    #     outfwd_GPU = clarray.zeros(self.queue_GPU, self.opinadj.shape, dtype=DTYPE)
+    #     outfwd_GPU.add_event(self.op_GPU.fwd(outfwd_GPU, [inpfwd_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
+    #     outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
         
-        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=RTOL, atol=ATOL)
+    #     np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=RTOL, atol=ATOL)
 
         
-    def test_CPU_vs_GPU_adj(self):
-        inpadj_CPU = clarray.to_device(self.queue, self.opinadj)
-        outadj_CPU = clarray.zeros(self.queue, self.opinfwd.shape, dtype=DTYPE)
-        outadj_CPU.add_event(self.op.adj(outadj_CPU, [inpadj_CPU, self.coil_buf, self.grad_buf]))
-        outadj_CPU = outadj_CPU.map_to_host(wait_for=outadj_CPU.events)
+    # def test_CPU_vs_GPU_adj(self):
+    #     inpadj_CPU = clarray.to_device(self.queue, self.opinadj)
+    #     outadj_CPU = clarray.zeros(self.queue, self.opinfwd.shape, dtype=DTYPE)
+    #     outadj_CPU.add_event(self.op.adj(outadj_CPU, [inpadj_CPU, self.coil_buf, self.grad_buf]))
+    #     outadj_CPU = outadj_CPU.map_to_host(wait_for=outadj_CPU.events)
         
-        inpadj_GPU = clarray.to_device(self.queue_GPU, self.opinadj)
-        outadj_GPU = clarray.zeros(self.queue_GPU, self.opinfwd.shape, dtype=DTYPE)
-        outadj_GPU.add_event(self.op_GPU.adj(outadj_GPU, [inpadj_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
-        outadj_GPU = outadj_GPU.map_to_host(wait_for=outadj_GPU.events)     
+    #     inpadj_GPU = clarray.to_device(self.queue_GPU, self.opinadj)
+    #     outadj_GPU = clarray.zeros(self.queue_GPU, self.opinfwd.shape, dtype=DTYPE)
+    #     outadj_GPU.add_event(self.op_GPU.adj(outadj_GPU, [inpadj_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
+    #     outadj_GPU = outadj_GPU.map_to_host(wait_for=outadj_GPU.events)     
         
-        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=RTOL, atol=ATOL)
+    #     np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=RTOL, atol=ATOL)
         
 
 
@@ -655,30 +655,30 @@ class OperatorImageSpace(unittest.TestCase):
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
         np.testing.assert_allclose(a, b, rtol=RTOL, atol=ATOL)
         
-    def test_CPU_vs_GPU_fwd(self):
-        inpfwd_CPU = clarray.to_device(self.queue, self.opinfwd)
-        outfwd_CPU = clarray.zeros(self.queue, self.opinadj.shape, dtype=DTYPE)
-        outfwd_CPU.add_event(self.op.fwd(outfwd_CPU, [inpfwd_CPU, [], self.grad_buf]))
-        outfwd_CPU = outfwd_CPU.map_to_host(wait_for=outfwd_CPU.events)
+    # def test_CPU_vs_GPU_fwd(self):
+    #     inpfwd_CPU = clarray.to_device(self.queue, self.opinfwd)
+    #     outfwd_CPU = clarray.zeros(self.queue, self.opinadj.shape, dtype=DTYPE)
+    #     outfwd_CPU.add_event(self.op.fwd(outfwd_CPU, [inpfwd_CPU, [], self.grad_buf]))
+    #     outfwd_CPU = outfwd_CPU.map_to_host(wait_for=outfwd_CPU.events)
         
-        inpfwd_GPU = clarray.to_device(self.queue_GPU, self.opinfwd)
-        outfwd_GPU = clarray.zeros(self.queue_GPU, self.opinadj.shape, dtype=DTYPE)
-        outfwd_GPU.add_event(self.op_GPU.fwd(outfwd_GPU, [inpfwd_GPU, [], self.grad_buf_GPU]))
-        outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
+    #     inpfwd_GPU = clarray.to_device(self.queue_GPU, self.opinfwd)
+    #     outfwd_GPU = clarray.zeros(self.queue_GPU, self.opinadj.shape, dtype=DTYPE)
+    #     outfwd_GPU.add_event(self.op_GPU.fwd(outfwd_GPU, [inpfwd_GPU, [], self.grad_buf_GPU]))
+    #     outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
         
-        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=RTOL, atol=ATOL)
+    #     np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=RTOL, atol=ATOL)
 
         
-    def test_CPU_vs_GPU_adj(self):
-        inpadj_CPU = clarray.to_device(self.queue, self.opinadj)
-        outadj_CPU = clarray.zeros(self.queue, self.opinfwd.shape, dtype=DTYPE)
-        outadj_CPU.add_event(self.op.adj(outadj_CPU, [inpadj_CPU, [], self.grad_buf]))
-        outadj_CPU = outadj_CPU.map_to_host(wait_for=outadj_CPU.events)
+    # def test_CPU_vs_GPU_adj(self):
+    #     inpadj_CPU = clarray.to_device(self.queue, self.opinadj)
+    #     outadj_CPU = clarray.zeros(self.queue, self.opinfwd.shape, dtype=DTYPE)
+    #     outadj_CPU.add_event(self.op.adj(outadj_CPU, [inpadj_CPU, [], self.grad_buf]))
+    #     outadj_CPU = outadj_CPU.map_to_host(wait_for=outadj_CPU.events)
         
-        inpadj_GPU = clarray.to_device(self.queue_GPU, self.opinadj)
-        outadj_GPU = clarray.zeros(self.queue_GPU, self.opinfwd.shape, dtype=DTYPE)
-        outadj_GPU.add_event(self.op_GPU.adj(outadj_GPU, [inpadj_GPU, [], self.grad_buf_GPU]))
-        outadj_GPU = outadj_GPU.map_to_host(wait_for=outadj_GPU.events)     
+    #     inpadj_GPU = clarray.to_device(self.queue_GPU, self.opinadj)
+    #     outadj_GPU = clarray.zeros(self.queue_GPU, self.opinfwd.shape, dtype=DTYPE)
+    #     outadj_GPU.add_event(self.op_GPU.adj(outadj_GPU, [inpadj_GPU, [], self.grad_buf_GPU]))
+    #     outadj_GPU = outadj_GPU.map_to_host(wait_for=outadj_GPU.events)     
         
-        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=RTOL, atol=ATOL)
+    #     np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=RTOL, atol=ATOL)
         
