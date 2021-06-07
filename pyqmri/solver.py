@@ -589,9 +589,9 @@ class PDBaseSolver:
                  DTYPE_real=np.float32):
         self._DTYPE = DTYPE
         self._DTYPE_real = DTYPE_real
-        self.delta = irgn_par["delta"]
+        self.delta = irgn_par["delta"] * irgn_par["lambd"]
         self.omega = irgn_par["omega"]
-        self.lambd = irgn_par["lambd"]
+        self.lambd = 1#irgn_par["lambd"]
         self.tol = irgn_par["tol"]
         self.stag = irgn_par["stag"]
         self.display_iterations = irgn_par["display_iterations"]
@@ -824,7 +824,7 @@ class PDBaseSolver:
         beta_line = self.beta_line
         beta_new = self._DTYPE_real(0)
         mu_line = self._DTYPE_real(0.9)
-        delta_line = self._DTYPE_real(1)
+        delta_line = self._DTYPE_real(0.95)
         ynorm = self._DTYPE_real(0.0)
         lhs = self._DTYPE_real(0.0)
         primal = [0]
@@ -1048,11 +1048,11 @@ class PDBaseSolver:
         ----------
           irgn_par (dic): A dictionary containing the new parameters.
         """
-        self.alpha = irgn_par["gamma"]
-        self.beta = irgn_par["gamma"] * 2
-        self.delta = irgn_par["delta"]
+        self.alpha = 1#irgn_par["gamma"] / irgn_par["lambd"]
+        self.beta = 1#irgn_par["gamma"] * 2 / irgn_par["lambd"]
+        self.delta = irgn_par["delta"] * irgn_par["lambd"]
         self.omega = irgn_par["omega"]
-        self.lambd = irgn_par["lambd"]
+        self.lambd = 1#irgn_par["lambd"]
         self.mu = 1/self.delta
 
     def update_primal(self, outp, inp, par, idx=0, idxq=0,
@@ -1166,6 +1166,7 @@ class PDBaseSolver:
             self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
             np.int32(self.unknowns_H1),
             self._DTYPE_real(1 / (1 + par[0] / par[3])),
+            self._grad_op.ratio.data,
             wait_for=(outp.events+inp[0].events+inp[1].events +
                       inp[2].events+inp[3].events+inp[4].events+wait_for))
 
@@ -1287,6 +1288,7 @@ class PDBaseSolver:
             self._kernelsize, None,
             outp.data, inp[0].data, inp[1].data,
             np.int32(self.unknowns),
+            self._grad_op.ratio[idx].data,
             par[idx].data,
             np.int32(bound_cond),
             self._DTYPE_real(self.dz),
@@ -1403,7 +1405,7 @@ class PDSolverTV(PDBaseSolver):
             coils,
             model,
             **kwargs)
-        self.alpha = irgn_par["gamma"]
+        self.alpha = irgn_par["gamma"]/irgn_par["lambd"]
         self._op = linop[0]
         self._grad_op = linop[1]
 
@@ -1416,7 +1418,7 @@ class PDSolverTV(PDBaseSolver):
         tmp_results_adjoint = {}
         tmp_results_adjoint_new = {}
 
-        primal_vars["x"] = clarray.to_device(self._queue[0], inp)
+        primal_vars["x"] = clarray.to_device(self._queue[0], inp[0])
         primal_vars["xk"] = primal_vars["x"].copy()
         primal_vars_new["x"] = clarray.zeros_like(primal_vars["x"])
 
@@ -1648,8 +1650,8 @@ class PDSolverTGV(PDBaseSolver):
             coils,
             model,
             **kwargs)
-        self.alpha = irgn_par["gamma"]
-        self.beta = irgn_par["gamma"] * 2
+        self.alpha = 1#irgn_par["gamma"]/irgn_par["lambd"]
+        self.beta = 1#irgn_par["gamma"]/irgn_par["lambd"] * 2
         self._op = linop[0]
         self._grad_op = linop[1]
         self._symgrad_op = linop[2]
@@ -1663,12 +1665,10 @@ class PDSolverTGV(PDBaseSolver):
         tmp_results_adjoint = {}
         tmp_results_adjoint_new = {}
 
-        primal_vars["x"] = clarray.to_device(self._queue[0], inp)
+        primal_vars["x"] = clarray.to_device(self._queue[0], inp[0])
         primal_vars["xk"] = primal_vars["x"].copy()
         primal_vars_new["x"] = clarray.zeros_like(primal_vars["x"])
-        primal_vars["v"] = clarray.zeros(self._queue[0],
-                                         primal_vars["x"].shape+(4,),
-                                         dtype=self._DTYPE)
+        primal_vars["v"] = clarray.to_device(self._queue[0], inp[1])
         primal_vars_new["v"] = clarray.zeros_like(primal_vars["v"])
 
         tmp_results_adjoint["Kyk1"] = clarray.zeros_like(primal_vars["x"])
@@ -1857,26 +1857,26 @@ class PDSolverTGV(PDBaseSolver):
             data):
 
         primal_new = (
-            self.lambd / 2 * self.normkrnldiff(in_precomp_fwd["Ax"], data).get()
+            self.lambd / 2 * self.normkrnldiff(in_precomp_fwd["Ax"], data)
             + self.alpha * self.abskrnldiff(in_precomp_fwd["gradx"], 
-                                             in_primal["v"]).get()
-            + self.beta * self.abskrnl(in_precomp_fwd["symgradx"]).get()
+                                              in_primal["v"])
+            + self.beta * self.abskrnl(in_precomp_fwd["symgradx"])
             + 1 / (2 * self.delta) * self.normkrnlweighteddiff(in_primal["x"],
                                       in_primal["xk"],
                                       self.jacobi).get()
                 
-            )
+            ).real
 
         dual = (
             -self.delta / 2 * self.normkrnlweighted(in_precomp_adj["Kyk1"],
-                                                    self.jacobi).get()
+                                                    self.jacobi)
             - clarray.vdot(
                 in_primal["xk"],
                 - in_precomp_adj["Kyk1"]
-                ).get()
-            + clarray.sum(in_precomp_adj["Kyk2"]).get()
-            - 1 / (2 * self.lambd) * self.normkrnl(in_dual["r"]).get()
-            - clarray.vdot(data, in_dual["r"]).get()
+                )
+            - clarray.sum(in_precomp_adj["Kyk2"])
+            - 1 / (2 * self.lambd) * self.normkrnl(in_dual["r"])
+            - clarray.vdot(data, in_dual["r"])
             ).real
 
         if self.unknowns_H1 > 0:
@@ -1892,7 +1892,7 @@ class PDSolverTGV(PDBaseSolver):
                     )
                 ).get()
         gap = np.abs(primal_new - dual)
-        return primal_new, dual, gap
+        return primal_new.get(), dual.get(), gap.get()
 
 
 class PDSolverStreamed(PDBaseSolver):

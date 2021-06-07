@@ -282,12 +282,12 @@ class IRGNOptimizer:
                 self._model.execute_gradient(result))
 
             self._balanceModelGradients(result)
-
-            # if not np.mod(ign, 1):
-            #     self._pdop._grad_op.updateRatio(result)
-            #     if self._reg_type == 'TGV':
-            #         self._pdop._symgrad_op.updateRatio(
-            #             self._pdop._grad_op.ratio)
+            self._updateIRGNRegPar(ign)
+            self._pdop._grad_op.updateRatio(
+                self.irgn_par["gamma"]/self.irgn_par["lambd"])
+            if self._reg_type == 'TGV':
+                self._pdop._symgrad_op.updateRatio(
+                    2*self.irgn_par["gamma"]/self.irgn_par["lambd"])
 
             self._step_val = np.nan_to_num(self._model.execute_forward(result))
 
@@ -316,7 +316,7 @@ class IRGNOptimizer:
                 self._pdop.jacobi = clarray.to_device(
                     self._queue[0],
                     _jacobi)
-            self._updateIRGNRegPar(ign)
+
             self._pdop.updateRegPar(self.irgn_par)
 
             result = self._irgnSolve3D(result, iters, data, ign)
@@ -414,7 +414,7 @@ class IRGNOptimizer:
             res = data - b + self._MRI_operator.fwdoop(
                 [tmpx, self._coils, self._modelgrad]).get()
             del tmpx
-        tmpres = self._pdop.run(x, res, iters)
+        tmpres = self._pdop.run((x,self._v), res, iters)
         for key in tmpres:
             if key == 'x':
                 if isinstance(tmpres[key], np.ndarray):

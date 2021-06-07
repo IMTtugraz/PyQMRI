@@ -33,31 +33,31 @@ def _choosePlatform(myargs, par):
     use_GPU = False
     par["Platform_Indx"] = None
     if myargs.use_GPU:
-        for j, platfrom in enumerate(platforms):
-            if platfrom.get_devices(device_type=cl.device_type.GPU):
+        for j, platform in enumerate(platforms):
+            if platform.get_devices(device_type=cl.device_type.GPU):
                 print("GPU OpenCL platform <%s> found "
                       "with %i device(s) and OpenCL-version <%s>"
-                      % (str(platfrom.get_info(cl.platform_info.NAME)),
-                         len(platfrom.get_devices(
+                      % (str(platform.get_info(cl.platform_info.NAME)),
+                         len(platform.get_devices(
                              device_type=cl.device_type.GPU)),
-                         str(platfrom.get_info(cl.platform_info.VERSION))))
+                         str(platform.get_info(cl.platform_info.VERSION))))
                 use_GPU = True
                 par["Platform_Indx"] = j
     if not use_GPU:
         if myargs.use_GPU:
             print("No GPU OpenCL platform found. Falling back to CPU.")
-        for j, platfrom in enumerate(platforms):
-            if platfrom.get_devices(device_type=cl.device_type.CPU):
+        for j, platform in enumerate(platforms):
+            if platform.get_devices(device_type=cl.device_type.CPU):
                 print("CPU OpenCL platform <%s> found "
                       "with %i device(s) and OpenCL-version <%s>"
-                      % (str(platfrom.get_info(cl.platform_info.NAME)),
-                         len(platfrom.get_devices(
+                      % (str(platform.get_info(cl.platform_info.NAME)),
+                         len(platform.get_devices(
                              device_type=cl.device_type.CPU)),
-                         str(platfrom.get_info(cl.platform_info.VERSION))))
+                         str(platform.get_info(cl.platform_info.VERSION))))
                 use_GPU = False
                 par["Platform_Indx"] = j
-        if not par["Platform_Indx"]:
-            raise(ValueError("No OpenCL CPU device found."))
+        if par["Platform_Indx"] is None:
+            raise(ValueError("No OpenCL device found."))
     par["use_GPU"] = use_GPU
     return platforms
 
@@ -609,7 +609,9 @@ def _start_recon(myargs):
 ###############################################################################
     data, images = _estScaleNorm(myargs, par, images, data)
     if np.allclose(myargs.weights, -1):
-        par["weights"] = np.ones((par["unknowns"]), dtype=par["DTYPE_real"])
+        if "weights" not in par.keys():
+            par["weights"] = np.ones(
+                (par["unknowns"]), dtype=par["DTYPE_real"])
     else:
         par["weights"] = np.array(myargs.weights, dtype=par["DTYPE_real"])
 ###############################################################################
@@ -617,7 +619,8 @@ def _start_recon(myargs):
 ###############################################################################
     model.computeInitialGuess(
         images,
-        par["dscale"])
+        par["dscale"],
+        myargs.weights)
 ###############################################################################
 # initialize operator  ########################################################
 ###############################################################################
