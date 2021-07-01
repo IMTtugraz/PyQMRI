@@ -88,6 +88,7 @@ class Model(BaseModel):
             dtype=self._DTYPE)
         t = self.t[0][:, None, None, None]
 
+
         for j in range(self.numT1Scale):
             offset = len(self.t[j])
             t = self.t[j][:, None, None, None]
@@ -117,6 +118,7 @@ class Model(BaseModel):
             dtype=self._DTYPE)
         t = self.t[0][:, None, None, None]
 
+
         for j in range(self.numT1Scale):
             offset = len(self.t[j])
             t = self.t[j][:, None, None, None]
@@ -136,6 +138,7 @@ class Model(BaseModel):
             (self.numAlpha, self.NScan, self.NSlice, self.dimY, self.dimX),
             dtype=self._DTYPE)
         t = self.t[0][:, None, None, None]
+
 
         for j in range(self.numT1Scale):
             offset = len(self.t[j])

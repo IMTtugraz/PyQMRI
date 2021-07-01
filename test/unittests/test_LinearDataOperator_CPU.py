@@ -21,8 +21,10 @@ import numpy as np
 import h5py
 
 
-DTYPE = np.complex128
-DTYPE_real = np.float64
+DTYPE = np.complex64
+DTYPE_real = np.float32
+RTOL=1e-2
+ATOL=1e-4
 data_dir = os.path.realpath(pjoin(os.path.dirname(__file__), '..'))
 
 def setupPar(par):
@@ -156,8 +158,7 @@ class OperatorKspaceRadial(unittest.TestCase):
                     outadj.flatten())/self.opinadj.size
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
-
-        self.assertAlmostEqual(a, b, places=6)
+        np.testing.assert_allclose(a, b, rtol=RTOL, atol=ATOL)
 
     def test_adj_inplace(self):
         inpfwd = clarray.to_device(self.queue, self.opinfwd)
@@ -178,8 +179,7 @@ class OperatorKspaceRadial(unittest.TestCase):
                     outadj.flatten())/self.opinadj.size
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
-
-        self.assertAlmostEqual(a, b, places=6)
+        np.testing.assert_allclose(a, b, rtol=RTOL, atol=ATOL)
     
     def test_CPU_vs_GPU_fwd(self):
         inpfwd_CPU = clarray.to_device(self.queue, self.opinfwd)
@@ -192,7 +192,7 @@ class OperatorKspaceRadial(unittest.TestCase):
         outfwd_GPU.add_event(self.op_GPU.fwd(outfwd_GPU, [inpfwd_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
         outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
         
-        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=1e-10)
+        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=RTOL, atol=ATOL)
 
         
     def test_CPU_vs_GPU_adj(self):
@@ -206,7 +206,7 @@ class OperatorKspaceRadial(unittest.TestCase):
         outadj_GPU.add_event(self.op_GPU.adj(outadj_GPU, [inpadj_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
         outadj_GPU = outadj_GPU.map_to_host(wait_for=outadj_GPU.events)     
         
-        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=1e-10)
+        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=RTOL, atol=ATOL)
 
 class OperatorKspaceCartesian(unittest.TestCase):
     def setUp(self):
@@ -313,8 +313,7 @@ class OperatorKspaceCartesian(unittest.TestCase):
                     outadj.flatten())/self.opinadj.size
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
-
-        self.assertAlmostEqual(a, b, places=12)
+        np.testing.assert_allclose(a, b, rtol=RTOL, atol=ATOL)
 
     def test_adj_inplace(self):
         inpfwd = clarray.to_device(self.queue, self.opinfwd)
@@ -337,8 +336,7 @@ class OperatorKspaceCartesian(unittest.TestCase):
                     outadj.flatten())/self.opinadj.size
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
-
-        self.assertAlmostEqual(a, b, places=12)
+        np.testing.assert_allclose(a, b, rtol=RTOL, atol=ATOL)
 
     def test_CPU_vs_GPU_fwd(self):
         inpfwd_CPU = clarray.to_device(self.queue, self.opinfwd)
@@ -351,7 +349,7 @@ class OperatorKspaceCartesian(unittest.TestCase):
         outfwd_GPU.add_event(self.op_GPU.fwd(outfwd_GPU, [inpfwd_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
         outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
         
-        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=1e-10)
+        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=RTOL, atol=ATOL)
 
         
     def test_CPU_vs_GPU_adj(self):
@@ -365,7 +363,7 @@ class OperatorKspaceCartesian(unittest.TestCase):
         outadj_GPU.add_event(self.op_GPU.adj(outadj_GPU, [inpadj_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
         outadj_GPU = outadj_GPU.map_to_host(wait_for=outadj_GPU.events)     
         
-        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=1e-10)
+        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=RTOL, atol=ATOL)
         
 class OperatorKspaceSMSCartesian(unittest.TestCase):
     def setUp(self):
@@ -481,8 +479,7 @@ class OperatorKspaceSMSCartesian(unittest.TestCase):
                     outadj.flatten())/self.opinadj.size
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
-
-        self.assertAlmostEqual(a, b, places=12)
+        np.testing.assert_allclose(a, b, rtol=RTOL, atol=ATOL)
 
     def test_adj_inplace(self):
         inpfwd = clarray.to_device(self.queue, self.opinfwd)
@@ -504,8 +501,7 @@ class OperatorKspaceSMSCartesian(unittest.TestCase):
                     outadj.flatten())/self.opinadj.size
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
-
-        self.assertAlmostEqual(a, b, places=12)
+        np.testing.assert_allclose(a, b, rtol=RTOL, atol=ATOL)
         
     def test_CPU_vs_GPU_fwd(self):
         inpfwd_CPU = clarray.to_device(self.queue, self.opinfwd)
@@ -518,7 +514,7 @@ class OperatorKspaceSMSCartesian(unittest.TestCase):
         outfwd_GPU.add_event(self.op_GPU.fwd(outfwd_GPU, [inpfwd_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
         outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
         
-        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=1e-10)
+        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=RTOL, atol=ATOL)
 
         
     def test_CPU_vs_GPU_adj(self):
@@ -532,7 +528,7 @@ class OperatorKspaceSMSCartesian(unittest.TestCase):
         outadj_GPU.add_event(self.op_GPU.adj(outadj_GPU, [inpadj_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
         outadj_GPU = outadj_GPU.map_to_host(wait_for=outadj_GPU.events)     
         
-        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=1e-10)
+        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=RTOL, atol=ATOL)
         
 
 
@@ -627,8 +623,7 @@ class OperatorImageSpace(unittest.TestCase):
                     outadj.flatten())/self.opinadj.size
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
-
-        self.assertAlmostEqual(a, b, places=12)
+        np.testing.assert_allclose(a, b, rtol=RTOL, atol=ATOL)
 
     def test_adj_inplace(self):
         inpfwd = clarray.to_device(self.queue, self.opinfwd)
@@ -651,8 +646,7 @@ class OperatorImageSpace(unittest.TestCase):
                     outadj.flatten())/self.opinadj.size
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
-
-        self.assertAlmostEqual(a, b, places=12)
+        np.testing.assert_allclose(a, b, rtol=RTOL, atol=ATOL)
         
     def test_CPU_vs_GPU_fwd(self):
         inpfwd_CPU = clarray.to_device(self.queue, self.opinfwd)
@@ -665,7 +659,7 @@ class OperatorImageSpace(unittest.TestCase):
         outfwd_GPU.add_event(self.op_GPU.fwd(outfwd_GPU, [inpfwd_GPU, [], self.grad_buf_GPU]))
         outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
         
-        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=1e-10)
+        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=RTOL, atol=ATOL)
 
         
     def test_CPU_vs_GPU_adj(self):
@@ -679,5 +673,5 @@ class OperatorImageSpace(unittest.TestCase):
         outadj_GPU.add_event(self.op_GPU.adj(outadj_GPU, [inpadj_GPU, [], self.grad_buf_GPU]))
         outadj_GPU = outadj_GPU.map_to_host(wait_for=outadj_GPU.events)     
         
-        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=1e-10)
+        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=RTOL, atol=ATOL)
         

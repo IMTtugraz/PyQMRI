@@ -123,11 +123,18 @@ class Stream:
         
         self.normkrnldiff = []
         for q in queue:
-            self.normkrnldiff.append(clred.ReductionKernel(
-                q.context, DTYPE_real, 0, 
-                reduce_expr="a+b", 
-                map_expr="pown(x[i].s0-y[i].s0,2)+pown(x[i].s1-y[i].s1,2)",
-                arguments="__global float2 *x, __global float2 *y"))
+            if DTYPE is np.complex64:
+                self.normkrnldiff.append(clred.ReductionKernel(
+                    q.context, DTYPE_real, 0, 
+                    reduce_expr="a+b", 
+                    map_expr="pown(x[i].s0-y[i].s0,2)+pown(x[i].s1-y[i].s1,2)",
+                    arguments="__global float2 *x, __global float2 *y"))
+            elif DTYPE is np.complex128:
+                self.normkrnldiff.append(clred.ReductionKernel(
+                    q.context, DTYPE_real, 0, 
+                    reduce_expr="a+b", 
+                    map_expr="pown(x[i].s0-y[i].s0,2)+pown(x[i].s1-y[i].s1,2)",
+                    arguments="__global double2 *x, __global double2 *y"))
 
     def __add__(self, other):
         """Overloading add.
@@ -166,7 +173,7 @@ class Stream:
                 for k in range(len(inp_shape[j])):
                     if not len(inp_shape[j][k]) == 0:
                         self.inp[j][i].append(
-                            clarray.empty(
+                            clarray.zeros(
                                 self.queue[4*int(i/2)],
                                 ((block_size, )+inp_shape[j][k][1:]),
                                 dtype=self.dtype))
@@ -177,7 +184,7 @@ class Stream:
             self.outp.append([])
             for i in range(2*self.num_dev):
                 self.outp[j].append(
-                    clarray.empty(
+                    clarray.zeros(
                         self.queue[4*int(i/2)],
                         ((block_size, )+outp_shape[j][1:]),
                         dtype=self.dtype))

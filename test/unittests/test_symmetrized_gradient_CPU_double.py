@@ -17,10 +17,10 @@ import pyopencl.array as clarray
 import numpy as np
 
 
-DTYPE = np.complex64
-DTYPE_real = np.float32
-ATOL=1e-7
-RTOL=1e-4
+DTYPE = np.complex128
+DTYPE_real = np.float64
+RTOL=1e-12
+ATOL=1e-14
 
 class tmpArgs():
     pass
@@ -29,7 +29,7 @@ class tmpArgs():
 def setupPar(par):
     par["NScan"] = 10
     par["NC"] = 15
-    par["NSlice"] = 10
+    par["NSlice"] = 8
     par["dimX"] = 128
     par["dimY"] = 128
     par["Nproj"] = 21
@@ -73,13 +73,13 @@ class SymmetrizedGradientTest(unittest.TestCase):
             DTYPE_real=DTYPE_real)
 
         self.symgradin = np.random.randn(par["unknowns"], par["NSlice"],
-                                         par["dimY"], par["dimX"], 4) +\
+                                          par["dimY"], par["dimX"], 4) +\
             1j * np.random.randn(par["unknowns"], par["NSlice"],
-                                 par["dimY"], par["dimX"], 4)
+                                  par["dimY"], par["dimX"], 4)
         self.symdivin = np.random.randn(par["unknowns"], par["NSlice"],
                                         par["dimY"], par["dimX"], 8) +\
             1j * np.random.randn(par["unknowns"], par["NSlice"],
-                                 par["dimY"], par["dimX"], 8)
+                                  par["dimY"], par["dimX"], 8)
         self.symgradin = self.symgradin.astype(DTYPE)
         self.symdivin = self.symdivin.astype(DTYPE)
         self.dz = par["dz"]
@@ -130,7 +130,7 @@ class SymmetrizedGradientTest(unittest.TestCase):
                             1/2 * (gradx[..., 1] + grady[..., 0]),
                             1/2 * (gradx[..., 2] + gradz[..., 0]*self.dz),
                             1/2 * (grady[..., 2] + gradz[..., 1]*self.dz)),
-                           axis=-1)
+                            axis=-1)
         symgrad *= self.weights[:, None, None, None, None]
 
         inp = clarray.to_device(self.queue, self.symgradin)
@@ -160,7 +160,7 @@ class SymmetrizedGradientTest(unittest.TestCase):
                             1/2 * (gradx[..., 1] + grady[..., 0]),
                             1/2 * (gradx[..., 2] + gradz[..., 0]*self.dz),
                             1/2 * (grady[..., 2] + gradz[..., 1]*self.dz)),
-                           axis=-1)
+                            axis=-1)
         symgrad *= self.weights[:, None, None, None, None]
         inp = clarray.to_device(self.queue, self.symgradin)
         outp = clarray.to_device(self.queue, self.symdivin)
@@ -179,9 +179,9 @@ class SymmetrizedGradientTest(unittest.TestCase):
         outgrad = outgrad.get()
         outdiv = outdiv.get()
         a1 = np.vdot(outgrad[..., :3].flatten(),
-                     self.symdivin[..., :3].flatten())/self.symgradin.size*4
+                      self.symdivin[..., :3].flatten())/self.symgradin.size*4
         a2 = 2*np.vdot(outgrad[..., 3:6].flatten(),
-                       self.symdivin[..., 3:6].flatten())/self.symgradin.size*4
+                        self.symdivin[..., 3:6].flatten())/self.symgradin.size*4
         a = a1+a2
         b = np.vdot(self.symgradin.flatten(),
                     -outdiv.flatten())/self.symgradin.size*4
@@ -204,9 +204,9 @@ class SymmetrizedGradientTest(unittest.TestCase):
         outdiv = outdiv.get()
 
         a1 = np.vdot(outgrad[..., :3].flatten(),
-                     self.symdivin[..., :3].flatten())/self.symgradin.size*4
+                      self.symdivin[..., :3].flatten())/self.symgradin.size*4
         a2 = 2*np.vdot(outgrad[..., 3:6].flatten(),
-                       self.symdivin[..., 3:6].flatten())/self.symgradin.size*4
+                        self.symdivin[..., 3:6].flatten())/self.symgradin.size*4
         a = a1+a2
         b = np.vdot(self.symgradin.flatten(),
                     -outdiv.flatten())/self.symgradin.size*4
@@ -242,5 +242,5 @@ class SymmetrizedGradientTest(unittest.TestCase):
         np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=RTOL, atol=ATOL)
 
 
-if __name__ == '__main__':
-    unittest.main()
+# if __name__ == '__main__':
+#     unittest.main()

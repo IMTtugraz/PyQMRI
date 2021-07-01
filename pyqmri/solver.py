@@ -177,6 +177,85 @@ class CGSolver:
         del Ax, b, res, p, data, res_new
         return np.squeeze(x.get())
     
+    def eval_fwd_kspace_cg(self, y, x, wait_for=None):
+        """Apply forward operator for image reconstruction.
+        Parameters
+        ----------
+          y : PyOpenCL.Array
+            The result of the computation
+          x : PyOpenCL.Array
+            The input array
+          wait_for : list of PyopenCL.Event, None
+            A List of PyOpenCL events to wait for.
+        Returns
+        -------
+            PyOpenCL.Event:
+                A PyOpenCL.Event to wait for.
+        """
+        if wait_for is None:
+            wait_for = []
+        return self._prg.operator_fwd_cg(self._queue,
+                                         (self._NSlice, self._dimY,
+                                          self._dimX),
+                                         None,
+                                         y.data, x.data, self._coils,
+                                         np.int32(self._NC),
+                                         np.int32(self._NScan),
+                                         wait_for=wait_for)
+
+    def _operator_lhs(self, out, x, wait_for=None):
+        """Compute the left hand side of the CG equation.
+        Parameters
+        ----------
+          out : PyOpenCL.Array
+            The result of the computation
+          x : PyOpenCL.Array
+            The input array
+          wait_for : list of PyopenCL.Event, None
+            A List of PyOpenCL events to wait for.
+        Returns
+        -------
+            PyOpenCL.Event:
+                A PyOpenCL.Event to wait for.
+        """
+        if wait_for is None:
+            wait_for = []
+        self._tmp_result.add_event(self.eval_fwd_kspace_cg(
+            self._tmp_result, x, wait_for=self._tmp_result.events+x.events))
+        self._tmp_sino.add_event(self._FT(
+            self._tmp_sino, self._tmp_result, scan_offset=self._scan_offset))
+        return self._operator_rhs(out, self._tmp_sino)
+
+    def _operator_rhs(self, out, x, wait_for=None):
+        """Compute the right hand side of the CG equation.
+        Parameters
+        ----------
+          out : PyOpenCL.Array
+            The result of the computation
+          x : PyOpenCL.Array
+            The input array
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+        Returns
+        -------
+            PyOpenCL.Event:
+                A PyOpenCL.Event to wait for.
+        """
+        if wait_for is None:
+            wait_for = []
+        self._tmp_result.add_event(self._FTH(
+            self._tmp_result, x, wait_for=wait_for+x.events,
+            scan_offset=self._scan_offset))
+        return self._prg.operator_ad_cg(self._queue,
+                                        (self._NSlice, self._dimY,
+                                         self._dimX),
+                                        None,
+                                        out.data, self._tmp_result.data,
+                                        self._coils, np.int32(self._NC),
+                                        np.int32(self._NScan),
+                                        wait_for=(self._tmp_result.events +
+                                                  out.events+wait_for))
+    
 class CGSolver_H1:
     """
     Conjugate Gradient Optimization Algorithm.
@@ -615,30 +694,68 @@ class PDBaseSolver:
         self.real_const = None
         self._kernelsize = (par["par_slices"] + par["overlap"], par["dimY"],
                             par["dimX"])
-        self.abskrnl = clred.ReductionKernel(
-            par["ctx"][0], self._DTYPE_real, 0, 
-            reduce_expr="a+b", map_expr="hypot(x[i].s0,x[i].s1)",
-            arguments="__global float2 *x")
-        self.abskrnldiff = clred.ReductionKernel(
-            par["ctx"][0], self._DTYPE_real, 0, 
-            reduce_expr="a+b", map_expr="hypot(x[i].s0-y[i].s0,x[i].s1-y[i].s1)",
-            arguments="__global float2 *x, __global float2 *y")
-        self.normkrnl = clred.ReductionKernel(
-            par["ctx"][0], self._DTYPE_real, 0, 
-            reduce_expr="a+b", map_expr="pown(x[i].s0,2)+pown(x[i].s1,2)",
-            arguments="__global float2 *x")
-        self.normkrnlweighted = clred.ReductionKernel(
-            par["ctx"][0], self._DTYPE_real, 0, 
-            reduce_expr="a+b", map_expr="(pown(x[i].s0,2)+pown(x[i].s1,2))*w[i]",
-            arguments="__global float2 *x, __global float *w")
-        self.normkrnldiff = clred.ReductionKernel(
-            par["ctx"][0], self._DTYPE_real, 0, 
-            reduce_expr="a+b", map_expr="pown(x[i].s0-y[i].s0,2)+pown(x[i].s1-y[i].s1,2)",
-            arguments="__global float2 *x, __global float2 *y")
-        self.normkrnlweighteddiff = clred.ReductionKernel(
-            par["ctx"][0], self._DTYPE_real, 0, 
-            reduce_expr="a+b", map_expr="(pown(x[i].s0-y[i].s0,2)+pown(x[i].s1-y[i].s1,2))*w[i]",
-            arguments="__global float2 *x, __global float2 *y, __global float *w")
+        if self._DTYPE is np.complex64:
+            self.abskrnl = clred.ReductionKernel(
+                par["ctx"][0], self._DTYPE_real, 0, 
+                reduce_expr="a+b", 
+                map_expr="hypot(x[i].s0,x[i].s1)",
+                arguments="__global float2 *x")
+            self.abskrnldiff = clred.ReductionKernel(
+                par["ctx"][0], self._DTYPE_real, 0, 
+                reduce_expr="a+b", 
+                map_expr="hypot(x[i].s0-y[i].s0,x[i].s1-y[i].s1)",
+                arguments="__global float2 *x, __global float2 *y")
+            self.normkrnl = clred.ReductionKernel(
+                par["ctx"][0], self._DTYPE_real, 0, 
+                reduce_expr="a+b", 
+                map_expr="pown(x[i].s0,2)+pown(x[i].s1,2)",
+                arguments="__global float2 *x")
+            self.normkrnlweighted = clred.ReductionKernel(
+                par["ctx"][0], self._DTYPE_real, 0, 
+                reduce_expr="a+b", 
+                map_expr="(pown(x[i].s0,2)+pown(x[i].s1,2))*w[i]",
+                arguments="__global float2 *x, __global float *w")
+            self.normkrnldiff = clred.ReductionKernel(
+                par["ctx"][0], self._DTYPE_real, 0, 
+                reduce_expr="a+b", 
+                map_expr="pown(x[i].s0-y[i].s0,2)+pown(x[i].s1-y[i].s1,2)",
+                arguments="__global float2 *x, __global float2 *y")
+            self.normkrnlweighteddiff = clred.ReductionKernel(
+                par["ctx"][0], self._DTYPE_real, 0, 
+                reduce_expr="a+b", 
+                map_expr="(pown(x[i].s0-y[i].s0,2)+pown(x[i].s1-y[i].s1,2))*w[i]",
+                arguments="__global float2 *x, __global float2 *y, __global float *w")
+        elif self._DTYPE is np.complex128:
+            self.abskrnl = clred.ReductionKernel(
+                par["ctx"][0], self._DTYPE_real, 0, 
+                reduce_expr="a+b", 
+                map_expr="hypot(x[i].s0,x[i].s1)",
+                arguments="__global double2 *x")
+            self.abskrnldiff = clred.ReductionKernel(
+                par["ctx"][0], self._DTYPE_real, 0, 
+                reduce_expr="a+b", 
+                map_expr="hypot(x[i].s0-y[i].s0,x[i].s1-y[i].s1)",
+                arguments="__global double2 *x, __global double2 *y")
+            self.normkrnl = clred.ReductionKernel(
+                par["ctx"][0], self._DTYPE_real, 0, 
+                reduce_expr="a+b", 
+                map_expr="pown(x[i].s0,2)+pown(x[i].s1,2)",
+                arguments="__global double2 *x")
+            self.normkrnlweighted = clred.ReductionKernel(
+                par["ctx"][0], self._DTYPE_real, 0, 
+                reduce_expr="a+b", 
+                map_expr="(pown(x[i].s0,2)+pown(x[i].s1,2))*w[i]",
+                arguments="__global double2 *x, __global double *w")
+            self.normkrnldiff = clred.ReductionKernel(
+                par["ctx"][0], self._DTYPE_real, 0, 
+                reduce_expr="a+b", 
+                map_expr="pown(x[i].s0-y[i].s0,2)+pown(x[i].s1-y[i].s1,2)",
+                arguments="__global double2 *x, __global double2 *y")
+            self.normkrnlweighteddiff = clred.ReductionKernel(
+                par["ctx"][0], self._DTYPE_real, 0, 
+                reduce_expr="a+b", 
+                map_expr="(pown(x[i].s0-y[i].s0,2)+pown(x[i].s1-y[i].s1,2))*w[i]",
+                arguments="__global double2 *x, __global double2 *y, __global double *w")
 
     @staticmethod
     def factory(
@@ -916,7 +1033,7 @@ class PDBaseSolver:
             dual.append(dual_val)
             gap.append(gap_val)
                 
-            if not np.mod(i+1, 100):
+            if not np.mod(i+1, 10):
                 if self.display_iterations:
                     if isinstance(primal_vars["x"], np.ndarray):
                         self.model.plot_unknowns(
@@ -1289,7 +1406,7 @@ class PDBaseSolver:
             outp.data, inp[0].data, inp[1].data,
             np.int32(self.unknowns),
             self._grad_op.ratio[idx].data,
-            par[idx].data,
+            self._symgrad_op.ratio[idx].data,
             np.int32(bound_cond),
             self._DTYPE_real(self.dz),
             wait_for=outp.events + inp[0].events + inp[1].events+wait_for)
@@ -1729,8 +1846,7 @@ class PDSolverTGV(PDBaseSolver):
         out_adj["Kyk2"].add_event(
             self.update_Kyk2(
                 outp=out_adj["Kyk2"],
-                inp=(in_dual["z2"], in_dual["z1"]),
-                par=[self._symgrad_op.ratio]))
+                inp=(in_dual["z2"], in_dual["z1"])))
 
         out_fwd["Ax"].add_event(
             self._op.fwd(
@@ -1827,8 +1943,7 @@ class PDSolverTGV(PDBaseSolver):
         out_adj["Kyk2"].add_event(
             self.update_Kyk2(
                 outp=out_adj["Kyk2"],
-                inp=(out_dual["z2"], out_dual["z1"]),
-                par=[self._symgrad_op.ratio]))
+                inp=(out_dual["z2"], out_dual["z1"])))
 
         ynorm = (
             self.normkrnldiff(out_dual["r"], in_dual["r"], 
@@ -2268,7 +2383,7 @@ class PDSolverStreamedTGV(PDSolverStreamed):
         tmp_results_adjoint = {}
         tmp_results_adjoint_new = {}
 
-        primal_vars["x"] = inp
+        primal_vars["x"] = inp[0]
         primal_vars["xk"] = primal_vars["x"].copy()
         primal_vars_new["x"] = np.zeros_like(primal_vars["x"])
         primal_vars["v"] = np.zeros(
@@ -2712,7 +2827,7 @@ class PDSolverStreamedTV(PDSolverStreamed):
         tmp_results_adjoint = {}
         tmp_results_adjoint_new = {}
 
-        primal_vars["x"] = inp
+        primal_vars["x"] = inp[0]
         primal_vars["xk"] = primal_vars["x"].copy()
         primal_vars_new["x"] = np.zeros_like(primal_vars["x"])
 

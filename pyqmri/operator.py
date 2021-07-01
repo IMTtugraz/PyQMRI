@@ -709,6 +709,7 @@ class OperatorKspace(Operator):
                 np.int32(self.unknowns),
                 wait_for=(self._tmp_result.events + inp[0].events
                           + wait_for)))
+               
         return self.NUFFT.FFT(
             out,
             self._tmp_result,
@@ -788,6 +789,7 @@ class OperatorKspace(Operator):
             self.NUFFT.FFTH(
                 self._tmp_result, inp[0], wait_for=(wait_for
                                                     + inp[0].events)))
+        
         return self.prg.operator_ad(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data, self._tmp_result.data, inp[1].data,
@@ -2696,10 +2698,11 @@ class OperatorFiniteGradientStreamed(Operator):
         return self._stream_grad
     
     def updateRatio(self, inp):
-        self.ratio = clarray.to_device(
-            self.queue,
-            (self._weights*inp).astype(
-                     dtype=self.DTYPE_real))
+        for j in range(self.num_dev):
+            self.ratio = clarray.to_device(
+                self.queue[4*j],
+                (self._weights*inp).astype(
+                         dtype=self.DTYPE_real))
     # def updateRatio(self, inp):
     #     x = np.require(np.swapaxes(inp, 0, 1), requirements='C')
     #     grad = np.zeros(x.shape + (4,), dtype=self.DTYPE)
@@ -2783,6 +2786,7 @@ class OperatorFiniteSymGradientStreamed(Operator):
     def __init__(self, par, prg, DTYPE=np.complex64, DTYPE_real=np.float32):
         super().__init__(par, prg, DTYPE, DTYPE_real)
 
+        self._weights = par["weights"]
         par["overlap"] = 1
         self._overlap = par["overlap"]
         self.par_slices = par["par_slices"]
@@ -2950,5 +2954,7 @@ class OperatorFiniteSymGradientStreamed(Operator):
 
     def updateRatio(self, inp):
         for j in range(self.num_dev):
-            for i in range(len(inp[j])):
-                self.ratio[j][i] = inp[j][i]
+            self.ratio = clarray.to_device(
+                self.queue[4*j],
+                (self._weights*inp).astype(
+                         dtype=self.DTYPE_real))

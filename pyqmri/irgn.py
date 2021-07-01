@@ -263,6 +263,11 @@ class IRGNOptimizer:
 
         iters = self.irgn_par["start_iters"]
         result = np.copy(self._model.guess)
+        
+        if "inc" in self.irgn_par.keys():
+            inc = int(self.irgn_par["inc"])
+        else:
+            inc = 2
 
         if self._streamed:
             data = np.require(
@@ -321,7 +326,7 @@ class IRGNOptimizer:
 
             result = self._irgnSolve3D(result, iters, data, ign)
 
-            iters = np.fmin(iters * 2, self.irgn_par["max_iters"])
+            iters = np.fmin(iters * inc, self.irgn_par["max_iters"])
 
             end = time.time() - start
             self.gn_res.append(self._fval)

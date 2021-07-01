@@ -17,10 +17,10 @@ import pyopencl.array as clarray
 import numpy as np
 
 
-DTYPE = np.complex64
-DTYPE_real = np.float32
-ATOL=1e-7
-RTOL=1e-4
+DTYPE = np.complex128
+DTYPE_real = np.float64
+ATOL=1e-14
+RTOL=1e-12
 
 class tmpArgs():
     pass
@@ -37,8 +37,8 @@ def setupPar(par):
     par["unknowns_TGV"] = 2
     par["unknowns_H1"] = 0
     par["unknowns"] = 2
-    par["dz"] = 1
-    par["weights"] = np.array([1, 0.1])
+    par["dz"] = DTYPE_real(1)
+    par["weights"] = np.array([1, 0.1], dtype=DTYPE_real)
 
 
 class SymmetrizedGradientTest(unittest.TestCase):

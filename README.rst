@@ -59,13 +59,20 @@ in the PyQMRI root folder. It is advised to run unit and integration tests after
 For more detailed instructions on how to contribute have a look at contributing_.
 
 
-Limitations and known Issues:
+Changelog:
 ------------------------------
-Currently runs only on GPUs due to having only basic CPU support for the clfft_.
+* v1.1 
+   * Added the first iteration of CPU support. Tested on Intel CPUS using pocl_ on Ubuntu and Arch Linux.
+   * Changed stagnation to use inverse of exponential. Adapted default config accordingly
+   * Added ASL model
+* v1.0 
+   * Initial Release
 
 Citation:
 ----------
-Please cite "Oliver Maier, Matthias Schloegl, Kristian Bredies, and Rudolf Stollberger; 3D Model-Based Parameter Quantification on Resource Constrained Hardware using Double-Buffering. Proceedings of the 27th meeting of the ISMRM, 2019, Montreal, Canada" if using the software or parts of it, specifically the PyOpenCL based NUFFT, in your work.
+If using the toolbox, please consider citing: "Maier et al., (2020). PyQMRI: An accelerated Python based Quantitative MRI toolbox. Journal of Open Source Software, 5(56), 2727, https://doi.org/10.21105/joss.02727"
+
+Also consider citing "Oliver Maier, Matthias Schloegl, Kristian Bredies, and Rudolf Stollberger; 3D Model-Based Parameter Quantification on Resource Constrained Hardware using Double-Buffering. Proceedings of the 27th meeting of the ISMRM, 2019, Montreal, Canada" if using parts of the software, specifically the PyOpenCL based NUFFT and the double buffering capabilities, in your work.
 
 Older Releases:
 ----------------
@@ -91,3 +98,4 @@ at `[v0.1.0] <https://github.com/IMTtugraz/PyQMRI/tree/v.0.1.0>`_
 .. _Documentation : https://pyqmri.readthedocs.io/en/latest/?badge=latest
 .. _`Code of Conduct` : CODE_OF_CONDUCT.rst
 .. _GitLab : https://gitlab.tugraz.at/F23B736137140D66/PyQMRI
+.. _pocl : http://portablecl.org/
