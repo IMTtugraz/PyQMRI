@@ -107,8 +107,7 @@ __kernel void update_z1(
                 const double alphainv,
                 const int NUk_tgv,
                 const int NUk_H1,
-                const double h1inv,
-                __global double* ratio
+                const double h1inv
                 )
 {
     size_t Nx = get_global_size(2), Ny = get_global_size(1);
@@ -122,7 +121,7 @@ __kernel void update_z1(
     for (int uk=0; uk<NUk_tgv; uk++)
     {
         z_new[i] = z[i] + sigma*(
-            (1+theta)*gx[i]-theta*gx_[i]-((1+theta)*vx[i]-theta*vx_[i])*ratio[uk]);
+            (1+theta)*gx[i]-theta*gx_[i]-((1+theta)*vx[i]-theta*vx_[i]));
 
         // reproject
         fac = hypot(fac,

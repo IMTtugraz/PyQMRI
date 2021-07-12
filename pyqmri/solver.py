@@ -349,9 +349,10 @@ class CGSolver_H1:
                             self._NSlice, self._dimY, self._dimX),
                            self._DTYPE, "C")
         
-        tau1 = self.lambd**4*(self.power_iteration(x))
-        tau2 = self.alpha**4*(self.power_iteration_grad(x))
-        tau = self._DTYPE_real(1/np.sqrt(tau1+tau2+1/self.delta**4))
+        tau1 = self.lambd**2*(self.power_iteration(x))
+        tau2 = self.alpha*(self.power_iteration_grad(x))
+        print("Tau1: ", tau1, " Tau2: ", tau2)
+        tau = self._DTYPE_real(1/np.sqrt(tau1**2+tau2**2+1/self.delta**4))
         
         x0 = x.copy()
         data = clarray.to_device(self._queue[0], data)
@@ -459,7 +460,7 @@ class CGSolver_H1:
         """
         self.alpha = irgn_par["gamma"]
         self.delta = irgn_par["delta"]
-        self.lambd = irgn_par["lambd"]
+        self.lambd = 1
         
     def setFvalInit(self, fval):
         """Set the initial value of the cost function.
@@ -1283,7 +1284,6 @@ class PDBaseSolver:
             self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
             np.int32(self.unknowns_H1),
             self._DTYPE_real(1 / (1 + par[0] / par[3])),
-            self._grad_op.ratio.data,
             wait_for=(outp.events+inp[0].events+inp[1].events +
                       inp[2].events+inp[3].events+inp[4].events+wait_for))
 
