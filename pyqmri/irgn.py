@@ -288,11 +288,11 @@ class IRGNOptimizer:
 
             self._balanceModelGradients(result)
             self._updateIRGNRegPar(ign)
-            self._pdop._grad_op.updateRatio(
-                self.irgn_par["gamma"]/self.irgn_par["lambd"])
-            if self._reg_type == 'TGV':
-                self._pdop._symgrad_op.updateRatio(
-                    2*self.irgn_par["gamma"]/self.irgn_par["lambd"])
+            # self._pdop._grad_op.updateRatio(
+            #     self.irgn_par["gamma"])
+            # if self._reg_type == 'TGV':
+            #     self._pdop._symgrad_op.updateRatio(
+            #         2*self.irgn_par["gamma"])
 
             self._step_val = np.nan_to_num(self._model.execute_forward(result))
 
@@ -342,17 +342,19 @@ class IRGNOptimizer:
             self.irgn_par["delta"] = np.minimum(
                 self._delta
                 * self.irgn_par["delta_inc"]**ign,
-                self.irgn_par["delta_max"])
+                self.irgn_par["delta_max"])*self.irgn_par["lambd"]
         except OverflowError:
             self.irgn_par["delta"] = np.minimum(
                 np.finfo(self._delta).max,
                 self.irgn_par["delta_max"])
         self.irgn_par["gamma"] = np.maximum(
             self._gamma * self.irgn_par["gamma_dec"]**ign,
-            self.irgn_par["gamma_min"])
+            self.irgn_par["gamma_min"])/self.irgn_par["lambd"]
         self.irgn_par["omega"] = np.maximum(
             self._omega * self.irgn_par["omega_dec"]**ign,
-            self.irgn_par["omega_min"])
+            self.irgn_par["omega_min"])/self.irgn_par["lambd"]
+        
+        
 
     def _balanceModelGradients(self, result):
         scale = np.reshape(

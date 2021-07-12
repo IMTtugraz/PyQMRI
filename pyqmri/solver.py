@@ -1165,10 +1165,10 @@ class PDBaseSolver:
         ----------
           irgn_par (dic): A dictionary containing the new parameters.
         """
-        self.alpha = 1#irgn_par["gamma"] / irgn_par["lambd"]
-        self.beta = 1#irgn_par["gamma"] * 2 / irgn_par["lambd"]
-        self.delta = irgn_par["delta"] * irgn_par["lambd"]
-        self.omega = 1#irgn_par["omega"]
+        self.alpha = irgn_par["gamma"]
+        self.beta = irgn_par["gamma"] * 2
+        self.delta = irgn_par["delta"]
+        self.omega = irgn_par["omega"]
         self.lambd = 1#irgn_par["lambd"]
         self.mu = 1/self.delta
 
