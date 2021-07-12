@@ -676,7 +676,8 @@ def run(reg_type='TGV',
         out='',
         modelfile="models.ini",
         modelname="VFA-E1",
-        double_precision=False):
+        double_precision=False,
+        coils3D=False):
     """
     Start a 3D model based reconstruction.
 
@@ -760,7 +761,8 @@ def run(reg_type='TGV',
               ('--modelfile', str(modelfile)),
               ('--modelname', str(modelname)),
               ('--out', str(out)),
-              ('--double_precision', str(double_precision))
+              ('--double_precision', str(double_precision)),
+              ('--estCoils3D', str(coils3D))
               ]
 
     sysargs = sys.argv[1:]
@@ -855,6 +857,11 @@ def _parseArguments(args):
       help="Switch between single (False, default) and double "
            "precision (True). Usually, single precision gives high enough "
            "accuracy.")
+    argparmain.add_argument(
+      '--estCoils3D', dest='use3Dcoilest', type=_str2bool,
+      help="Use 3D coil estimation instead of 2D slice-by-slice. \
+      Defaults to false. Currently limited to Cartesian data.")
+
 
     arguments, unknown = argparmain.parse_known_args(args)
     return arguments, unknown

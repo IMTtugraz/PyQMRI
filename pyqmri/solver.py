@@ -295,7 +295,7 @@ class CGSolver_H1:
         self._DTYPE_real = par["DTYPE_real"]
         self.unknowns = par["unknowns"]
         self._op = linops[0]
-        self._gradop = linops[1]
+        self._grad_op = linops[1]
         self._queue = queue
         self.tol = irgn_par["tol"]
         self._coils = coils
@@ -332,7 +332,7 @@ class CGSolver_H1:
         """
         self._updateConstraints()
         if guess is not None:
-            x = clarray.to_device(self._queue[0], guess)
+            x = clarray.to_device(self._queue[0], guess[0])
         else:
             x = clarray.zeros(self._queue[0],
                               (self.unknowns,
@@ -352,7 +352,7 @@ class CGSolver_H1:
         tau1 = self.lambd**4*(self.power_iteration(x))
         tau2 = self.alpha**4*(self.power_iteration_grad(x))
         tau = self._DTYPE_real(1/np.sqrt(tau1+tau2+1/self.delta**4))
-
+        
         x0 = x.copy()
         data = clarray.to_device(self._queue[0], data)
         self._operator_rhs(b, data).wait()
@@ -366,7 +366,7 @@ class CGSolver_H1:
             # tmpsum = np.sum(np.abs(imgrad.get()),axis=-1)**2
             # tmpsum = clarray.to_device(self._queue[0],tmpsum)
             # grad = self._DTYPE_real(self.lambd)*(Ax-b) - self._DTYPE_real(self.alpha)*self._gradop.adjoop(imgrad)/(1+tmpsum) + self._DTYPE_real(1/self.delta)*(y-x0)
-            grad = self._DTYPE_real(self.lambd)*(Ax-b) - self._DTYPE_real(self.alpha)*self._gradop.adjoop(self._gradop.fwdoop(y)) + self._DTYPE_real(1/self.delta)*(y-x0)
+            grad = self._DTYPE_real(self.lambd)*(Ax-b) - self._DTYPE_real(self.alpha)*self._grad_op.adjoop(self._grad_op.fwdoop(y)) + self._DTYPE_real(1/self.delta)*(y-x0)
             
             x_old = (y - tau*grad)
             (x, x_old) = (x_old, x)
@@ -387,9 +387,9 @@ class CGSolver_H1:
             
         
 
-            if not np.mod(i+1, 100):
+            if not np.mod(i+1, 10):
                 datres = self._DTYPE_real(self.lambd/2)*np.linalg.norm(self._op.fwdoop([x, self._coils, self.modelgrad]).get()-data.get())**2 
-                regres = self._DTYPE_real(self.alpha/2)*np.linalg.norm(self._gradop.fwdoop(x).get())**2
+                regres = self._DTYPE_real(self.alpha/2)*np.linalg.norm(self._grad_op.fwdoop(x).get())**2
                 l2res = self._DTYPE_real(1/self.delta/2)*np.linalg.norm((x-x0).get())**2
                 sys.stdout.write(
                     "Iteration: %04d ---- data: %2.2e, H1: %2.2e, L2: %2.2e\r" %
@@ -560,7 +560,7 @@ class CGSolver_H1:
     
         for _ in range(num_simulations):
             # calculate the matrix-by-vector product Ab
-            b_k1 = self._gradop.adjoop(self._gradop.fwdoop(b_k))
+            b_k1 = self._grad_op.adjoop(self._grad_op.fwdoop(b_k))
     
             # calculate the norm
             b_k1_norm = np.linalg.norm(b_k1.get())
@@ -1168,7 +1168,7 @@ class PDBaseSolver:
         self.alpha = 1#irgn_par["gamma"] / irgn_par["lambd"]
         self.beta = 1#irgn_par["gamma"] * 2 / irgn_par["lambd"]
         self.delta = irgn_par["delta"] * irgn_par["lambd"]
-        self.omega = irgn_par["omega"]
+        self.omega = 1#irgn_par["omega"]
         self.lambd = 1#irgn_par["lambd"]
         self.mu = 1/self.delta
 
@@ -1361,7 +1361,7 @@ class PDBaseSolver:
             outp.data, inp[0].data, inp[1].data, inp[2].data,
             self._DTYPE_real(par[0]),
             self._DTYPE_real(par[1]),
-            self._DTYPE_real(1/par[2]), np.int32(self.unknowns),
+            self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
 
@@ -1404,7 +1404,7 @@ class PDBaseSolver:
             self._queue[4*idx+idxq],
             self._kernelsize, None,
             outp.data, inp[0].data, inp[1].data,
-            np.int32(self.unknowns),
+            np.int32(self.unknowns_TGV),
             self._grad_op.ratio[idx].data,
             self._symgrad_op.ratio[idx].data,
             np.int32(bound_cond),

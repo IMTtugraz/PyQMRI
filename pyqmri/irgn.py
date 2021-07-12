@@ -235,7 +235,7 @@ class IRGNOptimizer:
                 DTYPE_real,
                 self._streamed)
             v = np.zeros(
-                ([self.par["unknowns"], self.par["NSlice"],
+                ([self.par["unknowns_TGV"], self.par["NSlice"],
                   self.par["dimY"], self.par["dimX"], 4]),
                 dtype=DTYPE)
             if self._streamed:
