@@ -54,17 +54,28 @@ def est_coils(data, par, file, args, off):
     nlinvRealConstr = False
     if args.sms or "Coils_real" in list(file.keys()):
         print("Using precomputed coil sensitivities")
-        slices_coils = file['Coils_real'][()].shape[1]
-        par["C"] = file['Coils_real'][
-            :,
-            int(slices_coils / 2) - int(np.floor((par["NSlice"]) / 2)) + off:
-            int(slices_coils / 2) + int(np.ceil(par["NSlice"] / 2)) + off,
-            ...] + 1j * file['Coils_imag'][
-            :,
-            int(slices_coils / 2) - int(np.floor((par["NSlice"]) / 2)) + off:
-            int(slices_coils / 2) + int(np.ceil(par["NSlice"] / 2)) + off,
-            ...]
-        par["C"] = par["C"].astype(par["DTYPE"])
+        
+        if "Coils_real" in file.keys():
+            slices_coils = file['Coils_real'][()].shape[1]
+            par["C"] = file['Coils_real'][
+                :,
+                int(slices_coils / 2) - int(np.floor((par["NSlice"]) / 2)) + off:
+                int(slices_coils / 2) + int(np.ceil(par["NSlice"] / 2)) + off,
+                ...] + 1j * file['Coils_imag'][
+                :,
+                int(slices_coils / 2) - int(np.floor((par["NSlice"]) / 2)) + off:
+                int(slices_coils / 2) + int(np.ceil(par["NSlice"] / 2)) + off,
+                ...]
+            par["C"] = par["C"].astype(par["DTYPE"])
+        else:
+            slices_coils = file['Coils'][()].shape[1]
+            par["C"] = file['Coils'][
+                :,
+                int(slices_coils / 2) - int(np.floor((par["NSlice"]) / 2)) + off:
+                int(slices_coils / 2) + int(np.ceil(par["NSlice"] / 2)) + off,
+                ...] 
+            par["C"] = par["C"].astype(par["DTYPE"])
+        
     elif not args.sms and "Coils" in list(file.keys()):
         if args.trafo and not file['Coils'].shape[1] >= par["NSlice"]:
 
