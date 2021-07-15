@@ -1522,7 +1522,7 @@ class PDSolverTV(PDBaseSolver):
             coils,
             model,
             **kwargs)
-        self.alpha = irgn_par["gamma"]/irgn_par["lambd"]
+        self.alpha = irgn_par["gamma"]
         self._op = linop[0]
         self._grad_op = linop[1]
 
@@ -1767,14 +1767,13 @@ class PDSolverTGV(PDBaseSolver):
             coils,
             model,
             **kwargs)
-        self.alpha = 1#irgn_par["gamma"]/irgn_par["lambd"]
-        self.beta = 1#irgn_par["gamma"]/irgn_par["lambd"] * 2
+        self.alpha = irgn_par["gamma"]
+        self.beta = irgn_par["gamma"] * 2
         self._op = linop[0]
         self._grad_op = linop[1]
         self._symgrad_op = linop[2]
 
     def _setupVariables(self, inp, data):
-
         data = clarray.to_device(self._queue[0], data.astype(self._DTYPE))
 
         primal_vars = {}

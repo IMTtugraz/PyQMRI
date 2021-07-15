@@ -142,8 +142,12 @@ class IRGNOptimizer:
                                         par["packs"]*par["numofpacks"], 
                                         par["Nproj"], par["N"])
             else:
-                self._data_shape = (par["NScan"], par["NC"],
-                                    par["NSlice"], par["Nproj"], par["N"])
+                if par["is3D"] and trafo:
+                    self._data_shape = (par["NScan"], par["NC"],
+                                        1, par["Nproj"], par["N"])
+                else:
+                    self._data_shape = (par["NScan"], par["NC"],
+                                        par["NSlice"], par["Nproj"], par["N"])
             if self._streamed:
                 self._data_trans_axes = (2, 0, 1, 3, 4)
                 self._grad_trans_axes = (2, 0, 1, 3, 4)
@@ -411,7 +415,6 @@ class IRGNOptimizer:
 ###############################################################################
     def _irgnSolve3D(self, x, iters, data, GN_it):
         b = self._calcResidual(x, data, GN_it)
-
         if self._streamed:
             x = np.require(np.swapaxes(x, 0, 1), requirements='C')
             res = data - b + self._MRI_operator.fwdoop(

@@ -463,3 +463,303 @@ __kernel void copy_SMS_adjkspace(
         }
     }
 }
+
+__kernel void fftshift3D(__global double2* ksp, __global double *check)
+{
+    size_t x = get_global_id(2);
+    size_t dimX = get_global_size(2);
+    size_t y = get_global_id(1);
+    size_t dimY = get_global_size(1);
+    size_t n = get_global_id(0);
+    size_t z = n % dimX;
+
+    ksp[x+dimX*y+dimX*dimY*n] = ksp[x+dimX*y+dimX*dimY*n]*check[x]*check[y]*check[z];
+}
+
+__kernel void invgrid_lut3D(
+                __global double2 *s,
+                __global double2 *sg,
+                __global double *kpos,
+                const int gridsize,
+                const int NC,
+                const double kwidth,
+                __global double *dcf,
+                __constant double* kerneltable,
+                const int nkernelpts,
+                const int scanoffset
+                )
+{
+    size_t k = get_global_id(2);
+    size_t kDim = get_global_size(2);
+    size_t n = get_global_id(1);
+    size_t NDim = get_global_size(1);
+    size_t scan = get_global_id(0);
+
+    int ixmin, ixmax, iymin, iymax, izmin, izmax, gridcenter, gptr_cinc, kernelind, indx, indy, indz;
+    double kx, ky, kz;
+    double fracind, dkx, dky, dkz, dk, fracdk, kern;
+    gridcenter = gridsize/2;
+
+    double2 tmp_dat = 0.0;
+
+    kx = (kpos[3*(k+kDim*(scan+scanoffset))]);
+    ky = (kpos[3*(k+kDim*(scan+scanoffset))+1]);
+    kz = (kpos[3*(k+kDim*(scan+scanoffset))+2]);
+
+    ixmin =  (int)((kx-kwidth)*gridsize +gridcenter);
+    ixmax = (int)((kx+kwidth)*gridsize +gridcenter)+1;
+    iymin = (int)((ky-kwidth)*gridsize +gridcenter);
+    iymax =  (int)((ky+kwidth)*gridsize +gridcenter)+1;
+    izmin = (int)((kz-kwidth)*gridsize +gridcenter);
+    izmax =  (int)((kz+kwidth)*gridsize +gridcenter)+1;
+
+
+    for (int gcount1 = ixmin; gcount1 <= ixmax; gcount1++)
+    {
+        dkx = (double)(gcount1-gridcenter) / (double)gridsize - kx;
+        for (int gcount2 = iymin; gcount2 <= iymax; gcount2++)
+        {
+            dky = (double)(gcount2-gridcenter) / (double)gridsize - ky;
+            for (int gcount3 = izmin; gcount3 <= izmax; gcount3++)
+            {
+            dkz = (double)(gcount3-gridcenter) / (double)gridsize - kz;
+            dk = sqrt(dkx*dkx+dky*dky+dkz*dkz);
+            if (dk < kwidth)
+            {
+                fracind = dk/kwidth*(double)(nkernelpts-1);
+                kernelind = (int)fracind;
+                fracdk = fracind-(double)kernelind;
+
+                kern = kerneltable[kernelind]*(1-fracdk)+
+                kerneltable[kernelind+1]*fracdk;
+                indx = gcount1;
+                indy = gcount2;
+                indz = gcount3;
+
+                if (gcount1 < 0) 
+                {
+                    indx+=gridsize;
+                    indy=gridsize-indy;
+                    indz=gridsize-indz;
+                }
+                if (gcount1 >= gridsize) 
+                {
+                    indx-=gridsize;
+                    indy=gridsize-indy;
+                    indz=gridsize-indz;
+                }
+                if (gcount2 < 0) 
+                {
+                    indy+=gridsize;
+                    indx=gridsize-indx;
+                    indz=gridsize-indz;
+                    }
+                if (gcount2 >= gridsize) 
+                {
+                    indy-=gridsize;
+                    indx=gridsize-indx;
+                    indz=gridsize-indz;
+                }
+                if (gcount3 < 0) 
+                {
+                    indz+=gridsize;
+                    indx=gridsize-indx;
+                    indy=gridsize-indy;
+                }
+                if (gcount3 >= gridsize) 
+                {
+                    indz-=gridsize;
+                    indx=gridsize-indx;
+                    indy=gridsize-indy;
+                    }
+
+                tmp_dat += (double2)(kern,kern)*sg[
+                                        indx + indy*gridsize + (gridsize*gridsize)*indz
+                                        + (gridsize*gridsize*gridsize)*n
+                                        + (gridsize*gridsize*gridsize)*NDim*scan];
+            }
+            }
+        }
+    }
+    s[k+kDim*n+kDim*NDim*scan]= tmp_dat*(double2)(dcf[k],dcf[k]);
+}
+
+__kernel void grid_lut3D(
+                __global double *sg,
+                __global double2 *s,
+                __global double *kpos,
+                const int gridsize,
+                const int NC,
+                const double kwidth,
+                __global double *dcf,
+                __constant double* kerneltable,
+                const int nkernelpts,
+                const int scanoffset
+                )
+{
+    size_t k = get_global_id(2);
+    size_t kDim = get_global_size(2);
+    size_t n = get_global_id(1);
+    size_t NDim = get_global_size(1);
+    size_t scan = get_global_id(0);
+
+    int ixmin, ixmax, iymin, iymax, izmin, izmax, gridcenter, gptr_cinc, kernelind, indx, indy, indz;
+    double kx, ky, kz;
+    double fracind, dkx, dky, dkz, dk, fracdk, kern;
+    gridcenter = gridsize/2;
+
+    double2 kdat = s[k+kDim*n+kDim*NDim*scan]*(double2)(dcf[k],dcf[k]);
+
+    kx = (kpos[3*(k+kDim*(scan+scanoffset))]);
+    ky = (kpos[3*(k+kDim*(scan+scanoffset))+1]);
+    kz = (kpos[3*(k+kDim*(scan+scanoffset))+2]);
+
+    ixmin =  (int)((kx-kwidth)*gridsize +gridcenter);
+    ixmax = (int)((kx+kwidth)*gridsize +gridcenter)+1;
+    iymin = (int)((ky-kwidth)*gridsize +gridcenter);
+    iymax =  (int)((ky+kwidth)*gridsize +gridcenter)+1;
+    izmin = (int)((kz-kwidth)*gridsize +gridcenter);
+    izmax =  (int)((kz+kwidth)*gridsize +gridcenter)+1;
+    
+
+    for (int gcount1 = ixmin; gcount1 <= ixmax; gcount1++)
+    {
+        dkx = (double)(gcount1-gridcenter) / (double)gridsize - kx;
+        for (int gcount2 = iymin; gcount2 <= iymax; gcount2++)
+        {
+            dky = (double)(gcount2-gridcenter) / (double)gridsize - ky;
+            for (int gcount3 = izmin; gcount3 <= izmax; gcount3++)
+            {
+            dkz = (double)(gcount3-gridcenter) / (double)gridsize - kz;
+            dk = sqrt(dkx*dkx+dky*dky+dkz*dkz);
+            if (dk < kwidth)
+            {
+                fracind = dk/kwidth*(double)(nkernelpts-1);
+                kernelind = (int)fracind;
+                fracdk = fracind-(double)kernelind;
+
+                kern = kerneltable[kernelind]*(1-fracdk)+
+                kerneltable[kernelind+1]*fracdk;
+                indx = gcount1;
+                indy = gcount2;
+                indz = gcount3;
+
+                if (gcount1 < 0) 
+                {
+                    indx+=gridsize;
+                    indy=gridsize-indy;
+                    indz=gridsize-indz;
+                }
+                if (gcount1 >= gridsize) 
+                {
+                    indx-=gridsize;
+                    indy=gridsize-indy;
+                    indz=gridsize-indz;
+                }
+                if (gcount2 < 0) 
+                {
+                    indy+=gridsize;
+                    indx=gridsize-indx;
+                    indz=gridsize-indz;
+                    }
+                if (gcount2 >= gridsize) 
+                {
+                    indy-=gridsize;
+                    indx=gridsize-indx;
+                    indz=gridsize-indz;
+                }
+                if (gcount3 < 0) 
+                {
+                    indz+=gridsize;
+                    indx=gridsize-indx;
+                    indy=gridsize-indy;
+                }
+                if (gcount3 >= gridsize) 
+                {
+                    indz-=gridsize;
+                    indx=gridsize-indx;
+                    indy=gridsize-indy;
+                    }
+
+                AtomicAdd(
+        &(
+          sg[
+            2*(
+              indx + indy*gridsize + (gridsize*gridsize) * indz
+              + (gridsize*gridsize*gridsize)*n
+              + (gridsize*gridsize*gridsize)*NDim*scan)]
+          ),
+        (kern * kdat.s0));
+                    AtomicAdd(
+        &(
+          sg[
+            2*(
+              indx + indy*gridsize + (gridsize*gridsize) * indz
+              + (gridsize*gridsize*gridsize)*n
+              + (gridsize*gridsize*gridsize)*NDim*scan)+1]
+          ),
+        (kern * kdat.s1));
+                }
+            }
+        }
+    }
+}
+
+__kernel void deapo_fwd3D(
+                __global double2 *out,
+                __global double2 *in,
+                __constant double *deapo,
+                const int dim,
+                const double scale,
+                const double ogf
+                )
+{
+    size_t x = get_global_id(2);
+    size_t X = get_global_size(2);
+    size_t y = get_global_id(1);
+    size_t Y = get_global_size(1);
+    size_t k = get_global_id(0);
+    size_t z = k % X;
+    size_t Z = Y;
+    size_t l = (int) k / X;
+    
+
+    size_t m = x+(int)(dim-X)/2;
+    size_t M = dim;
+    size_t n = y+(int)(dim-Y)/2;
+    size_t N = dim;
+    size_t o = z+(int)(dim-Z)/2;
+    size_t O = dim;
+
+
+    out[l*N*M*O+o*N*M+n*M+m] = in[k*X*Y+y*X+x] * deapo[y] * deapo[x] * deapo[z] * scale;
+}
+
+__kernel void deapo_adj3D(
+                __global double2 *out,
+                __global double2 *in,
+                __constant double *deapo,
+                const int dim,
+                const double scale,
+                const double ogf
+                )
+{
+    size_t x = get_global_id(2);
+    size_t X = get_global_size(2);
+    size_t y = get_global_id(1);
+    size_t Y = get_global_size(1);
+    size_t k = get_global_id(0);
+    size_t z = k % X;
+    size_t Z = Y;
+    size_t l = (int) k / X;
+    
+
+    size_t m = x+(int)(dim-X)/2;
+    size_t M = dim;
+    size_t n = y+(int)(dim-Y)/2;
+    size_t N = dim;
+    size_t o = z+(int)(dim-Z)/2;
+    size_t O = dim;
+
+    out[k*X*Y+y*X+x] = in[l*N*M*O+o*N*M+n*M+m] * deapo[y] * deapo[x] * deapo[z] * scale;
+}

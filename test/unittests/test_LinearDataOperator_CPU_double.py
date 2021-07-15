@@ -16,7 +16,6 @@ except ImportError:
 from pyqmri._helper_fun import CLProgram as Program
 from pyqmri._helper_fun import _goldcomp as goldcomp
 from pkg_resources import resource_filename
-import pyopencl as cl
 import pyopencl.array as clarray
 import numpy as np
 import h5py
@@ -44,8 +43,10 @@ def setupPar(par):
     par["overlap"] = 1
     file = h5py.File(pjoin(data_dir, 'smalltest.h5'), 'r')
 
-    par["traj"] = file['real_traj'][()].astype(DTYPE) + \
-        1j*file['imag_traj'][()].astype(DTYPE)
+    par["traj"] = np.stack((
+                file['imag_traj'][()].astype(DTYPE_real),
+                file['real_traj'][()].astype(DTYPE_real)),
+                axis=-1)
 
     par["dcf"] = np.sqrt(np.array(goldcomp.cmp(
                       par["traj"]), dtype=DTYPE_real)).astype(DTYPE_real)

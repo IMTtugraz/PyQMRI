@@ -23,7 +23,7 @@ import h5py
 
 DTYPE = np.complex64
 DTYPE_real = np.float32
-RTOL=1e-3
+RTOL=1e-2
 ATOL=1e-5
 data_dir = os.path.realpath(pjoin(os.path.dirname(__file__), '..'))
 
@@ -43,14 +43,17 @@ def setupPar(par):
     par["overlap"] = 1
     file = h5py.File(pjoin(data_dir, 'smalltest.h5'), 'r')
 
-    par["traj"] = file['real_traj'][()].astype(DTYPE) + \
-        1j*file['imag_traj'][()].astype(DTYPE)
+    par["traj"] = np.stack((
+                file['imag_traj'][()].astype(DTYPE_real),
+                file['real_traj'][()].astype(DTYPE_real)),
+                axis=-1)
 
     par["dcf"] = np.sqrt(np.array(goldcomp.cmp(
                      par["traj"]), dtype=DTYPE_real)).astype(DTYPE_real)
     par["dcf"] = np.require(np.abs(par["dcf"]),
                             DTYPE_real, requirements='C')
     par["fft_dim"] = (-2, -1)
+    par["is3D"] = False
 
 
 class tmpArgs():

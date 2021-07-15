@@ -661,6 +661,12 @@ class OperatorKspace(Operator):
             self.queue, (self.NScan, self.NC,
                          self.NSlice, self.dimY, self.dimX),
             self.DTYPE, "C")
+        if par["is3D"] and trafo:
+            self._out_shape_fwd = (self.NScan, self.NC,
+                         1, self.Nproj, self.N)
+        else:
+            self._out_shape_fwd = (self.NScan, self.NC,
+                         self.NSlice, self.Nproj, self.N)
         if not trafo:
             self.Nproj = self.dimY
             self.N = self.dimX
@@ -708,7 +714,7 @@ class OperatorKspace(Operator):
                 np.int32(self.NScan),
                 np.int32(self.unknowns),
                 wait_for=(self._tmp_result.events + inp[0].events
-                          + wait_for)))
+                          + wait_for)))        
                
         return self.NUFFT.FFT(
             out,
@@ -754,7 +760,7 @@ class OperatorKspace(Operator):
                           + wait_for)))
         tmp_sino = clarray.zeros(
             self.queue,
-            (self.NScan, self.NC, self.NSlice, self.Nproj, self.N),
+            self._out_shape_fwd,
             self.DTYPE, "C")
         self.NUFFT.FFT(tmp_sino, self._tmp_result, 
                        wait_for=tmp_sino.events).wait()
