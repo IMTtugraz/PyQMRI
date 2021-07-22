@@ -59,7 +59,7 @@ class PyOpenCLnuFFT():
                queue,
                par,
                kwidth=5,
-               klength=200,
+               klength=1000,
                DTYPE=np.complex64,
                DTYPE_real=np.float32,
                radial=False,
@@ -398,7 +398,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
         self._tmp_fft_array.add_event(
             self.prg.grid_lut(
                 self.queue,
-                (s.shape[0], s.shape[1],
+                (s.shape[0], s.shape[1] * s.shape[2],
                  s.shape[-2] * self._gridsize),
                 None,
                 self._tmp_fft_array.data,
@@ -635,7 +635,7 @@ class PyOpenCL3DRadialNUFFT(PyOpenCLnuFFT):
             int(par["dimX"]*self.ogf))
 
         self.fft_scale = DTYPE_real(
-            np.sqrt(np.prod(self.fft_shape[self.fft_dim[0]:])))
+            np.sqrt(np.prod(self.fft_shape[-3:])))
 
         (kerneltable, kerneltable_FT) = calckbkernel(
             kwidth, self.ogf, par["N"], klength)
@@ -802,8 +802,7 @@ class PyOpenCL3DRadialNUFFT(PyOpenCLnuFFT):
         if wait_for is None:
             wait_for = []
         # Zero tmp arrays
-        # import ipdb
-        # ipdb.set_trace()
+
         self._tmp_fft_array.add_event(
             self.prg.zero_tmp(
                 self.queue,
@@ -827,15 +826,14 @@ class PyOpenCL3DRadialNUFFT(PyOpenCLnuFFT):
                 self.DTYPE_real(1 / self.fft_scale),
                 self.DTYPE_real(self.ogf),
                 wait_for=wait_for + sg.events + self._tmp_fft_array.events))
+
         # FFT
-        import ipdb
-        ipdb.set_trace()
         self._tmp_fft_array.add_event(
             self.prg.fftshift3D(
                 self.queue,
                 (np.prod(self.fft_shape[:2]),
-                 self.fft_shape[2],
-                 self.fft_shape[3]),
+                  self.fft_shape[2],
+                  self.fft_shape[3]),
                 None,
                 self._tmp_fft_array.data,
                 self._check.data,
@@ -843,8 +841,6 @@ class PyOpenCL3DRadialNUFFT(PyOpenCLnuFFT):
         
         cl.wait_for_events(self._tmp_fft_array.events)
         fft_events = []
-        import ipdb
-        ipdb.set_trace()
         for j in range(self.iternumber):
                 fft_events.append(self.fft.enqueue_arrays(
                     data=self._tmp_fft_array[
@@ -852,8 +848,7 @@ class PyOpenCL3DRadialNUFFT(PyOpenCLnuFFT):
                     result=self._tmp_fft_array[
                         j * self.par_fft:(j + 1) * self.par_fft, ...],
                     forward=True)[0])
-        import ipdb
-        ipdb.set_trace()  
+
         self._tmp_fft_array.add_event(
             self.prg.fftshift3D(
                 self.queue,
@@ -864,7 +859,8 @@ class PyOpenCL3DRadialNUFFT(PyOpenCLnuFFT):
                 self._tmp_fft_array.data,
                 self._check.data,
                 wait_for=fft_events))
-        # Resample on Spoke
+
+        # Resample on Spoke       
         return self.prg.invgrid_lut3D(
             self.queue,
             (s.shape[0], s.shape[1], s.shape[-2] *

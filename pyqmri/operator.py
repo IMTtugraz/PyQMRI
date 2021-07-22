@@ -442,6 +442,7 @@ class OperatorImagespace(Operator):
         super().__init__(par, prg, DTYPE, DTYPE_real)
         self.queue = self.queue[0]
         self.ctx = self.ctx[0]
+        self._out_shape_fwd = (self.NScan, self.NSlice, self.dimY, self.dimX)
 
     def fwd(self, out, inp, **kwargs):
         """Forward operator application in-place.
@@ -661,15 +662,15 @@ class OperatorKspace(Operator):
             self.queue, (self.NScan, self.NC,
                          self.NSlice, self.dimY, self.dimX),
             self.DTYPE, "C")
+        if not trafo:
+            self.Nproj = self.dimY
+            self.N = self.dimX
         if par["is3D"] and trafo:
             self._out_shape_fwd = (self.NScan, self.NC,
                          1, self.Nproj, self.N)
         else:
             self._out_shape_fwd = (self.NScan, self.NC,
                          self.NSlice, self.Nproj, self.N)
-        if not trafo:
-            self.Nproj = self.dimY
-            self.N = self.dimX
         self.NUFFT = CLnuFFT.create(self.ctx,
                                     self.queue,
                                     par,
@@ -933,6 +934,8 @@ class OperatorKspaceSMS(Operator):
             self.queue, (self.NScan, self.NC,
                          self.NSlice, self.dimY, self.dimX),
             self.DTYPE, "C")
+        self._out_shape_fwd = (self.NScan, self.NC, 
+                               self.packs, self.Nproj, self.N)
 
         self.Nproj = self.dimY
         self.N = self.dimX

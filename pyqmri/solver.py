@@ -303,11 +303,7 @@ class CGSolver_H1:
         self._prg = prg
         self.num_dev = len(par["num_dev"])
         
-        self._tmp_result = clarray.zeros(
-            self._queue[0],
-            (self._NScan, self._NC,
-             self._NSlice, self._dimY, self._dimX),
-            self._DTYPE, "C")
+        self._tmp_result = None
         
 
     def run(self, guess, data, iters=30):
@@ -331,6 +327,10 @@ class CGSolver_H1:
               The result of the fitting.
         """
         self._updateConstraints()
+        self._tmp_result = clarray.zeros(
+                    self._queue[0],
+                    data.shape,
+                    self._DTYPE, "C")
         if guess is not None:
             x = clarray.to_device(self._queue[0], guess[0])
         else:
@@ -1034,7 +1034,7 @@ class PDBaseSolver:
             dual.append(dual_val)
             gap.append(gap_val)
                 
-            if not np.mod(i+1, 10):
+            if not np.mod(i+1, 100):
                 if self.display_iterations:
                     if isinstance(primal_vars["x"], np.ndarray):
                         self.model.plot_unknowns(

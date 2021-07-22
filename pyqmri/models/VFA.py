@@ -58,6 +58,7 @@ class Model(BaseModel):
         par["unknowns_TGV"] = 2
         par["unknowns_H1"] = 0
         par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
+        self.unknowns = par["unknowns"]
 
         self._sin_phi = np.sin(phi_corr)
         self._cos_phi = np.cos(phi_corr)
@@ -153,4 +154,9 @@ class Model(BaseModel):
         test_T1 = np.exp(-self.TR / (test_T1))
         x = np.array([test_M0 / self.uk_scale[0],
                       test_T1 / self.uk_scale[1]], dtype=self._DTYPE)
-        self.guess = x
+
+        x_scale = np.max(np.abs(x).reshape(x.shape[0], -1), axis=-1)
+        self.uk_scale = x_scale
+        self.guess = x/x_scale[:,None,None,None]
+        for uk in range(self.unknowns):
+            self.constraints[uk].update(x_scale[uk])

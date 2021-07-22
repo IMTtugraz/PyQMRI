@@ -97,6 +97,11 @@ class Model(BaseModel):
             (modelpar, unknowns, uk_scale), signaleq)
 
         self.modelparams = []
+        
+        
+        if type(modelpar) is not list:
+            modelpar = [modelpar]
+        
         for mypar in modelpar:
             tmp = par[str(mypar)]
             if np.isscalar(tmp) or tmp.shape == (1,):

@@ -424,6 +424,7 @@ class IRGNOptimizer:
             res = data - b + self._MRI_operator.fwdoop(
                 [tmpx, self._coils, self._modelgrad]).get()
             del tmpx
+
         tmpres = self._pdop.run((x,self._v), res, iters)
         for key in tmpres:
             if key == 'x':

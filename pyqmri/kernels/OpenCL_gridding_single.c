@@ -75,7 +75,7 @@ __kernel void deapo_adj3D(
     size_t Y = get_global_size(1);
     size_t k = get_global_id(0);
     size_t z = k % X;
-    size_t Z = Y;
+    size_t Z = X;
     size_t l = (int) k / X;
     
 
@@ -163,7 +163,7 @@ __kernel void grid_lut(
     size_t NDim = get_global_size(1);
     size_t scan = get_global_id(0);
 
-    int ixmin, ixmax, iymin, iymax, gridcenter, gptr_cinc,kernelind,indx,indy;
+    int ixmin, ixmax, iymin, iymax, gridcenter, kernelind, indx, indy;
     float kx, ky;
     float fracind, dkx, dky, dk, fracdk, kern;
     gridcenter = gridsize/2;
@@ -244,7 +244,7 @@ __kernel void grid_lut3D(
     size_t NDim = get_global_size(1);
     size_t scan = get_global_id(0);
 
-    int ixmin, ixmax, iymin, iymax, izmin, izmax, gridcenter, gptr_cinc, kernelind, indx, indy, indz;
+    int ixmin, ixmax, iymin, iymax, izmin, izmax, gridcenter, kernelind, indx, indy, indz;
     float kx, ky, kz;
     float fracind, dkx, dky, dkz, dk, fracdk, kern;
     gridcenter = gridsize/2;
@@ -262,13 +262,17 @@ __kernel void grid_lut3D(
     izmin = (int)((kz-kwidth)*gridsize +gridcenter);
     izmax =  (int)((kz+kwidth)*gridsize +gridcenter)+1;
     
-
-    for (int gcount1 = ixmin; gcount1 <= ixmax; gcount1++)
+ for (int gcount1 = ixmin; gcount1 <= ixmax; gcount1++)
     {
         dkx = (float)(gcount1-gridcenter) / (float)gridsize - kx;
+        if (sqrt(dkx*dkx) < kwidth)
+        {
         for (int gcount2 = iymin; gcount2 <= iymax; gcount2++)
         {
             dky = (float)(gcount2-gridcenter) / (float)gridsize - ky;
+            dk = sqrt(dkx*dkx+dky*dky);
+            if (dk < kwidth)
+            {
             for (int gcount3 = izmin; gcount3 <= izmax; gcount3++)
             {
             dkz = (float)(gcount3-gridcenter) / (float)gridsize - kz;
@@ -281,11 +285,12 @@ __kernel void grid_lut3D(
 
                 kern = kerneltable[kernelind]*(1-fracdk)+
                 kerneltable[kernelind+1]*fracdk;
+                
                 indx = gcount1;
                 indy = gcount2;
                 indz = gcount3;
 
-                if (gcount1 < 0) 
+                if (gcount1 < 0)
                 {
                     indx+=gridsize;
                     indy=gridsize-indy;
@@ -320,8 +325,8 @@ __kernel void grid_lut3D(
                     indz-=gridsize;
                     indx=gridsize-indx;
                     indy=gridsize-indy;
-                    }
-
+                }
+                
                 AtomicAdd(
         &(
           sg[
@@ -340,9 +345,11 @@ __kernel void grid_lut3D(
               + (gridsize*gridsize*gridsize)*NDim*scan)+1]
           ),
         (kern * kdat.s1));
-                }
+            }
             }
         }
+        }
+    }
     }
 }
 
@@ -366,7 +373,7 @@ __kernel void invgrid_lut(
     size_t NDim = get_global_size(1);
     size_t scan = get_global_id(0);
 
-    int ixmin, ixmax, iymin, iymax, gridcenter, gptr_cinc, kernelind, indx,indy;
+    int ixmin, ixmax, iymin, iymax, gridcenter, kernelind, indx,indy;
     float kx, ky;
     float fracind, dkx, dky, dk, fracdk, kern;
     gridcenter = gridsize/2;
@@ -412,7 +419,7 @@ __kernel void invgrid_lut(
             }
         }
     }
-    s[k+kDim*n+kDim*NDim*scan]= tmp_dat*(float2)(dcf[k],dcf[k]);
+    s[k+kDim*n+kDim*NDim*scan] = tmp_dat*(float2)(dcf[k],dcf[k]);
 }
 
 
@@ -435,9 +442,9 @@ __kernel void invgrid_lut3D(
     size_t NDim = get_global_size(1);
     size_t scan = get_global_id(0);
 
-    int ixmin, ixmax, iymin, iymax, izmin, izmax, gridcenter, gptr_cinc, kernelind, indx, indy, indz;
+    int ixmin, ixmax, iymin, iymax, izmin, izmax, gridcenter, kernelind, indx, indy, indz;
     float kx, ky, kz;
-    float fracind, dkx, dky, dkz, dk, fracdk, kern;
+    float fracind, dkx, dky, dkz, dk=0, fracdk, kern;
     gridcenter = gridsize/2;
 
     float2 tmp_dat = 0.0;
@@ -446,20 +453,25 @@ __kernel void invgrid_lut3D(
     ky = (kpos[3*(k+kDim*(scan+scanoffset))+1]);
     kz = (kpos[3*(k+kDim*(scan+scanoffset))+2]);
 
-    ixmin =  (int)((kx-kwidth)*gridsize +gridcenter);
-    ixmax = (int)((kx+kwidth)*gridsize +gridcenter)+1;
-    iymin = (int)((ky-kwidth)*gridsize +gridcenter);
-    iymax =  (int)((ky+kwidth)*gridsize +gridcenter)+1;
-    izmin = (int)((kz-kwidth)*gridsize +gridcenter);
-    izmax =  (int)((kz+kwidth)*gridsize +gridcenter)+1;
+    ixmin =  (int)((kx-kwidth)*gridsize + gridcenter);
+    ixmax = (int)((kx+kwidth)*gridsize + gridcenter)+1;
+    iymin = (int)((ky-kwidth)*gridsize + gridcenter);
+    iymax =  (int)((ky+kwidth)*gridsize + gridcenter)+1;
+    izmin = (int)((kz-kwidth)*gridsize + gridcenter);
+    izmax =  (int)((kz+kwidth)*gridsize + gridcenter)+1;
 
 
-    for (int gcount1 = ixmin; gcount1 <= ixmax; gcount1++)
+ for (int gcount1 = ixmin; gcount1 <= ixmax; gcount1++)
     {
         dkx = (float)(gcount1-gridcenter) / (float)gridsize - kx;
+        if (sqrt(dkx*dkx) < kwidth)
+        {
         for (int gcount2 = iymin; gcount2 <= iymax; gcount2++)
         {
             dky = (float)(gcount2-gridcenter) / (float)gridsize - ky;
+            dk = sqrt(dkx*dkx+dky*dky);
+            if (dk < kwidth)
+            {
             for (int gcount3 = izmin; gcount3 <= izmax; gcount3++)
             {
             dkz = (float)(gcount3-gridcenter) / (float)gridsize - kz;
@@ -472,11 +484,12 @@ __kernel void invgrid_lut3D(
 
                 kern = kerneltable[kernelind]*(1-fracdk)+
                 kerneltable[kernelind+1]*fracdk;
+                
                 indx = gcount1;
                 indy = gcount2;
                 indz = gcount3;
 
-                if (gcount1 < 0) 
+                if (gcount1 < 0)
                 {
                     indx+=gridsize;
                     indy=gridsize-indy;
@@ -511,7 +524,7 @@ __kernel void invgrid_lut3D(
                     indz-=gridsize;
                     indx=gridsize-indx;
                     indy=gridsize-indy;
-                    }
+                }
 
                 tmp_dat += (float2)(kern,kern)*sg[
                                         indx + indy*gridsize + (gridsize*gridsize)*indz
@@ -520,6 +533,8 @@ __kernel void invgrid_lut3D(
             }
             }
         }
+        }
+    }
     }
     s[k+kDim*n+kDim*NDim*scan]= tmp_dat*(float2)(dcf[k],dcf[k]);
 }

@@ -96,4 +96,4 @@ class Model(BaseModel):
             Assumes the images series at position 0 and uses it as initial
             guess.
         """
-        self.guess = ((args[0]).astype(self._DTYPE))
+        self.guess = np.zeros_like((args[0]).astype(self._DTYPE))

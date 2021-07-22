@@ -87,7 +87,7 @@ __kernel void zero_tmp(__global float2 *tmp)
 __kernel void grid_lut(
                 __global float *sg,
                 __global float2 *s,
-                __global float2 *kpos,
+                __global float *kpos,
                 const int gridsize,
                 const int NC,
                 const float kwidth,
@@ -112,8 +112,8 @@ __kernel void grid_lut(
 
     float2 kdat = s[k+kDim*n+kDim*NDim*slice]*(float2)(dcf[k],dcf[k]);
 
-    kx = (kpos[k+kDim*scan]).s0;
-    ky = (kpos[k+kDim*scan]).s1;
+    kx = (kpos[2*(k+kDim*scan)]);
+    ky = (kpos[2*(k+kDim*scan)+1]);
 
     ixmin =  (int)((kx-kwidth)*gridsize +gridcenter);
     ixmax = (int)((kx+kwidth)*gridsize +gridcenter)+1;
@@ -168,7 +168,7 @@ __kernel void grid_lut(
 __kernel void invgrid_lut(
                 __global float2 *s,
                 __global float2 *sg,
-                __global float2 *kpos,
+                __global float *kpos,
                 const int gridsize,
                 const int NC,
                 const float kwidth,
@@ -195,9 +195,9 @@ __kernel void invgrid_lut(
     float2 tmp_dat = 0.0;
 
 
-    kx = (kpos[k+kDim*scan]).s0;
-    ky = (kpos[k+kDim*scan]).s1;
-
+    kx = (kpos[2*(k+kDim*scan)]);
+    ky = (kpos[2*(k+kDim*scan)+1]);
+    
     ixmin =  (int)((kx-kwidth)*gridsize +gridcenter);
     ixmax = (int)((kx+kwidth)*gridsize +gridcenter)+1;
     iymin = (int)((ky-kwidth)*gridsize +gridcenter);

@@ -41,8 +41,8 @@ class Model(BaseModel):
             
         for j in range(self.numC):
             self.constraints.append(
-                constraints(0.01,
-                            1000,
+                constraints(1e-10,
+                            1e10,
                             False))
         for j in range(self.numAlpha):
             self.constraints.append(
@@ -316,7 +316,7 @@ class Model(BaseModel):
                                  self.t.shape+args[0].shape[-3:])
         test_M0 = []
         for j in range(self.numC):
-            test_M0.append(0.1*np.ones(
+            test_M0.append(1*np.ones(
                 (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE))
             self.constraints[j].update(1/args[1])
         test_Xi = []

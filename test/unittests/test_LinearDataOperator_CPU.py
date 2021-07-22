@@ -53,6 +53,7 @@ def setupPar(par):
     par["dcf"] = np.require(np.abs(par["dcf"]),
                             DTYPE_real, requirements='C')
     par["fft_dim"] = [-2, -1]
+    par["is3D"] = False
 
 
 class tmpArgs():
