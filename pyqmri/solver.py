@@ -1284,6 +1284,7 @@ class PDBaseSolver:
             self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
             np.int32(self.unknowns_H1),
             self._DTYPE_real(1 / (1 + par[0] / par[3])),
+            self._grad_op.ratio.data,
             wait_for=(outp.events+inp[0].events+inp[1].events +
                       inp[2].events+inp[3].events+inp[4].events+wait_for))
 

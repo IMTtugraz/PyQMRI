@@ -689,6 +689,7 @@ def _start_recon(myargs):
 # Standardize data ############################################################
 ###############################################################################
     [NScan, NC] = data.shape[:2]
+
     if myargs.trafo:
         if par["file"].attrs['data_normalized_with_dcf']:
             pass
@@ -696,7 +697,7 @@ def _start_recon(myargs):
             data = data*(par["dcf"])
     if NC == 1:
         par['C'] = np.ones(
-            (1, NSlice, dimY, dimX), dtype=par["DTYPE"])
+            (1, par["NSlice"], dimY, dimX), dtype=par["DTYPE"])
         sumSqrC = np.sqrt(
             np.sum(
                 (par["C"] *
