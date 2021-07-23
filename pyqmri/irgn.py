@@ -453,7 +453,7 @@ class IRGNOptimizer:
             grad_H1 = grad[self.par["unknowns_TGV"]:]
         del grad
 
-        datacost = self.irgn_par["lambd"] / 2 * np.linalg.norm(data - b)**2
+        datacost = 1 / 2 * np.linalg.norm(data - b)**2
         # L2Cost = np.linalg.norm(x)/(2.0*self.irgn_par["delta"])
         if self._reg_type == 'TV':
             regcost = self.irgn_par["gamma"] * \

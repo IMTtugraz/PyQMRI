@@ -2359,7 +2359,7 @@ class OperatorFiniteSymGradient(Operator):
         self.ctx = self.ctx[0]
         self.ratio = clarray.to_device(
             self.queue,
-            (par["weights"]).astype(
+            np.ones_like(par["weights"]).astype(
                      dtype=self.DTYPE_real))
         self._weights = par["weights"]
 
