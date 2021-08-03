@@ -290,7 +290,7 @@ class IRGNOptimizer:
             self._modelgrad = np.nan_to_num(
                 self._model.execute_gradient(result))
 
-            self._balanceModelGradients(result)
+            self._balanceModelGradients(result, ign)
             self._updateIRGNRegPar(ign)
             # self._pdop._grad_op.updateRatio(
             #     self.irgn_par["gamma"])
@@ -358,7 +358,7 @@ class IRGNOptimizer:
             self._omega * self.irgn_par["omega_dec"]**ign,
             self.irgn_par["omega_min"])/self.irgn_par["lambd"]
 
-    def _balanceModelGradients(self, result):
+    def _balanceModelGradients(self, result, ign):
         scale = np.reshape(
             self._modelgrad,
             (self.par["unknowns"],
@@ -367,7 +367,10 @@ class IRGNOptimizer:
         scale = np.linalg.norm(scale, axis=-1)
         print("Initial Norm: ", np.linalg.norm(scale))
         print("Initial Ratio: ", scale)
-        scale /= np.linalg.norm(scale)/np.sqrt(self.par["unknowns"])
+        # if ign == 0:
+        scale /= 100/np.sqrt(self.par["unknowns"])
+        # else:
+        #     scale /= np.linalg.norm(scale)/np.sqrt(self.par["unknowns"])
         scale = 1 / scale
         scale[~np.isfinite(scale)] = 1
         for uk in range(self.par["unknowns"]):

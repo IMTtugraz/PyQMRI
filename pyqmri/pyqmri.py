@@ -261,9 +261,9 @@ def _genImages(myargs, par, data, off):
         del FFT, nFTH
 
     else:
-        tol = 1e-6
-        par_scans = 4
-        lambd = 1e-3
+        tol = 1e-16
+        par_scans = 10
+        lambd = 1e-2
         if "images" not in list(par["file"].keys()):
             images = np.zeros((par["NScan"],
                                par["NSlice"],
@@ -468,9 +468,9 @@ def _read_data_from_file(par, myargs):
                     
         # Check if traj is scaled
         max_traj_val = np.max(np.abs(par["traj"]))
-        if  np.allclose(max_traj_val, 0.5):
+        if  np.allclose(max_traj_val, 0.5, rtol=1e-1):
            par["traj"] *= dimX
-        elif np.allclose(max_traj_val, 1):
+        elif np.allclose(max_traj_val, 1, rtol=1e-1):
            par["traj"] *= dimX/2
         
         overgrid_factor_a = (1/np.linalg.norm(

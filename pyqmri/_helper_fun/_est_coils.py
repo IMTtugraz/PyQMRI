@@ -94,6 +94,7 @@ def est_coils(data, par, file, args, off):
                 (par["NSlice"], par["dimY"], par["dimX"]), dtype=par["DTYPE"])
 
             par_coils = {}
+            par_coils["ogf"] = par["ogf"]
             par_coils["traj"] = traj_coil
             par_coils["dcf"] = dcf_coil
             par_coils["N"] = par["N"]
@@ -324,8 +325,7 @@ def est_coils(data, par, file, args, off):
         if args.trafo:
             traj_coil = par["traj"].reshape(
                 par["NScan"] * par["Nproj"], par["N"], -1)
-            dcf_coil =  par["dcf"].reshape(
-                par["NScan"] * par["Nproj"], par["N"])
+            dcf_coil =  np.repeat(par["dcf"] , par["NScan"], axis=0)
             
             par["C"] = np.zeros(
                 (par["NC"],
@@ -337,6 +337,7 @@ def est_coils(data, par, file, args, off):
                 (par["NSlice"], par["dimY"], par["dimX"]), dtype=par["DTYPE"])
 
             par_coils = {}
+            par_coils["ogf"] = par["ogf"]
             par_coils["traj"] = traj_coil
             par_coils["dcf"] = dcf_coil
             par_coils["dimX"] = par["dimX"]

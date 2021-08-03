@@ -276,6 +276,7 @@ def gen_data_nocoils_radial():
     imag_dat = file["imag_dat"][()]
     real_traj = file["real_traj"][()]
     imag_traj = file["imag_traj"][()]
+
     fa_corr = file["fa_corr"][()]
     dcf_norm = file.attrs["data_normalized_with_dcf"]
 
