@@ -99,7 +99,7 @@ class Model(BaseModel):
         self.modelparams = []
         
         
-        if type(modelpar) is not list:
+        if type(modelpar) is not tuple:
             modelpar = [modelpar]
         
         for mypar in modelpar:

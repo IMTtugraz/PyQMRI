@@ -349,10 +349,10 @@ class CGSolver_H1:
                             self._NSlice, self._dimY, self._dimX),
                            self._DTYPE, "C")
         
-        tau1 = self.lambd**2*(self.power_iteration(x))
+        tau1 = self.lambd*(self.power_iteration(x))
         tau2 = self.alpha*(self.power_iteration_grad(x))
         print("Tau1: ", tau1, " Tau2: ", tau2)
-        tau = self._DTYPE_real(1/np.sqrt(tau1**2+tau2**2+1/self.delta**4))
+        tau = self._DTYPE_real(1/(tau1+tau2+1/self.delta))
         
         x0 = x.copy()
         data = clarray.to_device(self._queue[0], data)
