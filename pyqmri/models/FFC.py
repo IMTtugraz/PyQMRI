@@ -60,7 +60,7 @@ class Model(BaseModel):
         for j in range(len(self.b)):
             self._labels.append(
                 "Field "+str(np.round(self.b[j]*1e3, 2))+" mT")
-        par["weights"] = np.array([1]*self.numC+self.numAlpha*[1]+self.numT1Scale*[1],dtype=par["DTYPE_real"])
+        par["weights"] = np.array([1]*self.numC+self.numAlpha*[10]+self.numT1Scale*[1],dtype=par["DTYPE_real"])
         # par["weights"] /= np.sum(par["weights"])/par["unknowns"]
 
     def rescale(self, x):
