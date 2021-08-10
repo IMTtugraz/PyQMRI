@@ -13,11 +13,12 @@ stages:
 #code_quality:
 #    artifacts:
 #        paths: [gl-code-quality-report.json]
+before_script:
+  - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
 
 build-job:
     stage: build
     script:
-        - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
         - python3.8 -m pip install -r requirements.txt
         - python3.8 -m pip install .
 
