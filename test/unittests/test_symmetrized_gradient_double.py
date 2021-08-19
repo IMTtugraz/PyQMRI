@@ -38,7 +38,7 @@ def setupPar(par):
     par["unknowns_H1"] = 0
     par["unknowns"] = 2
     par["dz"] = DTYPE_real(1)
-    par["weights"] = np.array([1, 0.1], dtype=DTYPE_real)
+    par["weights"] = np.array([1, 1], dtype=DTYPE_real)
 
 
 class SymmetrizedGradientTest(unittest.TestCase):

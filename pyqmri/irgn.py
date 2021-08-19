@@ -139,11 +139,15 @@ class IRGNOptimizer:
         else:
             if SMS:
                 self._data_shape = (par["NScan"], par["NC"],
-                                        par["packs"]*par["numofpacks"], 
-                                        par["Nproj"], par["N"])
+                                    par["packs"]*par["numofpacks"],
+                                    par["Nproj"], par["N"])
             else:
-                self._data_shape = (par["NScan"], par["NC"],
-                                    par["NSlice"], par["Nproj"], par["N"])
+                if par["is3D"] and trafo:
+                    self._data_shape = (par["NScan"], par["NC"],
+                                        1, par["Nproj"], par["N"])
+                else:
+                    self._data_shape = (par["NScan"], par["NC"],
+                                        par["NSlice"], par["Nproj"], par["N"])
             if self._streamed:
                 self._data_trans_axes = (2, 0, 1, 3, 4)
                 self._grad_trans_axes = (2, 0, 1, 3, 4)
@@ -185,7 +189,7 @@ class IRGNOptimizer:
             DTYPE,
             DTYPE_real)
 
-        if not reg_type=="H1":
+        if not reg_type == "H1":
             self._pdop = optimizer.PDBaseSolver.factory(
                 self._prg,
                 self._queue,
@@ -202,7 +206,7 @@ class IRGNOptimizer:
                 DTYPE=DTYPE,
                 DTYPE_real=DTYPE_real
                 )
-        else: 
+        else:
             self._pdop = optimizer.CGSolver_H1(
                 self._prg,
                 self._queue,
@@ -263,7 +267,7 @@ class IRGNOptimizer:
 
         iters = self.irgn_par["start_iters"]
         result = np.copy(self._model.guess)
-        
+
         if "inc" in self.irgn_par.keys():
             inc = int(self.irgn_par["inc"])
         else:
@@ -286,7 +290,7 @@ class IRGNOptimizer:
             self._modelgrad = np.nan_to_num(
                 self._model.execute_gradient(result))
 
-            self._balanceModelGradients(result)
+            self._balanceModelGradients(result, ign)
             self._updateIRGNRegPar(ign)
             # self._pdop._grad_op.updateRatio(
             #     self.irgn_par["gamma"])
@@ -353,10 +357,8 @@ class IRGNOptimizer:
         self.irgn_par["omega"] = np.maximum(
             self._omega * self.irgn_par["omega_dec"]**ign,
             self.irgn_par["omega_min"])/self.irgn_par["lambd"]
-        
-        
 
-    def _balanceModelGradients(self, result):
+    def _balanceModelGradients(self, result, ign):
         scale = np.reshape(
             self._modelgrad,
             (self.par["unknowns"],
@@ -365,7 +367,10 @@ class IRGNOptimizer:
         scale = np.linalg.norm(scale, axis=-1)
         print("Initial Norm: ", np.linalg.norm(scale))
         print("Initial Ratio: ", scale)
-        scale /= np.linalg.norm(scale)/np.sqrt(self.par["unknowns"])
+        # if ign == 0:
+        scale /= 100/np.sqrt(self.par["unknowns"])
+        # else:
+        #     scale /= np.linalg.norm(scale)/np.sqrt(self.par["unknowns"])
         scale = 1 / scale
         scale[~np.isfinite(scale)] = 1
         for uk in range(self.par["unknowns"]):
@@ -411,7 +416,6 @@ class IRGNOptimizer:
 ###############################################################################
     def _irgnSolve3D(self, x, iters, data, GN_it):
         b = self._calcResidual(x, data, GN_it)
-
         if self._streamed:
             x = np.require(np.swapaxes(x, 0, 1), requirements='C')
             res = data - b + self._MRI_operator.fwdoop(
@@ -421,7 +425,8 @@ class IRGNOptimizer:
             res = data - b + self._MRI_operator.fwdoop(
                 [tmpx, self._coils, self._modelgrad]).get()
             del tmpx
-        tmpres = self._pdop.run((x,self._v), res, iters)
+
+        tmpres = self._pdop.run((x, self._v), res, iters)
         for key in tmpres:
             if key == 'x':
                 if isinstance(tmpres[key], np.ndarray):
@@ -449,7 +454,7 @@ class IRGNOptimizer:
             grad_H1 = grad[self.par["unknowns_TGV"]:]
         del grad
 
-        datacost = self.irgn_par["lambd"] / 2 * np.linalg.norm(data - b)**2
+        datacost = 1 / 2 * np.linalg.norm(data - b)**2
         # L2Cost = np.linalg.norm(x)/(2.0*self.irgn_par["delta"])
         if self._reg_type == 'TV':
             regcost = self.irgn_par["gamma"] * \

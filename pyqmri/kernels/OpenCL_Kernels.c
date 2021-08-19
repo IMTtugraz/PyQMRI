@@ -151,7 +151,7 @@ __kernel void update_z1(
     i = k*Nx*Ny+Nx*y + x;
     for (int uk=0; uk<NUk_tgv; uk++)
     {
-        if (fac > 1.0f) z_new[i] /=fac;
+        if (fac > 1.0f) z_new[i] /= fac;
         i += NSl*Nx*Ny;
     }
     i = NSl*Nx*Ny*NUk_tgv+k*Nx*Ny+Nx*y + x;
@@ -753,12 +753,12 @@ __kernel void update_Kyk2(
         w[i].s024 = - val_real.s012
                     - val_real.s345
                     - val_real.s678*dz
-                    -z[i].s024*gradratio[uk];
+                    -z[i].s024;
         //imag
         w[i].s135 = - val_imag.s012
                     - val_imag.s345
                     - val_imag.s678*dz
-                    -z[i].s135*gradratio[uk];
+                    -z[i].s135;
         i += NSl*Nx*Ny;
     }
 }
