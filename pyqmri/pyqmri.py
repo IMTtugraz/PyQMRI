@@ -62,27 +62,26 @@ def _choosePlatform(myargs, par):
     return platforms
 
 
-def _precoompFFT(data, par): 
-
+def _precoompFFT(data, par):
 
     trans_x = False
     trans_y = False
     trans_z = False
-    
+
     if par["is3D"]:
         full_dimY = (np.all(np.abs(data[0, 0, 0, :, 0])) or
-                     np.all(np.abs(data[0, 0, 0, :, 1])) or 
-                     np.all(np.abs(data[0, 0, 1, :, 0])) or 
+                     np.all(np.abs(data[0, 0, 0, :, 1])) or
+                     np.all(np.abs(data[0, 0, 1, :, 0])) or
                      np.all(np.abs(data[0, 0, 1, :, 1])))
-        
+
         full_dimX = (np.all(np.abs(data[0, 0, 0, 0, :])) or
-                     np.all(np.abs(data[0, 0, 0, 1, :])) or 
-                     np.all(np.abs(data[0, 0, 1, 0, :])) or 
+                     np.all(np.abs(data[0, 0, 0, 1, :])) or
+                     np.all(np.abs(data[0, 0, 1, 0, :])) or
                      np.all(np.abs(data[0, 0, 1, 1, :])))
-        
+
         full_dimZ = (np.all(np.abs(data[0, 0, :, 0, 0:])) or
-                     np.all(np.abs(data[0, 0, :, 1, 1])) or 
-                     np.all(np.abs(data[0, 0, :, 0, 1])) or 
+                     np.all(np.abs(data[0, 0, :, 1, 1])) or
+                     np.all(np.abs(data[0, 0, :, 0, 1])) or
                      np.all(np.abs(data[0, 0, :, 1, 0])))
     else:
         full_dimY = (np.all(np.abs(data[0, 0, 0, :, 0])) or
@@ -90,12 +89,12 @@ def _precoompFFT(data, par):
         full_dimX = (np.all(np.abs(data[0, 0, 0, 0, :])) or
                      np.all(np.abs(data[0, 0, 0, 1, :])))
         full_dimZ = True
-        
+
     if full_dimZ:
         if par["is3D"]:
             print("Image Dimensions Z seems fully sampled. "
                   "Precompute FFT along Z")
-            data = np.fft.ifft(data, axis=-3, norm='ortho') 
+            data = np.fft.ifft(data, axis=-3, norm='ortho')
         trans_z = True
 
     if full_dimY:
@@ -103,13 +102,13 @@ def _precoompFFT(data, par):
               "Precompute FFT along Y")
         data = np.fft.ifft(data, axis=-2, norm='ortho')
         trans_y = True
-        
+
     if full_dimX:
         print("Image Dimensions X seems fully sampled. "
               "Precompute FFT along X")
         data = np.fft.ifft(data, axis=-1, norm='ortho')
         trans_x = True
-        
+
     if trans_x:
         if trans_y and trans_z:
             par["fft_dim"] = None
@@ -129,7 +128,7 @@ def _precoompFFT(data, par):
             par["NSlice"] = dimX
             par["N"] = NSlice
             par["transpXY"] = True
-            par["fft_dim"] = [-2,-1]
+            par["fft_dim"] = [-2, -1]
         elif not trans_z and trans_y:
             data = np.require(
                 data.transpose(0, 1, -1, -2, -3),
@@ -165,11 +164,11 @@ def _precoompFFT(data, par):
             par["Nproj"] = dimX
             par["transpXY"] = True
             par["fft_dim"] = [-1]
-    else:      
+    else:
         if trans_y and trans_z:
             par["fft_dim"] = [-1]
         elif not trans_y and not trans_z:
-            par["fft_dim"] = [-3,-2,-1]
+            par["fft_dim"] = [-3, -2, -1]
         elif not trans_z and trans_y:
             data = np.require(
                 np.moveaxis(data, -2, -3),
@@ -186,9 +185,9 @@ def _precoompFFT(data, par):
             par["NSlice"] = dimY
             par["Nproj"] = NSlice
             par["transpXY"] = True
-            par["fft_dim"] = [-2,-1]
+            par["fft_dim"] = [-2, -1]
         else:
-            par["fft_dim"] = [-2,-1]
+            par["fft_dim"] = [-2, -1]
 
     return np.require(data.astype(par["DTYPE"]),
                       requirements='C')
@@ -352,7 +351,7 @@ def _estScaleNorm(myargs, par, images, data):
     #         centerZ = int(par["NSlice"]*0.1)
     #     else:
     #         centerZ = int(par["NSlice"]/2)
-            
+
     #     ind = np.zeros((par["NSlice"], par["dimY"], par["dimX"]), dtype=bool)
     #     ind[int(par["NSlice"]/2-centerZ):int(par["NSlice"]/2+centerZ),
     #         int(par["dimY"]/2-centerY):int(par["dimY"]/2+centerY),
@@ -458,15 +457,35 @@ def _read_data_from_file(par, myargs):
         else:
             par["traj"] = par["file"]['traj'][()].astype(par["DTYPE_real"])
 
-        par["dcf"] = np.sqrt(goldcomp.cmp(
-                         par["traj"]))
+        if "dcf" in par["file"].keys():
+            par["dcf"] = np.sqrt(
+                par["file"]["dcf"][()].astype(par["DTYPE_real"]))
+        else:
+            par["dcf"] = np.sqrt(goldcomp.cmp(
+                             par["traj"]))
         par["dcf"] = np.require(np.abs(par["dcf"]),
                                 par["DTYPE_real"], requirements='C')
+                    
+        # Check if traj is scaled
+        max_traj_val = np.max(np.abs(par["traj"]))
+        if  np.allclose(max_traj_val, 0.5):
+           par["traj"] *= dimX
+        elif np.allclose(max_traj_val, 1):
+           par["traj"] *= dimX/2
+        
+        overgrid_factor_a = (1/np.linalg.norm(
+            par["traj"][..., -2, :]-par["traj"][..., -1, :], axis=-1))
+        overgrid_factor_b = (1/np.linalg.norm(
+            par["traj"][..., 0, :]-par["traj"][..., 1, :], axis=-1))
+        par["ogf"] = np.min((overgrid_factor_a,
+                             overgrid_factor_b))
+        print("Estimated OGF: ", par["ogf"])
+        par["traj"] *= par["ogf"]
     else:
         par["traj"] = None
         par["dcf"] = None
-        
-    #### Need to rework this as it might introduce unknown errors in 
+
+    #### Need to rework this as it might introduce unknown errors in
     #### Cartesian data!
     if np.max(utils.prime_factors(data.shape[-1])) > 13:
         print("Samples along the spoke need to have their largest prime factor"
@@ -723,7 +742,6 @@ def _start_recon(myargs):
 ###############################################################################
     if myargs.trafo is False:
         data = _precoompFFT(data, par)
-
     images = _genImages(myargs, par, data, off)
 ###############################################################################
 # Scale data norm  ############################################################

@@ -294,21 +294,22 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
             streamed=False):
         super().__init__(ctx, queue, par["fft_dim"], DTYPE, DTYPE_real)
         
-        self.ogf = par["N"]/par["dimX"]        
+        self.ogf = par["ogf"]
+        
         if streamed:
             self.fft_shape = (
                 par["NScan"] *
                 par["NC"] *
                 (par["par_slices"] + par["overlap"]),
-                int(par["dimY"]*self.ogf),
-                int(par["dimX"]*self.ogf))
+                int(round(par["dimY"]*self.ogf)),
+                int(round(par["dimX"]*self.ogf)))
         else:
             self.fft_shape = (
                 par["NScan"] *
                 par["NC"] *
                 par["NSlice"],
-                int(par["dimY"]*self.ogf),
-                int(par["dimX"]*self.ogf))
+                int(round(par["dimY"]*self.ogf)),
+                int(round(par["dimX"]*self.ogf)))
         
         self.fft_scale = DTYPE_real(
             np.sqrt(np.prod(self.fft_shape[self.fft_dim[0]:])))
@@ -347,10 +348,10 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
 
         self._kernelpoints = kerneltable.size
         self._kwidth = kwidth / 2
-        self._check = np.ones(par["N"], dtype=DTYPE_real)
+        self._check = np.ones(self.fft_shape[-1], dtype=DTYPE_real)
         self._check[1::2] = -1
         self._check = clarray.to_device(self.queue, self._check)
-        self._gridsize = par["N"]
+        self._gridsize = self.fft_shape[-1]
 
     def __del__(self):
         """Explicitly delete OpenCL Objets."""
@@ -406,7 +407,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
                 self.traj.data,
                 np.int32(self._gridsize),
                 np.int32(sg.shape[2]),
-                self.DTYPE_real(self._kwidth / self._gridsize),
+                self.DTYPE_real(self._kwidth),
                 self.dcf.data,
                 self.cl_kerneltable,
                 np.int32(self._kernelpoints),
@@ -543,7 +544,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
             self.traj.data,
             np.int32(self._gridsize),
             np.int32(s.shape[2]),
-            self.DTYPE_real(self._kwidth / self._gridsize),
+            self.DTYPE_real(self._kwidth),
             self.dcf.data,
             self.cl_kerneltable,
             np.int32(self._kernelpoints),
@@ -625,14 +626,15 @@ class PyOpenCL3DRadialNUFFT(PyOpenCLnuFFT):
             streamed=False):
         super().__init__(ctx, queue, par["fft_dim"], DTYPE, DTYPE_real)
         
-        self.ogf = par["N"]/par["dimX"]        
+        # self.ogf = par["N"]/par["dimX"]     
+        self.ogf = par["ogf"]
 
         self.fft_shape = (
             par["NScan"] *
             par["NC"],
-            int(par["NSlice"]*self.ogf),
-            int(par["dimY"]*self.ogf),
-            int(par["dimX"]*self.ogf))
+            int(round(par["NSlice"]*self.ogf)),
+            int(round(par["dimY"]*self.ogf)),
+            int(round(par["dimX"]*self.ogf)))
 
         self.fft_scale = DTYPE_real(
             np.sqrt(np.prod(self.fft_shape[-3:])))
@@ -671,10 +673,10 @@ class PyOpenCL3DRadialNUFFT(PyOpenCLnuFFT):
 
         self._kernelpoints = kerneltable.size
         self._kwidth = kwidth / 2
-        self._check = np.ones(par["N"], dtype=DTYPE_real)
+        self._check = np.ones(self.fft_shape[-1], dtype=DTYPE_real)
         self._check[1::2] = -1
         self._check = clarray.to_device(self.queue, self._check)
-        self._gridsize = par["N"]
+        self._gridsize = self.fft_shape[-1]
 
     def __del__(self):
         """Explicitly delete OpenCL Objets."""
@@ -718,6 +720,7 @@ class PyOpenCL3DRadialNUFFT(PyOpenCLnuFFT):
                 None,
                 self._tmp_fft_array.data,
                 wait_for=self._tmp_fft_array.events))
+
         # Grid k-space
         self._tmp_fft_array.add_event(
             self.prg.grid_lut3D(
@@ -730,7 +733,7 @@ class PyOpenCL3DRadialNUFFT(PyOpenCLnuFFT):
                 self.traj.data,
                 np.int32(self._gridsize),
                 np.int32(sg.shape[2]),
-                self.DTYPE_real(self._kwidth / self._gridsize),
+                self.DTYPE_real(self._kwidth),
                 self.dcf.data,
                 self.cl_kerneltable,
                 np.int32(self._kernelpoints),
@@ -871,7 +874,7 @@ class PyOpenCL3DRadialNUFFT(PyOpenCLnuFFT):
             self.traj.data,
             np.int32(self._gridsize),
             np.int32(s.shape[2]),
-            self.DTYPE_real(self._kwidth / self._gridsize),
+            self.DTYPE_real(self._kwidth),
             self.dcf.data,
             self.cl_kerneltable,
             np.int32(self._kernelpoints),
@@ -941,12 +944,20 @@ class PyOpenCLCartNUFFT(PyOpenCLnuFFT):
                 par["dimY"], 
                 par["dimX"])
         else:
-            self.fft_shape = (
-                par["NScan"] *
-                par["NC"] *
-                par["NSlice"],
-                par["dimY"],
-                par["dimX"])
+            if par["is3D"]:
+                self.fft_shape = (
+                    par["NScan"] *
+                    par["NC"],
+                    par["NSlice"],
+                    par["dimY"],
+                    par["dimX"])
+            else:
+                self.fft_shape = (
+                    par["NScan"] *
+                    par["NC"] *
+                    par["NSlice"],
+                    par["dimY"],
+                    par["dimX"])
 
         if par["fft_dim"] is not None:
             self.fft_scale = DTYPE_real(
@@ -1003,7 +1014,8 @@ class PyOpenCLCartNUFFT(PyOpenCLnuFFT):
             self._tmp_fft_array.add_event(
                 self.prg.maskingcpy(
                     self.queue,
-                    (self._tmp_fft_array.shape),
+                    (self._tmp_fft_array.shape[0],
+                     np.prod(self._tmp_fft_array.shape[1:])),
                     None,
                     self._tmp_fft_array.data,
                     s.data,
@@ -1086,7 +1098,8 @@ class PyOpenCLCartNUFFT(PyOpenCLnuFFT):
             return (
                 self.prg.maskingcpy(
                     self.queue,
-                    (self._tmp_fft_array.shape),
+                    (self._tmp_fft_array.shape[0],
+                     np.prod(self._tmp_fft_array.shape[1:])),
                     None,
                     s.data,
                     self._tmp_fft_array.data,

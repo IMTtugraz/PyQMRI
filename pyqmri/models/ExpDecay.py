@@ -51,7 +51,7 @@ class Model(BaseModel):
                 100 / self.uk_scale[0], False))
         self.constraints.append(
             constraints(
-                ((1 / 1500) / self.uk_scale[1]),
+                ((1 / 3000) / self.uk_scale[1]),
                 ((1 / 1e-4) / self.uk_scale[1]),
                 True))
         

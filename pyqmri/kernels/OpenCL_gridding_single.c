@@ -173,17 +173,17 @@ __kernel void grid_lut(
     kx = (kpos[2*(k+kDim*(scan+scanoffset))]);
     ky = (kpos[2*(k+kDim*(scan+scanoffset))+1]);
 
-    ixmin =  (int)((kx-kwidth)*gridsize +gridcenter);
-    ixmax = (int)((kx+kwidth)*gridsize +gridcenter)+1;
-    iymin = (int)((ky-kwidth)*gridsize +gridcenter);
-    iymax =  (int)((ky+kwidth)*gridsize +gridcenter)+1;
+    ixmin =  (int)((kx-kwidth) + gridcenter);
+    ixmax = (int)((kx+kwidth) + gridcenter)+1;
+    iymin = (int)((ky-kwidth) + gridcenter);
+    iymax =  (int)((ky+kwidth) + gridcenter)+1;
 
     for (int gcount1 = ixmin; gcount1 <= ixmax; gcount1++)
     {
-        dkx = (float)(gcount1-gridcenter) / (float)gridsize - kx;
+        dkx = (float)(gcount1-gridcenter) - kx;
         for (int gcount2 = iymin; gcount2 <= iymax; gcount2++)
         {
-            dky = (float)(gcount2-gridcenter) / (float)gridsize - ky;
+            dky = (float)(gcount2-gridcenter) - ky;
 
             dk = sqrt(dkx*dkx+dky*dky);
             if (dk < kwidth)
@@ -255,27 +255,27 @@ __kernel void grid_lut3D(
     ky = (kpos[3*(k+kDim*(scan+scanoffset))+1]);
     kz = (kpos[3*(k+kDim*(scan+scanoffset))+2]);
 
-    ixmin =  (int)((kx-kwidth)*gridsize +gridcenter);
-    ixmax = (int)((kx+kwidth)*gridsize +gridcenter)+1;
-    iymin = (int)((ky-kwidth)*gridsize +gridcenter);
-    iymax =  (int)((ky+kwidth)*gridsize +gridcenter)+1;
-    izmin = (int)((kz-kwidth)*gridsize +gridcenter);
-    izmax =  (int)((kz+kwidth)*gridsize +gridcenter)+1;
+    ixmin =  (int)((kx-kwidth) + gridcenter);
+    ixmax = (int)((kx+kwidth) + gridcenter)+1;
+    iymin = (int)((ky-kwidth) + gridcenter);
+    iymax =  (int)((ky+kwidth) + gridcenter)+1;
+    izmin = (int)((kz-kwidth) + gridcenter);
+    izmax =  (int)((kz+kwidth) + gridcenter)+1;
     
  for (int gcount1 = ixmin; gcount1 <= ixmax; gcount1++)
     {
-        dkx = (float)(gcount1-gridcenter) / (float)gridsize - kx;
+        dkx = (float)(gcount1-gridcenter) - kx;
         if (sqrt(dkx*dkx) < kwidth)
         {
         for (int gcount2 = iymin; gcount2 <= iymax; gcount2++)
         {
-            dky = (float)(gcount2-gridcenter) / (float)gridsize - ky;
+            dky = (float)(gcount2-gridcenter) - ky;
             dk = sqrt(dkx*dkx+dky*dky);
             if (dk < kwidth)
             {
             for (int gcount3 = izmin; gcount3 <= izmax; gcount3++)
             {
-            dkz = (float)(gcount3-gridcenter) / (float)gridsize - kz;
+            dkz = (float)(gcount3-gridcenter) - kz;
             dk = sqrt(dkx*dkx+dky*dky+dkz*dkz);
             if (dk < kwidth)
             {
@@ -383,17 +383,17 @@ __kernel void invgrid_lut(
     kx = (kpos[2*(k+kDim*(scan+scanoffset))]);
     ky = (kpos[2*(k+kDim*(scan+scanoffset))+1]);
 
-    ixmin =  (int)((kx-kwidth)*gridsize +gridcenter);
-    ixmax = (int)((kx+kwidth)*gridsize +gridcenter)+1;
-    iymin = (int)((ky-kwidth)*gridsize +gridcenter);
-    iymax =  (int)((ky+kwidth)*gridsize +gridcenter)+1;
+    ixmin =  (int)((kx-kwidth) + gridcenter);
+    ixmax = (int)((kx+kwidth) + gridcenter)+1;
+    iymin = (int)((ky-kwidth) + gridcenter);
+    iymax =  (int)((ky+kwidth) + gridcenter)+1;
 
     for (int gcount1 = ixmin; gcount1 <= ixmax; gcount1++)
     {
-        dkx = (float)(gcount1-gridcenter) / (float)gridsize  - kx;
+        dkx = (float)(gcount1-gridcenter) - kx;
         for (int gcount2 = iymin; gcount2 <= iymax; gcount2++)
         {
-            dky = (float)(gcount2-gridcenter) / (float)gridsize - ky;
+            dky = (float)(gcount2-gridcenter) - ky;
 
             dk = sqrt(dkx*dkx+dky*dky);
 
@@ -453,28 +453,28 @@ __kernel void invgrid_lut3D(
     ky = (kpos[3*(k+kDim*(scan+scanoffset))+1]);
     kz = (kpos[3*(k+kDim*(scan+scanoffset))+2]);
 
-    ixmin =  (int)((kx-kwidth)*gridsize + gridcenter);
-    ixmax = (int)((kx+kwidth)*gridsize + gridcenter)+1;
-    iymin = (int)((ky-kwidth)*gridsize + gridcenter);
-    iymax =  (int)((ky+kwidth)*gridsize + gridcenter)+1;
-    izmin = (int)((kz-kwidth)*gridsize + gridcenter);
-    izmax =  (int)((kz+kwidth)*gridsize + gridcenter)+1;
+    ixmin =  (int)((kx-kwidth) + gridcenter);
+    ixmax = (int)((kx+kwidth) + gridcenter)+1;
+    iymin = (int)((ky-kwidth) + gridcenter);
+    iymax =  (int)((ky+kwidth) + gridcenter)+1;
+    izmin = (int)((kz-kwidth) + gridcenter);
+    izmax =  (int)((kz+kwidth) + gridcenter)+1;
 
 
  for (int gcount1 = ixmin; gcount1 <= ixmax; gcount1++)
     {
-        dkx = (float)(gcount1-gridcenter) / (float)gridsize - kx;
+        dkx = (float)(gcount1-gridcenter) - kx;
         if (sqrt(dkx*dkx) < kwidth)
         {
         for (int gcount2 = iymin; gcount2 <= iymax; gcount2++)
         {
-            dky = (float)(gcount2-gridcenter) / (float)gridsize - ky;
+            dky = (float)(gcount2-gridcenter) - ky;
             dk = sqrt(dkx*dkx+dky*dky);
             if (dk < kwidth)
             {
             for (int gcount3 = izmin; gcount3 <= izmax; gcount3++)
             {
-            dkz = (float)(gcount3-gridcenter) / (float)gridsize - kz;
+            dkz = (float)(gcount3-gridcenter) - kz;
             dk = sqrt(dkx*dkx+dky*dky+dkz*dkz);
             if (dk < kwidth)
             {
@@ -640,12 +640,10 @@ __kernel void maskingcpy(
                 __global float *mask
                 )
 {
-    size_t x = get_global_id(2);
-    size_t dimX = get_global_size(2);
-    size_t y = get_global_id(1);
-    size_t dimY = get_global_size(1);
+    size_t x = get_global_id(1);
+    size_t dimX = get_global_size(1);
     size_t n = get_global_id(0);
-    out[x+y*dimX+dimX*dimY*n] = ksp[x+y*dimX+dimX*dimY*n]*mask[x+y*dimX];
+    out[x+n*dimX] = ksp[x+n*dimX]*mask[x];
 }
 
 __kernel void fftshift(__global float2* ksp, __global float *check)

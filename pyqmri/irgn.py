@@ -139,8 +139,8 @@ class IRGNOptimizer:
         else:
             if SMS:
                 self._data_shape = (par["NScan"], par["NC"],
-                                        par["packs"]*par["numofpacks"], 
-                                        par["Nproj"], par["N"])
+                                    par["packs"]*par["numofpacks"],
+                                    par["Nproj"], par["N"])
             else:
                 if par["is3D"] and trafo:
                     self._data_shape = (par["NScan"], par["NC"],
@@ -189,7 +189,7 @@ class IRGNOptimizer:
             DTYPE,
             DTYPE_real)
 
-        if not reg_type=="H1":
+        if not reg_type == "H1":
             self._pdop = optimizer.PDBaseSolver.factory(
                 self._prg,
                 self._queue,
@@ -206,7 +206,7 @@ class IRGNOptimizer:
                 DTYPE=DTYPE,
                 DTYPE_real=DTYPE_real
                 )
-        else: 
+        else:
             self._pdop = optimizer.CGSolver_H1(
                 self._prg,
                 self._queue,
@@ -267,7 +267,7 @@ class IRGNOptimizer:
 
         iters = self.irgn_par["start_iters"]
         result = np.copy(self._model.guess)
-        
+
         if "inc" in self.irgn_par.keys():
             inc = int(self.irgn_par["inc"])
         else:
@@ -357,8 +357,6 @@ class IRGNOptimizer:
         self.irgn_par["omega"] = np.maximum(
             self._omega * self.irgn_par["omega_dec"]**ign,
             self.irgn_par["omega_min"])/self.irgn_par["lambd"]
-        
-        
 
     def _balanceModelGradients(self, result):
         scale = np.reshape(
@@ -425,7 +423,7 @@ class IRGNOptimizer:
                 [tmpx, self._coils, self._modelgrad]).get()
             del tmpx
 
-        tmpres = self._pdop.run((x,self._v), res, iters)
+        tmpres = self._pdop.run((x, self._v), res, iters)
         for key in tmpres:
             if key == 'x':
                 if isinstance(tmpres[key], np.ndarray):

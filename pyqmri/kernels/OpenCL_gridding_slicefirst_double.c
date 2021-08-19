@@ -120,17 +120,17 @@ __kernel void grid_lut(
     kx = (kpos[2*(k+kDim*scan)]);
     ky = (kpos[2*(k+kDim*scan)+1]);
 
-    ixmin =  (int)((kx-kwidth)*gridsize +gridcenter);
-    ixmax = (int)((kx+kwidth)*gridsize +gridcenter)+1;
-    iymin = (int)((ky-kwidth)*gridsize +gridcenter);
-    iymax =  (int)((ky+kwidth)*gridsize +gridcenter)+1;
+    ixmin =  (int)((kx-kwidth) +gridcenter);
+    ixmax = (int)((kx+kwidth) +gridcenter)+1;
+    iymin = (int)((ky-kwidth) +gridcenter);
+    iymax =  (int)((ky+kwidth) +gridcenter)+1;
 
     for (int gcount1 = ixmin; gcount1 <= ixmax; gcount1++)
     {
-        dkx = (double)(gcount1-gridcenter) / (double)gridsize - kx;
+        dkx = (double)(gcount1-gridcenter) - kx;
         for (int gcount2 = iymin; gcount2 <= iymax; gcount2++)
         {
-            dky = (double)(gcount2-gridcenter) / (double)gridsize - ky;
+            dky = (double)(gcount2-gridcenter) - ky;
 
             dk = sqrt(dkx*dkx+dky*dky);
 
@@ -202,18 +202,18 @@ __kernel void invgrid_lut(
 
     kx = (kpos[2*(k+kDim*scan)]);
     ky = (kpos[2*(k+kDim*scan)+1]);
-
-    ixmin =  (int)((kx-kwidth)*gridsize +gridcenter);
-    ixmax = (int)((kx+kwidth)*gridsize +gridcenter)+1;
-    iymin = (int)((ky-kwidth)*gridsize +gridcenter);
-    iymax =  (int)((ky+kwidth)*gridsize +gridcenter)+1;
+    
+    ixmin =  (int)((kx-kwidth) +gridcenter);
+    ixmax = (int)((kx+kwidth) +gridcenter)+1;
+    iymin = (int)((ky-kwidth) +gridcenter);
+    iymax =  (int)((ky+kwidth) +gridcenter)+1;
 
     for (int gcount1 = ixmin; gcount1 <= ixmax; gcount1++)
     {
-        dkx = (double)(gcount1-gridcenter) / (double)gridsize  - kx;
+        dkx = (double)(gcount1-gridcenter)  - kx;
         for (int gcount2 = iymin; gcount2 <= iymax; gcount2++)
         {
-            dky = (double)(gcount2-gridcenter) / (double)gridsize - ky;
+            dky = (double)(gcount2-gridcenter) - ky;
 
             dk = sqrt(dkx*dkx+dky*dky);
 
@@ -292,7 +292,6 @@ __kernel void copy_SMS_fwd(
         }
     }
 }
-
 
 __kernel void copy_SMS_adj(
                 __global double2 *out,

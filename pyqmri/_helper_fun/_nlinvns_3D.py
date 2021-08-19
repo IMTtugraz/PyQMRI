@@ -21,8 +21,11 @@ Adapted for Python by O. Maier
 from time import perf_counter
 import numpy as np
 
+from pyqmri.transforms import PyOpenCLnuFFT
+import pyopencl.array as cla
 
-def nlinvns(Y, n, *arg, DTYPE=np.complex64, DTYPE_real=np.float32):
+
+def nlinvns(Y, n, par, *arg, DTYPE=np.complex64, DTYPE_real=np.float32):
     """Non-linear inversen based Coil sensitivity estimation.
 
     Parameters
@@ -57,9 +60,20 @@ def nlinvns(Y, n, *arg, DTYPE=np.complex64, DTYPE_real=np.float32):
 
     print('Start...')
 
-    alpha = 0.01
+    alpha = 0.001
 
     [c, z, y, x] = Y.shape
+    
+    par["NC"] = c
+    par["fft_dim"] = [-3, -2, -1]
+    par["mask"] = np.ones(Y.shape[1:], dtype=par["DTYPE_real"])
+    
+    FFT = PyOpenCLnuFFT.create(
+        par["ctx"][0], par["queue"][0], par,
+        DTYPE=par["DTYPE"],
+        DTYPE_real=par["DTYPE_real"],
+        radial=False, SMS=False)
+       
 
     if returnProfiles:
         R = np.zeros([c + 2, n, z, y, x], DTYPE)
@@ -68,16 +82,16 @@ def nlinvns(Y, n, *arg, DTYPE=np.complex64, DTYPE_real=np.float32):
         R = np.zeros([2, n, z, y, x], DTYPE)
 
     # initialization x-vector
-    X0 = np.array(np.zeros([c + 1, z, y, x]), DTYPE_real)
+    X0 = np.array(np.zeros([c + 1, z, y, x]), DTYPE)
     X0[0] = 1  # object part
 
     # initialize mask and weights
-    P = np.ones(Y[0].shape, dtype=DTYPE_real)
+    P = np.ones(Y[0].shape, dtype=DTYPE)
     P[Y[0] == 0] = 0
 
     W = _weights(z, y, x)
 
-    W = _fftshift2(W)
+    W = _fftshift2(W).astype(DTYPE_real)
 
     # normalize data vector
     yscale = 100 / np.sqrt(_scal(Y, Y))
@@ -85,21 +99,22 @@ def nlinvns(Y, n, *arg, DTYPE=np.complex64, DTYPE_real=np.float32):
 
     XT = np.zeros([c + 1, z, y, x], dtype=DTYPE)
     XN = np.copy(X0)
-
-    start = perf_counter()
+    
+    start = perf_counter()  
+       
     for i in range(0, n):
 
         # the application of the weights matrix to XN
         # is moved out of the operator and the derivative
         XT[0] = np.copy(XN[0])
-        XT[1:] = _apweightsns(W, np.copy(XN[1:]))
+        XT[1:] = _apweightsns(W, np.copy(XN[1:]), FFT)
 
-        RES = (YS - _opns(P, XT))
+        RES = (YS - _opns(P, XT, FFT))
 
         print(np.round(np.linalg.norm(RES)))
 
         # calculate rhs
-        r = _derHns(P, W, XT, RES, realConstr)
+        r = _derHns(P, W, XT, RES, realConstr, FFT)
 
         r = np.array(r + alpha * (X0 - XN), dtype=DTYPE)
 
@@ -108,22 +123,22 @@ def nlinvns(Y, n, *arg, DTYPE=np.complex64, DTYPE_real=np.float32):
         dnew = np.linalg.norm(r)**2
         dnot = np.copy(dnew)
 
-        for j in range(0, 500):
+        for j in range(0, 100):
 
             # regularized normal equations
-            q = _derHns(P, W, XT, _derns(P, W, XT, d), realConstr) + alpha * d
-            np.nan_to_num(q)
+            q = _derHns(P, W, XT, _derns(P, W, XT, d, FFT), realConstr, FFT) + alpha * d
+            # np.nan_to_num(q)
 
             a = dnew / np.real(_scal(d, q))
-            z = z + a * (d)
+            z = z + a * d
             r = r - a * q
-            np.nan_to_num(r)
+            # np.nan_to_num(r)
             dold = np.copy(dnew)
             dnew = np.linalg.norm(r)**2
 
             d = d * ((dnew / dold)) + r
-            np.nan_to_num(d)
-            if np.sqrt(dnew) < (1e-6 * dnot):
+            # np.nan_to_num(d)
+            if np.sqrt(dnew) < (1e-4 * dnot):
                 break
 
         print('(', j, ')')
@@ -134,7 +149,7 @@ def nlinvns(Y, n, *arg, DTYPE=np.complex64, DTYPE_real=np.float32):
 
         # postprocessing
 
-        CR = _apweightsns(W, XN[1:, :, :])
+        CR = _apweightsns(W, XN[1:, :, :], FFT)
 
         if returnProfiles:
             R[2:, i] = CR / yscale
@@ -154,52 +169,60 @@ def _scal(a, b):
     return v
 
 
-def _apweightsns(W, CT):
-    C = _nsIfft(W * CT)
+def _apweightsns(W, CT, fft):
+    C = _nsIfft(W * CT, fft)
     return C
 
 
-def _apweightsnsH(W, CT):
-    C = np.conj(W) * _nsFft(CT)
+def _apweightsnsH(W, CT, fft):
+    C = np.conj(W) * _nsFft(CT, fft)
     return C
 
 
-def _opns(P, X):
+def _opns(P, X, fft):
     K = X[0] * X[1:]
-    K = P * _nsFft(K)
+    K = P * _nsFft(K, fft)
     return K
 
 
-def _derns(P, W, X0, DX):
-    K = X0[0] * _apweightsns(W, DX[1:])
+def _derns(P, W, X0, DX, fft):
+    K = X0[0] * _apweightsns(W, DX[1:], fft)
     K = K + (DX[0] * X0[1:])
-    K = P * _nsFft(K)
+    K = P * _nsFft(K, fft)
     return K
 
 
-def _derHns(P, W, X0, DK, realConstr):
+def _derHns(P, W, X0, DK, realConstr, fft):
 
-    K = _nsIfft(P * DK)
+    K = _nsIfft(P * DK, fft)
 
     if realConstr:
         DXrho = np.sum(np.real(K * np.conj(X0[1:])), 0)
     else:
         DXrho = np.sum(K * np.conj(X0[1:]), 0)
 
-    DXc = _apweightsnsH(W, (K * np.conj(X0[0])))
+    DXc = _apweightsnsH(W, (K * np.conj(X0[0])), fft)
     DX = np.concatenate(
         (DXrho[None, ...], DXc), axis=0)
     return DX
 
 
-def _nsFft(M):
-    K = np.fft.fftn(M, axes=(-3,-2,-1), norm="ortho")
-    return K
+def _nsFft(M, fft):
+    # K = np.fft.fftn(M, axes=(-3,-2,-1), norm="ortho")
+    tmp = cla.to_device(fft.queue, M)
+    K = cla.empty_like(tmp)
+    fft.FFT(K,tmp)
+    # K = fft(M)
+    return K.get()
 
 
-def _nsIfft(M):
-    K = np.fft.ifftn(M, axes=(-3,-2,-1), norm="ortho")
-    return K  # .T
+def _nsIfft(M, fft):
+    # K = np.fft.ifftn(M, axes=(-3,-2,-1), norm="ortho")
+    tmp = cla.to_device(fft.queue, M)
+    K = cla.empty_like(tmp)
+    fft.FFTH(K,tmp)
+    # K = fft(M)
+    return K.get()
 
 
 def _weights(z, y, x):

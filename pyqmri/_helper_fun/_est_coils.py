@@ -52,6 +52,7 @@ def est_coils(data, par, file, args, off):
     c = ipp.Client()
     nlinvNewtonSteps = 6
     nlinvRealConstr = False
+
     if args.sms or "Coils_real" in list(file.keys()):
         print("Using precomputed coil sensitivities")
         
@@ -108,13 +109,12 @@ def est_coils(data, par, file, args, off):
             par_coils["DTYPE"] = par["DTYPE"]
             par_coils["DTYPE_real"] = par["DTYPE_real"]
             if "is3D" in par.keys():
+                par_coils["NSlice"] = par["NSlice"]
                 par_coils["is3D"] = par["is3D"]
             FFT = utils.NUFFT(par_coils)
 
             result = []
             if args.is3Ddata:     
-                import ipdb
-                ipdb.set_trace()
                 sys.stdout.write(
                     "Computing coil sensitivity maps in 3D")
                 sys.stdout.flush()
@@ -129,7 +129,7 @@ def est_coils(data, par, file, args, off):
                             1,
                             par["NScan"] * par["Nproj"],
                             par["N"])),
-                    requirements='C') * dcf_coil
+                    requirements='C')
                 
                 tmp_coilData = clarray.zeros(
                     FFT.queue, (1, par["NSlice"], par["dimY"], par["dimX"]),
@@ -150,9 +150,10 @@ def est_coils(data, par, file, args, off):
                     dtype=par["DTYPE"],
                     requirements='C')
     
-                result = nlinvns3D.nlinvns(combinedData, nlinvNewtonSteps,
-                                         True, nlinvRealConstr, DTYPE=par["DTYPE"],
-                                         DTYPE_real=par["DTYPE_real"])
+                result = nlinvns3D.nlinvns(
+                    combinedData, nlinvNewtonSteps, par_coils,
+                    True, nlinvRealConstr, DTYPE=par["DTYPE"],
+                    DTYPE_real=par["DTYPE_real"])
                 sys.stdout.write("done")
                 par["C"] = result[2:,-1]
             else:
@@ -323,11 +324,9 @@ def est_coils(data, par, file, args, off):
         if args.trafo:
             traj_coil = par["traj"].reshape(
                 par["NScan"] * par["Nproj"], par["N"], -1)
-            dcf_coil = np.sqrt(goldcomp.cmp(traj_coil))
-            dcf_coil = np.require(dcf_coil,
-                                  requirements='C',
-                                  dtype=par["DTYPE_real"])
-
+            dcf_coil =  par["dcf"].reshape(
+                par["NScan"] * par["Nproj"], par["N"])
+            
             par["C"] = np.zeros(
                 (par["NC"],
                  par["NSlice"],
@@ -348,24 +347,24 @@ def est_coils(data, par, file, args, off):
             par_coils["NSlice"] = 1
             par_coils["ctx"] = par["ctx"]
             par_coils["queue"] = par["queue"]
-            par_coils["fft_dim"] = [-2, -1]
+            par_coils["fft_dim"] = par["fft_dim"]
             par_coils["use_GPU"] = par["use_GPU"]
             par_coils["DTYPE"] = par["DTYPE"]
             par_coils["DTYPE_real"] = par["DTYPE_real"]
             if "is3D" in par.keys():
+                par_coils["NSlice"] = par["NSlice"]
                 par_coils["is3D"] = par["is3D"]
             FFT = utils.NUFFT(par_coils)
 
             result = []
             if args.is3Ddata:     
-                import ipdb
-                ipdb.set_trace()
                 sys.stdout.write(
                     "Computing coil sensitivity maps in 3D")
                 sys.stdout.flush()
                 # RADIAL PART
                 combinedData = np.transpose(
                     data[:, :, :, :, :], (1, 2, 0, 3, 4))
+
                 combinedData = np.require(
                     np.reshape(
                         combinedData,
@@ -374,19 +373,20 @@ def est_coils(data, par, file, args, off):
                             1,
                             par["NScan"] * par["Nproj"],
                             par["N"])),
-                    requirements='C') * dcf_coil
+                    requirements='C')
                 
                 tmp_coilData = clarray.zeros(
                     FFT.queue, (1, 1, par["NSlice"], par["dimY"], par["dimX"]),
                     dtype=par["DTYPE"])
                 coilData = np.zeros(
                     (par["NC"], par["NSlice"], par["dimY"], par["dimX"]), dtype=par["DTYPE"])
+
                 for j in range(par["NC"]):
                     tmp_combinedData = clarray.to_device(
                         FFT.queue, combinedData[None, :, j, ...])
                     FFT.FFTH(tmp_coilData, tmp_combinedData)
                     coilData[j, ...] = np.squeeze(tmp_coilData.get())
-
+                
                 combinedData = np.require(
                     np.fft.fftn(
                         coilData,
@@ -395,7 +395,7 @@ def est_coils(data, par, file, args, off):
                     dtype=par["DTYPE"],
                     requirements='C')
     
-                result = nlinvns3D.nlinvns(combinedData, nlinvNewtonSteps,
+                result = nlinvns3D.nlinvns(combinedData, nlinvNewtonSteps, par_coils,
                                          True, nlinvRealConstr, DTYPE=par["DTYPE"],
                                          DTYPE_real=par["DTYPE_real"])
                 sys.stdout.write("done")
