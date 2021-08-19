@@ -387,7 +387,7 @@ def est_coils(data, par, file, args, off):
                         FFT.queue, combinedData[None, :, j, ...])
                     FFT.FFTH(tmp_coilData, tmp_combinedData)
                     coilData[j, ...] = np.squeeze(tmp_coilData.get())
-                
+
                 combinedData = np.require(
                     np.fft.fftn(
                         coilData,
