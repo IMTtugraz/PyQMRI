@@ -61,7 +61,7 @@ class Model(BaseModel):
             for key in config[par["modelname"]]:
                 params[key] = config[par["modelname"]][key]
 
-        modelpar = sympy.symbols(params["parameter"])
+        modelpar = sympy.symbols(params["parameter"], seq=True)
         unknowns = sympy.symbols(params["unknowns"])
         self._unknowns = unknowns
 
@@ -98,10 +98,7 @@ class Model(BaseModel):
 
         self.modelparams = []
         
-        
-        if type(modelpar) is not tuple:
-            modelpar = [modelpar]
-        
+
         for mypar in modelpar:
             tmp = par[str(mypar)]
             if np.isscalar(tmp) or tmp.shape == (1,):
@@ -113,6 +110,7 @@ class Model(BaseModel):
                 while len(tmp.shape) < 4:
                     tmp = tmp[..., None]
                 self.modelparams.append(tmp)
+
 
         self.uk_scale = []
         for j in range(par["unknowns"]):
