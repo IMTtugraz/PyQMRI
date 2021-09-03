@@ -35,7 +35,7 @@ def _choosePlatform(myargs, par):
     par["Platform_Indx"] = None
     dev_ind = []
     inp = None
-    if myargs.use_GPU:
+    if myargs.use_GPU is True:
         for j, platform in enumerate(platforms):
             if platform.get_devices(device_type=cl.device_type.GPU):
                 print("GPU OpenCL platform <%s> found "
