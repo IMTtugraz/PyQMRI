@@ -64,7 +64,7 @@ test-single-on-gpu:
             junit: results_unittests_*.xml
             cobertura: coverage_unittests_*.xml
             
-test-souble-on-cpu:
+test-double-on-cpu:
     stage: unittests
     image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
     tags: [cpu]
