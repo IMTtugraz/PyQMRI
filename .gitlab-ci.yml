@@ -1,6 +1,3 @@
-default:
-    image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri
-
 stages:
     - build
     - linting
@@ -16,12 +13,14 @@ stages:
 
 build-job:
     stage: build
+    image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
     script:
         - python3.8 -m pip install -r requirements.txt
         - python3.8 -m pip install .
 
 lint-job:
     stage: linting
+    image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
     script:
         pylint -ry --output-format=parseable --exit-zero ./pyqmri > pylint.log
     artifacts:
@@ -30,6 +29,7 @@ lint-job:
 
 test-job-single:
     stage: test-job-single
+    image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
     before_script:
         - python3.8 -m pip install -r requirements.txt --no-cache-dir
         - python3.8 -m pip install -e . --no-cache-dir
@@ -53,6 +53,7 @@ test-job-single:
             
 test-job-double:
     stage: test-job-double
+    image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
     before_script:
         - python3.8 -m pip install -r requirements.txt --no-cache-dir
         - python3.8 -m pip install -e . --no-cache-dir
@@ -77,6 +78,7 @@ test-job-double:
 
 integration-job:
     stage: integration-test
+    image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
     before_script:
         - python3.8 -m pip install -r requirements.txt --no-cache-dir
         - python3.8 -m pip install -e . --no-cache-dir
