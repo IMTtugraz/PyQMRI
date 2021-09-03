@@ -46,7 +46,7 @@ test-single-on-cpu:
 test-single-on-gpu:
     stage: unittests
     image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
-    tags: [gpu]
+    tags: [nvidia_gpu]
     before_script:
         - python3.8 -m pip install -r requirements.txt --no-cache-dir
         - python3.8 -m pip install -e . --no-cache-dir
