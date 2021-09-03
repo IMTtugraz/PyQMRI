@@ -102,8 +102,26 @@ test-double-on-gpu:
             junit: results_unittests_*.xml
             cobertura: coverage_unittests_*.xml
 
+integration-job-cpu:
+    stage: integration-test
+    image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
+    tags: [cpu]
+    before_script:
+        - python3.8 -m pip install -r requirements.txt --no-cache-dir
+        - python3.8 -m pip install -e . --no-cache-dir
+    script:
+        - ipcluster start&
+        - pytest --junitxml results_integrationtests_single_slice.xml --cov=pyqmri --integration-cover test/integrationtests/test_integration_test_single_slice_CPU.py
+        - coverage xml -o coverage_integrationtests_single_slice.xml
+        - pytest --junitxml results_integrationtests_multi_slice.xml --cov=pyqmri --integration-cover test/integrationtests/test_integration_test_multi_slice_CPU.py
+        - coverage xml -o coverage_integrationtests_multi_slice.xml
+        - ipcluster stop&
+    artifacts:
+        reports:
+            junit: results_integrationtests_*.xml
+            cobertura: coverage_integrationtests_*.xml
 
-integration-job:
+integration-job-gpu:
     stage: integration-test
     image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
     tags: [gpu]
@@ -121,6 +139,8 @@ integration-job:
         reports:    
             junit: results_integrationtests_*.xml
             cobertura: coverage_integrationtests_*.xml
+
+
 
 #pages:
 #  stage: deploy
