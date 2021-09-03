@@ -8,7 +8,7 @@ stages:
 build-job:
     stage: build
     image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
-    tags: cpu
+    tags: [cpu]
     script:
         - python3.8 -m pip install -r requirements.txt
         - python3.8 -m pip install .
@@ -16,7 +16,7 @@ build-job:
 lint-job:
     stage: linting
     image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
-    tags: cpu
+    tags: [cpu]
     script:
         pylint -ry --output-format=parseable --exit-zero ./pyqmri > pylint.log
     artifacts:
@@ -26,7 +26,7 @@ lint-job:
 test-job-single-cpu:
     stage: test-job-single
     image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
-    tags: cpu
+    tags: [cpu]
     before_script:
         - python3.8 -m pip install -r requirements.txt --no-cache-dir
         - python3.8 -m pip install -e . --no-cache-dir
@@ -47,7 +47,7 @@ test-job-single-cpu:
 test-job-single-gpu:
     stage: test-job-single
     image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
-    tags: gpu
+    tags: [gpu]
     before_script:
         - python3.8 -m pip install -r requirements.txt --no-cache-dir
         - python3.8 -m pip install -e . --no-cache-dir
@@ -68,7 +68,7 @@ test-job-single-gpu:
 test-job-double-cpu:
     stage: test-job-double
     image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
-    tags: cpu
+    tags: [cpu]
     before_script:
         - python3.8 -m pip install -r requirements.txt --no-cache-dir
         - python3.8 -m pip install -e . --no-cache-dir
@@ -87,7 +87,7 @@ test-job-double-cpu:
 test-job-double-gpu:
     stage: test-job-double
     image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
-    tags: gpu
+    tags: [gpu]
     before_script:
         - python3.8 -m pip install -r requirements.txt --no-cache-dir
         - python3.8 -m pip install -e . --no-cache-dir
@@ -107,7 +107,7 @@ test-job-double-gpu:
 integration-job:
     stage: integration-test
     image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
-    tags: gpu
+    tags: [gpu]
     before_script:
         - python3.8 -m pip install -r requirements.txt --no-cache-dir
         - python3.8 -m pip install -e . --no-cache-dir
