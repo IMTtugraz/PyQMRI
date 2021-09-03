@@ -36,7 +36,7 @@ test-single-on-cpu:
         - coverage xml -o coverage_unittests_grad_CPU.xml
         - pytest --junitxml results_unittests_symgrad_CPU.xml --cov=pyqmri test/unittests/test_symmetrized_gradient_CPU.py
         - coverage xml -o coverage_unittests_symgrad_CPU.xml
-        - pytest --junitxml test_Linear3DDataOperator_CPU.py.xml --cov=pyqmri test/unittests/test_Linear3DDataOperator_CPU.py
+        - pytest --junitxml test_Linear3DDataOperator_CPU.xml --cov=pyqmri test/unittests/test_Linear3DDataOperator_CPU.py
         - coverage xml -o coverage_unittests_Linear3DDataOperator_CPU.xml
     artifacts: 
         reports:    
@@ -57,7 +57,7 @@ test-single-on-gpu:
         - coverage xml -o coverage_unittests_grad.xml
         - pytest --junitxml results_unittests_symgrad.xml --cov=pyqmri test/unittests/test_symmetrized_gradient.py
         - coverage xml -o coverage_unittests_symgrad.xml
-        - pytest --junitxml test_Linear3DDataOperator.py.xml --cov=pyqmri test/unittests/test_Linear3DDataOperator.py
+        - pytest --junitxml test_Linear3DDataOperator.xml --cov=pyqmri test/unittests/test_Linear3DDataOperator.py
         - coverage xml -o coverage_unittests_Linear3DDataOperator.xml
     artifacts:
         reports:
