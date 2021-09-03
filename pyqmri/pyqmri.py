@@ -34,6 +34,7 @@ def _choosePlatform(myargs, par):
     use_GPU = False
     par["Platform_Indx"] = None
     dev_ind = []
+    inp = None
     if myargs.use_GPU:
         for j, platform in enumerate(platforms):
             if platform.get_devices(device_type=cl.device_type.GPU):
@@ -68,13 +69,11 @@ def _choosePlatform(myargs, par):
                               +str(len(dev_ind)-1))
                         continue
                 break
-                    
-            if inp:
-                par["Platform_Indx"] = dev_ind[inp]
-            else:
-                par["Platform_Indx"] = dev_ind[0]
+        if inp:
+            par["Platform_Indx"] = dev_ind[inp]
         else:
             par["Platform_Indx"] = dev_ind[0]
+     
     if not use_GPU:
         if myargs.use_GPU:
             print("No GPU OpenCL platform found. Falling back to CPU.")
