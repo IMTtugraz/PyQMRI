@@ -1,8 +1,7 @@
 stages:
     - build
     - linting
-    - test-job-single
-    - test-job-double
+    - unittests
     - integration-test
 
 build-job:
@@ -23,8 +22,8 @@ lint-job:
         paths: 
             - pylint.log
 
-test-job-single-cpu:
-    stage: test-job-single
+test-single-on-cpu:
+    stage: unittests
     image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
     tags: [cpu]
     before_script:
@@ -44,8 +43,8 @@ test-job-single-cpu:
             junit: results_unittests_*.xml
             cobertura: coverage_unittests_*.xml
 
-test-job-single-gpu:
-    stage: test-job-single
+test-single-on-gpu:
+    stage: unittests
     image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
     tags: [gpu]
     before_script:
@@ -65,8 +64,8 @@ test-job-single-gpu:
             junit: results_unittests_*.xml
             cobertura: coverage_unittests_*.xml
             
-test-job-double-cpu:
-    stage: test-job-double
+test-souble-on-cpu:
+    stage: unittests
     image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
     tags: [cpu]
     before_script:
@@ -84,8 +83,8 @@ test-job-double-cpu:
             junit: results_unittests_*.xml
             cobertura: coverage_unittests_*.xml
 
-test-job-double-gpu:
-    stage: test-job-double
+test-double-on-gpu:
+    stage: unittests
     image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
     tags: [gpu]
     before_script:

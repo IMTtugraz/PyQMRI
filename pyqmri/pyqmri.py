@@ -116,7 +116,7 @@ def _choosePlatform(myargs, par):
                 par["Platform_Indx"] = dev_ind[inp]
             else:
                 par["Platform_Indx"] = dev_ind[0]
-        elif not dev_ind:
+        elif dev_ind is []:
             raise(ValueError("No OpenCL device found."))
         else:
             par["Platform_Indx"] = dev_ind[0]                
