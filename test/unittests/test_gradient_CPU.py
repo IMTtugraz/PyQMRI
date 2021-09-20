@@ -85,29 +85,29 @@ class GradientTest(unittest.TestCase):
         self.queue = par["queue"][0]
         self.weights = par["weights"]
         
-        parser = tmpArgs()
-        parser.streamed = False
-        parser.devices = -1
-        parser.use_GPU = True
+        # parser = tmpArgs()
+        # parser.streamed = False
+        # parser.devices = -1
+        # parser.use_GPU = True
 
-        par = {}
-        pyqmri.pyqmri._setupOCL(parser, par)
-        setupPar(par)
+        # par = {}
+        # pyqmri.pyqmri._setupOCL(parser, par)
+        # setupPar(par)
         
-        prg = []
-        for j in range(len(par["ctx"])):
-            with open(file) as myfile:
-                prg.append(Program(
-                    par["ctx"][j],
-                    myfile.read()))
-        prg = prg[0]
+        # prg = []
+        # for j in range(len(par["ctx"])):
+        #     with open(file) as myfile:
+        #         prg.append(Program(
+        #             par["ctx"][j],
+        #             myfile.read()))
+        # prg = prg[0]
 
-        self.grad_GPU = pyqmri.operator.OperatorFiniteGradient(
-            par, prg,
-            DTYPE=DTYPE,
-            DTYPE_real=DTYPE_real)
+        # self.grad_GPU = pyqmri.operator.OperatorFiniteGradient(
+        #     par, prg,
+        #     DTYPE=DTYPE,
+        #     DTYPE_real=DTYPE_real)
         
-        self.queue_GPU = par["queue"][0]
+        # self.queue_GPU = par["queue"][0]
 
     def test_grad_outofplace(self):
         gradx = np.zeros_like(self.gradin)
@@ -189,31 +189,31 @@ class GradientTest(unittest.TestCase):
 
         np.testing.assert_allclose(a, b, rtol=RTOL, atol=ATOL)
         
-    def test_CPU_vs_GPU_fwd(self):
-        inpfwd_CPU = clarray.to_device(self.queue, self.gradin)
-        outfwd_CPU = clarray.zeros(self.queue, self.divin.shape, dtype=DTYPE)
-        outfwd_CPU.add_event(self.grad.fwd(outfwd_CPU, inpfwd_CPU))
-        outfwd_CPU = outfwd_CPU.map_to_host(wait_for=outfwd_CPU.events)
+    # def test_CPU_vs_GPU_fwd(self):
+    #     inpfwd_CPU = clarray.to_device(self.queue, self.gradin)
+    #     outfwd_CPU = clarray.zeros(self.queue, self.divin.shape, dtype=DTYPE)
+    #     outfwd_CPU.add_event(self.grad.fwd(outfwd_CPU, inpfwd_CPU))
+    #     outfwd_CPU = outfwd_CPU.map_to_host(wait_for=outfwd_CPU.events)
         
-        inpfwd_GPU = clarray.to_device(self.queue_GPU, self.gradin)
-        outfwd_GPU = clarray.zeros(self.queue_GPU, self.divin.shape, dtype=DTYPE)
-        outfwd_GPU.add_event(self.grad_GPU.fwd(outfwd_GPU, inpfwd_GPU))
-        outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
+    #     inpfwd_GPU = clarray.to_device(self.queue_GPU, self.gradin)
+    #     outfwd_GPU = clarray.zeros(self.queue_GPU, self.divin.shape, dtype=DTYPE)
+    #     outfwd_GPU.add_event(self.grad_GPU.fwd(outfwd_GPU, inpfwd_GPU))
+    #     outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
         
-        np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=RTOL, atol=ATOL)
+    #     np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=RTOL, atol=ATOL)
         
-    def test_CPU_vs_GPU_adj(self):
-        inpadj_CPU = clarray.to_device(self.queue, self.divin)
-        outadj_CPU = clarray.zeros(self.queue, self.gradin.shape, dtype=DTYPE)
-        outadj_CPU.add_event(self.grad.adj(outadj_CPU, inpadj_CPU))
-        outadj_CPU = outadj_CPU.map_to_host(wait_for=outadj_CPU.events)
+    # def test_CPU_vs_GPU_adj(self):
+    #     inpadj_CPU = clarray.to_device(self.queue, self.divin)
+    #     outadj_CPU = clarray.zeros(self.queue, self.gradin.shape, dtype=DTYPE)
+    #     outadj_CPU.add_event(self.grad.adj(outadj_CPU, inpadj_CPU))
+    #     outadj_CPU = outadj_CPU.map_to_host(wait_for=outadj_CPU.events)
         
-        inpadj_GPU = clarray.to_device(self.queue_GPU, self.divin)
-        outadj_GPU = clarray.zeros(self.queue_GPU, self.gradin.shape, dtype=DTYPE)
-        outadj_GPU.add_event(self.grad_GPU.adj(outadj_GPU, inpadj_GPU))
-        outadj_GPU = outadj_GPU.map_to_host(wait_for=outadj_GPU.events)     
+    #     inpadj_GPU = clarray.to_device(self.queue_GPU, self.divin)
+    #     outadj_GPU = clarray.zeros(self.queue_GPU, self.gradin.shape, dtype=DTYPE)
+    #     outadj_GPU.add_event(self.grad_GPU.adj(outadj_GPU, inpadj_GPU))
+    #     outadj_GPU = outadj_GPU.map_to_host(wait_for=outadj_GPU.events)     
         
-        np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=RTOL, atol=ATOL)
+    #     np.testing.assert_allclose(outadj_CPU, outadj_GPU, rtol=RTOL, atol=ATOL)
 
 if __name__ == '__main__':
     unittest.main()

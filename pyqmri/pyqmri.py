@@ -34,7 +34,8 @@ def _choosePlatform(myargs, par):
     use_GPU = False
     par["Platform_Indx"] = None
     dev_ind = []
-    if myargs.use_GPU:
+    inp = None
+    if myargs.use_GPU is True:
         for j, platform in enumerate(platforms):
             if platform.get_devices(device_type=cl.device_type.GPU):
                 print("GPU OpenCL platform <%s> found "
@@ -68,13 +69,11 @@ def _choosePlatform(myargs, par):
                               +str(len(dev_ind)-1))
                         continue
                 break
-                    
-            if inp:
-                par["Platform_Indx"] = dev_ind[inp]
-            else:
-                par["Platform_Indx"] = dev_ind[0]
+        if inp:
+            par["Platform_Indx"] = dev_ind[inp]
         else:
             par["Platform_Indx"] = dev_ind[0]
+     
     if not use_GPU:
         if myargs.use_GPU:
             print("No GPU OpenCL platform found. Falling back to CPU.")
@@ -87,39 +86,9 @@ def _choosePlatform(myargs, par):
                              device_type=cl.device_type.CPU)),
                          str(platform.get_info(cl.platform_info.VERSION))))
                 use_GPU = False
-                dev_ind.append(j)
-        if len(dev_ind) > 1:
-            while True:
-                try:
-                    inp = inputimeout(
-                        (str(len(dev_ind)) +
-                         " GPU platforms found."+
-                         " Defaulting to (0) in 4 seconds.\n"), 
-                        4)
-                except:
-                    inp = None
-                if inp is None:
-                    break
-                else:
-                    try:
-                        inp = int(inp)
-                    except:
-                        print("Please specify an integer.")
-                        continue
-                    if inp >= len(dev_ind) or inp < 0:
-                        print("Integer needs to be in range 0-"
-                              +str(len(dev_ind)-1))
-                        continue
-                break
-                    
-            if inp:
-                par["Platform_Indx"] = dev_ind[inp]
-            else:
-                par["Platform_Indx"] = dev_ind[0]
-        elif not dev_ind:
-            raise(ValueError("No OpenCL device found."))
-        else:
-            par["Platform_Indx"] = dev_ind[0]                
+                par["Platform_Indx"] = j
+        if par["Platform_Indx"] is None:
+            raise(ValueError("No OpenCL device found."))   
 
     par["use_GPU"] = use_GPU
     return platforms
@@ -957,7 +926,7 @@ def run(reg_type='TGV',
               ('--config', str(config)),
               ('--imagespace', str(imagespace)),
               ('--sms', str(sms)),
-              ('--use_GPU', "True"),
+              ('--use_GPU', str(use_GPU)),
               ('--devices', str(devices)),
               ('--dz', str(dz)),
               ('--weights', str(weights)),

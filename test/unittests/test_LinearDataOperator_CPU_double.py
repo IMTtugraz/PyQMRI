@@ -136,31 +136,31 @@ class OperatorKspaceRadial(unittest.TestCase):
         self.grad_buf = clarray.to_device(self.queue, self.model_gradient)
         self.coil_buf = clarray.to_device(self.queue, self.C)
         
-        parser = tmpArgs()
-        parser.streamed = False
-        parser.devices = -1
-        parser.use_GPU = True
+        # parser = tmpArgs()
+        # parser.streamed = False
+        # parser.devices = -1
+        # parser.use_GPU = True
 
-        par = {}
-        pyqmri.pyqmri._setupOCL(parser, par)
-        setupPar(par)
+        # par = {}
+        # pyqmri.pyqmri._setupOCL(parser, par)
+        # setupPar(par)
         
-        prg = []
-        for j in range(len(par["ctx"])):
-            with open(file) as myfile:
-                prg.append(Program(
-                    par["ctx"][j],
-                    myfile.read()))
-        prg = prg[0]
+        # prg = []
+        # for j in range(len(par["ctx"])):
+        #     with open(file) as myfile:
+        #         prg.append(Program(
+        #             par["ctx"][j],
+        #             myfile.read()))
+        # prg = prg[0]
 
-        self.op_GPU = pyqmri.operator.OperatorKspace(
-            par, prg,
-            DTYPE=DTYPE,
-            DTYPE_real=DTYPE_real)
+        # self.op_GPU = pyqmri.operator.OperatorKspace(
+        #     par, prg,
+        #     DTYPE=DTYPE,
+        #     DTYPE_real=DTYPE_real)
         
-        self.queue_GPU = par["queue"][0]
-        self.grad_buf_GPU = clarray.to_device(self.queue_GPU, self.model_gradient)
-        self.coil_buf_GPU = clarray.to_device(self.queue_GPU, self.C)
+        # self.queue_GPU = par["queue"][0]
+        # self.grad_buf_GPU = clarray.to_device(self.queue_GPU, self.model_gradient)
+        # self.coil_buf_GPU = clarray.to_device(self.queue_GPU, self.C)
         
 
     def test_adj_outofplace(self):
@@ -296,33 +296,33 @@ class OperatorKspaceCartesian(unittest.TestCase):
         self.grad_buf = clarray.to_device(self.queue, self.model_gradient)
         self.coil_buf = clarray.to_device(self.queue, self.C)
         
-        parser = tmpArgs()
-        parser.streamed = False
-        parser.devices = -1
-        parser.use_GPU = True
+        # parser = tmpArgs()
+        # parser.streamed = False
+        # parser.devices = -1
+        # parser.use_GPU = True
 
-        par = {}
-        pyqmri.pyqmri._setupOCL(parser, par)
-        setupPar(par)
+        # par = {}
+        # pyqmri.pyqmri._setupOCL(parser, par)
+        # setupPar(par)
         
-        prg = []
-        for j in range(len(par["ctx"])):
-            with open(file) as myfile:
-                prg.append(Program(
-                    par["ctx"][j],
-                    myfile.read()))
-        prg = prg[0]
-        par["mask"] = np.ones((par["dimY"], par["dimX"]),
-                              dtype=DTYPE_real)
+        # prg = []
+        # for j in range(len(par["ctx"])):
+        #     with open(file) as myfile:
+        #         prg.append(Program(
+        #             par["ctx"][j],
+        #             myfile.read()))
+        # prg = prg[0]
+        # par["mask"] = np.ones((par["dimY"], par["dimX"]),
+        #                       dtype=DTYPE_real)
         
-        self.op_GPU = pyqmri.operator.OperatorKspace(
-            par, prg,
-            DTYPE=DTYPE,
-            DTYPE_real=DTYPE_real, trafo=False)
+        # self.op_GPU = pyqmri.operator.OperatorKspace(
+        #     par, prg,
+        #     DTYPE=DTYPE,
+        #     DTYPE_real=DTYPE_real, trafo=False)
         
-        self.queue_GPU = par["queue"][0]
-        self.grad_buf_GPU = clarray.to_device(self.queue_GPU, self.model_gradient)
-        self.coil_buf_GPU = clarray.to_device(self.queue_GPU, self.C)
+        # self.queue_GPU = par["queue"][0]
+        # self.grad_buf_GPU = clarray.to_device(self.queue_GPU, self.model_gradient)
+        # self.coil_buf_GPU = clarray.to_device(self.queue_GPU, self.C)
 
     def test_adj_outofplace(self):
         inpfwd = clarray.to_device(self.queue, self.opinfwd)
@@ -458,37 +458,37 @@ class OperatorKspaceSMSCartesian(unittest.TestCase):
         self.grad_buf = clarray.to_device(self.queue, self.model_gradient)
         self.coil_buf = clarray.to_device(self.queue, self.C)
         
-        parser = tmpArgs()
-        parser.streamed = False
-        parser.devices = -1
-        parser.use_GPU = True
+        # parser = tmpArgs()
+        # parser.streamed = False
+        # parser.devices = -1
+        # parser.use_GPU = True
 
-        par = {}
-        par["packs"] = 6
-        par["MB"] = 2
-        par["shift"] = np.array([0, 64]).astype(DTYPE_real)
-        par["numofpacks"] = 1
-        pyqmri.pyqmri._setupOCL(parser, par)
-        setupPar(par)
-        par["mask"] = np.ones((par["dimY"], par["dimX"]),
-                              dtype=DTYPE_real)
+        # par = {}
+        # par["packs"] = 6
+        # par["MB"] = 2
+        # par["shift"] = np.array([0, 64]).astype(DTYPE_real)
+        # par["numofpacks"] = 1
+        # pyqmri.pyqmri._setupOCL(parser, par)
+        # setupPar(par)
+        # par["mask"] = np.ones((par["dimY"], par["dimX"]),
+        #                       dtype=DTYPE_real)
         
-        prg = []
-        for j in range(len(par["ctx"])):
-            with open(file) as myfile:
-                prg.append(Program(
-                    par["ctx"][j],
-                    myfile.read()))
-        prg = prg[0]
+        # prg = []
+        # for j in range(len(par["ctx"])):
+        #     with open(file) as myfile:
+        #         prg.append(Program(
+        #             par["ctx"][j],
+        #             myfile.read()))
+        # prg = prg[0]
 
-        self.op_GPU = pyqmri.operator.OperatorKspaceSMS(
-            par, prg,
-            DTYPE=DTYPE,
-            DTYPE_real=DTYPE_real)
+        # self.op_GPU = pyqmri.operator.OperatorKspaceSMS(
+        #     par, prg,
+        #     DTYPE=DTYPE,
+        #     DTYPE_real=DTYPE_real)
         
-        self.queue_GPU = par["queue"][0]
-        self.grad_buf_GPU = clarray.to_device(self.queue_GPU, self.model_gradient)
-        self.coil_buf_GPU = clarray.to_device(self.queue_GPU, self.C)
+        # self.queue_GPU = par["queue"][0]
+        # self.grad_buf_GPU = clarray.to_device(self.queue_GPU, self.model_gradient)
+        # self.coil_buf_GPU = clarray.to_device(self.queue_GPU, self.C)
 
     def test_adj_outofplace(self):
         inpfwd = clarray.to_device(self.queue, self.opinfwd)
@@ -609,30 +609,30 @@ class OperatorImageSpace(unittest.TestCase):
         self.queue = par["queue"][0]
         self.grad_buf = clarray.to_device(self.queue, self.model_gradient)
         
-        parser = tmpArgs()
-        parser.streamed = False
-        parser.devices = -1
-        parser.use_GPU = True
+        # parser = tmpArgs()
+        # parser.streamed = False
+        # parser.devices = -1
+        # parser.use_GPU = True
 
-        par = {}
-        pyqmri.pyqmri._setupOCL(parser, par)
-        setupPar(par)
+        # par = {}
+        # pyqmri.pyqmri._setupOCL(parser, par)
+        # setupPar(par)
         
-        prg = []
-        for j in range(len(par["ctx"])):
-            with open(file) as myfile:
-                prg.append(Program(
-                    par["ctx"][j],
-                    myfile.read()))
-        prg = prg[0]
+        # prg = []
+        # for j in range(len(par["ctx"])):
+        #     with open(file) as myfile:
+        #         prg.append(Program(
+        #             par["ctx"][j],
+        #             myfile.read()))
+        # prg = prg[0]
 
-        self.op_GPU = pyqmri.operator.OperatorImagespace(
-            par, prg,
-            DTYPE=DTYPE,
-            DTYPE_real=DTYPE_real)
+        # self.op_GPU = pyqmri.operator.OperatorImagespace(
+        #     par, prg,
+        #     DTYPE=DTYPE,
+        #     DTYPE_real=DTYPE_real)
         
-        self.queue_GPU = par["queue"][0]
-        self.grad_buf_GPU = clarray.to_device(self.queue_GPU, self.model_gradient)
+        # self.queue_GPU = par["queue"][0]
+        # self.grad_buf_GPU = clarray.to_device(self.queue_GPU, self.model_gradient)
 
     def test_adj_outofplace(self):
         inpfwd = clarray.to_device(self.queue, self.opinfwd)
