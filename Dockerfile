@@ -35,7 +35,7 @@ RUN python3.8 -m pip install pybind11
 RUN git clone https://github.com/inducer/pyopencl.git
 RUN cd pyopencl && python3.8 configure.py --cl-pretend-version=1.2
 RUN cd pyopencl && python3.8 setup.py install
-
+RUN python3.8 -m pip install pkgconfig
     
 RUN git clone https://github.com/geggo/gpyfft.git &&\
     python3.8 -m pip install gpyfft/. &&\
