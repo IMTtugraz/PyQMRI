@@ -367,10 +367,10 @@ class IRGNOptimizer:
         scale = np.linalg.norm(scale, axis=-1)
         print("Initial Norm: ", np.linalg.norm(scale))
         print("Initial Ratio: ", scale)
-        # if ign == 0:
-        scale /= 100/np.sqrt(self.par["unknowns"])
-        # else:
-        #     scale /= np.linalg.norm(scale)/np.sqrt(self.par["unknowns"])
+        if ign == 0:
+            scale /= 100/np.sqrt(self.par["unknowns"])
+        else:
+            scale /= np.linalg.norm(scale)/np.sqrt(self.par["unknowns"])
         scale = 1 / scale
         scale[~np.isfinite(scale)] = 1
         for uk in range(self.par["unknowns"]):

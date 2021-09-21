@@ -61,7 +61,7 @@ class Model(BaseModel):
             self._labels.append(
                 "Field "+str(np.round(self.b[j]*1e3, 2))+" mT")
         par["weights"] = np.array([1]*self.numC+self.numAlpha*[10]+self.numT1Scale*[1],dtype=par["DTYPE_real"])
-        # par["weights"] /= np.sum(par["weights"])/par["unknowns"]
+        # par["weights"] /= np.sum(par["weights"])
 
     def rescale(self, x):
         tmp_x = np.copy(x)
@@ -90,7 +90,7 @@ class Model(BaseModel):
         t = self.t[0][:, None, None, None]
 
 
-        for j in range(self.numT1Scale):
+        for j in range(len(self.b)):
             offset = len(self.t[j])
             t = self.t[j][:, None, None, None]
             S[offset*(j):offset*(j+1)] = (
@@ -120,7 +120,7 @@ class Model(BaseModel):
         t = self.t[0][:, None, None, None]
 
 
-        for j in range(self.numT1Scale):
+        for j in range(len(self.b)):
             offset = len(self.t[j])
             t = self.t[j][:, None, None, None]
             grad[np.mod(j,self.numC), offset*(j):offset*(j+1)] = (
@@ -141,7 +141,7 @@ class Model(BaseModel):
         t = self.t[0][:, None, None, None]
 
 
-        for j in range(self.numT1Scale):
+        for j in range(len(self.b)):
             offset = len(self.t[j])
             t = self.t[j][:, None, None, None]
             grad[np.mod(j,self.numAlpha), offset*(j):offset*(j+1)] = (
@@ -150,7 +150,7 @@ class Model(BaseModel):
                    np.exp(-t / (x[-self.numT1Scale+j] * self.uk_scale[-self.numT1Scale+j]))
                    )
                 )
-        grad[~np.isfinite(grad)] = 1e-20
+        grad[~np.isfinite(grad)] = 0
 
         return grad
 
@@ -159,7 +159,7 @@ class Model(BaseModel):
             (self.numT1Scale, self.NScan, self.NSlice, self.dimY, self.dimX),
             dtype=self._DTYPE)
         t = self.t[0][:, None, None, None]
-        for j in range(self.numT1Scale):
+        for j in range(len(self.b)):
             offset = len(self.t[j])
             t = self.t[j][:, None, None, None]
             grad[j, (j)*offset:(j+1)*offset] = (
@@ -170,7 +170,7 @@ class Model(BaseModel):
                     * np.exp(-t/(x[-self.numT1Scale+j]*self.uk_scale[-self.numT1Scale+j]))
                     )
                 )/(x[-self.numT1Scale+j]**2*self.uk_scale[-self.numT1Scale+j])
-        grad[~np.isfinite(grad)] = 1e-20
+        grad[~np.isfinite(grad)] = 0
 
         return grad
 
