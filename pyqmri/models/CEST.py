@@ -26,11 +26,11 @@ class Model(BaseModel):
         #self.zcorr = par["Z_corrExt"]
         self.guess = self.computeInitialGuess()
         
-        par["unknowns_TGV"] = self.amount_pools*3 #+1?
+        par["unknowns_TGV"] = self.amount_pools*3 + 1
         par["unknowns_H1"] = 0
         par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
         
-        for j in range(self.amount_pools*3):
+        for j in range(par["unknowns"]):
             self.uk_scale.append(1)
 
     
@@ -112,15 +112,18 @@ class Model(BaseModel):
         #assumed order of input values: M0, Gamma, x0
         tic = time.perf_counter()
 
-        M00,M00_sc,Gamma0,Gamma0_sc,x00,x00_sc,M01,M01_sc,Gamma1,Gamma1_sc,x01,x01_sc,M02,M02_sc,Gamma2,Gamma2_sc,x02,x02_sc,M03,M03_sc,Gamma3,Gamma3_sc,x03,x03_sc,M04,M04_sc,Gamma4,Gamma4_sc,x04,x04_sc,M05,M05_sc,Gamma5,Gamma5_sc,x05,x05_sc,omega = \
-        symbols('M00, M00_sc, Gamma0, Gamma0_sc, x00, x00_sc,'
+        offset,offset_sc,M00,M00_sc,Gamma0,Gamma0_sc,x00,x00_sc,M01,M01_sc,\
+            Gamma1,Gamma1_sc,x01,x01_sc,M02,M02_sc,Gamma2,Gamma2_sc,x02,x02_sc,\
+                M03,M03_sc,Gamma3,Gamma3_sc,x03,x03_sc,M04,M04_sc,Gamma4,Gamma4_sc,\
+                    x04,x04_sc,M05,M05_sc,Gamma5,Gamma5_sc,x05,x05_sc,omega = \
+        symbols('offset, offset_sc,'
+                'M00, M00_sc, Gamma0, Gamma0_sc, x00, x00_sc,'
                 'M01, M01_sc, Gamma1, Gamma1_sc, x01, x01_sc,'
                 'M02, M02_sc, Gamma2, Gamma2_sc, x02, x02_sc,'
                 'M03, M03_sc, Gamma3, Gamma3_sc, x03, x03_sc,'
                 'M04, M04_sc, Gamma4, Gamma4_sc, x04, x04_sc,'
                 'M05, M05_sc, Gamma5, Gamma5_sc, x05, x05_sc, omega')
         init_printing(use_unicode=True)
-    
         M0 = [M00,M01,M02,M03,M04,M05]
         M0_sc = [M00_sc,M01_sc,M02_sc,M03_sc,M04_sc,M05_sc]
         Gamma = [Gamma0,Gamma1,Gamma2,Gamma3,Gamma4,Gamma5]
@@ -129,15 +132,16 @@ class Model(BaseModel):
         x0_sc = [x00_sc,x01_sc,x02_sc,x03_sc,x04_sc,x05_sc]
     
         def S(M0,Gamma,x0,M0_sc,Gamma_sc,x0_sc):
-            return 1 - M0*M0_sc * (Gamma*Gamma_sc/2)**2/((Gamma*Gamma_sc/2)**2 + (x0*x0_sc - omega)**2)
+            return M0*M0_sc * (Gamma*Gamma_sc/2)**2/((Gamma*Gamma_sc/2)**2 + (x0*x0_sc - omega)**2)
         
         
         nparams = x.shape[0]
-        amount = int(nparams/3)
+        amount = self.amount_pools
         pools = 0
         all_params = []
         scales = []
-
+        all_params.append(offset)
+        scales.append(offset_sc)
         for i in range(amount):
             pools += S(M0[i],Gamma[i],x0[i],M0_sc[i],Gamma_sc[i],x0_sc[i])
             all_params.append(M0[i])
@@ -146,11 +150,13 @@ class Model(BaseModel):
             scales.append(M0_sc[i])
             scales.append(Gamma_sc[i])
             scales.append(x0_sc[i])
+            
+        pools = offset*offset_sc - pools
         
         sym_grads = np.array([])
-        for j in range(0,amount):
+        for j in range(amount):
             sym_grads = np.append(sym_grads,[(diff(pools,M0[j])),(diff(pools,Gamma[j])),(diff(pools,x0[j]))])
-           
+            
         final_grads = []
         shape = x.shape
         x = x.reshape(shape[0], -1)
@@ -164,8 +170,15 @@ class Model(BaseModel):
 
         final_grads = np.array(final_grads)
         final_grads = final_grads.transpose((0,2,1))
-        final_grads = final_grads.reshape((nparams,self.NScan)+shape[1:])
+        final_grads = final_grads.reshape((nparams-1,self.NScan)+shape[1:])
+        
+        scale_grad = np.ones((1,self.NScan)+shape[1:])*self.uk_scale[0]
+        
+        final_grads = np.concatenate((scale_grad,final_grads), axis=0)
         final_grads = np.require(final_grads,requirements="C", dtype=self._DTYPE)
+        
+        
+        
         toc = time.perf_counter()
         print("gradients: {e} seconds".format(e=(toc-tic)))
         print(final_grads.shape)
@@ -230,26 +243,26 @@ class Model(BaseModel):
                     0.1,4,-3.5,
                     0.01,2,2.2]
         elif self.amount_pools==5:
-            lb = [0.5,
+            lb = [0,
                   0.02,0.3,-1,
                   0.0,0.4,+3,
                   0.0,1,-4.5,
                   0.0,10,-4,
                   0.0,0.4,1]
-            ub = [1,
-                  1,10,+1,
-                  0.2,4,+4,
-                  0.4,7,-2, #mittlerer Wert war 5
-                  1,100,4,
-                  0.2,2.5,2.5]
+            ub = [1e3,
+                  1e2,10,+1,
+                  1e2,4,+4,
+                  1e2,7,-2, #mittlerer Wert war 5
+                  1e2,100,4,
+                  1e2,2.5,2.5]
             self.constraints = []
             for min_val,max_val in zip(lb,ub):
-                self.constraints.append(constraints(min_val,max_val))
-            return np.array([0.9,1.4,0, #Wasser #[1, #ground truth
+                self.constraints.append(constraints(min_val,max_val,True))
+            return np.array([1, 0.9,1.4,0, #Wasser #[1, #ground truth
                     0.025,0.5,3.5, #APT
                     0.02,5,-3.5, #NOE #mittlerer Wert war 7
                     0.1,25,-2, #MT
-                    0.01,1,2.2], dtype=self._DTYPE)[:,None,None,None] * np.ones((15, self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
+                    0.01,1,2.2], dtype=self._DTYPE)[:,None,None,None] * np.ones((16, self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
         elif self.amount_pools==6:
             lb = [0.5,
                   0.02,0.3,-1,
