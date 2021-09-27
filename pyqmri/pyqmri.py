@@ -158,6 +158,7 @@ def _precoompFFT(data, par):
             NSlice = par["NSlice"]
             par["dimX"] = NSlice
             par["NSlice"] = dimX
+            par["par_slices"] = dimX
             par["N"] = NSlice
             par["transpXY"] = True
             par["fft_dim"] = [-2, -1]
@@ -175,6 +176,7 @@ def _precoompFFT(data, par):
             NSlice = par["NSlice"]
             par["dimX"] = NSlice
             par["NSlice"] = dimX
+            par["par_slices"] = dimX
             par["N"] = NSlice
             par["transpXY"] = True
             par["fft_dim"] = [-1]
@@ -215,6 +217,7 @@ def _precoompFFT(data, par):
             NSlice = par["NSlice"]
             par["dimY"] = NSlice
             par["NSlice"] = dimY
+            par["par_slices"] = dimY
             par["Nproj"] = NSlice
             par["transpXY"] = True
             par["fft_dim"] = [-2, -1]
