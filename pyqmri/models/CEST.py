@@ -7,9 +7,10 @@ Created on Tue Mar 30 17:22:09 2021
 """
 from pyqmri.models.template import BaseModel, constraints
 import numpy as np
-from sympy import symbols, diff, lambdify
+from sympy import symbols, diff, lambdify, exp
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 
-import time
 
 class Model(BaseModel):
     def __init__(self,par):
@@ -32,29 +33,51 @@ class Model(BaseModel):
         
         self.amount_pools = 5
         
-        par["unknowns_TGV"] = self.amount_pools*3 + 1
+        par["unknowns_TGV"] = self.amount_pools*3 + 2
         par["unknowns_H1"] = 0
         par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
+        self.unknowns = par["unknowns"]
         
         self.initFunctions()
+        self._ind1 = 0
+        self._ind2 = 0
         
         for j in range(par["unknowns"]):
             self.uk_scale.append(1)
+            
+    def rescale(self, x):
+        """Rescale the unknowns with the scaling factors.
+
+        Rescales each unknown with the corresponding scaling factor.
+
+        Parameters
+        ----------
+          x : numpy.array
+            The array of unknowns to be rescaled
+
+        Returns
+        -------
+          numpy.array:
+            The rescaled unknowns
+        """
+        tmp_x = np.copy(x)
+        for i in range(x.shape[0]):
+            tmp_x[i] *= self.uk_scale[i]
+        const = []
+        for constrained in self.constraints:
+            const.append(constrained.real)
+        return {"data": tmp_x,
+                "unknown_name": self.uk_names,
+                "real_valued": const}
 
     
     def _execute_forward_3D(self, x):
-        tic = time.perf_counter()
-        
 
         S = self.signal(x,self.uk_scale, self.omega)
-
-        toc = time.perf_counter()
-        print("forward: {e} seconds".format(e=(toc-tic)))
-        return S.astype(self._DTYPE)
+        
+        return S.astype(self._DTYPE)*self.dscale
     
     def _execute_gradient_3D(self,x):
-        tic = time.perf_counter()
-
             
         gradients = []
         for grad_fun in self.gradients:
@@ -62,13 +85,11 @@ class Model(BaseModel):
                              np.ones((1,self.NScan)+x.shape[1:]))    
         gradients = np.array(gradients, dtype=self._DTYPE, order='C')
         
-        toc = time.perf_counter()
-        print("gradients: {e} seconds".format(e=(toc-tic)))
-        return gradients
+        return gradients*self.dscale
     
     def initFunctions(self):
 
-        my_symbol_names = "M0,M0_sc"
+        my_symbol_names = "M0,M0_sc, phase, phase_sc"
         for j in range(self.amount_pools):
             my_symbol_names += (",a_"+str(j)+",a_"+str(j)+"_sc"+
                                 ",Gamma_"+str(j)+",Gamma_"+str(j)+"_sc"+
@@ -77,25 +98,27 @@ class Model(BaseModel):
         my_symbol_names += ",omega"
                                   
         my_symbols = symbols(my_symbol_names)
+        self.uk_names = my_symbols[:-1:2]
         
         def symbolicLorentzian(a, gamma, omega_0, omega):
             return a * (gamma/2)**2/((gamma/2)**2 + (omega_0 - omega)**2)
         
         for j in range(self.amount_pools):
-            a = my_symbols[2+6*j]*my_symbols[3+6*j]
-            gamma = my_symbols[4+6*j]*my_symbols[5+6*j]
-            omega_0 = my_symbols[6+6*j]*my_symbols[7+6*j]
+            a = my_symbols[4+6*j]*my_symbols[5+6*j]
+            gamma = my_symbols[6+6*j]*my_symbols[7+6*j]
+            omega_0 = my_symbols[8+6*j]*my_symbols[9+6*j]
             if j == 0:
                 signal = symbolicLorentzian(a, gamma, omega_0, my_symbols[-1])
             else:
                 signal += symbolicLorentzian(a, gamma, omega_0, my_symbols[-1])
-        signal = my_symbols[0]*my_symbols[1]-signal
+        signal = my_symbols[0]*my_symbols[1]*(1-signal*exp(1j*my_symbols[2]*my_symbols[3]))
         
         symbolic_gradients = [diff(signal, my_symbols[0])]
+        symbolic_gradients.append(diff(signal, my_symbols[2]))
         for j in range(self.amount_pools):
-            symbolic_gradients.append(diff(signal, my_symbols[2+6*j]))
-            symbolic_gradients.append(diff(signal, my_symbols[2+6*j+2]))
-            symbolic_gradients.append(diff(signal, my_symbols[2+6*j+4]))
+            symbolic_gradients.append(diff(signal, my_symbols[4+6*j]))
+            symbolic_gradients.append(diff(signal, my_symbols[4+6*j+2]))
+            symbolic_gradients.append(diff(signal, my_symbols[4+6*j+4]))
                 
         params = my_symbols[:-1:2]
         scales = my_symbols[1:-1:2]
@@ -109,45 +132,47 @@ class Model(BaseModel):
         
     
     def computeInitialGuess(self,*args):
+        self.images = np.abs(args[0]/args[1])
+        self.dscale = args[1]
+        
         if self.amount_pools==1:
-            max_y = np.nanmax(self.popt[...,0])
-            lb = [max_y,0,15,-4]
-            ub = [max_y,0.04,50,0.0]
+            lb = [0,-np.pi,0,0.1,-4]
+            ub = [1e5,np.pi,1,25,1]
             self.constraints = []
             for min_val,max_val in zip(lb,ub):
-                self.constraints.append(constraints(min_val,max_val))
-            self.guess =  [max_y,0.02,25,-2]
+                self.constraints.append(constraints(min_val,max_val,True))
+            self.guess =  [1,0,0.5,20,-1]
         elif self.amount_pools==2:
-            lb = [0,
-                  0.1,0.5,-0.001,
+            lb = [0,-np.pi,
+                  0.1,0.5,-0.1,
                   0,15,-4]
-            ub = [1,
-                  1,6,0.001,
+            ub = [1e3,np.pi,
+                  0.9,6,0.1,
                   0.4,100,0]
             self.constraints = []
             for min_val,max_val in zip(lb,ub):
-                self.constraints.append(constraints(min_val,max_val))
-            self.guess =  [0.7,
+                self.constraints.append(constraints(min_val,max_val,True))
+            self.guess =  [1,0,
                     0.8,2,0,
                     0.1,50,-2]
         elif self.amount_pools==3:
-            lb = [0.5,
+            lb = [0,-np.pi,
                   0,0.1,-0.01,
                   0,2,-0.01,
-                  0,15,-4]
-            ub = [1,
+                  0.001,20,-4]
+            ub = [1e3,np.pi,
                   1,2,0.01,
                   1,8,0.01,
                   0.4,100,0]
             self.constraints = []
             for min_val,max_val in zip(lb,ub):
-                self.constraints.append(constraints(min_val,max_val))
-            self.guess =  [1,
+                self.constraints.append(constraints(min_val,max_val,True))
+            self.guess =  [1,0,
                    0.8,1,0,
                    0.4,3,0,
                    0.1,50,-2]
         elif self.amount_pools==4:
-            lb = [0.5,
+            lb = [0,
                   0.02,0.3,-1,
                   0.0,0.4,3,
                   0,2,-5,
@@ -159,37 +184,39 @@ class Model(BaseModel):
                   0.2,4,2.5]
             self.constraints = []
             for min_val,max_val in zip(lb,ub):
-                self.constraints.append(constraints(min_val,max_val))
+                self.constraints.append(constraints(min_val,max_val,True))
             self.guess =  [1,
                     0.9,0.8,0,
                     0.1,2,3.5,
                     0.1,4,-3.5,
                     0.01,2,2.2]
         elif self.amount_pools==5:
-            lb = [0,
+            lb = [0,-np.pi,
                   0.02,0.3,-1,
                   0.0,0.4,+3,
                   0.0,1,-4.5,
                   0.0,10,-4,
                   0.0,0.4,1]
-            ub = [1e3,
-                  1e2,10,+1,
-                  1e2,4,+4,
-                  1e2,7,-2, #mittlerer Wert war 5
-                  1e2,100,4,
-                  1e2,2.5,2.5]
+            ub = [1e5,np.pi,
+                  1,10,+1,
+                  0.2,4,+4,
+                  0.4,5,-2, #mittlerer Wert war 5
+                  1,100,4,
+                  0.2,2.5,2.5]
             self.constraints = []
             for min_val,max_val in zip(lb,ub):
                 self.constraints.append(constraints(min_val,max_val,True))
                             
-            self.guess =  np.array([1e-3, 0.9,1.4,0, #Wasser #[1, #ground truth
-                    0.025,0.5,3.5, #APT
-                    0.02,5,-3.5, #NOE #mittlerer Wert war 7
-                    0.1,25,-2, #MT
-                    0.01,1,2.2], dtype=self._DTYPE)[:,None,None,None] * np.ones((16, self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
-            self.guess = self.popt 
+            self.guess =  [
+                1,0,
+                0.9,1.4,0, #Wasser #[1, #ground truth
+                0.025,0.5,3.5, #APT
+                0.02,3,-3.5, #NOE #mittlerer Wert war 7
+                0.1,25,-2, #MT
+                0.01,1,2.2]
+            # self.guess = self.popt 
         elif self.amount_pools==6:
-            lb = [0.5,
+            lb = [0,
                   0.02,0.3,-1,
                   0,0.4,3,
                   0.0,1,-4.5,
@@ -205,7 +232,7 @@ class Model(BaseModel):
                   0.2,5,5]
             self.constraints = []
             for min_val,max_val in zip(lb,ub):
-                self.constraints.append(constraints(min_val,max_val))
+                self.constraints.append(constraints(min_val,max_val,True))
             self.guess =  [1,
                     0.95,0.5,0,
                     0.025,1,3.5,
@@ -215,3 +242,144 @@ class Model(BaseModel):
                     0.01,3,3.5]
         else:
             raise AssertionError("number of pools out of range")
+        self.guess = np.array(self.guess)[:,None,None,None] * np.ones((self.unknowns, self.NSlice, self.dimY, self.dimX))
+        # self.guess = self.popt[:1+3*self.amount_pools]
+        self.constraints[0].real = False
+        # for const in self.constraints[1::3]:
+        #     const.real = False
+        # self.guess[0] = args[0][self.omega.squeeze()==0]
+        self.guess = self.guess.astype(self._DTYPE)
+
+        
+        
+    def plot_unknowns(self, x, dim_2D=False):
+        unknowns = self.rescale(x)
+        tmp_x = unknowns["data"]
+        uknames = unknowns["unknown_name"]
+
+        images = np.abs(self._execute_forward_3D(x) / self.dscale)
+        
+        tmp_x[0] = np.abs(tmp_x[0])
+        tmp_x[2::3] = np.abs(tmp_x[2::3])
+        tmp_x = np.real(tmp_x)
+
+        if dim_2D:
+            pass
+        else:
+            if not self._figure:
+                self.ax = []
+                plot_dim = int(np.ceil(np.sqrt(len(self.uk_scale))))
+                plt.ion()
+                self._figure = plt.figure(figsize=(12, 6))
+                self._figure.subplots_adjust(hspace=0.3, wspace=0)
+                wd_ratio = np.tile([1, 1 / 20, 1 / (5)], plot_dim)
+                self.gs = gridspec.GridSpec(
+                    plot_dim+1, 3*plot_dim,
+                    width_ratios=wd_ratio, hspace=0.3, wspace=0)
+                self._figure.tight_layout()
+                self._figure.patch.set_facecolor(plt.cm.viridis.colors[0])
+                for grid in self.gs:
+                    self.ax.append(plt.subplot(grid))
+                    self.ax[-1].axis('off')
+                self._plot = []
+                for j in range(len(self.uk_scale)):
+                    self._plot.append(
+                        self.ax[3 * j].imshow(
+                            tmp_x[j, int(self.NSlice / 2), ...]))
+                    self.ax[3 *
+                            j].set_title(uknames[j], color='white')
+                    self.ax[3 * j + 1].axis('on')
+                    cbar = self._figure.colorbar(
+                        self._plot[j], cax=self.ax[3 * j + 1])
+                    cbar.ax.tick_params(labelsize=12, colors='white')
+                    for spine in cbar.ax.spines:
+                        cbar.ax.spines[spine].set_color('white')
+                plt.draw()
+                plt.pause(1e-10)
+                self._figure.canvas.mpl_connect(
+                    'button_press_event',
+                    self.onclick)
+
+                self.plot_ax = plt.subplot(self.gs[-1, :])
+                self.plot_ax.set_title("Time course", color='w')
+                self.time_course_ref = []
+
+                self.time_course_ref.append(self.plot_ax.plot(
+                    self.omega.squeeze(), np.real(
+                        self.images[...,
+                                    int(self.NSlice/2),
+                                    self._ind2, self._ind1]).T,
+                    'x')[0])
+                self.plot_ax.set_prop_cycle(None)
+
+                self.time_course = self.plot_ax.plot(
+                    self.omega.squeeze(), np.real(
+                        images[..., int(self.NSlice/2),
+                               self._ind2, self._ind1]).T)
+                self.plot_ax.set_xlim(np.max(self.omega), np.min(self.omega))
+                self.plot_ax.set_ylim(
+                    np.minimum(np.real(images[...,
+                                              int(self.NSlice/2),
+                                              self._ind2,
+                                              self._ind1]).min(),
+                               np.real(self.images[...,
+                                                   int(self.NSlice/2),
+                                                   self._ind2,
+                                                   self._ind1]).min()),
+                    1.2*np.maximum(np.real(images[...,
+                                                  int(self.NSlice/2),
+                                                  self._ind2,
+                                                  self._ind1]).max(),
+                                   np.real(self.images[...,
+                                                       int(self.NSlice/2),
+                                                       self._ind2,
+                                                       self._ind1]).max()))
+                for spine in self.plot_ax.spines:
+                    self.plot_ax.spines[spine].set_color('white')
+                self.plot_ax.xaxis.label.set_color('white')
+                self.plot_ax.yaxis.label.set_color('white')
+                self.plot_ax.tick_params(axis='both', colors='white')
+
+                plt.draw()
+                plt.show()
+                plt.pause(1e-4)
+            else:
+                for j in range(len(self.uk_scale)):
+                    self._plot[j].set_data(
+                        tmp_x[j, int(self.NSlice / 2), ...])
+                    self._plot[j].set_clim(
+                        [tmp_x[j].min(), tmp_x[j].max()])
+
+
+                self.time_course[0].set_ydata(
+                    np.real(images[
+                        ..., int(self.NSlice/2), self._ind2, self._ind1]))
+                self.plot_ax.set_ylim(
+                    np.minimum(np.real(images[...,
+                                              int(self.NSlice/2),
+                                              self._ind2,
+                                              self._ind1]).min(),
+                               np.real(self.images[...,
+                                                   int(self.NSlice/2),
+                                                   self._ind2,
+                                                   self._ind1]).min()),
+                    1.2*np.maximum(np.real(images[...,
+                                                  int(self.NSlice/2),
+                                                  self._ind2,
+                                                  self._ind1]).max(),
+                                   np.real(self.images[...,
+                                                       int(self.NSlice/2),
+                                                       self._ind2,
+                                                       self._ind1]).max()))
+                plt.draw()
+                plt.pause(1e-10)
+
+    def onclick(self, event):
+        if event.inaxes in self.ax[::3]:
+            self._ind1 = int(event.xdata)
+            self._ind2 = int(event.ydata)
+
+            self.time_course_ref[0].set_ydata(np.real(
+                    self.images[...,
+                                int(self.NSlice/2),
+                                self._ind2, self._ind1]).T)
