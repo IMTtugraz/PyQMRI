@@ -57,9 +57,9 @@ def nlinvns(Y, n, *arg, DTYPE=np.complex64, DTYPE_real=np.float32):
 
     print('Start...')
 
-    alpha = 0.01
+    alpha = 0.001
 
-    [c, z, y, x] = Y.shape
+    [c, z, y, x] = Y.shape      
 
     if returnProfiles:
         R = np.zeros([c + 2, n, z, y, x], DTYPE)
@@ -68,16 +68,16 @@ def nlinvns(Y, n, *arg, DTYPE=np.complex64, DTYPE_real=np.float32):
         R = np.zeros([2, n, z, y, x], DTYPE)
 
     # initialization x-vector
-    X0 = np.array(np.zeros([c + 1, z, y, x]), DTYPE_real)
+    X0 = np.array(np.zeros([c + 1, z, y, x]), DTYPE)
     X0[0] = 1  # object part
 
     # initialize mask and weights
-    P = np.ones(Y[0].shape, dtype=DTYPE_real)
+    P = np.ones(Y[0].shape, dtype=DTYPE)
     P[Y[0] == 0] = 0
 
     W = _weights(z, y, x)
 
-    W = _fftshift2(W)
+    W = _fftshift2(W).astype(DTYPE_real)
 
     # normalize data vector
     yscale = 100 / np.sqrt(_scal(Y, Y))
@@ -85,8 +85,9 @@ def nlinvns(Y, n, *arg, DTYPE=np.complex64, DTYPE_real=np.float32):
 
     XT = np.zeros([c + 1, z, y, x], dtype=DTYPE)
     XN = np.copy(X0)
-
-    start = perf_counter()
+    
+    start = perf_counter()  
+       
     for i in range(0, n):
 
         # the application of the weights matrix to XN
@@ -108,22 +109,22 @@ def nlinvns(Y, n, *arg, DTYPE=np.complex64, DTYPE_real=np.float32):
         dnew = np.linalg.norm(r)**2
         dnot = np.copy(dnew)
 
-        for j in range(0, 500):
+        for j in range(0, 100):
 
             # regularized normal equations
             q = _derHns(P, W, XT, _derns(P, W, XT, d), realConstr) + alpha * d
-            np.nan_to_num(q)
+            # np.nan_to_num(q)
 
             a = dnew / np.real(_scal(d, q))
-            z = z + a * (d)
+            z = z + a * d
             r = r - a * q
-            np.nan_to_num(r)
+            # np.nan_to_num(r)
             dold = np.copy(dnew)
             dnew = np.linalg.norm(r)**2
 
             d = d * ((dnew / dold)) + r
-            np.nan_to_num(d)
-            if np.sqrt(dnew) < (1e-6 * dnot):
+            # np.nan_to_num(d)
+            if np.sqrt(dnew) < (1e-4 * dnot):
                 break
 
         print('(', j, ')')
@@ -194,12 +195,20 @@ def _derHns(P, W, X0, DK, realConstr):
 
 def _nsFft(M):
     K = np.fft.fftn(M, axes=(-3,-2,-1), norm="ortho")
+    # tmp = cla.to_device(fft.queue, M)
+    # K = cla.empty_like(tmp)
+    # fft.FFT(K,tmp)
+    # K = fft(M)
     return K
 
 
 def _nsIfft(M):
     K = np.fft.ifftn(M, axes=(-3,-2,-1), norm="ortho")
-    return K  # .T
+    # tmp = cla.to_device(fft.queue, M)
+    # K = cla.empty_like(tmp)
+    # fft.FFTH(K,tmp)
+    # K = fft(M)
+    return K
 
 
 def _weights(z, y, x):

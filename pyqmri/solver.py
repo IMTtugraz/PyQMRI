@@ -303,11 +303,7 @@ class CGSolver_H1:
         self._prg = prg
         self.num_dev = len(par["num_dev"])
         
-        self._tmp_result = clarray.zeros(
-            self._queue[0],
-            (self._NScan, self._NC,
-             self._NSlice, self._dimY, self._dimX),
-            self._DTYPE, "C")
+        self._tmp_result = None
         
 
     def run(self, guess, data, iters=30):
@@ -331,6 +327,10 @@ class CGSolver_H1:
               The result of the fitting.
         """
         self._updateConstraints()
+        self._tmp_result = clarray.zeros(
+                    self._queue[0],
+                    data.shape,
+                    self._DTYPE, "C")
         if guess is not None:
             x = clarray.to_device(self._queue[0], guess[0])
         else:
@@ -349,10 +349,10 @@ class CGSolver_H1:
                             self._NSlice, self._dimY, self._dimX),
                            self._DTYPE, "C")
         
-        tau1 = self.lambd**2*(self.power_iteration(x))
+        tau1 = self.lambd*(self.power_iteration(x))
         tau2 = self.alpha*(self.power_iteration_grad(x))
         print("Tau1: ", tau1, " Tau2: ", tau2)
-        tau = self._DTYPE_real(1/np.sqrt(tau1**2+tau2**2+1/self.delta**4))
+        tau = self._DTYPE_real(1/(tau1+tau2+1/self.delta))
         
         x0 = x.copy()
         data = clarray.to_device(self._queue[0], data)
@@ -669,7 +669,7 @@ class PDBaseSolver:
                  DTYPE_real=np.float32):
         self._DTYPE = DTYPE
         self._DTYPE_real = DTYPE_real
-        self.delta = irgn_par["delta"] * irgn_par["lambd"]
+        self.delta = irgn_par["delta"]
         self.omega = irgn_par["omega"]
         self.lambd = 1#irgn_par["lambd"]
         self.tol = irgn_par["tol"]
@@ -942,7 +942,7 @@ class PDBaseSolver:
         beta_line = self.beta_line
         beta_new = self._DTYPE_real(0)
         mu_line = self._DTYPE_real(0.9)
-        delta_line = self._DTYPE_real(0.95)
+        delta_line = self._DTYPE_real(0.99)
         ynorm = self._DTYPE_real(0.0)
         lhs = self._DTYPE_real(0.0)
         primal = [0]
@@ -1525,7 +1525,7 @@ class PDSolverTV(PDBaseSolver):
             coils,
             model,
             **kwargs)
-        self.alpha = irgn_par["gamma"]/irgn_par["lambd"]
+        self.alpha = irgn_par["gamma"]
         self._op = linop[0]
         self._grad_op = linop[1]
 
@@ -1679,9 +1679,7 @@ class PDSolverTV(PDBaseSolver):
         primal_new = (
             self.lambd / 2 * 
             self.normkrnldiff(in_precomp_fwd["Ax"], data)
-            + self.alpha * clarray.sum(
-                abs(in_precomp_fwd["gradx"])
-                )
+            + self.alpha * self.abskrnl(in_precomp_fwd["gradx"])  
             + 1 / (2 * self.delta) *
                 self.normkrnlweighteddiff(in_primal["x"],
                                       in_primal["xk"],
@@ -1770,14 +1768,13 @@ class PDSolverTGV(PDBaseSolver):
             coils,
             model,
             **kwargs)
-        self.alpha = 1#irgn_par["gamma"]/irgn_par["lambd"]
-        self.beta = 1#irgn_par["gamma"]/irgn_par["lambd"] * 2
+        self.alpha = irgn_par["gamma"]
+        self.beta = irgn_par["gamma"] * 2
         self._op = linop[0]
         self._grad_op = linop[1]
         self._symgrad_op = linop[2]
 
     def _setupVariables(self, inp, data):
-
         data = clarray.to_device(self._queue[0], data.astype(self._DTYPE))
 
         primal_vars = {}
@@ -1990,7 +1987,7 @@ class PDSolverTGV(PDBaseSolver):
                                                     self.jacobi)
             - clarray.vdot(
                 in_primal["xk"],
-                - in_precomp_adj["Kyk1"]
+                -in_precomp_adj["Kyk1"]
                 )
             - clarray.sum(in_precomp_adj["Kyk2"])
             - 1 / (2 * self.lambd) * self.normkrnl(in_dual["r"])

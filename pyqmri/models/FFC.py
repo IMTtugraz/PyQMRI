@@ -41,13 +41,13 @@ class Model(BaseModel):
             
         for j in range(self.numC):
             self.constraints.append(
-                constraints(0.01,
-                            1000,
+                constraints(1e-5,
+                            1e10,
                             False))
         for j in range(self.numAlpha):
             self.constraints.append(
                 constraints(0.01,
-                            1,
+                            1.1,
                             False))
         for j in range(self.numT1Scale):
             self.constraints.append(
@@ -60,7 +60,8 @@ class Model(BaseModel):
         for j in range(len(self.b)):
             self._labels.append(
                 "Field "+str(np.round(self.b[j]*1e3, 2))+" mT")
-        par["weights"] = np.array([1]+self.numAlpha*[100]+self.numT1Scale*[1],dtype=par["DTYPE_real"])
+        par["weights"] = np.array([1]*self.numC+self.numAlpha*[10]+self.numT1Scale*[1],dtype=par["DTYPE_real"])
+        # par["weights"] /= np.sum(par["weights"])
 
     def rescale(self, x):
         tmp_x = np.copy(x)
@@ -89,7 +90,7 @@ class Model(BaseModel):
         t = self.t[0][:, None, None, None]
 
 
-        for j in range(self.numT1Scale):
+        for j in range(len(self.b)):
             offset = len(self.t[j])
             t = self.t[j][:, None, None, None]
             S[offset*(j):offset*(j+1)] = (
@@ -119,7 +120,7 @@ class Model(BaseModel):
         t = self.t[0][:, None, None, None]
 
 
-        for j in range(self.numT1Scale):
+        for j in range(len(self.b)):
             offset = len(self.t[j])
             t = self.t[j][:, None, None, None]
             grad[np.mod(j,self.numC), offset*(j):offset*(j+1)] = (
@@ -140,7 +141,7 @@ class Model(BaseModel):
         t = self.t[0][:, None, None, None]
 
 
-        for j in range(self.numT1Scale):
+        for j in range(len(self.b)):
             offset = len(self.t[j])
             t = self.t[j][:, None, None, None]
             grad[np.mod(j,self.numAlpha), offset*(j):offset*(j+1)] = (
@@ -149,7 +150,7 @@ class Model(BaseModel):
                    np.exp(-t / (x[-self.numT1Scale+j] * self.uk_scale[-self.numT1Scale+j]))
                    )
                 )
-        grad[~np.isfinite(grad)] = 1e-20
+        grad[~np.isfinite(grad)] = 0
 
         return grad
 
@@ -158,7 +159,7 @@ class Model(BaseModel):
             (self.numT1Scale, self.NScan, self.NSlice, self.dimY, self.dimX),
             dtype=self._DTYPE)
         t = self.t[0][:, None, None, None]
-        for j in range(self.numT1Scale):
+        for j in range(len(self.b)):
             offset = len(self.t[j])
             t = self.t[j][:, None, None, None]
             grad[j, (j)*offset:(j+1)*offset] = (
@@ -169,7 +170,7 @@ class Model(BaseModel):
                     * np.exp(-t/(x[-self.numT1Scale+j]*self.uk_scale[-self.numT1Scale+j]))
                     )
                 )/(x[-self.numT1Scale+j]**2*self.uk_scale[-self.numT1Scale+j])
-        grad[~np.isfinite(grad)] = 1e-20
+        grad[~np.isfinite(grad)] = 0
 
         return grad
 
@@ -317,7 +318,8 @@ class Model(BaseModel):
         test_M0 = []
         for j in range(self.numC):
             test_M0.append(0.1*np.ones(
-                (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE))
+                (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)*
+                np.exp(1j*np.angle(args[0][0])))
             self.constraints[j].update(1/args[1])
         test_Xi = []
         for j in range(self.numAlpha):
@@ -330,7 +332,7 @@ class Model(BaseModel):
         # self.b *= args[1]
         for j in range(self.numT1Scale):
             test_R1.append(
-                150 *
+                50 *
                 np.ones(
                     (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE))
         x = np.array(

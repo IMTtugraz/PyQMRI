@@ -442,6 +442,7 @@ class OperatorImagespace(Operator):
         super().__init__(par, prg, DTYPE, DTYPE_real)
         self.queue = self.queue[0]
         self.ctx = self.ctx[0]
+        self._out_shape_fwd = (self.NScan, self.NSlice, self.dimY, self.dimX)
 
     def fwd(self, out, inp, **kwargs):
         """Forward operator application in-place.
@@ -664,6 +665,12 @@ class OperatorKspace(Operator):
         if not trafo:
             self.Nproj = self.dimY
             self.N = self.dimX
+        if par["is3D"] and trafo:
+            self._out_shape_fwd = (self.NScan, self.NC,
+                         1, self.Nproj, self.N)
+        else:
+            self._out_shape_fwd = (self.NScan, self.NC,
+                         self.NSlice, self.Nproj, self.N)
         self.NUFFT = CLnuFFT.create(self.ctx,
                                     self.queue,
                                     par,
@@ -708,7 +715,7 @@ class OperatorKspace(Operator):
                 np.int32(self.NScan),
                 np.int32(self.unknowns),
                 wait_for=(self._tmp_result.events + inp[0].events
-                          + wait_for)))
+                          + wait_for)))        
                
         return self.NUFFT.FFT(
             out,
@@ -754,7 +761,7 @@ class OperatorKspace(Operator):
                           + wait_for)))
         tmp_sino = clarray.zeros(
             self.queue,
-            (self.NScan, self.NC, self.NSlice, self.Nproj, self.N),
+            self._out_shape_fwd,
             self.DTYPE, "C")
         self.NUFFT.FFT(tmp_sino, self._tmp_result, 
                        wait_for=tmp_sino.events).wait()
@@ -867,6 +874,7 @@ class OperatorKspace(Operator):
             self.NUFFT.FFTH(
                 self._tmp_result, inp[0], wait_for=(wait_for
                                                     + inp[0].events)))
+        
         return self.prg.update_Kyk1(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data, self._tmp_result.data, inp[2].data,
@@ -926,6 +934,8 @@ class OperatorKspaceSMS(Operator):
             self.queue, (self.NScan, self.NC,
                          self.NSlice, self.dimY, self.dimX),
             self.DTYPE, "C")
+        self._out_shape_fwd = (self.NScan, self.NC, 
+                               self.packs, self.Nproj, self.N)
 
         self.Nproj = self.dimY
         self.N = self.dimX
@@ -2349,7 +2359,7 @@ class OperatorFiniteSymGradient(Operator):
         self.ctx = self.ctx[0]
         self.ratio = clarray.to_device(
             self.queue,
-            (par["weights"]).astype(
+            np.ones_like(par["weights"]).astype(
                      dtype=self.DTYPE_real))
         self._weights = par["weights"]
 

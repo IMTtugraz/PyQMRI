@@ -243,8 +243,6 @@ class BaseModel(ABC):
                     cbar.ax.tick_params(labelsize=12, colors='white')
                     for spine in cbar.ax.spines:
                         cbar.ax.spines[spine].set_color('white')
-            plt.draw()
-            plt.pause(1e-10)
 
         else:
             for j in range(numunknowns):
@@ -263,13 +261,15 @@ class BaseModel(ABC):
                 self._plot_sag[j].set_data(
                     mytrafo(unknowns["data"][j,
                                              ..., int(dimX / 2)].T))
+
                 minval = mytrafo(unknowns["data"][j]).min()
                 maxval = mytrafo(unknowns["data"][j]).max()
+                
                 self._plot_trans[j].set_clim([minval, maxval])
                 self._plot_cor[j].set_clim([minval, maxval])
                 self._plot_sag[j].set_clim([minval, maxval])
-            plt.draw()
-            plt.pause(1e-10)
+        plt.draw()
+        plt.pause(1e-10)
 
     @abstractmethod
     def computeInitialGuess(self, *args):

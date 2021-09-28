@@ -39,7 +39,7 @@ class Model(BaseModel):
                 constraints(-100 / self.uk_scale[j],
                             100 / self.uk_scale[j],
                             False))
-        self._image_plot = []
+            
         self.guess = None
 
     def rescale(self, x):
@@ -81,7 +81,7 @@ class Model(BaseModel):
     def _execute_gradient_3D(self, x):
         grad_M0 = np.zeros(((self.NScan, )+x.shape), dtype=self._DTYPE)
         for j in range(self.NScan):
-            grad_M0[j, ...] = self.uk_scale[j]*np.ones_like(x)
+            grad_M0[j, j, ...] = self.uk_scale[j]*np.ones_like(x[j])
         grad_M0[~np.isfinite(grad_M0)] = 1e-20
         return grad_M0
 
@@ -96,4 +96,4 @@ class Model(BaseModel):
             Assumes the images series at position 0 and uses it as initial
             guess.
         """
-        self.guess = ((args[0]).astype(self._DTYPE))
+        self.guess = np.zeros_like((args[0]).astype(self._DTYPE))

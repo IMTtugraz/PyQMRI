@@ -43,14 +43,34 @@ def setupPar(par):
     par["overlap"] = 1
     file = h5py.File(pjoin(data_dir, 'smalltest.h5'), 'r')
 
-    par["traj"] = file['real_traj'][()].astype(DTYPE) + \
-        1j*file['imag_traj'][()].astype(DTYPE)
+    par["traj"] = np.stack((
+                file['imag_traj'][()].astype(DTYPE_real),
+                file['real_traj'][()].astype(DTYPE_real)),
+                axis=-1)
+    par["traj"] = np.require(par["traj"][..., ::2, :], requirements='C')
+    
+    # Check if traj is scaled
+    max_traj_val = np.max(np.abs(par["traj"]))
+    if  np.allclose(max_traj_val, 0.5, rtol=1e-1):
+       par["traj"] *= par["dimX"]
+    elif np.allclose(max_traj_val, 1, rtol=1e-1):
+       par["traj"] *= par["dimX"]/2
+    
+    overgrid_factor_a = (1/np.linalg.norm(
+        par["traj"][..., -2, :]-par["traj"][..., -1, :], axis=-1))
+    overgrid_factor_b = (1/np.linalg.norm(
+        par["traj"][..., 0, :]-par["traj"][..., 1, :], axis=-1))
+    par["ogf"] = np.min((overgrid_factor_a,
+                         overgrid_factor_b))
+    # print("Estimated OGF: ", par["ogf"])
+    par["traj"] *= par["ogf"]
 
     par["dcf"] = np.sqrt(np.array(goldcomp.cmp(
                      par["traj"]), dtype=DTYPE_real)).astype(DTYPE_real)
     par["dcf"] = np.require(np.abs(par["dcf"]),
                             DTYPE_real, requirements='C')
     par["fft_dim"] = (-2, -1)
+    par["is3D"] = False
 
 
 class tmpArgs():
