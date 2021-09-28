@@ -965,6 +965,8 @@ class PDBaseSolver:
             in_primal=primal_vars,
             in_dual=dual_vars
             )
+        # import ipdb
+        # ipdb.set_trace()
 
         for i in range(iters):
             self._updatePrimal(
@@ -974,6 +976,7 @@ class PDBaseSolver:
                 in_precomp_adj=tmp_results_adjoint,
                 tau=tau
                 )
+            # ipdb.set_trace()
 
             beta_new = beta_line * (1 + self.mu * tau)
             tau_new = tau * np.sqrt(beta_line / beta_new*(1 + theta_line))
