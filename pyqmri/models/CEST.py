@@ -28,12 +28,12 @@ class Model(BaseModel):
         
         self.popt = par["file"]["popt"][:,sliceind,:,:]
         self.popt[~np.isfinite(self.popt)] = 0
-        self.popt = self.popt.astype(self._DTYPE)
+        self.popt = self.popt.astype(self._DTYPE_real)
         
         
         self.amount_pools = 5
         
-        par["unknowns_TGV"] = self.amount_pools*3 + 2
+        par["unknowns_TGV"] = self.amount_pools*3 + 1
         par["unknowns_H1"] = 0
         par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
         self.unknowns = par["unknowns"]
@@ -89,7 +89,7 @@ class Model(BaseModel):
     
     def initFunctions(self):
 
-        my_symbol_names = "M0,M0_sc, phase, phase_sc"
+        my_symbol_names = "M0,M0_sc"
         for j in range(self.amount_pools):
             my_symbol_names += (",a_"+str(j)+",a_"+str(j)+"_sc"+
                                 ",Gamma_"+str(j)+",Gamma_"+str(j)+"_sc"+
@@ -104,21 +104,21 @@ class Model(BaseModel):
             return a * (gamma/2)**2/((gamma/2)**2 + (omega_0 - omega)**2)
         
         for j in range(self.amount_pools):
-            a = my_symbols[4+6*j]*my_symbols[5+6*j]
-            gamma = my_symbols[6+6*j]*my_symbols[7+6*j]
-            omega_0 = my_symbols[8+6*j]*my_symbols[9+6*j]
+            a = my_symbols[2+6*j]*my_symbols[3+6*j]
+            gamma = my_symbols[4+6*j]*my_symbols[5+6*j]
+            omega_0 = my_symbols[6+6*j]*my_symbols[7+6*j]
             if j == 0:
                 signal = symbolicLorentzian(a, gamma, omega_0, my_symbols[-1])
             else:
                 signal += symbolicLorentzian(a, gamma, omega_0, my_symbols[-1])
-        signal = my_symbols[0]*my_symbols[1]*(1-signal*exp(1j*my_symbols[2]*my_symbols[3]))
+        signal = my_symbols[0]*my_symbols[1]*(1-signal)
         
         symbolic_gradients = [diff(signal, my_symbols[0])]
-        symbolic_gradients.append(diff(signal, my_symbols[2]))
+        # symbolic_gradients.append(diff(signal, my_symbols[2]))
         for j in range(self.amount_pools):
-            symbolic_gradients.append(diff(signal, my_symbols[4+6*j]))
-            symbolic_gradients.append(diff(signal, my_symbols[4+6*j+2]))
-            symbolic_gradients.append(diff(signal, my_symbols[4+6*j+4]))
+            symbolic_gradients.append(diff(signal, my_symbols[2+6*j]))
+            symbolic_gradients.append(diff(signal, my_symbols[2+6*j+2]))
+            symbolic_gradients.append(diff(signal, my_symbols[2+6*j+4]))
                 
         params = my_symbols[:-1:2]
         scales = my_symbols[1:-1:2]
@@ -134,25 +134,29 @@ class Model(BaseModel):
     def computeInitialGuess(self,*args):
         self.images = np.abs(args[0]/args[1])
         self.dscale = args[1]
+        # import ipdb
+        # import matplotlib.pyplot as plt
+        # import pyqmri
+        # ipdb.set_trace()
         
         if self.amount_pools==1:
-            lb = [0,-np.pi,0,0.1,-4]
-            ub = [1e5,np.pi,1,25,1]
+            lb = [0,0,0.1,-4]
+            ub = [1e5,1,50,4]
             self.constraints = []
             for min_val,max_val in zip(lb,ub):
                 self.constraints.append(constraints(min_val,max_val,True))
-            self.guess =  [1,0,0.5,20,-1]
+            self.guess =  [1,1,20,-1]
         elif self.amount_pools==2:
-            lb = [0,-np.pi,
-                  0.1,0.5,-0.1,
+            lb = [0,
+                  0.1,0.5,-2,
                   0,15,-4]
-            ub = [1e3,np.pi,
-                  0.9,6,0.1,
+            ub = [1e3,
+                  0.9,6,0.2,
                   0.4,100,0]
             self.constraints = []
             for min_val,max_val in zip(lb,ub):
                 self.constraints.append(constraints(min_val,max_val,True))
-            self.guess =  [1,0,
+            self.guess =  [1,
                     0.8,2,0,
                     0.1,50,-2]
         elif self.amount_pools==3:
@@ -191,29 +195,29 @@ class Model(BaseModel):
                     0.1,4,-3.5,
                     0.01,2,2.2]
         elif self.amount_pools==5:
-            lb = [0,-np.pi,
+            lb = [0,
                   0.02,0.3,-1,
                   0.0,0.4,+3,
-                  0.0,1,-4.5,
-                  0.0,10,-4,
-                  0.0,0.4,1]
-            ub = [1e5,np.pi,
+                  0.0,0.5,-4,
+                  0.0,10,-6,
+                  0.0,1,1.7]
+            ub = [1e5,
                   1,10,+1,
-                  0.2,4,+4,
-                  0.4,5,-2, #mittlerer Wert war 5
-                  1,100,4,
-                  0.2,2.5,2.5]
+                  0.2,10,+4,
+                  0.6,10,-2.5, #mittlerer Wert war 5
+                  1,99,0,
+                  0.5,3.5,2.5]
             self.constraints = []
             for min_val,max_val in zip(lb,ub):
                 self.constraints.append(constraints(min_val,max_val,True))
                             
             self.guess =  [
-                1,0,
+                1,
                 0.9,1.4,0, #Wasser #[1, #ground truth
                 0.025,0.5,3.5, #APT
                 0.02,3,-3.5, #NOE #mittlerer Wert war 7
                 0.1,25,-2, #MT
-                0.01,1,2.2]
+                0.01,1.0,2.2]
             # self.guess = self.popt 
         elif self.amount_pools==6:
             lb = [0,
@@ -243,12 +247,15 @@ class Model(BaseModel):
         else:
             raise AssertionError("number of pools out of range")
         self.guess = np.array(self.guess)[:,None,None,None] * np.ones((self.unknowns, self.NSlice, self.dimY, self.dimX))
-        # self.guess = self.popt[:1+3*self.amount_pools]
+        # self.guess[0] = self.popt[0]
+        # self.guess[2:] = self.popt[1:]
         self.constraints[0].real = False
         # for const in self.constraints[1::3]:
         #     const.real = False
         # self.guess[0] = args[0][self.omega.squeeze()==0]
         self.guess = self.guess.astype(self._DTYPE)
+        # self.guess[0] = (args[0][0])/self.dscale
+        # self.guess[1] = np.exp(1j*np.angle(args[0][0]))
 
         
         

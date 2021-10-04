@@ -111,10 +111,10 @@ def _precoompFFT(data, par):
                      np.all(np.abs(data[0, 0, 1, 0, :])) or
                      np.all(np.abs(data[0, 0, 1, 1, :])))
 
-        full_dimZ = (np.all(np.abs(data[0, 0, :, 0, 0:])) or
-                     np.all(np.abs(data[0, 0, :, 1, 1])) or
-                     np.all(np.abs(data[0, 0, :, 0, 1])) or
-                     np.all(np.abs(data[0, 0, :, 1, 0])))
+        full_dimZ = False#(np.all(np.abs(data[0, 0, :, 0, 0:])) or
+                     # np.all(np.abs(data[0, 0, :, 1, 1])) or
+                     # np.all(np.abs(data[0, 0, :, 0, 1])) or
+                     # np.all(np.abs(data[0, 0, :, 1, 0])))
     else:
         full_dimY = (np.all(np.abs(data[0, 0, 0, :, 0])) or
                      np.all(np.abs(data[0, 0, 0, :, 1])))
@@ -769,6 +769,9 @@ def _start_recon(myargs):
 ###############################################################################
 # Init forward model and initial guess ########################################
 ###############################################################################
+    if myargs.trafo is False:
+        data = _precoompFFT(data, par)
+        
     if myargs.sig_model == "GeneralModel":
         par["modelfile"] = myargs.modelfile
         par["modelname"] = myargs.modelname
@@ -776,8 +779,6 @@ def _start_recon(myargs):
 ###############################################################################
 # Reconstruct images using CG-SENSE  ##########################################
 ###############################################################################
-    if myargs.trafo is False:
-        data = _precoompFFT(data, par)
     # del par["file"]["images"]
     images = _genImages(myargs, par, data, off)
 ###############################################################################
