@@ -41,6 +41,7 @@ class Model(BaseModel):
         par["unknowns_TGV"] = 5
         par["unknowns_H1"] = 0
         par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
+        self.unknowns = par["unknowns_TGV"]+par["unknowns_H1"]
 
         for j in range(par["unknowns"]):
             self.uk_scale.append(1)
@@ -173,15 +174,29 @@ class Model(BaseModel):
             Serves as universal interface. No objects need to be passed
             here.
         """
-        test_M0 = 0.1 * np.ones(
-            (self.NSlice, self.dimY, self.dimX),
-            dtype=self._DTYPE)
-        test_M01 = 0.5 * np.ones(
-            (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
-        test_T11 = 1/10 * np.ones(
-            (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
-        test_T12 = 1/150 * np.ones(
-            (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
+        if np.allclose(args[3],-1):
+            #default setting
+            test_M0 = 0.1 * np.ones(
+                (self.NSlice, self.dimY, self.dimX),
+                dtype=self._DTYPE)
+            test_M01 = 0.5 * np.ones(
+                (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
+            test_T11 = 1/10 * np.ones(
+                (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
+            test_T12 = 1/150 * np.ones(
+                (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
+        else:
+            assert len(args[3]) == self.unknowns
+            test_M0 = args[3][0] * np.ones(
+                (self.NSlice, self.dimY, self.dimX),
+                dtype=self._DTYPE)
+            test_M01 = args[3][1] * np.ones(
+                (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
+            test_T11 = args[3][2] * np.ones(
+                (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
+            test_T12 = args[3][3] * np.ones(
+                (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
+            
 
         self.guess = np.array([
             test_M0,

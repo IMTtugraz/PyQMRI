@@ -58,6 +58,7 @@ class Model(BaseModel):
         par["unknowns_TGV"] = 7
         par["unknowns_H1"] = 0
         par["unknowns"] = par["unknowns_TGV"] + par["unknowns_H1"]
+        self.unknowns = par["unknowns_TGV"] + par["unknowns_H1"]
         self.uk_scale = []
         for j in range(par["unknowns"]):
             self.uk_scale.append(1)
@@ -107,35 +108,6 @@ class Model(BaseModel):
         self.guess = None
         self.phase = None
 
-        self._ax = None
-
-        self._M0_plot = None
-        self._M0_plot_cor = None
-        self._M0_plot_sag = None
-
-        self._ADC_x_plot = None
-        self._ADC_x_plot_cor = None
-        self._ADC_x_plot_sag = None
-
-        self._ADC_y_plot = None
-        self._ADC_y_plot_cor = None
-        self._ADC_y_plot_sag = None
-
-        self._ADC_z_plot = None
-        self._ADC_z_plot_cor = None
-        self._ADC_z_plot_sag = None
-
-        self._ADC_xy_plot = None
-        self._ADC_xy_plot_cor = None
-        self._ADC_xy_plot_sag = None
-
-        self._ADC_xz_plot = None
-        self._ADC_xz_plot_cor = None
-        self._ADC_xz_plot_sag = None
-
-        self._ADC_yz_plot = None
-        self._ADC_yz_plot_cor = None
-        self._ADC_yz_plot_sag = None
 
     def rescale(self, x):
         """Rescale the unknowns with the scaling factors.
@@ -295,7 +267,13 @@ class Model(BaseModel):
             test_M0 = self.b0
         else:
             test_M0 = args[0][0]
-        ADC = 1 * np.ones(args[0].shape[-3:], dtype=self._DTYPE)
+        
+        if np.allclose(args[3],-1):
+            # default setting
+            ADC = 1 * np.ones(args[0].shape[-3:], dtype=self._DTYPE)
+        else:
+            assert len(args[3]) == self.unknowns-1
+            ADC = args[3][0] * np.ones(args[0].shape[-3:], dtype=self._DTYPE)
 
         x = np.array(
             [
