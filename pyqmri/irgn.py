@@ -467,7 +467,7 @@ class IRGNOptimizer:
         if self._reg_type == 'TV':
             self._regcost = self.irgn_par["gamma"] * \
                 np.sum(np.abs(grad_tv))
-        else:
+        elif self._reg_type == 'TGV':
             self._regcost = self.irgn_par["gamma"] * np.sum(
                   np.abs(grad_tv -
                          self._v)) + self.irgn_par["gamma"] * 2 * np.sum(
