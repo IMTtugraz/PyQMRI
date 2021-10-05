@@ -804,8 +804,8 @@ def _start_recon(myargs):
     model.computeInitialGuess(
         images, 
         par["dscale"],
-        myargs.initial_guess,
-        myargs.weights)
+        myargs.weights,
+        myargs.initial_guess)
 ###############################################################################
 # initialize operator  ########################################################
 ###############################################################################
