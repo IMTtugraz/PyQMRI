@@ -19,10 +19,10 @@ def cmp(k):
       numpy.array :
           The density compensation array.
     """
-    if len(np.shape(k)) == 2:
-        nspokes, N = np.shape(k)
-    elif len(np.shape(k)) == 3:
-        _, nspokes, N = np.shape(k)
+    if len(np.shape(k)) == 3:
+        nspokes, N, _ = np.shape(k)
+    elif len(np.shape(k)) == 4:
+        _, nspokes, N, _ = np.shape(k)
     else:
         return -5
 
@@ -31,4 +31,5 @@ def cmp(k):
     w = np.repeat(w, nspokes, 0)
     w = np.reshape(w, (N, nspokes)).T
 
-    return np.array(w)
+    return (w)
+

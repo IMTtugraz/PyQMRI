@@ -43,9 +43,11 @@ def NUFFT(par, trafo=True, SMS=False):
     NScan = par["NScan"]
     par["NC"] = 1
     par["NScan"] = 1
-
+    
     FFT = (PyOpenCLnuFFT.create(
         par["ctx"][0], par["queue"][0], par,
+        DTYPE=par["DTYPE"],
+        DTYPE_real=par["DTYPE_real"],
         radial=trafo, SMS=SMS))
     par["NC"] = NC
     par["NScan"] = NScan
@@ -61,7 +63,7 @@ def gen_default_config():
     config['TGV']["max_iters"] = '1000'
     config['TGV']["start_iters"] = '10'
     config['TGV']["max_gn_it"] = '7'
-    config['TGV']["lambd"] = '1e0'
+    config['TGV']["lambd"] = '1e2'
     config['TGV']["gamma"] = '1e-3'
     config['TGV']["delta"] = '1e-2'
     config['TGV']["omega"] = '0'
@@ -70,7 +72,7 @@ def gen_default_config():
     config['TGV']["delta_max"] = '1e2'
     config['TGV']["omega_min"] = '0'
     config['TGV']["tol"] = '1e-6'
-    config['TGV']["stag"] = '1e10'
+    config['TGV']["stag"] = '1e-10'
     config['TGV']["delta_inc"] = '10'
     config['TGV']["gamma_dec"] = '0.5'
     config['TGV']["omega_dec"] = '0.5'
@@ -80,7 +82,7 @@ def gen_default_config():
     config['TV']["max_iters"] = '1000'
     config['TV']["start_iters"] = '10'
     config['TV']["max_gn_it"] = '7'
-    config['TV']["lambd"] = '1e0'
+    config['TV']["lambd"] = '1e2'
     config['TV']["gamma"] = '1e-3'
     config['TV']["delta"] = '1e-2'
     config['TV']["omega"] = '0'
@@ -89,7 +91,7 @@ def gen_default_config():
     config['TV']["delta_max"] = '1e2'
     config['TV']["omega_min"] = '0'
     config['TV']["tol"] = '1e-6'
-    config['TV']["stag"] = '1e10'
+    config['TV']["stag"] = '1e-10'
     config['TV']["delta_inc"] = '10'
     config['TV']["gamma_dec"] = '0.5'
     config['TV']["omega_dec"] = '0.5'

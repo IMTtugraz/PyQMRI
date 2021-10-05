@@ -121,7 +121,7 @@ __kernel void update_z1(
     for (int uk=0; uk<NUk_tgv; uk++)
     {
         z_new[i] = z[i] + sigma*(
-            (1+theta)*gx[i]-theta*gx_[i]-(1+theta)*vx[i]+theta*vx_[i]);
+            (1+theta)*gx[i]-theta*gx_[i]-((1+theta)*vx[i]-theta*vx_[i]));
 
         // reproject
         fac = hypot(fac,
@@ -624,7 +624,8 @@ __kernel void update_Kyk2(
                 __global double16 *q,
                 __global double8 *z,
                 const int NUk,
-                __global double* ratio,
+                __global double* gradratio,
+                __global double* symratio,
                 const int first,
                 const double dz
                 )
@@ -693,18 +694,18 @@ __kernel void update_Kyk2(
             val_imag.s678 += (double3)(q[i+Nx*Ny*NUk].s9b, q[i+Nx*Ny*NUk].s5);
         }
         // linear step
-        {val_real*=ratio[uk];}
-        {val_imag*=ratio[uk];}
+        {val_real*=symratio[uk];}
+        {val_imag*=symratio[uk];}
         //real
         w[i].s024 = - val_real.s012
                     - val_real.s345
                     - val_real.s678*dz
-                    -z[i].s024;
+                    -z[i].s024*gradratio[uk];
         //imag
         w[i].s135 = - val_imag.s012
                     - val_imag.s345
                     - val_imag.s678*dz
-                    -z[i].s135;
+                    -z[i].s135*gradratio[uk];
         i+=Nx*Ny;
     }
 }

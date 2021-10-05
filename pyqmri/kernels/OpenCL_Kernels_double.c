@@ -43,7 +43,7 @@ __kernel void update_z2(
     size_t k = get_global_id(0);
     size_t i = k*Nx*Ny+Nx*y + x;
 
-    double fac = 0.0f;
+    double fac = 0.0;
 
     for (int uk=0; uk<NUk; uk++)
     {
@@ -119,12 +119,12 @@ __kernel void update_z1(
     size_t k = get_global_id(0);
     size_t i = k*Nx*Ny+Nx*y + x;
 
-    double fac = 0.0f;
+    double fac = 0.0;
 
     for (int uk=0; uk<NUk_tgv; uk++)
     {
        z_new[i] = z[i] + sigma*(
-           (1+theta)*gx[i]-theta*gx_[i]-(1+theta)*vx[i]+theta*vx_[i]);
+           (1+theta)*gx[i]-theta*gx_[i]-((1+theta)*vx[i]-theta*vx_[i]));
 
        // reproject
        fac = hypot(fac,
@@ -178,8 +178,8 @@ __kernel void update_z1_tv(
     size_t k = get_global_id(0);
     size_t i = k*Nx*Ny+Nx*y + x;
 
-    double fac = 0.0f;
-    double8 square = 0.0f;
+    double fac = 0.0;
+    double8 square = 0.0;
 
     for (int uk=0; uk<NUk_tgv; uk++)
     {
@@ -226,17 +226,17 @@ __kernel void update_z1_tv(
 
 
 __kernel void update_primal(
-                __global double2 *u_new,
-                __global double2 *u,
-                __global double2 *Kyk,
-                __global double2 *u_k,
-                const double tau,
-                const double tauinv,
-                const double div,
-                __global double* min,
-                __global double* max,
-                __global int* real, const int NUk
-                )
+__global double2 *u_new,
+__global double2 *u,
+__global double2 *Kyk,
+__global double2 *u_k,
+const double tau,
+const double tauinv,
+const double div,
+__global double* min,
+__global double* max,
+__global int* real, const int NUk
+)
 {
     size_t Nx = get_global_size(2), Ny = get_global_size(1);
     size_t NSl = get_global_size(0);
@@ -253,7 +253,59 @@ __kernel void update_primal(
 
         if(real[uk]>=1)
         {
-            u_new[i].s1 = 0.0f;
+            u_new[i].s1 = 0.0;
+            if (u_new[i].s0<min[uk])
+            {
+                u_new[i].s0 = min[uk];
+            }
+            if(u_new[i].s0>max[uk])
+            {
+                u_new[i].s0 = max[uk];
+            }
+        }
+        else
+        {
+            norm =  sqrt(
+              pow(
+                (double)(u_new[i].s0),(double)(2.0))
+              + pow((double)(u_new[i].s1),(double)(2.0)));
+            if (norm<min[uk])
+            {
+                u_new[i].s0 *= 1/norm*min[uk];
+                u_new[i].s1 *= 1/norm*min[uk];
+            }
+            if(norm>max[uk])
+            {
+                u_new[i].s0 *= 1/norm*max[uk];
+                u_new[i].s1 *= 1/norm*max[uk];
+            }
+        }
+        i += NSl*Nx*Ny;
+    }
+}
+
+__kernel void update_box(
+__global double2 *u_new,
+__global double2 *u,
+__global double* min,
+__global double* max,
+__global int* real, const int NUk
+)
+{
+    size_t Nx = get_global_size(2), Ny = get_global_size(1);
+    size_t NSl = get_global_size(0);
+    size_t x = get_global_id(2), y = get_global_id(1);
+    size_t k = get_global_id(0);
+    size_t i = k*Nx*Ny+Nx*y + x;
+    double norm = 0;
+
+    for (int uk=0; uk<NUk; uk++)
+    {
+        u_new[i] = u[i];
+
+        if(real[uk]>=1)
+        {
+            u_new[i].s1 = 0.0;
             if (u_new[i].s0<min[uk])
             {
                 u_new[i].s0 = min[uk];
@@ -312,7 +364,7 @@ __kernel void update_primal_LM(
 
         if(real[uk]>=1)
         {
-            u_new[i].s1 = 0.0f;
+            u_new[i].s1 = 0.0;
             if (u_new[i].s0<min[uk])
             {
                 u_new[i].s0 = min[uk];
@@ -361,14 +413,14 @@ __kernel void gradient(
     for (int uk=0; uk<NUk; uk++)
     {
         // gradient
-        grad[i] = (double8)(-u[i],-u[i],-u[i]*dz,0.0f,0.0f);
+        grad[i] = (double8)(-u[i],-u[i],-u[i]*dz,0.0,0.0);
         if (x < Nx-1)
         {
             grad[i].s01 += u[i+1].s01;
         }
         else
         {
-            grad[i].s01 = 0.0f;
+            grad[i].s01 = 0.0;
         }
 
         if (y < Ny-1)
@@ -377,7 +429,7 @@ __kernel void gradient(
         }
         else
         {
-            grad[i].s23 = 0.0f;
+            grad[i].s23 = 0.0;
         }
         if (k < NSl-1)
         {
@@ -385,7 +437,7 @@ __kernel void gradient(
                 }
         else
         {
-            grad[i].s45 = 0.0f;
+            grad[i].s45 = 0.0;
         }
         // scale gradients
         grad[i]*=ratio[uk];
@@ -414,10 +466,10 @@ __kernel void sym_grad(
         // symmetrized gradient
         double16 val_real = (double16)(
             w[i].s024, w[i].s024, w[i].s024,
-            0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f);
+            0.0,0.0,0.0,0.0,0.0,0.0,0.0);
         double16 val_imag = (double16)(
             w[i].s135, w[i].s135, w[i].s135,
-            0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f);
+            0.0,0.0,0.0,0.0,0.0,0.0,0.0);
         if (x > 0)
         {
             val_real.s012 -= w[i-1].s024;
@@ -425,8 +477,8 @@ __kernel void sym_grad(
         }
         else
         {
-            val_real.s012 = (double3) 0.0f;
-            val_imag.s012 = (double3) 0.0f;
+            val_real.s012 = (double3) 0.0;
+            val_imag.s012 = (double3) 0.0;
         }
 
         if (y > 0)
@@ -436,8 +488,8 @@ __kernel void sym_grad(
         }
         else
         {
-            val_real.s345 = (double3) 0.0f;
-            val_imag.s345 = (double3) 0.0f;
+            val_real.s345 = (double3) 0.0;
+            val_imag.s345 = (double3) 0.0;
         }
 
         if (k > 0)
@@ -447,21 +499,21 @@ __kernel void sym_grad(
         }
         else
         {
-            val_real.s678 = (double3) 0.0f;
-            val_imag.s678 = (double3) 0.0f;
+            val_real.s678 = (double3) 0.0;
+            val_imag.s678 = (double3) 0.0;
         }
 
         sym[i] = (double16)(
           val_real.s0, val_imag.s0,
           val_real.s4, val_imag.s4,
           val_real.s8*dz, val_imag.s8*dz,
-          0.5f*(val_real.s1 + val_real.s3),
-          0.5f*(val_imag.s1 + val_imag.s3),
-          0.5f*(val_real.s2 + val_real.s6*dz),
-          0.5f*(val_imag.s2 + val_imag.s6*dz),
-          0.5f*(val_real.s5 + val_real.s7*dz),
-          0.5f*(val_imag.s5 + val_imag.s7*dz),
-          0.0f,0.0f,0.0f,0.0f);
+          0.5*(val_real.s1 + val_real.s3),
+          0.5*(val_imag.s1 + val_imag.s3),
+          0.5*(val_real.s2 + val_real.s6*dz),
+          0.5*(val_imag.s2 + val_imag.s6*dz),
+          0.5*(val_real.s5 + val_real.s7*dz),
+          0.5*(val_imag.s5 + val_imag.s7*dz),
+          0.0,0.0,0.0,0.0);
         // scale gradients
         sym[i]*=ratio[uk];
         i += NSl*Nx*Ny;
@@ -490,9 +542,9 @@ __kernel void divergence(
         if (x == Nx-1)
         {
             //real
-            val.s0 = 0.0f;
+            val.s0 = 0.0;
             //imag
-            val.s1 = 0.0f;
+            val.s1 = 0.0;
         }
         if (x > 0)
         {
@@ -504,9 +556,9 @@ __kernel void divergence(
         if (y == Ny-1)
         {
             //real
-            val.s2 = 0.0f;
+            val.s2 = 0.0;
             //imag
-            val.s3 = 0.0f;
+            val.s3 = 0.0;
         }
         if (y > 0)
         {
@@ -518,9 +570,9 @@ __kernel void divergence(
         if (k == NSl-1)
         {
             //real
-            val.s4 = 0.0f;
+            val.s4 = 0.0;
             //imag
-            val.s5 = 0.0f;
+            val.s5 = 0.0;
         }
         if (k > 0)
         {
@@ -559,18 +611,18 @@ __kernel void sym_divergence(
             val0.s0, val0.s6, val0.s8,
             val0.s6, val0.s2, val0.sa,
             val0.s8, val0.sa, val0.s4,
-            0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f);
+            0.0,0.0,0.0,0.0,0.0,0.0,0.0);
         double16 val_imag = (double16)(
             val0.s1, val0.s7, val0.s9,
             val0.s7, val0.s3, val0.sb,
             val0.s9, val0.sb, val0.s5,
-            0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f);
+            0.0,0.0,0.0,0.0,0.0,0.0,0.0);
         if (x == 0)
         {
             //real
-            val_real.s012 = 0.0f;
+            val_real.s012 = 0.0;
             //imag
-            val_imag.s012 = 0.0f;
+            val_imag.s012 = 0.0;
         }
         if (x < Nx-1)
         {
@@ -582,9 +634,9 @@ __kernel void sym_divergence(
         if (y == 0)
         {
             //real
-            val_real.s345 = 0.0f;
+            val_real.s345 = 0.0;
             //imag
-            val_imag.s345 = 0.0f;
+            val_imag.s345 = 0.0;
         }
         if (y < Ny-1)
         {
@@ -596,9 +648,9 @@ __kernel void sym_divergence(
         if (k == 0)
         {
         //real
-            val_real.s678 = 0.0f;
+            val_real.s678 = 0.0;
             //imag
-            val_imag.s678 = 0.0f;
+            val_imag.s678 = 0.0;
         }
         if (k < NSl-1)
         {
@@ -624,7 +676,8 @@ __kernel void update_Kyk2(
                 __global double16 *q,
                 __global double8 *z,
                 const int NUk,
-                __global double* ratio,
+                __global double* gradratio,
+                __global double* symratio,
                 const int first,
                 const double dz
                 )
@@ -643,18 +696,18 @@ __kernel void update_Kyk2(
                     val0.s0, val0.s6, val0.s8,
                     val0.s6, val0.s2, val0.sa,
                     val0.s8, val0.sa, val0.s4,
-                    0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f);
+                    0.0,0.0,0.0,0.0,0.0,0.0,0.0);
         double16 val_imag = (double16)(
                     val0.s1, val0.s7, val0.s9,
                     val0.s7, val0.s3, val0.sb,
                     val0.s9, val0.sb, val0.s5,
-                    0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f);
+                    0.0,0.0,0.0,0.0,0.0,0.0,0.0);
         if (x == 0)
         {
             //real
-            val_real.s012 = 0.0f;
+            val_real.s012 = 0.0;
             //imag
-            val_imag.s012 = 0.0f;
+            val_imag.s012 = 0.0;
         }
         if (x < Nx-1)
         {
@@ -666,9 +719,9 @@ __kernel void update_Kyk2(
         if (y == 0)
         {
             //real
-            val_real.s345 = 0.0f;
+            val_real.s345 = 0.0;
             //imag
-            val_imag.s345 = 0.0f;
+            val_imag.s345 = 0.0;
         }
         if (y < Ny-1)
         {
@@ -680,9 +733,9 @@ __kernel void update_Kyk2(
         if (k == 0)
         {
             //real
-            val_real.s678 = 0.0f;
+            val_real.s678 = 0.0;
             //imag
-            val_imag.s678 = 0.0f;
+            val_imag.s678 = 0.0;
         }
         if (k < NSl-1)
         {
@@ -694,18 +747,18 @@ __kernel void update_Kyk2(
         // linear step
 
         // scale gradients
-        val_real*=ratio[uk];
-        val_imag*=ratio[uk];
+        val_real*=symratio[uk];
+        val_imag*=symratio[uk];
         //real
         w[i].s024 = - val_real.s012
                     - val_real.s345
                     - val_real.s678*dz
-                    -z[i].s024;
+                    -z[i].s024*gradratio[uk];
         //imag
         w[i].s135 = - val_imag.s012
                     - val_imag.s345
                     - val_imag.s678*dz
-                    -z[i].s135;
+                    -z[i].s135*gradratio[uk];
         i += NSl*Nx*Ny;
     }
 }
@@ -729,10 +782,10 @@ __kernel void operator_fwd(
     size_t y = get_global_id(1);
     size_t k = get_global_id(0);
 
-    double2 tmp_in = 0.0f;
-    double2 tmp_grad = 0.0f;
-    double2 tmp_coil = 0.0f;
-    double2 tmp_mul = 0.0f;
+    double2 tmp_in = 0.0;
+    double2 tmp_grad = 0.0;
+    double2 tmp_coil = 0.0;
+    double2 tmp_mul = 0.0;
 
 
     for (int scan=0; scan<NScan; scan++)
@@ -740,7 +793,7 @@ __kernel void operator_fwd(
         for (int coil=0; coil < NCo; coil++)
         {
             tmp_coil = coils[coil*NSl*X*Y + k*X*Y + y*X + x];
-            double2 sum = 0.0f;
+            double2 sum = 0.0;
             for (int uk=0; uk<Nuk; uk++)
             {
                 tmp_grad = grad[
@@ -780,15 +833,15 @@ __kernel void operator_ad(
     size_t k = get_global_id(0);
 
 
-    double2 tmp_in = 0.0f;
-    double2 tmp_mul = 0.0f;
-    double2 conj_grad = 0.0f;
-    double2 conj_coils = 0.0f;
+    double2 tmp_in = 0.0;
+    double2 tmp_mul = 0.0;
+    double2 conj_grad = 0.0;
+    double2 conj_coils = 0.0;
 
 
     for (int uk=0; uk<Nuk; uk++)
     {
-        double2 sum = (double2) 0.0f;
+        double2 sum = (double2) 0.0;
         for (int scan=0; scan<NScan; scan++)
         {
             conj_grad = (double2)(
@@ -839,15 +892,15 @@ __kernel void update_Kyk1(
 
     size_t i = k*X*Y+X*y + x;
 
-    double2 tmp_in = 0.0f;
-    double2 tmp_mul = 0.0f;
-    double2 conj_grad = 0.0f;
-    double2 conj_coils = 0.0f;
+    double2 tmp_in = 0.0;
+    double2 tmp_mul = 0.0;
+    double2 conj_grad = 0.0;
+    double2 conj_coils = 0.0;
 
 
     for (int uk=0; uk<Nuk; uk++)
     {
-        double2 sum = (double2) 0.0f;
+        double2 sum = (double2) 0.0;
         for (int scan=0; scan<NScan; scan++)
         {
             conj_grad = (double2)(
@@ -875,9 +928,9 @@ __kernel void update_Kyk1(
         if (x == X-1)
         {
             //real
-            val.s0 = 0.0f;
+            val.s0 = 0.0;
             //imag
-            val.s1 = 0.0f;
+            val.s1 = 0.0;
         }
         if (x > 0)
         {
@@ -889,9 +942,9 @@ __kernel void update_Kyk1(
         if (y == Y-1)
         {
             //real
-            val.s2 = 0.0f;
+            val.s2 = 0.0;
             //imag
-            val.s3 = 0.0f;
+            val.s3 = 0.0;
         }
         if (y > 0)
         {
@@ -903,9 +956,9 @@ __kernel void update_Kyk1(
         if (k == NSl-1)
         {
             //real
-            val.s4 = 0.0f;
+            val.s4 = 0.0;
             //imag
-            val.s5 = 0.0f;
+            val.s5 = 0.0;
         }
         if (k > 0)
         {
@@ -938,12 +991,12 @@ __kernel void operator_fwd_imagespace(
     size_t y = get_global_id(1);
     size_t k = get_global_id(0);
 
-    double2 tmp_in = 0.0f;
-    double2 tmp_grad = 0.0f;
+    double2 tmp_in = 0.0;
+    double2 tmp_grad = 0.0;
 
     for (int scan=0; scan<NScan; scan++)
     {
-        double2 sum = 0.0f;
+        double2 sum = 0.0;
         for (int uk=0; uk<Nuk; uk++)
         {
             tmp_grad = grad[uk*NScan*NSl*X*Y+scan*NSl*X*Y + k*X*Y + y*X + x];
@@ -976,14 +1029,14 @@ __kernel void operator_ad_imagespace(
     size_t k = get_global_id(0);
 
 
-    double2 tmp_in = 0.0f;
-    double2 conj_grad = 0.0f;
+    double2 tmp_in = 0.0;
+    double2 conj_grad = 0.0;
 
 
 
     for (int uk=0; uk<Nuk; uk++)
     {
-        double2 sum = (double2) 0.0f;
+        double2 sum = (double2) 0.0;
         for (int scan=0; scan<NScan; scan++)
         {
             conj_grad = (double2)(
@@ -1022,12 +1075,12 @@ __kernel void update_Kyk1_imagespace(
 
     size_t i = k*X*Y+X*y + x;
 
-    double2 tmp_in = 0.0f;
-    double2 conj_grad = 0.0f;
+    double2 tmp_in = 0.0;
+    double2 conj_grad = 0.0;
 
     for (int uk=0; uk<Nuk; uk++)
     {
-        double2 sum = (double2) 0.0f;
+        double2 sum = (double2) 0.0;
         for (int scan=0; scan<NScan; scan++)
         {
           conj_grad = (double2)(
@@ -1043,9 +1096,9 @@ __kernel void update_Kyk1_imagespace(
         if (x == X-1)
         {
             //real
-            val.s0 = 0.0f;
+            val.s0 = 0.0;
             //imag
-            val.s1 = 0.0f;
+            val.s1 = 0.0;
         }
         if (x > 0)
         {
@@ -1057,9 +1110,9 @@ __kernel void update_Kyk1_imagespace(
         if (y == Y-1)
         {
             //real
-            val.s2 = 0.0f;
+            val.s2 = 0.0;
             //imag
-            val.s3 = 0.0f;
+            val.s3 = 0.0;
         }
         if (y > 0)
         {
@@ -1071,9 +1124,9 @@ __kernel void update_Kyk1_imagespace(
         if (k == NSl-1)
         {
             //real
-            val.s4 = 0.0f;
+            val.s4 = 0.0;
             //imag
-            val.s5 = 0.0f;
+            val.s5 = 0.0;
         }
         if (k > 0)
         {
@@ -1169,10 +1222,10 @@ __kernel void operator_fwd_cg(
     size_t y = get_global_id(1);
     size_t k = get_global_id(0);
 
-    double2 tmp_in = 0.0f;
-    double2 tmp_grad = 0.0f;
-    double2 tmp_coil = 0.0f;
-    double2 tmp_mul = 0.0f;
+    double2 tmp_in = 0.0;
+    double2 tmp_grad = 0.0;
+    double2 tmp_coil = 0.0;
+    double2 tmp_mul = 0.0;
 
 
     for (int scan=0; scan<NScan; scan++)
@@ -1209,15 +1262,15 @@ __kernel void operator_ad_cg(
     size_t k = get_global_id(0);
 
 
-    double2 tmp_in = 0.0f;
-    double2 tmp_mul = 0.0f;
-    double2 conj_grad = 0.0f;
-    double2 conj_coils = 0.0f;
+    double2 tmp_in = 0.0;
+    double2 tmp_mul = 0.0;
+    double2 conj_grad = 0.0;
+    double2 conj_coils = 0.0;
 
 
     for (int scan=0; scan<NScan; scan++)
     {
-        double2 sum = (double2) 0.0f;
+        double2 sum = (double2) 0.0;
         for (int coil=0; coil < NCo; coil++)
         {
             conj_coils = (double2)(

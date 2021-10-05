@@ -124,7 +124,7 @@ __kernel void update_z1(
     for (int uk=0; uk<NUk_tgv; uk++)
     {
        z_new[i] = z[i] + sigma*(
-           (1+theta)*gx[i]-theta*gx_[i]-(1+theta)*vx[i]+theta*vx_[i]);
+           (1+theta)*gx[i]-theta*gx_[i]-((1+theta)*vx[i]-theta*vx_[i]));
 
        // reproject
        fac = hypot(fac,
@@ -151,7 +151,7 @@ __kernel void update_z1(
     i = k*Nx*Ny+Nx*y + x;
     for (int uk=0; uk<NUk_tgv; uk++)
     {
-        if (fac > 1.0f) z_new[i] /=fac;
+        if (fac > 1.0f) z_new[i] /= fac;
         i += NSl*Nx*Ny;
     }
     i = NSl*Nx*Ny*NUk_tgv+k*Nx*Ny+Nx*y + x;
@@ -250,6 +250,58 @@ __global int* real, const int NUk
     for (int uk=0; uk<NUk; uk++)
     {
         u_new[i] = (u[i]-tau*Kyk[i]+tauinv*u_k[i])*div;
+
+        if(real[uk]>=1)
+        {
+            u_new[i].s1 = 0.0f;
+            if (u_new[i].s0<min[uk])
+            {
+                u_new[i].s0 = min[uk];
+            }
+            if(u_new[i].s0>max[uk])
+            {
+                u_new[i].s0 = max[uk];
+            }
+        }
+        else
+        {
+            norm =  sqrt(
+              pow(
+                (float)(u_new[i].s0),(float)(2.0))
+              + pow((float)(u_new[i].s1),(float)(2.0)));
+            if (norm<min[uk])
+            {
+                u_new[i].s0 *= 1/norm*min[uk];
+                u_new[i].s1 *= 1/norm*min[uk];
+            }
+            if(norm>max[uk])
+            {
+                u_new[i].s0 *= 1/norm*max[uk];
+                u_new[i].s1 *= 1/norm*max[uk];
+            }
+        }
+        i += NSl*Nx*Ny;
+    }
+}
+
+__kernel void update_box(
+__global float2 *u_new,
+__global float2 *u,
+__global float* min,
+__global float* max,
+__global int* real, const int NUk
+)
+{
+    size_t Nx = get_global_size(2), Ny = get_global_size(1);
+    size_t NSl = get_global_size(0);
+    size_t x = get_global_id(2), y = get_global_id(1);
+    size_t k = get_global_id(0);
+    size_t i = k*Nx*Ny+Nx*y + x;
+    float norm = 0;
+
+    for (int uk=0; uk<NUk; uk++)
+    {
+        u_new[i] = u[i];
 
         if(real[uk]>=1)
         {
@@ -624,7 +676,8 @@ __kernel void update_Kyk2(
                 __global float16 *q,
                 __global float8 *z,
                 const int NUk,
-                __global float* ratio,
+                __global float* gradratio,
+                __global float* symratio,
                 const int first,
                 const float dz
                 )
@@ -694,8 +747,8 @@ __kernel void update_Kyk2(
         // linear step
 
         // scale gradients
-        val_real*=ratio[uk];
-        val_imag*=ratio[uk];
+        val_real*=symratio[uk];
+        val_imag*=symratio[uk];
         //real
         w[i].s024 = - val_real.s012
                     - val_real.s345

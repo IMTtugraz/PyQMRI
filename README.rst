@@ -61,7 +61,15 @@ For more detailed instructions on how to contribute have a look at contributing_
 
 Changelog:
 ------------------------------
-v1.1 Added the first iteration of CPU support. Tested on Intel CPUS using pocl_ on Ubuntu and Arch Linux.
+* v1.2
+   * Added and tested AMD CPU and AMD GPU support. (Tested on Ryzen 9 with AMD APP SDK and Radeon 6900XT with ROCm)
+   * Added the model for fast field-cycling (FFC) MRI
+* v1.1 
+   * Added the first iteration of CPU support. Tested on Intel CPUS using pocl_ on Ubuntu and Arch Linux.
+   * Changed stagnation to use inverse of exponential. Adapted default config accordingly
+   * Added ASL model
+* v1.0 
+   * Initial Release
 
 Citation:
 ----------

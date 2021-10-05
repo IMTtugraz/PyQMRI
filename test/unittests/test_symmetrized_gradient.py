@@ -17,9 +17,10 @@ import pyopencl.array as clarray
 import numpy as np
 
 
-DTYPE = np.complex128
-DTYPE_real = np.float64
-
+DTYPE = np.complex64
+DTYPE_real = np.float32
+ATOL=1e-7
+RTOL=1e-4
 
 class tmpArgs():
     pass
@@ -37,7 +38,7 @@ def setupPar(par):
     par["unknowns_H1"] = 0
     par["unknowns"] = 2
     par["dz"] = 1
-    par["weights"] = np.array([1, 0.1])
+    par["weights"] = np.array([1, 1])
 
 
 class SymmetrizedGradientTest(unittest.TestCase):
@@ -111,7 +112,7 @@ class SymmetrizedGradientTest(unittest.TestCase):
         outp = self.symgrad.fwdoop(inp)
         outp = outp.get()
 
-        np.testing.assert_allclose(outp[..., :6], symgrad)
+        np.testing.assert_allclose(outp[..., :6], symgrad, rtol=RTOL, atol=ATOL)
 
     def test_sym_grad_inplace(self):
         gradx = np.zeros_like(self.symgradin)
@@ -141,7 +142,7 @@ class SymmetrizedGradientTest(unittest.TestCase):
         outp.add_event(self.symgrad.fwd(outp, inp))
         outp = outp.get()
 
-        np.testing.assert_allclose(outp[..., :6], symgrad)
+        np.testing.assert_allclose(outp[..., :6], symgrad, rtol=RTOL, atol=ATOL)
 
     def test_adj_outofplace(self):
         inpgrad = clarray.to_device(self.queue, self.symgradin)
@@ -157,12 +158,12 @@ class SymmetrizedGradientTest(unittest.TestCase):
         a2 = 2*np.vdot(outgrad[..., 3:6].flatten(),
                        self.symdivin[..., 3:6].flatten())/self.symgradin.size*4
         a = a1+a2
-        b = np.vdot(self.symgradin.flatten(),
-                    -outdiv.flatten())/self.symgradin.size*4
+        b = np.vdot(self.symgradin[..., :3].flatten(),
+                    -outdiv[..., :3].flatten())/self.symgradin.size*4
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=12)
+        np.testing.assert_allclose(a, b, rtol=RTOL, atol=ATOL)
 
     def test_adj_inplace(self):
         inpgrad = clarray.to_device(self.queue, self.symgradin)
@@ -182,12 +183,12 @@ class SymmetrizedGradientTest(unittest.TestCase):
         a2 = 2*np.vdot(outgrad[..., 3:6].flatten(),
                        self.symdivin[..., 3:6].flatten())/self.symgradin.size*4
         a = a1+a2
-        b = np.vdot(self.symgradin.flatten(),
-                    -outdiv.flatten())/self.symgradin.size*4
+        b = np.vdot(self.symgradin[..., :3].flatten(),
+                    -outdiv[..., :3].flatten())/self.symgradin.size*4
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=12)
+        np.testing.assert_allclose(a, b, rtol=RTOL, atol=ATOL)
 
 
 class SymmetrizedGradientStreamedTest(unittest.TestCase):
@@ -260,7 +261,7 @@ class SymmetrizedGradientStreamedTest(unittest.TestCase):
         symgrad *= self.weights[None, :, None, None, None]
         outp = self.symgrad.fwdoop([[self.symgradin]])
 
-        np.testing.assert_allclose(outp[..., :6], symgrad)
+        np.testing.assert_allclose(outp[..., :6], symgrad, rtol=RTOL, atol=ATOL)
 
     def test_grad_inplace(self):
         gradx = np.zeros_like(self.symgradin)
@@ -289,7 +290,7 @@ class SymmetrizedGradientStreamedTest(unittest.TestCase):
 
         self.symgrad.fwd([outp], [[self.symgradin]])
 
-        np.testing.assert_allclose(outp[..., :6], symgrad)
+        np.testing.assert_allclose(outp[..., :6], symgrad, rtol=RTOL, atol=ATOL)
 
     def test_adj_outofplace(self):
 
@@ -301,12 +302,12 @@ class SymmetrizedGradientStreamedTest(unittest.TestCase):
         a2 = 2*np.vdot(outgrad[..., 3:6].flatten(),
                        self.symdivin[..., 3:6].flatten())/self.symgradin.size*4
         a = a1+a2
-        b = np.vdot(self.symgradin.flatten(),
-                    -outdiv.flatten())/self.symgradin.size*4
+        b = np.vdot(self.symgradin[..., :3].flatten(),
+                    -outdiv[..., :3].flatten())/self.symgradin.size*4
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=12)
+        np.testing.assert_allclose(a, b, rtol=RTOL, atol=ATOL)
 
     def test_adj_inplace(self):
 
@@ -321,12 +322,12 @@ class SymmetrizedGradientStreamedTest(unittest.TestCase):
         a2 = 2*np.vdot(outgrad[..., 3:6].flatten(),
                        self.symdivin[..., 3:6].flatten())/self.symgradin.size*4
         a = a1+a2
-        b = np.vdot(self.symgradin.flatten(),
-                    -outdiv.flatten())/self.symgradin.size*4
+        b = np.vdot(self.symgradin[..., :3].flatten(),
+                    -outdiv[..., :3].flatten())/self.symgradin.size*4
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=12)
+        np.testing.assert_allclose(a, b, rtol=RTOL, atol=ATOL)
 
 
 if __name__ == '__main__':

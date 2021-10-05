@@ -10,6 +10,7 @@ import importlib
 import numpy as np
 from tkinter import filedialog
 from tkinter import Tk
+from inputimeout import inputimeout, TimeoutOccurred
 
 import matplotlib.pyplot as plt
 
@@ -23,6 +24,7 @@ from pyqmri._helper_fun._est_coils import est_coils
 from pyqmri._helper_fun import _utils as utils
 from pyqmri.solver import CGSolver
 from pyqmri.irgn import IRGNOptimizer
+np.seterr(divide='ignore', invalid='ignore')
 
 np.seterr(divide='ignore')
 
@@ -32,77 +34,196 @@ def _choosePlatform(myargs, par):
     platforms = cl.get_platforms()
     use_GPU = False
     par["Platform_Indx"] = None
-    if myargs.use_GPU:
-        for j, platfrom in enumerate(platforms):
-            if platfrom.get_devices(device_type=cl.device_type.GPU):
+    dev_ind = []
+    inp = None
+    if myargs.use_GPU is True:
+        for j, platform in enumerate(platforms):
+            if platform.get_devices(device_type=cl.device_type.GPU):
                 print("GPU OpenCL platform <%s> found "
                       "with %i device(s) and OpenCL-version <%s>"
-                      % (str(platfrom.get_info(cl.platform_info.NAME)),
-                         len(platfrom.get_devices(
+                      % (str(platform.get_info(cl.platform_info.NAME)),
+                         len(platform.get_devices(
                              device_type=cl.device_type.GPU)),
-                         str(platfrom.get_info(cl.platform_info.VERSION))))
+                         str(platform.get_info(cl.platform_info.VERSION))))
                 use_GPU = True
-                par["Platform_Indx"] = j
+                dev_ind.append(j)
+        if len(dev_ind) > 1:
+            while True:
+                try:
+                    inp = inputimeout(
+                        (str(len(dev_ind)) +
+                         " GPU platforms found."+
+                         " Defaulting to (0) in 4 seconds.\n"), 
+                        4)
+                except:
+                    inp = None
+                if inp is None:
+                    break
+                else:
+                    try:
+                        inp = int(inp)
+                    except:
+                        print("Please specify an integer.")
+                        continue
+                    if inp >= len(dev_ind) or inp < 0:
+                        print("Integer needs to be in range 0-"
+                              +str(len(dev_ind)-1))
+                        continue
+                break
+        if inp:
+            par["Platform_Indx"] = dev_ind[inp]
+        else:
+            par["Platform_Indx"] = dev_ind[0]
+     
     if not use_GPU:
         if myargs.use_GPU:
             print("No GPU OpenCL platform found. Falling back to CPU.")
-        for j, platfrom in enumerate(platforms):
-            if platfrom.get_devices(device_type=cl.device_type.CPU):
+        for j, platform in enumerate(platforms):
+            if platform.get_devices(device_type=cl.device_type.CPU):
                 print("CPU OpenCL platform <%s> found "
                       "with %i device(s) and OpenCL-version <%s>"
-                      % (str(platfrom.get_info(cl.platform_info.NAME)),
-                         len(platfrom.get_devices(
+                      % (str(platform.get_info(cl.platform_info.NAME)),
+                         len(platform.get_devices(
                              device_type=cl.device_type.CPU)),
-                         str(platfrom.get_info(cl.platform_info.VERSION))))
+                         str(platform.get_info(cl.platform_info.VERSION))))
                 use_GPU = False
                 par["Platform_Indx"] = j
         if par["Platform_Indx"] is None:
-            raise(ValueError("No OpenCL CPU device found."))
+            raise(ValueError("No OpenCL device found."))   
+
     par["use_GPU"] = use_GPU
     return platforms
 
 
 def _precoompFFT(data, par):
-    full_dimY = (np.all(np.abs(data[0, 0, 0, :, 0])) or
-                 np.all(np.abs(data[0, 0, 0, :, 1])))
-    full_dimX = (np.all(np.abs(data[0, 0, 0, 0, :])) or
-                 np.all(np.abs(data[0, 0, 0, 1, :])))
 
-    if full_dimY and not full_dimX:
+    trans_x = False
+    trans_y = False
+    trans_z = False
+
+    if par["is3D"]:
+        full_dimY = (np.all(np.abs(data[0, 0, 0, :, 0])) or
+                     np.all(np.abs(data[0, 0, 0, :, 1])) or
+                     np.all(np.abs(data[0, 0, 1, :, 0])) or
+                     np.all(np.abs(data[0, 0, 1, :, 1])))
+
+        full_dimX = (np.all(np.abs(data[0, 0, 0, 0, :])) or
+                     np.all(np.abs(data[0, 0, 0, 1, :])) or
+                     np.all(np.abs(data[0, 0, 1, 0, :])) or
+                     np.all(np.abs(data[0, 0, 1, 1, :])))
+
+        full_dimZ = (np.all(np.abs(data[0, 0, :, 0, 0:])) or
+                     np.all(np.abs(data[0, 0, :, 1, 1])) or
+                     np.all(np.abs(data[0, 0, :, 0, 1])) or
+                     np.all(np.abs(data[0, 0, :, 1, 0])))
+    else:
+        full_dimY = (np.all(np.abs(data[0, 0, 0, :, 0])) or
+                     np.all(np.abs(data[0, 0, 0, :, 1])))
+        full_dimX = (np.all(np.abs(data[0, 0, 0, 0, :])) or
+                     np.all(np.abs(data[0, 0, 0, 1, :])))
+        full_dimZ = True
+
+    if full_dimZ:
+        if par["is3D"]:
+            print("Image Dimensions Z seems fully sampled. "
+                  "Precompute FFT along Z")
+            data = np.fft.ifft(data, axis=-3, norm='ortho')
+        trans_z = True
+
+    if full_dimY:
         print("Image Dimensions Y seems fully sampled. "
               "Precompute FFT along Y")
         data = np.fft.ifft(data, axis=-2, norm='ortho')
-        par["fft_dim"] = [-1]
+        trans_y = True
 
-    elif full_dimX and not full_dimY:
+    if full_dimX:
         print("Image Dimensions X seems fully sampled. "
               "Precompute FFT along X")
         data = np.fft.ifft(data, axis=-1, norm='ortho')
-        data = np.require(
-            np.moveaxis(data, -1, -2),
-            requirements='C')
-        par["C"] = np.require(
-            np.moveaxis(par["C"], -1, -2),
-            requirements='C')
-        par["mask"] = np.require(
-            np.moveaxis(par["mask"], -1, -2),
-            requirements='C')
-        dimX = par["dimX"]
-        dimY = par["dimY"]
-        par["dimX"] = dimY
-        par["dimY"] = dimX
-        par["N"] = dimY
-        par["Nproj"] = dimX
-        par["transpXY"] = True
-        par["fft_dim"] = [-1]
+        trans_x = True
 
-    elif full_dimX and full_dimY:
-        print("Image Dimensions X and Y seem fully sampled. "
-              "Precompute FFT along X and Y")
-        data = np.fft.ifft2(data, norm='ortho')
-        par["fft_dim"] = None
+    if trans_x:
+        if trans_y and trans_z:
+            par["fft_dim"] = None
+        elif not trans_y and not trans_z:
+            data = np.require(
+                data.transpose(0, 1, -1, -2, -3),
+                requirements='C')
+            par["C"] = np.require(
+                par["C"].transpose(0, -1, -2, -3),
+                requirements='C')
+            par["mask"] = np.require(
+                par["mask"].T,
+                requirements='C')
+            dimX = par["dimX"]
+            NSlice = par["NSlice"]
+            par["dimX"] = NSlice
+            par["NSlice"] = dimX
+            par["par_slices"] = dimX
+            par["N"] = NSlice
+            par["transpXY"] = True
+            par["fft_dim"] = [-2, -1]
+        elif not trans_z and trans_y:
+            data = np.require(
+                data.transpose(0, 1, -1, -2, -3),
+                requirements='C')
+            par["C"] = np.require(
+                par["C"].transpose(0, -1, -2, -3),
+                requirements='C')
+            par["mask"] = np.require(
+                par["mask"].T,
+                requirements='C')
+            dimX = par["dimX"]
+            NSlice = par["NSlice"]
+            par["dimX"] = NSlice
+            par["NSlice"] = dimX
+            par["par_slices"] = dimX
+            par["N"] = NSlice
+            par["transpXY"] = True
+            par["fft_dim"] = [-1]
+        else:
+            data = np.require(
+                np.moveaxis(data, -1, -2),
+                requirements='C')
+            par["C"] = np.require(
+                np.moveaxis(par["C"], -1, -2),
+                requirements='C')
+            par["mask"] = np.require(
+                np.moveaxis(par["mask"], -1, -2),
+                requirements='C')
+            dimX = par["dimX"]
+            dimY = par["dimY"]
+            par["dimX"] = dimY
+            par["dimY"] = dimX
+            par["N"] = dimY
+            par["Nproj"] = dimX
+            par["transpXY"] = True
+            par["fft_dim"] = [-1]
     else:
-        par["fft_dim"] = [-2, -1]
+        if trans_y and trans_z:
+            par["fft_dim"] = [-1]
+        elif not trans_y and not trans_z:
+            par["fft_dim"] = [-3, -2, -1]
+        elif not trans_z and trans_y:
+            data = np.require(
+                np.moveaxis(data, -2, -3),
+                requirements='C')
+            par["C"] = np.require(
+                np.moveaxis(par["C"], -2, -3),
+                requirements='C')
+            par["mask"] = np.require(
+                np.moveaxis(par["mask"], -2, -3),
+                requirements='C')
+            dimY = par["dimY"]
+            NSlice = par["NSlice"]
+            par["dimY"] = NSlice
+            par["NSlice"] = dimY
+            par["par_slices"] = dimY
+            par["Nproj"] = NSlice
+            par["transpXY"] = True
+            par["fft_dim"] = [-2, -1]
+        else:
+            par["fft_dim"] = [-2, -1]
 
     return np.require(data.astype(par["DTYPE"]),
                       requirements='C')
@@ -177,9 +298,9 @@ def _genImages(myargs, par, data, off):
         del FFT, nFTH
 
     else:
-        tol = 1e-6
+        tol = 1e-16
         par_scans = 4
-        lambd = 1e-3
+        lambd = 1e-1
         if "images" not in list(par["file"].keys()):
             images = np.zeros((par["NScan"],
                                par["NSlice"],
@@ -247,44 +368,49 @@ def _genImages(myargs, par, data, off):
 
 def _estScaleNorm(myargs, par, images, data):
 
-    if myargs.trafo:
-        center = int(par["N"]*0.1)
-        ind = np.zeros((par["N"]), dtype=bool)
-        ind[int(par["N"]/2-center):int(par["N"]/2+center)] = 1
-        inds = np.fft.fftshift(ind)
-        dims = tuple(range(data.ndim - 3)) + (-2,)
-        sig = np.max(
-            np.sum(data[..., ind], dims) *
-            np.conj(np.sum(data[..., ind], dims)))
-        noise = np.std(
-            np.sum(data[..., inds], dims) *
-            np.conj(np.sum(data[..., inds], dims)))
+    # if myargs.trafo:
+    #     center = int(par["N"]*0.1)
+    #     ind = np.zeros((par["N"]), dtype=bool)
+    #     ind[int(par["N"]/2-center):int(par["N"]/2+center)] = 1
+    #     inds = np.fft.fftshift(ind)
+    #     dims = tuple(range(data.ndim - 3)) + (-2,)
+    #     sig = np.max(
+    #         np.sum(data[..., ind], dims) *
+    #         np.conj(np.sum(data[..., ind], dims)))
+    #     noise = np.std(
+    #         np.sum(data[..., inds], dims) *
+    #         np.conj(np.sum(data[..., inds], dims)))
 
-    else:
-        centerX = int(par["dimX"]*0.1)
-        centerY = int(par["dimY"]*0.1)
-        ind = np.zeros((par["dimY"], par["dimX"]), dtype=bool)
-        ind[int(par["dimY"]/2-centerY):int(par["dimY"]/2+centerY),
-            int(par["dimX"]/2-centerX):int(par["dimX"]/2+centerX)] = 1
-        if par["fft_dim"] is not None:
-            for shiftdim in par["fft_dim"]:
-                ind = np.fft.fftshift(ind, axes=shiftdim)
-            sig = np.sum(
-                np.abs(data[..., ind])**2)
-            noise = np.sum(
-                np.abs(data[..., ~ind])**2)
-        else:
-            tmp = np.fft.fft2(data, norm='ortho')
-            ind = np.fft.fftshift(ind)
-            sig = np.sum(
-                np.abs(tmp[..., ind])**2)
-            noise = np.sum(
-                np.abs(tmp[..., ~ind])**2)
+    # else:
+    #     centerX = int(par["dimX"]*0.1)
+    #     centerY = int(par["dimY"]*0.1)
+    #     if myargs.is3Ddata:
+    #         centerZ = int(par["NSlice"]*0.1)
+    #     else:
+    #         centerZ = int(par["NSlice"]/2)
 
-    SNR_est = (np.abs(sig/noise))
-    par["SNR_est"] = SNR_est
-    print("Estimated SNR from kspace", SNR_est)
+    #     ind = np.zeros((par["NSlice"], par["dimY"], par["dimX"]), dtype=bool)
+    #     ind[int(par["NSlice"]/2-centerZ):int(par["NSlice"]/2+centerZ),
+    #         int(par["dimY"]/2-centerY):int(par["dimY"]/2+centerY),
+    #         int(par["dimX"]/2-centerX):int(par["dimX"]/2+centerX)] = 1
+    #     if par["fft_dim"] is not None:
+    #         for shiftdim in par["fft_dim"]:
+    #             ind = np.fft.fftshift(ind, axes=shiftdim)
+    #         sig = np.sum(
+    #             np.abs(data[..., ind])**2)
+    #         noise = np.sum(
+    #             np.abs(data[..., ~ind])**2)
+    #     else:
+    #         tmp = np.fft.fft2(data, norm='ortho')
+    #         ind = np.fft.fftshift(ind)
+    #         sig = np.sum(
+    #             np.abs(tmp[..., ind])**2)
+    #         noise = np.sum(
+    #             np.abs(tmp[..., ~ind])**2)
 
+    # SNR_est = (np.abs(sig/noise))
+    # par["SNR_est"] = SNR_est
+    # print("Estimated SNR from kspace", SNR_est)
     dscale = par["DTYPE_real"](1 / np.linalg.norm(np.abs(data)))
     print("Data scale: ", dscale)
     par["dscale"] = dscale
@@ -317,19 +443,18 @@ def _readInput(myargs, par):
             sys.exit()
         file = myargs.file
     name = os.path.normpath(file)
-    par["fname"] = name.split(os.sep)[-1]
-    
-    if not par["fname"].endswith((('.h5'), ('.hdf5'))):
-        par["fname"] += '.h5'
+    par["fname"] = name.split(os.sep)[-1].split(".")[0]
 
     if myargs.outdir == '':
         outdir = os.sep.join(name.split(os.sep)[:-1]) + os.sep + \
             "PyQMRI_out" + \
             os.sep + myargs.sig_model + os.sep + \
             time.strftime("%Y-%m-%d  %H-%M-%S") + os.sep
+        if not os.sep.join(name.split(os.sep)[:-1]):
+            outdir = '.'+outdir
     else:
         outdir = myargs.outdir + os.sep + "PyQMRI_out" + \
-            os.sep + myargs.sig_model + os.sep + \
+            os.sep + myargs.sig_model + os.sep + par["fname"] + os.sep + \
             time.strftime("%Y-%m-%d  %H-%M-%S") + os.sep
     if not os.path.exists(outdir):
         os.makedirs(outdir)
@@ -343,8 +468,7 @@ def _read_data_from_file(par, myargs):
     if reco_Slices == -1:
         reco_Slices = NSlice
     off = 0
-   
-    if myargs.sms:
+    if myargs.sms or myargs.is3Ddata:
         data = par["file"]['real_dat'][()].astype(par["DTYPE"])\
                + 1j*par["file"]['imag_dat'][()].astype(par["DTYPE"])
     else:
@@ -361,16 +485,44 @@ def _read_data_from_file(par, myargs):
 
     dimreduction = 0
     if myargs.trafo:
-        par["traj"] = par["file"]['real_traj'][()].astype(par["DTYPE"]) + \
-                      1j*par["file"]['imag_traj'][()].astype(par["DTYPE"])
+        if "real_traj" in par["file"].keys():
+            par["traj"] = np.stack((
+                par["file"]['imag_traj'][()].astype(par["DTYPE_real"]),
+                par["file"]['real_traj'][()].astype(par["DTYPE_real"])),
+                axis=-1)
+        else:
+            par["traj"] = par["file"]['traj'][()].astype(par["DTYPE_real"])
 
-        par["dcf"] = np.sqrt(goldcomp.cmp(
-                         par["traj"]))
+        if "dcf" in par["file"].keys():
+            par["dcf"] = np.sqrt(
+                par["file"]["dcf"][()].astype(par["DTYPE_real"]))
+        else:
+            par["dcf"] = np.sqrt(goldcomp.cmp(
+                             par["traj"]))
         par["dcf"] = np.require(np.abs(par["dcf"]),
                                 par["DTYPE_real"], requirements='C')
+                    
+        # Check if traj is scaled
+        max_traj_val = np.max(np.abs(par["traj"]))
+        if  np.allclose(max_traj_val, 0.5, rtol=1e-1):
+           par["traj"] *= dimX
+        elif np.allclose(max_traj_val, 1, rtol=1e-1):
+           par["traj"] *= dimX/2
+        
+        overgrid_factor_a = (1/np.linalg.norm(
+            par["traj"][..., -2, :]-par["traj"][..., -1, :], axis=-1))
+        overgrid_factor_b = (1/np.linalg.norm(
+            par["traj"][..., 0, :]-par["traj"][..., 1, :], axis=-1))
+        par["ogf"] = np.min((overgrid_factor_a,
+                             overgrid_factor_b))
+        print("Estimated OGF: ", par["ogf"])
+        par["traj"] *= par["ogf"]
     else:
         par["traj"] = None
         par["dcf"] = None
+
+    #### Need to rework this as it might introduce unknown errors in
+    #### Cartesian data!
     if np.max(utils.prime_factors(data.shape[-1])) > 13:
         print("Samples along the spoke need to have their largest prime factor"
               " to be 13 or lower. Finding next smaller grid.")
@@ -480,14 +632,20 @@ def _populate_par_w_sequencepar(par,
         par["numofpacks"] = int(
             imagedims[0]/(int(par["packs"])*int(par["MB"])))
     else:
-        par["NSlice"] = datashape[2]
+        if par["is3D"]:
+            par["NSlice"] = imagedims[0]
+        else:
+            par["NSlice"] = datashape[2]
         par["packs"] = 1
         par["MB"] = 1
     par["NScan"] = datashape[0]
     par["N"] = datashape[-1]
     par["Nproj"] = datashape[-2]
     par["imagespace"] = imagespace
-    par["fft_dim"] = (-2, -1)
+    if par["is3D"]:
+        par["fft_dim"] = (-3, -2, -1)
+    else:
+        par["fft_dim"] = (-2, -1)
     if streamded:
         par["par_slices"] = par_slices
         par["overlap"] = 1
@@ -532,6 +690,12 @@ def _start_recon(myargs):
     else:
         par["DTYPE"] = np.complex64
         par["DTYPE_real"] = np.float32
+###############################################################################
+# Check for 3D input data #####################################################
+###############################################################################
+    par["is3D"] = myargs.is3Ddata
+    if par["is3D"]:
+        myargs.use3Dcoilest = True
 ###############################################################################
 # Select input file ###########################################################
 ###############################################################################
@@ -585,21 +749,30 @@ def _start_recon(myargs):
 ###############################################################################
     _setupOCL(myargs, par)
 ###############################################################################
-# Coil Sensitivity Estimation #################################################
-###############################################################################
-    est_coils(data, par, par["file"], myargs, off)
-###############################################################################
 # Standardize data ############################################################
 ###############################################################################
-    [NScan, NC, NSlice, Nproj, N] = data.shape
+    [NScan, NC] = data.shape[:2]
+
     if myargs.trafo:
         if par["file"].attrs['data_normalized_with_dcf']:
             pass
         else:
             data = data*(par["dcf"])
     if NC == 1:
-        par['C'] = np.ones((data[0, ...].shape), dtype=par["DTYPE"])
+        par['C'] = np.ones(
+            (1, par["NSlice"], dimY, dimX), dtype=par["DTYPE"])
+        sumSqrC = np.sqrt(
+            np.sum(
+                (par["C"] *
+                 np.conj(
+                    par["C"])),
+                0))
+        par["C"] = par["C"] / sumSqrC
     else:
+###############################################################################
+# Coil Sensitivity Estimation #################################################
+###############################################################################
+        est_coils(data, par, par["file"], myargs, off)
         par['C'] = par['C'].astype(par["DTYPE"])
 ###############################################################################
 # Init forward model and initial guess ########################################
@@ -613,13 +786,16 @@ def _start_recon(myargs):
 ###############################################################################
     if myargs.trafo is False:
         data = _precoompFFT(data, par)
+    # del par["file"]["images"]
     images = _genImages(myargs, par, data, off)
 ###############################################################################
 # Scale data norm  ############################################################
 ###############################################################################
     data, images = _estScaleNorm(myargs, par, images, data)    
     if np.allclose(myargs.weights, -1):
-        par["weights"] = np.ones((par["unknowns"]), dtype=par["DTYPE_real"])
+        if "weights" not in par.keys():
+            par["weights"] = np.ones(
+                (par["unknowns"]), dtype=par["DTYPE_real"])
     else:
         par["weights"] = np.array(myargs.weights, dtype=par["DTYPE_real"])
 ###############################################################################
@@ -628,7 +804,8 @@ def _start_recon(myargs):
     model.computeInitialGuess(
         images, 
         par["dscale"],
-        myargs.initial_guess)
+        myargs.initial_guess,
+        myargs.weights)
 ###############################################################################
 # initialize operator  ########################################################
 ###############################################################################
@@ -642,7 +819,7 @@ def _start_recon(myargs):
                         reg_type=myargs.reg,
                         DTYPE=par["DTYPE"],
                         DTYPE_real=par["DTYPE_real"])
-    f = h5py.File(par["outdir"]+"output_" + par["fname"], "a")
+    f = h5py.File(par["outdir"]+"output_" + par["fname"]+".h5", "a")
     f.create_dataset("images_ifft", data=images)
     f.attrs['data_norm'] = par["dscale"]
     f.close()
@@ -677,6 +854,7 @@ def run(reg_type='TGV',
         config='default',
         imagespace=False,
         sms=False,
+        use_GPU=True,
         devices=0,
         dz=-1,
         weights=-1,
@@ -684,7 +862,9 @@ def run(reg_type='TGV',
         out='',
         modelfile="models.ini",
         modelname="VFA-E1",
-        double_precision=False, 
+        double_precision=False,
+        coils3D=False,
+        is3Ddata=False,
         initial_guess=-1):
     """
     Start a 3D model based reconstruction.
@@ -765,7 +945,7 @@ def run(reg_type='TGV',
               ('--config', str(config)),
               ('--imagespace', str(imagespace)),
               ('--sms', str(sms)),
-              ('--use_GPU', "True"),
+              ('--use_GPU', str(use_GPU)),
               ('--devices', str(devices)),
               ('--dz', str(dz)),
               ('--weights', str(weights)),
@@ -773,9 +953,11 @@ def run(reg_type='TGV',
               ('--model', str(model)),
               ('--modelfile', str(modelfile)),
               ('--modelname', str(modelname)),
-              ('--outdir', str(out)),
-              ('--double_precision', str(double_precision)),
               ('--initial_guess', str(initial_guess))
+              ('--out', str(out)),
+              ('--double_precision', str(double_precision)),
+              ('--estCoils3D', str(coils3D)),
+              ('--is3Ddata', str(is3Ddata))
               ]
 
     sysargs = sys.argv[1:]
@@ -865,9 +1047,6 @@ def _parseArguments(args):
     argparmain.add_argument(
       '--modelname', dest='modelname', type=str,
       help="Name of the model to use.")
-    argparmain.add_argument('--outdir', dest='outdir', type=str,
-                            help="The path to the output directory. Defaults "
-                            "to the location of the input.")
     argparmain.add_argument(
       '--double_precision', dest='double_precision', type=_str2bool,
       help="Switch between single (False, default) and double "
@@ -877,6 +1056,12 @@ def _parseArguments(args):
         '--initial_guess', dest='initial_guess', type=float,
         help="Initial guess for the model parameters.", 
         nargs='*')
+      '--estCoils3D', dest='use3Dcoilest', type=_str2bool,
+      help="Use 3D coil estimation instead of 2D slice-by-slice. \
+      Defaults to false. Currently limited to Cartesian data.")
+    argparmain.add_argument(
+      '--is3Ddata', dest='is3Ddata', type=_str2bool,
+      help="Flag to indicate 3D k-space data as input.")
 
     arguments, unknown = argparmain.parse_known_args(args)
     return arguments, unknown
