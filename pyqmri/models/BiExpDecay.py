@@ -174,7 +174,7 @@ class Model(BaseModel):
             Serves as universal interface. No objects need to be passed
             here.
         """
-        if np.allclose(args[2],-1):
+        if np.allclose(args[3],-1):
             #default setting
             test_M0 = 0.1 * np.ones(
                 (self.NSlice, self.dimY, self.dimX),
@@ -186,15 +186,15 @@ class Model(BaseModel):
             test_T12 = 1/150 * np.ones(
                 (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
         else:
-            assert len(args[2]) == self.unknowns
-            test_M0 = args[2][0] * np.ones(
+            assert len(args[3]) == self.unknowns
+            test_M0 = args[3][0] * np.ones(
                 (self.NSlice, self.dimY, self.dimX),
                 dtype=self._DTYPE)
-            test_M01 = args[2][1] * np.ones(
+            test_M01 = args[3][1] * np.ones(
                 (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
-            test_T11 = args[2][2] * np.ones(
+            test_T11 = args[3][2] * np.ones(
                 (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
-            test_T12 = args[2][3] * np.ones(
+            test_T12 = args[3][3] * np.ones(
                 (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
             
 
