@@ -1056,6 +1056,7 @@ def _parseArguments(args):
         '--initial_guess', dest='initial_guess', type=float,
         help="Initial guess for the model parameters.", 
         nargs='*')
+    argparmain.add_argument(
       '--estCoils3D', dest='use3Dcoilest', type=_str2bool,
       help="Use 3D coil estimation instead of 2D slice-by-slice. \
       Defaults to false. Currently limited to Cartesian data.")
