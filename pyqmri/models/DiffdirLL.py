@@ -268,14 +268,12 @@ class Model(BaseModel):
         else:
             test_M0 = args[0][0]
         
-        import ipdb
-        ipdb.set_trace()
-        if np.allclose(args[2],-1):
+        if np.allclose(args[3],-1):
             # default setting
             ADC = 1 * np.ones(args[0].shape[-3:], dtype=self._DTYPE)
         else:
-            assert len(args[2]) == self.unknowns-1
-            ADC = args[2][0] * np.ones(args[0].shape[-3:], dtype=self._DTYPE)
+            assert len(args[3]) == self.unknowns-1
+            ADC = args[3][0] * np.ones(args[0].shape[-3:], dtype=self._DTYPE)
 
         x = np.array(
             [
