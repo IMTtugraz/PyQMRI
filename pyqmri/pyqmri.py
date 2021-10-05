@@ -953,7 +953,7 @@ def run(reg_type='TGV',
               ('--model', str(model)),
               ('--modelfile', str(modelfile)),
               ('--modelname', str(modelname)),
-              ('--initial_guess', str(initial_guess))
+              ('--initial_guess', str(initial_guess)),
               ('--out', str(out)),
               ('--double_precision', str(double_precision)),
               ('--estCoils3D', str(coils3D)),
