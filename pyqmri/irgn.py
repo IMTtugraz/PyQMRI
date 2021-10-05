@@ -479,7 +479,7 @@ class IRGNOptimizer:
 
         self._fval = (self._datacost +
                       self._regcost +
-                      self._L2Cost +
+#                      self._L2Cost +
                       self.irgn_par["omega"] / 2 *
                       np.linalg.norm(grad_H1.flatten())**2)
         del grad_tv, grad_H1
