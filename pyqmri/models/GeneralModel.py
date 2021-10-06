@@ -211,11 +211,7 @@ class Model(BaseModel):
                 x[j] = args[0][int(self.init_values[j].split("_")[-1])]
             else:
                 x[j] *= float(self.init_values[j])
-        x_scale = np.max(np.abs(x).reshape(x.shape[0], -1), axis=-1)
-        self.uk_scale = x_scale
-        self.guess = x/x_scale[:,None,None,None]
-        for uk in range(len(self._unknowns)):
-            self.constraints[uk].update(x_scale[uk])
+        self.guess = x
 
 
 

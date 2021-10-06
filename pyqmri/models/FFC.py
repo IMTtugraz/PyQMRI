@@ -335,14 +335,5 @@ class Model(BaseModel):
                 50 *
                 np.ones(
                     (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE))
-        x = np.array(
-
+        self.guess = np.array(
             test_M0 + test_Xi + test_R1, dtype=self._DTYPE)
-        x_scale = np.max(np.abs(x).reshape(x.shape[0], -1), axis=-1)
-        self.uk_scale = x_scale
-        self.guess = x/x_scale[:,None,None,None]
-        for uk in range(self.unknowns):
-            self.constraints[uk].update(x_scale[uk])
-
-        # self.guess = np.array(
-        #     test_M0 + test_Xi + test_R1, dtype=self._DTYPE)

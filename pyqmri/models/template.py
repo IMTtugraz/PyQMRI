@@ -97,6 +97,7 @@ class BaseModel(ABC):
         self._plot_trans = []
         self._plot_cor = []
         self._plot_sag = []
+        self.guess = None
 
     def rescale(self, x):
         """Rescale the unknowns with the scaling factors.
@@ -271,8 +272,21 @@ class BaseModel(ABC):
         plt.draw()
         plt.pause(1e-10)
 
+    def _rescaleInitguess(self):
+        self.uk_scale = np.max(
+          np.abs(
+            self.guess).reshape(self.guess.shape[0], -1), axis=-1)
+        self.uk_scale[self.uk_scale==0] = 1
+        self.guess = self.guuess/self.uk_scale[:,None,None,None]
+        for uk in range(self.guess.shape[0]):
+            self.constraints[uk].update(self.uk_scale[uk])
+
+    def setInitalGuess(self, **kwargs):
+      self._computeInitialGuess(kwargs)
+      self._rescaleInitguess()
+
     @abstractmethod
-    def computeInitialGuess(self, *args):
+    def _computeInitialGuess(self, **kwargs):
         """Initialize unknown array for the fitting.
 
         This function provides an initial guess for the fitting.
