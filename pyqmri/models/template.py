@@ -281,8 +281,8 @@ class BaseModel(ABC):
         for uk in range(self.guess.shape[0]):
             self.constraints[uk].update(self.uk_scale[uk])
 
-    def setInitalGuess(self, *args):
-      self.computeInitialGuess(*args)
+    def setInitalGuess(self, **kwargs):
+      self.computeInitialGuess(**kwargs)
       self._rescaleInitGuess()
 
     @abstractmethod
