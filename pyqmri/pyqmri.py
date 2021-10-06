@@ -802,10 +802,10 @@ def _start_recon(myargs):
 # Compute initial guess #######################################################
 ###############################################################################
     model.setInitalGuess(
-        images, 
-        par["dscale"],
-        myargs.weights,
-        myargs.initial_guess)
+        images = images, 
+        dscale = par["dscale"],
+        weights = myargs.weights,
+        initial_guess = myargs.initial_guess)
 ###############################################################################
 # initialize operator  ########################################################
 ###############################################################################

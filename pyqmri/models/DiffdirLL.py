@@ -246,7 +246,7 @@ class Model(BaseModel):
         grad[~np.isfinite(grad)] = 0
         return grad
 
-    def computeInitialGuess(self, *args):
+    def computeInitialGuess(self, **kwargs):
         """Initialize unknown array for the fitting.
 
         This function provides an initial guess for the fitting. args[0] is
@@ -262,18 +262,19 @@ class Model(BaseModel):
             phase correction is needed as each diffusion weighting has a
             different phase.
         """
-        self.phase = np.exp(1j*(np.angle(args[0])-np.angle(args[0][0])))
+        self.phase = np.exp(1j*(np.angle(kwargs['images'])-np.angle(kwargs['images'][0])))
         if self.b0 is not None:
             test_M0 = self.b0
         else:
-            test_M0 = args[0][0]
+            test_M0 = kwargs['images'][0]
         
-        if np.allclose(args[3],-1):
-            # default setting
-            ADC = 1 * np.ones(args[0].shape[-3:], dtype=self._DTYPE)
+        if np.allclose(kwargs['initial_guess'],-1):
+            #default setting
+            ADC = 1 * np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)
         else:
-            assert len(args[3]) == self.unknowns-1
-            ADC = args[3][0] * np.ones(args[0].shape[-3:], dtype=self._DTYPE)
+            #custom initial guess
+            assert len(kwargs['intial_guess']) == self.unknowns-1
+            ADC = kwargs['initial_guess'][0] * np.ones(kwargs['intial_guess'].shape[-3:], dtype=self._DTYPE)
 
         x = np.array(
             [
