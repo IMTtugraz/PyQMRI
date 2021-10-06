@@ -286,7 +286,7 @@ class BaseModel(ABC):
       self._rescaleInitguess()
 
     @abstractmethod
-    def computeInitialGuess(self, **kwargs):
+    def computeInitialGuess(self, *args):
         """Initialize unknown array for the fitting.
 
         This function provides an initial guess for the fitting.
