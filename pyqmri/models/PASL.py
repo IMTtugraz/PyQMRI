@@ -455,14 +455,24 @@ class Model(BaseModel):
                         
                         
 
-    def computeInitialGuess(self, *args):
-        self.dscale = args[1]
+    def computeInitialGuess(self, **kwargs):
+        self.dscale = kwargs['dscale']
         self.constraints[0].update(1/self.dscale)
-        self.images = args[0]/args[1]
-        test_f = 30 * self.dscale * np.ones(
-            (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
-        test_del_t = 1/60 * np.ones(
-            (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
+        self.images = kwargs['images']/kwargs['dscale']
+        if np.allclose(kwargs['initial_guess'],-1):
+            #default setting
+            test_f = 30 * self.dscale * np.ones(
+                kwargs['images'].shape[-3:], dtype=self._DTYPE)
+            test_del_t = 1/60 * np.ones(
+                kwargs['images'].shape[-3:], dtype=self._DTYPE)
+        else:
+            #custom initial guess
+            assert len(kwargs['initial_guess']) == self.unknowns-1
+            test_f = kwargs['inigial_guess'][0] * self.dscale * np.ones(
+                kwargs['images'].shape[-3:], dtype=self._DTYPE)
+            test_del_t = kwargs['initial_guess'][1] * np.ones(
+                kwargs['images'].shape[-3:], dtype=self._DTYPE)
+        
         x = np.array([test_f,
                       test_del_t], dtype=self._DTYPE)
         self.guess = x

@@ -311,30 +311,27 @@ class Model(BaseModel):
                                     int(self.NSlice/2),
                                     self._ind2, self._ind1]).T)
 
-    def computeInitialGuess(self, *args):
-        self.dscale = args[1]
-        self.images = np.reshape(np.abs(args[0]/args[1]),
-                                 self.t.shape+args[0].shape[-3:])
+    def computeInitialGuess(self, **kwargs):
+        self.dscale = kwargs['dscale']
+        self.images = np.reshape(np.abs(kwargs['images']/kwargs['dscale']),
+                                 self.t.shape+kwargs['images'].shape[-3:])
         test_M0 = []
         for j in range(self.numC):
-            test_M0.append(0.1*np.ones(
-                (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)*
-                np.exp(1j*np.angle(args[0][0])))
-            self.constraints[j].update(1/args[1])
+            test_M0.append(0.1*np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)*
+                np.exp(1j*np.angle(kwargs['images'][0])))
+            self.constraints[j].update(1/kwargs['dscale'])
         test_Xi = []
         for j in range(self.numAlpha):
             test_Xi.append(
                 1 *
-                np.ones(
-                    (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE))
+                np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE))
  
         test_R1 = []
         # self.b *= args[1]
         for j in range(self.numT1Scale):
             test_R1.append(
                 50 *
-                np.ones(
-                    (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE))
+                np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE))
         x = np.array(
 
             test_M0 + test_Xi + test_R1, dtype=self._DTYPE)

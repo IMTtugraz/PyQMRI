@@ -272,7 +272,7 @@ class BaseModel(ABC):
         plt.pause(1e-10)
 
     @abstractmethod
-    def computeInitialGuess(self, *args):
+    def computeInitialGuess(self, **kwargs):
         """Initialize unknown array for the fitting.
 
         This function provides an initial guess for the fitting.
