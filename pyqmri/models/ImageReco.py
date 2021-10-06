@@ -30,6 +30,7 @@ class Model(BaseModel):
         par["unknowns_TGV"] = self.NScan
         par["unknowns_H1"] = 0
         par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
+        self.unknowns = par["unknowns_TGV"]+par["unknowns_H1"]
 
         for j in range(par["unknowns"]):
             self.uk_scale.append(1)
@@ -85,7 +86,7 @@ class Model(BaseModel):
         grad_M0[~np.isfinite(grad_M0)] = 1e-20
         return grad_M0
 
-    def computeInitialGuess(self, *args):
+    def computeInitialGuess(self, **kwargs):
         """Initialize unknown array for the fitting.
 
         This function provides an initial guess for the fitting.
@@ -96,4 +97,4 @@ class Model(BaseModel):
             Assumes the images series at position 0 and uses it as initial
             guess.
         """
-        self.guess = np.zeros_like((args[0]).astype(self._DTYPE))
+        self.guess = np.zeros_like((kwargs['images']).astype(self._DTYPE))

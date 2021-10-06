@@ -25,6 +25,8 @@ class Model(BaseModel):
         par["unknowns_TGV"] = 2
         par["unknowns_H1"] = 0 
         par["unknowns"] = par["unknowns_TGV"] + par["unknowns_H1"]
+        self.unknowns = par["unknowns"]
+        
         for i in range(par["unknowns_TGV"] + par["unknowns_H1"]):
             self.uk_scale.append(1)
         try:
@@ -82,13 +84,19 @@ class Model(BaseModel):
         return grad
 
 
-    def computeInitialGuess(self, *args):       
-        self.phase = np.exp(1j*(np.angle(args[0])-np.angle(args[0][0])))
+    def computeInitialGuess(self, **kwargs):       
+        self.phase = np.exp(1j*(np.angle(kwargs['images'])-np.angle(kwargs['images'][0])))
         if self.b0 is not None:
             test_M0 = self.b0
         else:
-            test_M0 = args[0][0]
-        ADC = 1 * np.ones(args[0].shape[-3:], dtype = self._DTYPE)
+            test_M0 = kwargs['images'][0]
+        
+        if np.allclose(kwargs['initial_guess'],-1):
+            #default setting
+            ADC = 1 * np.ones(kwargs['images'].shape[-3:], dtype = self._DTYPE)
+        else:
+            #custom initial guess
+            ADC = kwargs['initial_guess'][0] * np.ones(kwargs['images'].shape[-3:], dtype = self._DTYPE)
 
         x = np.array((test_M0, ADC))
         self.guess = x
