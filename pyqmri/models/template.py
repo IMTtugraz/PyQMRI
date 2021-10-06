@@ -282,11 +282,11 @@ class BaseModel(ABC):
             self.constraints[uk].update(self.uk_scale[uk])
 
     def setInitalGuess(self, **kwargs):
-      self._computeInitialGuess(kwargs)
+      self.computeInitialGuess(kwargs)
       self._rescaleInitguess()
 
     @abstractmethod
-    def _computeInitialGuess(self, **kwargs):
+    def computeInitialGuess(self, **kwargs):
         """Initialize unknown array for the fitting.
 
         This function provides an initial guess for the fitting.
