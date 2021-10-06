@@ -801,7 +801,7 @@ def _start_recon(myargs):
 ###############################################################################
 # Compute initial guess #######################################################
 ###############################################################################
-    model.computeInitialGuess(
+    model.setInitalGuess(
         images = images, 
         dscale = par["dscale"],
         weights = myargs.weights,
