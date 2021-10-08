@@ -199,11 +199,11 @@ class Model(BaseModel):
                   0.02,0.3,-1,
                   0.0,0.4,+3,
                   0.0,0.5,-4,
-                  0.0,10,-6,
+                  0.0,10,-4,
                   0.0,1,1.7]
             ub = [1e5,
                   1,10,+1,
-                  0.2,10,+4,
+                  0.2,4,+4,
                   0.6,10,-2.5, #mittlerer Wert war 5
                   1,99,0,
                   0.5,3.5,2.5]
@@ -254,10 +254,17 @@ class Model(BaseModel):
         #     const.real = False
         # self.guess[0] = args[0][self.omega.squeeze()==0]
         self.guess = self.guess.astype(self._DTYPE)
-        # self.guess[0] = (args[0][0])/self.dscale
+        self.guess[0] = (args[0][0])/self.dscale
         # self.guess[1] = np.exp(1j*np.angle(args[0][0]))
+        x = self.guess
+        x_scale = np.max(np.abs(x).reshape(x.shape[0], -1), axis=-1)
+        x_scale[x_scale==0] = 1
+        self.uk_scale = x_scale
+        self.guess = x/x_scale[:,None,None,None]
+        for uk in range(self.unknowns):
+            self.constraints[uk].update(x_scale[uk])
 
-        
+
         
     def plot_unknowns(self, x, dim_2D=False):
         unknowns = self.rescale(x)
