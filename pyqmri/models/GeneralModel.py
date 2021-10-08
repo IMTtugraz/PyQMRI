@@ -189,7 +189,7 @@ class Model(BaseModel):
         modelgradient[~np.isfinite(modelgradient)] = 1e-20
         return modelgradient
 
-    def computeInitialGuess(self, *args):
+    def computeInitialGuess(self, **kwargs):
         """Initialize unknown array for the fitting.
 
         This function provides an initial guess for the fitting, based
@@ -203,19 +203,15 @@ class Model(BaseModel):
             the first image in the series. (Scan i minus Scan 0)
         """
         if self.indphase is True:
-            self._phase = np.exp(1j*(np.angle(args[0])-np.angle(args[0][0])))
+            self._phase = np.exp(1j*(np.angle(kwargs['images'])-np.angle(kwargs['images'][0])))
         x = np.ones((len(self.init_values),
                      self.NSlice, self.dimY, self.dimX), self._DTYPE)
         for j in range(len(self.init_values)):
             if "image" in self.init_values[j]:
-                x[j] = args[0][int(self.init_values[j].split("_")[-1])]
+                x[j] = kwargs['images'][int(self.init_values[j].split("_")[-1])]
             else:
                 x[j] *= float(self.init_values[j])
-        x_scale = np.max(np.abs(x).reshape(x.shape[0], -1), axis=-1)
-        self.uk_scale = x_scale
-        self.guess = x/x_scale[:,None,None,None]
-        for uk in range(len(self._unknowns)):
-            self.constraints[uk].update(x_scale[uk])
+        self.guess = x
 
 
 

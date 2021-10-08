@@ -69,6 +69,7 @@ class Model(BaseModel):
         par["unknowns_TGV"] = 2
         par["unknowns_H1"] = 0
         par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
+        self.unknowns = par["unknowns_TGV"]+par["unknowns_H1"]
 
         phi_corr = np.zeros_like(par["fa_corr"], dtype=self._DTYPE)
         phi_corr = np.real(
@@ -284,7 +285,7 @@ class Model(BaseModel):
 
         return np.mean(grad, axis=2, dtype=self._DTYPE).astype(self._DTYPE)
 
-    def computeInitialGuess(self, *args):
+    def computeInitialGuess(self, **kwargs):
         """Initialize unknown array for the fitting.
 
         This function provides an initial guess for the fitting.
@@ -295,12 +296,21 @@ class Model(BaseModel):
             Serves as universal interface. No objects need to be passed
             here.
         """
-        test_T1 = 800 * np.ones(
-            (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
-        test_M0 = 1e-3*np.ones(
-            (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
+        if np.allclose(kwargs['initial_guess'],-1):
+            #default setting
+            test_T1 = 800 * np.ones(
+                kwargs['images'].shape[-3:], dtype=self._DTYPE)
+            test_M0 = 1e-3*np.ones(
+                kwargs['images'].shape[-3:], dtype=self._DTYPE)
+        else:
+            #custom initial guess
+            test_T1 = kwargs['initial_guess'][0]* np.ones(
+                kwargs['images'].shape[-3:], dtype=self._DTYPE)
+            test_M0 = kwargs['initial_guess'][1]*np.ones(
+                kwargs['images'].shape[-3:], dtype=self._DTYPE)
         test_T1 = np.exp(-self.scale / (test_T1))
 
-        self.guess = np.array(
+        x = np.array(
             [test_M0 / self.uk_scale[0],
              test_T1 / self.uk_scale[1]], dtype=self._DTYPE)
+        self.guess = x

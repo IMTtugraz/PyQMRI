@@ -41,6 +41,7 @@ class Model(BaseModel):
         par["unknowns_TGV"] = 2
         par["unknowns_H1"] = 0
         par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
+        self.unknowns = par["unknowns_TGV"]+par["unknowns_H1"]
 
         for j in range(par["unknowns"]):
             self.uk_scale.append(1)
@@ -110,7 +111,7 @@ class Model(BaseModel):
         grad[~np.isfinite(grad)] = 1e-20
         return grad
 
-    def computeInitialGuess(self, *args):
+    def computeInitialGuess(self, **kwargs):
         """Initialize unknown array for the fitting.
 
         This function provides an initial guess for the fitting.
@@ -121,12 +122,18 @@ class Model(BaseModel):
             Serves as universal interface. No objects need to be passed
             here.
         """
-        test_M0 = 0.1 * np.ones(
-            (self.NSlice, self.dimY, self.dimX),
-            dtype=self._DTYPE)
-        test_T11 = 1/600 * np.ones(
-            (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
+        if np.allclose(kwargs['initial_guess'],-1):
+            #default setting
+            test_M0 = 0.1 * np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)
+            test_T11 = 1/600 * np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)
+        else:
+            #custom initial guess
+            test_M0 = kwargs['initial_guess'][0]     * np.ones(
+                kwargs['images'].shape[-3:], dtype=self._DTYPE)
+            test_T11 = kwargs['initial_guess'][1]* np.ones(
+                kwargs['images'].shape[-3:], dtype=self._DTYPE)
 
-        self.guess = np.array([
+        x = np.array([
             test_M0,
             test_T11], dtype=self._DTYPE)
+        self.guess = x
