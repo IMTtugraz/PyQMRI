@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from pyqmri.models.template import BaseModel, constraints, DTYPE
-import matplotlib.gridspec as gridspec
+from pyqmri.models.template import BaseModel, constraints
 import matplotlib.pyplot as plt
 import numpy as np
 plt.ion()
@@ -40,7 +39,7 @@ class Model(BaseModel):
         self.constraints.append(
             constraints(
                 0 / self.uk_scale[0],
-                100 / self.uk_scale[0],
+                1e10 / self.uk_scale[0],
                 False))
         self.constraints.append(
             constraints(
@@ -67,8 +66,8 @@ class Model(BaseModel):
         S *= self.phase
 
         S[~np.isfinite(S)] = 1e-20
-        S = np.array(S, dtype=DTYPE)
-        return S
+        S = np.array(S, dtype=self._DTYPE)
+        return S*self.dscale
 
     def _execute_gradient_3D(self, x):
         M0 = x[0, ...]
@@ -79,17 +78,18 @@ class Model(BaseModel):
         grad_ADC = -grad_M0 * M0 * self.b * self.uk_scale[1]
 
         grad = np.array([grad_M0, grad_ADC],
-                        dtype=DTYPE)
+                        dtype=self._DTYPE)
         grad[~np.isfinite(grad)] = 1e-20
-        return grad
+        return grad*self.dscale
 
 
     def computeInitialGuess(self, **kwargs):       
         self.phase = np.exp(1j*(np.angle(kwargs['images'])-np.angle(kwargs['images'][0])))
+        self.dscale = kwargs["dscale"]
         if self.b0 is not None:
             test_M0 = self.b0
         else:
-            test_M0 = kwargs['images'][0]
+            test_M0 = kwargs['images'][0]/self.dscale
         
         if np.allclose(kwargs['initial_guess'],-1):
             #default setting

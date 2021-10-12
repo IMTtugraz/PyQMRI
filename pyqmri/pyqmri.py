@@ -11,6 +11,7 @@ import numpy as np
 from tkinter import filedialog
 from tkinter import Tk
 from inputimeout import inputimeout, TimeoutOccurred
+import faulthandler; faulthandler.enable()
 
 import matplotlib.pyplot as plt
 

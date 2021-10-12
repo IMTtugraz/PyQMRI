@@ -12,6 +12,7 @@ import pyopencl.reduction as clred
 import pyqmri.operator as operator
 from pyqmri._helper_fun import CLProgram as Program
 import pyqmri.streaming as streaming
+import faulthandler; faulthandler.enable()
 
 
 class CGSolver:
@@ -862,7 +863,7 @@ class PDBaseSolver:
                                   )
 
         elif reg_type == 'TGV':
-            L = DTYPE_real(1e-12)#((0.5 * (18.0 + np.sqrt(33)))**2))
+            L = DTYPE_real(1e-10)#((0.5 * (18.0 + np.sqrt(33)))**2))
             if streamed:
                 if SMS:
                     pdop = PDSolverStreamedTGVSMS(

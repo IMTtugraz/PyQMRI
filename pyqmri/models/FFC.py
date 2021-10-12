@@ -60,7 +60,7 @@ class Model(BaseModel):
         for j in range(len(self.b)):
             self._labels.append(
                 "Field "+str(np.round(self.b[j]*1e3, 2))+" mT")
-        par["weights"] = np.array([1]*self.numC+self.numAlpha*[10]+self.numT1Scale*[1],dtype=par["DTYPE_real"])
+        par["weights"] = np.array([1]*self.numC+self.numAlpha*[3]+self.numT1Scale*[1],dtype=par["DTYPE_real"])
         # par["weights"] /= np.sum(par["weights"])
 
     def rescale(self, x):
@@ -102,7 +102,7 @@ class Model(BaseModel):
                 )
         S[~np.isfinite(S)] = 0
         S = np.array(S, dtype=self._DTYPE)
-        return S
+        return S*self.dscale
 
     def _execute_gradient_3D(self, x):
 
@@ -111,7 +111,7 @@ class Model(BaseModel):
         gradT1 = self._gradT1(x)
 
         grad = np.concatenate((gradC, gradAlpha, gradT1), axis=0)
-        return grad
+        return grad*self.dscale
 
     def _gradC(self, x):
         grad = np.zeros(
@@ -182,7 +182,7 @@ class Model(BaseModel):
         images = np.abs(self._execute_forward_3D(x) / self.dscale)
         images = np.reshape(images, self.t.shape+images.shape[-3:])
 
-        tmp_x[:self.numC] = np.abs(tmp_x[:self.numC])/self.dscale
+        tmp_x[:self.numC] = np.abs(tmp_x[:self.numC])
         tmp_x[self.numC:self.numC+self.numAlpha] = np.abs(tmp_x[self.numC:self.numC+self.numAlpha])
         tmp_x[-self.numT1Scale:] = np.abs(tmp_x[-self.numT1Scale:])
         tmp_x = np.real(tmp_x)
@@ -315,11 +315,12 @@ class Model(BaseModel):
         self.dscale = kwargs['dscale']
         self.images = np.reshape(np.abs(kwargs['images']/kwargs['dscale']),
                                  self.t.shape+kwargs['images'].shape[-3:])
+        
         test_M0 = []
         for j in range(self.numC):
-            test_M0.append(0.1*np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)*
+            test_M0.append(1/self.dscale*np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)*
                 np.exp(1j*np.angle(kwargs['images'][0])))
-            self.constraints[j].update(1/kwargs['dscale'])
+            # self.constraints[j].update(1/kwargs['dscale'])
         test_Xi = []
         for j in range(self.numAlpha):
             test_Xi.append(

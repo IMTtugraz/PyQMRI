@@ -185,7 +185,7 @@ class IRGNOptimizer:
             streamed
             )
 
-        self._grad_op, self._symgrad_op, self._v = self._setupLinearOps(
+        grad_op, symgrad_op, self._v = self._setupLinearOps(
             DTYPE,
             DTYPE_real)
 
@@ -197,7 +197,7 @@ class IRGNOptimizer:
                 self.irgn_par,
                 self._fval_init,
                 self._coils,
-                linops=(self._MRI_operator, self._grad_op, self._symgrad_op),
+                linops=(self._MRI_operator, grad_op, symgrad_op),
                 model=model,
                 reg_type=self._reg_type,
                 SMS=self._SMS,
@@ -213,7 +213,7 @@ class IRGNOptimizer:
                 self.par,
                 self.irgn_par,
                 self._coils,
-                linops=(self._MRI_operator, self._grad_op)
+                linops=(self._MRI_operator, grad_op)
                 )
 
         self._gamma = None
@@ -279,6 +279,21 @@ class IRGNOptimizer:
                 requirements='C')
 
         self._step_val = np.nan_to_num(self._model.execute_forward(result))
+        self._modelgrad = np.nan_to_num(
+            self._model.execute_gradient(result))
+        
+        self._calcResidual(result, data, -1)
+        scale = np.sqrt(1e3/self._datacost)
+        self.par["dscale"] *=scale
+        data *= scale
+        # result[0,0] *= scale
+        self._step_val *= scale
+        self._modelgrad *= scale
+        # self._balanceModelGradients(result, 0)
+        # if hasattr(self._model, "images"):
+        #     self._model.images *= scale
+        if hasattr(self._model, "dscale"):
+            self._model.dscale *= scale
 
         if self._streamed:
             if self._SMS is False:
@@ -287,18 +302,18 @@ class IRGNOptimizer:
 
         for ign in range(self.irgn_par["max_gn_it"]):
             start = time.time()
-            self._modelgrad = np.nan_to_num(
-                self._model.execute_gradient(result))
+            self._updateIRGNRegPar(ign)
+            if ign > 0:
+                self._modelgrad = np.nan_to_num(
+                    self._model.execute_gradient(result))
+                self._step_val = np.nan_to_num(
+                    self._model.execute_forward(result))
 
             self._balanceModelGradients(result, ign)
-            self._updateIRGNRegPar(ign)
-            # self._pdop._grad_op.updateRatio(
-            #     self.irgn_par["gamma"])
-            # if self._reg_type == 'TGV':
-            #     self._pdop._symgrad_op.updateRatio(
-            #         2*self.irgn_par["gamma"])
-
-            self._step_val = np.nan_to_num(self._model.execute_forward(result))
+            self._pdop._grad_op.updateRatio(
+                self._model.uk_scale, result)
+            if self._reg_type == 'TGV':
+                self._pdop._symgrad_op.updateRatio(self._pdop._grad_op.ratio)
 
             if self._streamed:
                 if self._SMS is False:
@@ -401,7 +416,7 @@ class IRGNOptimizer:
             f.attrs['res_tv_iter_'+str(myit)] = self._fval
         f.attrs['datacost_iter_'+str(myit)] = self._datacost
         f.attrs['regcost_iter_'+str(myit)] = self._regcost 
-        f.attrs['L2Cost_iter_'+str(myit)] = self._L2Cost 
+        # f.attrs['L2Cost_iter_'+str(myit)] = self._L2Cost 
         f.close()
 
 ###############################################################################
@@ -479,17 +494,19 @@ class IRGNOptimizer:
         if GN_it == 0:
             self._fval_init = self._fval
             self._pdop.setFvalInit(self._fval)
-
-        print("-" * 75)
-        print("Initial Cost: %f" % (self._fval_init))
-        print("Costs of Data: %f" % (1e3*self._datacost / self._fval_init))
-        print("Costs of T(G)V: %f" % (1e3*self._regcost / self._fval_init))
-#        print("Costs of L2 Term: %f" % (1e3*self._L2Cost / self._fval_init))
-        print("-" * 75)
-        print("Function value at GN-Step %i: %f" %
-              (GN_it, 1e3*self._fval / self._fval_init))
-        print("-" * 75)
-        return b
+        
+        if GN_it >= 0:
+            print("-" * 75)
+            print("Initial Cost: %f" % (self._fval_init))
+            print("Costs of Data: %f" % (1e3*self._datacost / self._fval_init))
+            print("Costs of T(G)V: %f" % (1e3*self._regcost / self._fval_init))
+    #        print("Costs of L2 Term: %f" % (1e3*self._L2Cost / self._fval_init))
+            print("-" * 75)
+            print("Function value at GN-Step %i: %f" %
+                  (GN_it, 1e3*self._fval / self._fval_init))
+            print("-" * 75)
+            return b
+        return None
 
     def _calcFwdGNPartLinear(self, x):
         if self._imagespace is False:
@@ -507,7 +524,7 @@ class IRGNOptimizer:
         x = clarray.to_device(self._queue[0], np.require(x, requirements="C"))
         grad = clarray.to_device(self._queue[0],
                                  np.zeros(x.shape+(4,), dtype=self._DTYPE))
-        self._grad_op.fwd(
+        self._pdop._grad_op.fwd(
             grad,
             x,
             wait_for=grad.events +
@@ -521,7 +538,7 @@ class IRGNOptimizer:
                                          np.zeros(x.shape+(8,),
                                                   dtype=self._DTYPE))
 
-            self._symgrad_op.fwd(
+            self._pdop._symgrad_op.fwd(
                 sym_grad,
                 v,
                 wait_for=sym_grad.events +
@@ -552,11 +569,11 @@ class IRGNOptimizer:
         else:
             b = self._step_val
         grad = np.zeros(x.shape+(4,), dtype=self._DTYPE)
-        self._grad_op.fwd([grad], [[x]])
+        self._pdop._grad_op.fwd([grad], [[x]])
 
         sym_grad = None
         if self._reg_type == 'TGV':
             sym_grad = np.zeros(x.shape+(8,), dtype=self._DTYPE)
-            self._symgrad_op.fwd([sym_grad], [[self._v]])
+            self._pdop._symgrad_op.fwd([sym_grad], [[self._v]])
 
         return b, grad, sym_grad

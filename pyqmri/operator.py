@@ -2114,11 +2114,12 @@ class OperatorFiniteGradient(Operator):
         super().__init__(par, prg, DTYPE, DTYPE_real)
         self.queue = self.queue[0]
         self.ctx = self.ctx[0]
+        self._weights = par["weights"]
+        # self._weights /= np.sum(self._weights)
         self.ratio = clarray.to_device(
             self.queue,
-            (par["weights"]).astype(
+            (self._weights).astype(
                      dtype=self.DTYPE_real))
-        self._weights = par["weights"]
 
     def fwd(self, out, inp, **kwargs):
         """Forward operator application in-place.
@@ -2255,55 +2256,60 @@ class OperatorFiniteGradient(Operator):
             wait_for=tmp_result.events + inp.events + wait_for).wait()
         return tmp_result
 
-    def updateRatio(self, inp):
+    def updateRatio(self, inp, x):
         self.ratio = clarray.to_device(
             self.queue,
-            (self._weights*inp).astype(
-                     dtype=self.DTYPE_real))
-#         x = clarray.to_device(self.queue, inp)
-#         grad = clarray.to_device(
-#             self.queue, np.zeros(x.shape + (4,),
-#                                  dtype=self.DTYPE))
-#         self.ratio = clarray.to_device(
-#             self.queue,
-#             (self._weights *
-#              np.ones(
-#                  self.unknowns)).astype(
-#                      self.DTYPE_real))
-#         grad.add_event(
-#             self.fwd(
-#                 grad,
-#                 x,
-#                 wait_for=grad.events +
-#                 x.events))
-#         x = x.get()
-#         grad = grad.get()
-#         scale = np.reshape(
-#             x, (self.unknowns,
-#                 self.NSlice * self.dimY * self.dimX))
-#         grad = np.reshape(
-#             grad, (self.unknowns,
-#                    self.NSlice *
-#                    self.dimY *
-#                    self.dimX * 4))
-#         print("Total Norm of grad x pre: ", np.sum(np.abs(grad)))
-#         gradnorm = np.sum(np.abs(grad), axis=-1)
-#         print("Norm of grad x pre: ", gradnorm)
-#         gradnorm /= np.sum(gradnorm)/self.unknowns
-#         scale = 1/gradnorm
+            (self._weights).astype(
+                      dtype=self.DTYPE_real))
+        print("Ratio: ", self.ratio)
+        x = clarray.to_device(self.queue, x)
+        grad = clarray.to_device(
+            self.queue, np.zeros(x.shape + (4,),
+                                  dtype=self.DTYPE))
+        # import ipdb
+        # import pyqmri
+        # import matplotlib.pyplot as plt
+        # ipdb.set_trace()
+        # self.ratio = clarray.to_device(
+        #     self.queue,
+        #     (
+        #       1/self.unknowns*np.ones(
+        #           self.unknowns)).astype(
+        #               self.DTYPE_real))
+        grad.add_event(
+            self.fwd(
+                grad,
+                x,
+                wait_for=grad.events +
+                x.events))
+        x = x.get()
+        grad = grad.get()
+        scale = np.reshape(
+            x, (self.unknowns,
+                self.NSlice * self.dimY * self.dimX))
+        grad = np.reshape(
+            grad, (self.unknowns,
+                    self.NSlice *
+                    self.dimY *
+                    self.dimX * 4))
+        print("Total Norm of grad x pre: ", np.sum(np.abs(grad)))
+        gradnorm = np.sum(np.abs(grad), axis=-1)
+        print("Norm of grad x pre: ", gradnorm)
+#         # gradnorm /= np.sum(gradnorm)#/self.unknowns
+#         scale = np.sum(gradnorm)/gradnorm/self.unknowns
 #         scale[~np.isfinite(scale)] = 1
 #         # print("Scale: ", scale)
 #         for j in range(x.shape[0])[:self.unknowns_TGV]:
-#             self.ratio[j] = scale[j] * self._weights[j]
+#             self.ratio[j] *= scale[j] #* self._weights[j]
 # #        sum_scale = np.sqrt(np.sum(np.abs(
 # #            scale[self.unknowns_TGV:])**2/(1000)))
 #         for j in range(x.shape[0])[self.unknowns_TGV:]:
-#             self.ratio[j] = scale[j] * self._weights[j]
-#         # print("Ratio: ", self.ratio)
+#             self.ratio[j] *= scale[j] #* self._weights[j]
+#         print("Ratio: ", self.ratio)
 #         x = clarray.to_device(self.queue, x)
 #         grad = clarray.to_device(
 #             self.queue, np.zeros(x.shape + (4,),
-#                                  dtype=self.DTYPE))
+#                                   dtype=self.DTYPE))
 #         grad.add_event(
 #             self.fwd(
 #                 grad,
@@ -2314,9 +2320,9 @@ class OperatorFiniteGradient(Operator):
 #         grad = grad.get()
 #         grad = np.reshape(
 #             grad, (self.unknowns,
-#                    self.NSlice *
-#                    self.dimY *
-#                    self.dimX * 4))
+#                     self.NSlice *
+#                     self.dimY *
+#                     self.dimX * 4))
 #         print("Norm of grad x post: ",  np.sum(np.abs(grad), axis=-1))
 #         print("Total Norm of grad x post: ",  np.sum(np.abs(grad)))
 
@@ -2357,11 +2363,12 @@ class OperatorFiniteSymGradient(Operator):
         super().__init__(par, prg, DTYPE, DTYPE_real)
         self.queue = self.queue[0]
         self.ctx = self.ctx[0]
+        self._weights = par["weights"]
+        # self._weights /= np.sum(self._weights)
         self.ratio = clarray.to_device(
             self.queue,
-            np.ones_like(par["weights"]).astype(
+            (self._weights).astype(
                      dtype=self.DTYPE_real))
-        self._weights = par["weights"]
 
     def fwd(self, out, inp, **kwargs):
         """Forward operator application in-place.
@@ -2503,10 +2510,11 @@ class OperatorFiniteSymGradient(Operator):
         return tmp_result
 
     def updateRatio(self, inp):
-        self.ratio = clarray.to_device(
-            self.queue,
-            (self._weights*inp).astype(
-                     dtype=self.DTYPE_real))
+        self.ratio = inp
+        # clarray.to_device(
+        #     self.queue,
+        #     (self._weights*inp).astype(
+        #              dtype=self.DTYPE_real))
 
 class OperatorFiniteGradientStreamed(Operator):
     """Streamed gradient operator.

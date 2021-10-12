@@ -131,9 +131,9 @@ class Model(BaseModel):
                                            symbolic_gradients[j]))
         
     
-    def computeInitialGuess(self,*args):
-        self.images = np.abs(args[0]/args[1])
-        self.dscale = args[1]
+    def computeInitialGuess(self, **kwargs):
+        self.images = np.abs(kwargs["images"]/kwargs["dscale"])
+        self.dscale = kwargs["dscale"]
         # import ipdb
         # import matplotlib.pyplot as plt
         # import pyqmri
@@ -254,15 +254,15 @@ class Model(BaseModel):
         #     const.real = False
         # self.guess[0] = args[0][self.omega.squeeze()==0]
         self.guess = self.guess.astype(self._DTYPE)
-        self.guess[0] = (args[0][0])/self.dscale
+        self.guess[0] = (kwargs["images"][0])/self.dscale
         # self.guess[1] = np.exp(1j*np.angle(args[0][0]))
-        x = self.guess
-        x_scale = np.max(np.abs(x).reshape(x.shape[0], -1), axis=-1)
-        x_scale[x_scale==0] = 1
-        self.uk_scale = x_scale
-        self.guess = x/x_scale[:,None,None,None]
-        for uk in range(self.unknowns):
-            self.constraints[uk].update(x_scale[uk])
+        # x = self.guess
+        # x_scale = np.max(np.abs(x).reshape(x.shape[0], -1), axis=-1)
+        # x_scale[x_scale==0] = 1
+        # self.uk_scale = x_scale
+        # self.guess = x/x_scale[:,None,None,None]
+        # for uk in range(self.unknowns):
+        #     self.constraints[uk].update(x_scale[uk])
 
 
         
