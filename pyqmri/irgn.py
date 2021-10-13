@@ -13,6 +13,7 @@ import pyqmri.operator as operator
 import pyqmri.solver as optimizer
 from pyqmri._helper_fun import CLProgram as Program
 from pyqmri._helper_fun import _utils as utils
+import faulthandler; faulthandler.enable()
 
 
 class IRGNOptimizer:
@@ -281,6 +282,16 @@ class IRGNOptimizer:
         self._step_val = np.nan_to_num(self._model.execute_forward(result))
         self._modelgrad = np.nan_to_num(
             self._model.execute_gradient(result))
+
+        # M0_scale = np.quantile(np.abs(result[0])*self._model.uk_scale[0], 0.9)
+        # print("M0_scale: ", M0_scale)
+        # data /= M0_scale
+        # self._modelgrad /= M0_scale
+        # self._step_val /= M0_scale
+        # self._model.uk_scale[0] /= M0_scale
+        # if hasattr(self._model, "images"):
+        #     self._model.images /= M0_scale
+        
         
         self._calcResidual(result, data, -1)
         scale = np.sqrt(1e3/self._datacost)
@@ -309,11 +320,12 @@ class IRGNOptimizer:
                 self._step_val = np.nan_to_num(
                     self._model.execute_forward(result))
 
+
             self._balanceModelGradients(result, ign)
-            self._pdop._grad_op.updateRatio(
-                self._model.uk_scale, result)
-            if self._reg_type == 'TGV':
-                self._pdop._symgrad_op.updateRatio(self._pdop._grad_op.ratio)
+            # self._pdop._grad_op.updateRatio(
+            #     self._model.uk_scale, result)
+            # if self._reg_type == 'TGV':
+            #     self._pdop._symgrad_op.updateRatio(self._pdop._grad_op.ratio)
 
             if self._streamed:
                 if self._SMS is False:
@@ -378,10 +390,10 @@ class IRGNOptimizer:
         scale = np.linalg.norm(scale, axis=-1)
         print("Initial Norm: ", np.linalg.norm(scale))
         print("Initial Ratio: ", scale)
-        if ign == 0:
-            scale /= 100/np.sqrt(self.par["unknowns"])
-        else:
-            scale /= np.linalg.norm(scale)/np.sqrt(self.par["unknowns"])
+        # if ign == 0:
+        scale /= 100/np.sqrt(self.par["unknowns"])
+        # else:
+        #     scale /= np.linalg.norm(scale)/np.sqrt(self.par["unknowns"])
         scale = 1 / scale
         scale[~np.isfinite(scale)] = 1
         for uk in range(self.par["unknowns"]):
