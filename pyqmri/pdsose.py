@@ -70,17 +70,13 @@ class SoftSenseOptimizer:
 
         self.args = myargs
         self.par = par
-        self.ss_par = utils.read_config('', optimizer="SSense", reg_type=reg_type)
+        self.pdsose_par = utils.read_config(
+            myargs.config,
+            optimizer="SSense",
+            reg_type=reg_type
+        )
 
-        # temporary solution
-        self.ss_par["lambd"] = myargs.lamda
-        self.ss_par["adaptivestepsize"] = myargs.adapt_stepsize
-        self.ss_par["display_iterations"] = True
-        self.ss_par["sigma"] = np.float32(1 / np.sqrt(12))
-        self.ss_par["noise"] = myargs.noise
-        self.ss_par["mask_file"] = myargs._mask_file
-
-        utils.save_config(self.ss_par, str(par["outdir"]), reg_type)
+        utils.save_config(self.pdsose_par, str(par["outdir"]), reg_type)
         num_dev = len(par["num_dev"])
         self._fval = 0
         self._fval_init = 0
@@ -93,6 +89,7 @@ class SoftSenseOptimizer:
         self._DTYPE_real = DTYPE_real
 
         self._elapsed_time = None
+        self._i_term = -1
 
         self._streamed = streamed
         if streamed and par["NSlice"]/(num_dev*par["par_slices"]) < 2:
@@ -146,13 +143,7 @@ class SoftSenseOptimizer:
                                    par["dimY"], par["dimX"])
             self._data_shape = (par["NSlice"], par["NScan"], par["NC"],
                                 par["dimY"], par["dimX"])
-            # if par["mask"].ndim > 2:
-            #     par["mask"] = np.transpose(par["mask"], self._data_trans_axes)
-            #     self._mask = np.require(
-            #         par["mask"], requirements='C', dtype=DTYPE_real)
-
         else:
-            # self._cmaps = clarray.to_device(self._queue[0], np.require(self.par["C"], requirements='C'))
             self._cmaps = clarray.to_device(self._queue[0], self.par["C"])
 
         self._MRI_operator, self._FT = operator.Operator.SoftSenseOperatorFactory(
@@ -171,7 +162,7 @@ class SoftSenseOptimizer:
             self._prg,
             self._queue,
             self.par,
-            self.ss_par,
+            self.pdsose_par,
             self._fval_init,
             self._cmaps,
             linops=(self._MRI_operator, self._grad_op, self._symgrad_op),
@@ -388,7 +379,9 @@ class SoftSenseOptimizer:
             x = np.require(np.swapaxes(x, 0, 1), requirements='C')
             x = np.require(np.swapaxes(x, -3, -1), requirements='C')
 
-        return x, i
+        self._i_term = i
+
+        return x
 
     def execute(self, data):
         """Start the Soft Sense optimization.
@@ -422,15 +415,11 @@ class SoftSenseOptimizer:
             img_init = self._MRI_operator.adjoop([data_, self._cmaps]).get()
             img_montage(sqrt_sum_of_squares(img_init), 'Initial image(s)')
 
-            self.par["outdir"] = Path('/home/chrgla/masterthesis/deployed/results')
-            #self._save_imgs(img_init, 'init_reco_R_{:.2f}_n_{}'.format(self.par["R"], int(self.ss_par["noise"] * 10)),
-            #                self.par["max_val"], 0)
-
-        iters = self.ss_par["max_iters"] if "max_iters" in self.ss_par.keys() else 1000
+        iters = self.pdsose_par["max_iters"] if "max_iters" in self.pdsose_par.keys() else 1000
 
         self._calculate_cost(img_init, data)
 
-        if not self.ss_par["adaptivestepsize"]:
+        if not self.pdsose_par["adaptive_stepsize"]:
             try:
                 self._calc_step_size()
             except Exception:
@@ -442,17 +431,17 @@ class SoftSenseOptimizer:
             self._pdop.sigma = self._DTYPE_real(0.9)
 
         start_time = time.time()
-        result, i = self._solve(x, data, iters)
+        result = self._solve(x, data, iters)
         self._elapsed_time = time.time() - start_time
 
         print("-" * 75)
         print("Elapsed time PD algorithm: {:.2f} seconds".format(self._elapsed_time))
         print("-" * 75)
 
-        self._save_data(result)
+        # self._save_data(result)
 #        self._save_imgs(np.squeeze(sqrt_sum_of_squares(result)))
 
-        return result, i
+        return result
 
 
 

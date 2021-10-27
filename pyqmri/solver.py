@@ -2772,7 +2772,7 @@ class PDSoftSenseBaseSolver:
 
     def __init__(self,
                  par,
-                 ss_par,
+                 pdsose_par,
                  queue,
                  tau,
                  fval,
@@ -2783,12 +2783,12 @@ class PDSoftSenseBaseSolver:
 
         self._DTYPE = DTYPE
         self._DTYPE_real = DTYPE_real
-        self.sigma = self._DTYPE_real(ss_par["sigma"])
-        self.lambd = self._DTYPE_real(ss_par["lambd"])
-        self.adaptive_stepsize = ss_par["adaptivestepsize"]
-        self.stag = ss_par["stag"]
-        self.tol = ss_par["tol"]
-        self.display_iterations = ss_par["display_iterations"]
+        self.sigma = self._DTYPE_real(1 / np.sqrt(12))
+        self.lambd = self._DTYPE_real(pdsose_par["lambd"])
+        self.adaptive_stepsize = pdsose_par["adaptive_stepsize"]
+        self.stag = pdsose_par["stag"]
+        self.tol = pdsose_par["tol"]
+        self.display_iterations = pdsose_par["display_iterations"]
         self.tau = tau
         self.unknowns = par["unknowns"]
         self.num_dev = len(par["num_dev"])
@@ -2797,7 +2797,6 @@ class PDSoftSenseBaseSolver:
         self._prg = prg
         self._queue = queue
         self._coils = coil
-        # self._mask = par["mask"]
         self._kernelsize = (par["par_slices"] + par["overlap"], par["dimY"],
                             par["dimX"])
 

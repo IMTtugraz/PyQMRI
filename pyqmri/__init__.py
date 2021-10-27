@@ -24,3 +24,5 @@ from pyqmri.models.template import BaseModel, constraints
 from pyqmri.models.GeneralModel \
     import genDefaultModelfile as generate_text_models
 
+from pyqmri import pdsose
+from pyqmri.softsense import run
