@@ -82,45 +82,35 @@ def phase_recon_cl_3d(x, cmap, par):
             np.sum(result[0, ...] * np.conj(cmap[1, ...]), axis=0)), axis=0)
 
 
-def sos_recon(ksp, fft3d=True):
+def sos_recon(ksp, recon_type='3D'):
     result = np.zeros_like(ksp)
-    print("Performing sum of squares recon...")
-    start = time.time()
     for n in range(np.shape(ksp)[0]):
         for c in range(np.shape(ksp)[1]):
-            if fft3d:
-                # print("Performing 3D FFT...")
-                # np.sqrt(np.prod(np.shape(ksp[n, c, ...]))) * \
-                result[n, c, ...] = \
-                    np.fft.ifftshift(np.fft.ifftn(np.fft.fftshift(ksp[n, c, ...]), norm='ortho'))
-            else:
-                # print("Performing 2D FFT...")
+            if recon_type == '3D':
+                result[n, c, ...] = np.fft.ifftn(ksp[n, c, ...], norm='ortho')
+            elif recon_type == '2D':
                 for z in range(np.shape(ksp)[2]):
-                    result[n, c, z, ...] = \
-                        np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(ksp[n, c, z, ...]), norm='ortho'))
-    print("Done! ...FT took %f s." % (time.time() - start))
+                    result[n, c, z, ...] = np.fft.ifft2(ksp[n, c, z, ...], norm='ortho')
+            else:
+                raise NotImplementedError('Sum of squares reconstruction can be performed 2D or 3D only...')
     return np.sqrt(np.squeeze(np.sum(np.abs(result)**2, axis=1)))
 
 
-def phase_recon(ksp, cmaps, fft3d=True):
+def phase_recon(ksp, cmaps, recon_type='3D', fftshift=False):
     result = np.zeros_like(cmaps)
-    # print("Performing phase recon...")
-    # start = time.time()
     for n in range(np.shape(cmaps)[0]):
         for c in range(np.shape(cmaps)[1]):
-            if fft3d:
-                # print("Performing 3D FFT...")
-                # np.sqrt(np.prod(np.shape(ksp[c, ...]))) * \
-                # result[n, c, ...] = np.fft.ifftshift(np.fft.ifftn(np.fft.fftshift(ksp[0, c, ...]), norm='ortho')) * \
-                #                     np.conj(cmaps[n, c, ...])
-                result[n, c, ...] = np.fft.ifftn(ksp[0, c, ...], norm='ortho') * np.conj(cmaps[n, c, ...])
-            else:
-                # print("Performing 2D FFT...")
+            if recon_type == '3D':
+                if fftshift:
+                    result[n, c, ...] = np.fft.fftshift(np.fft.ifftn(np.fft.ifftshift(ksp[0, c, ...]), norm='ortho') * np.conj(cmaps[n, c, ...]))
+                else:
+                    result[n, c, ...] = np.fft.ifftn(ksp[0, c, ...], norm='ortho') * np.conj(cmaps[n, c, ...])
+            elif recon_type == '2D':
                 for z in range(np.shape(ksp)[2]):
-                    result[n, c, z, ...] = np.fft.ifftshift(np.fft.ifft2(
-                        np.fft.fftshift(ksp[0, c, z, ...]), norm='ortho')) * np.conj(cmaps[n, c, z, ...])
-    # print("Done! ...FT took %f s" % (time.time() - start))
-    return np.squeeze(np.sum(result, axis=1))
+                    result[n, c, z, ...] = np.fft.ifftn(ksp[0, c, z, ...], norm='ortho') * np.conj(cmaps[n, c, z, ...])
+            else:
+                raise NotImplementedError('Phase reconstruction can be performed 2D or 3D only...')
+    return np.sum(result, axis=1)
 
 
 def soft_sense_recon_cl(myargs, par, ksp, cmaps):
@@ -159,35 +149,23 @@ def soft_sense_recon_cl(myargs, par, ksp, cmaps):
         return op.adjoop([inp_adj, inp_cmaps]).get()
 
 
-def _operator_adj_np(ksp, cmaps, mask):
+def operator_adj_np(ksp, cmaps, mask):
     M, C, Z, Y, X = np.shape(cmaps)
     result = np.zeros_like(cmaps)
     ksp *= mask
-
     for m in range(M):
         for c in range(C):
-            for z in range(Z):
-                result[m, c, z, ...] = np.fft.fftshift(
-                    np.fft.ifft2(
-                        np.fft.ifftshift(ksp[0, c, z, ...], axes=(-2, -1)
-                                         ), norm='ortho')
-                )
-                result[m, c, z, ...] *= np.conj(cmaps[m, c, z, ...])
+            result[m, c, ...] = np.fft.ifftn(ksp[0, c, ...], norm='ortho') * np.conj(cmaps[m, c, ...])
     return np.sum(result, axis=1)
 
 
-def _operator_fwd_np(img, cmaps, mask):
+def operator_fwd_np(img, cmaps, mask):
     M, C, Z, Y, X = np.shape(cmaps)
     result = np.zeros((1, C, Z, Y, X), dtype=DTYPE)
-    for z in range(Z):
-        for c in range(C):
-            for m in range(M):
-                result[0, c, z, ...] += img[m, z, ...] * cmaps[m, c, z, ...]
-            result[0, c, z, ...] = np.fft.ifftshift(
-                np.fft.fft2(
-                    np.fft.fftshift(result[0, c, z, ...], axes=(-2, -1)
-                                    ), norm='ortho')
-            )
+    for c in range(C):
+        for m in range(M):
+            result[0, c, ...] += img * cmaps[m, c, ...] #[m, ...]
+        result[0, c, ...] = np.fft.fftn(result[0, c, ...], norm='ortho')
     return mask * result
 
 

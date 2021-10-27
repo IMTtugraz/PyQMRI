@@ -2849,12 +2849,25 @@ class OperatorSoftSense(Operator):
             self.Nproj = self.dimY
             self.N = self.dimX
 
+        # in case of 3D mask include in operator and mask fft with ones
+        self.mask = np.array([])
+        self._mask_tmp = par["mask"].copy()
+
+        if self._mask_tmp.ndim > 2:
+            self.mask = clarray.to_device(self.queue, par["mask"])
+            par["mask"] = np.require(
+                np.ones((par["dimY"], par["dimX"]), dtype=par["DTYPE_real"]),
+                requirements='C')
+
         self.NUFFT = CLnuFFT.create(self.ctx,
                                     self.queue,
                                     par,
                                     radial=trafo,
                                     DTYPE=DTYPE,
                                     DTYPE_real=DTYPE_real)
+
+        par["mask"] = self._mask_tmp.copy()
+        del self._mask_tmp
 
     def fwd(self, out, inp, **kwargs):
         if "wait_for" in kwargs.keys():
@@ -2871,7 +2884,22 @@ class OperatorSoftSense(Operator):
                 inp[1].data,
                 np.int32(self.NC),
                 np.int32(self.NMaps),
-                wait_for=self._tmp_result.events + inp[0].events + wait_for))
+                wait_for=(self._tmp_result.events + inp[0].events + wait_for)))
+        if self.mask.size != 0:
+            out.add_event(
+                self.NUFFT.FFT(
+                    out,
+                    self._tmp_result,
+                    wait_for=wait_for + self._tmp_result.events))
+
+            return self.NUFFT.prg.masking(
+                self.NUFFT.queue,
+                (self._tmp_result.size,),
+                None,
+                out.data,
+                self.mask.data,
+                wait_for=(wait_for+out.events+self._tmp_result.events))
+
         return self.NUFFT.FFT(
                     out,
                     self._tmp_result,
@@ -2892,7 +2920,7 @@ class OperatorSoftSense(Operator):
                 inp[1].data,
                 np.int32(self.NC),
                 np.int32(self.NMaps),
-                wait_for=self._tmp_result.events + inp[0].events + wait_for))
+                wait_for=(self._tmp_result.events + inp[0].events + wait_for)))
         tmp_sino = clarray.empty(
             self.queue,
             (self.NScan, self.NC, self.NSlice, self.Nproj, self.N),
@@ -2901,6 +2929,17 @@ class OperatorSoftSense(Operator):
             self.NUFFT.FFT(
                 tmp_sino,
                 self._tmp_result))
+        if self.mask.size != 0:
+            tmp_sino.add_event(
+                self.NUFFT.prg.masking(
+                    self.NUFFT.queue,
+                    (tmp_sino.size,),
+                    None,
+                    tmp_sino.data,
+                    self.mask.data,
+                    wait_for=(wait_for+tmp_sino.events)
+                )
+            )
         return tmp_sino
 
     def adj(self, out, inp, **kwargs):
@@ -2908,11 +2947,22 @@ class OperatorSoftSense(Operator):
             wait_for = kwargs["wait_for"]
         else:
             wait_for = []
+        if self.mask.size != 0:
+            inp[0].add_event(
+                self.NUFFT.prg.masking(
+                    self.NUFFT.queue,
+                    (inp[0].size,),
+                    None,
+                    inp[0].data,
+                    self.mask.data,
+                    wait_for=(wait_for+inp[0].events)
+                )
+            )
         self._tmp_result.add_event(
             self.NUFFT.FFTH(
                 self._tmp_result,
                 inp[0],
-                wait_for=wait_for + inp[0].events + self._tmp_result.events))
+                wait_for=(wait_for + inp[0].events)))
         return self.prg.operator_ad_ssense(
             self.queue,
             (self.NSlice, self.dimY, self.dimX),
@@ -2922,18 +2972,29 @@ class OperatorSoftSense(Operator):
             inp[1].data,
             np.int32(self.NC),
             np.int32(self.NMaps),
-            wait_for=wait_for + self._tmp_result.events + out.events)
+            wait_for=self._tmp_result.events + out.events)
 
     def adjoop(self, inp, **kwargs):
         if "wait_for" in kwargs.keys():
             wait_for = kwargs["wait_for"]
         else:
             wait_for = []
+        if self.mask.size != 0:
+            inp[0].add_event(
+                self.NUFFT.prg.masking(
+                    self.NUFFT.queue,
+                    (inp[0].size,),
+                    None,
+                    inp[0].data,
+                    self.mask.data,
+                    wait_for=(wait_for+inp[0].events)
+                )
+            )
         self._tmp_result.add_event(
             self.NUFFT.FFTH(
                 self._tmp_result,
                 inp[0],
-                wait_for=wait_for + inp[0].events + self._tmp_result.events))
+                wait_for=(wait_for + inp[0].events)))
         out = clarray.empty(
             self.queue,
             (self.NMaps, self.NSlice, self.dimY, self.dimX),
@@ -2947,7 +3008,7 @@ class OperatorSoftSense(Operator):
             inp[1].data,
             np.int32(self.NC),
             np.int32(self.NMaps),
-            wait_for=wait_for + self._tmp_result.events + out.events).wait()
+            wait_for=(self._tmp_result.events + out.events)).wait()
         return out
 
     def adjKyk1(self, out, inp, **kwargs):
@@ -2955,9 +3016,22 @@ class OperatorSoftSense(Operator):
             wait_for = kwargs["wait_for"]
         else:
             wait_for = []
+        if self.mask.size != 0:
+            inp[0].add_event(
+                self.NUFFT.prg.masking(
+                    self.NUFFT.queue,
+                    (inp[0].size,),
+                    None,
+                    inp[0].data,
+                    self.mask.data,
+                    wait_for=(wait_for+inp[0].events)
+                )
+            )
         self._tmp_result.add_event(
             self.NUFFT.FFTH(
-                self._tmp_result, inp[0], wait_for=wait_for + inp[0].events))
+                self._tmp_result,
+                inp[0],
+                wait_for=(wait_for + inp[0].events)))
         return self.prg.update_Kyk1_ssense(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data,
@@ -2969,7 +3043,7 @@ class OperatorSoftSense(Operator):
             inp[3].data,
             self.DTYPE_real(self._dz),
             wait_for=(self._tmp_result.events +
-                      out.events + inp[2].events + inp[3].events + wait_for))
+                      out.events + inp[2].events + inp[3].events))
 
 
 class OperatorSoftSenseStreamed(Operator):
@@ -3003,6 +3077,12 @@ class OperatorSoftSenseStreamed(Operator):
         self._overlap = par["overlap"]
         self.par_slices = par["par_slices"]
         self.NMaps = par["NMaps"]
+
+        # self._mask_tmp = par["mask"].copy()
+        # if self._mask_tmp.ndim > 2:
+        #     par["mask"] = np.require(
+        #         np.ones((par["dimY"], par["dimX"]), dtype=par["DTYPE_real"]),
+        #         requirements='C')
 
         if not trafo:
             self.Nproj = self.dimY
@@ -3055,6 +3135,9 @@ class OperatorSoftSenseStreamed(Operator):
             [self.data_shape],
             [[trans_shape]])
 
+        # par["mask"] = self._mask_tmp.copy()
+        # del self._mask_tmp
+
     def fwd(self, out, inp, **kwargs):
         self.fwdstr.eval(out, inp)
 
@@ -3089,20 +3172,23 @@ class OperatorSoftSenseStreamed(Operator):
                 np.int32(self.NMaps),
                 wait_for=(self._tmp_result[2*idx+idxq].events +
                           inp[0].events+wait_for)))
+
         return self.NUFFT[2*idx+idxq].FFT(
                 out,
                 self._tmp_result[2*idx+idxq],
-                wait_for=wait_for+self._tmp_result[2*idx+idxq].events)
+                wait_for=out.events+wait_for+self._tmp_result[2*idx+idxq].events)
 
     def _adjstreamed(self, outp, inp, par=None, idx=0, idxq=0,
                      bound_cond=0, wait_for=None):
         if wait_for is None:
             wait_for = []
+
         self._tmp_result[2*idx+idxq].add_event(
             self.NUFFT[2*idx+idxq].FFTH(
                 self._tmp_result[2*idx+idxq], inp[0],
                 wait_for=(wait_for+inp[0].events +
                           self._tmp_result[2*idx+idxq].events)))
+
         return self.prg[idx].operator_ad_ssense(
             self.queue[4*idx+idxq],
             (self.par_slices+self._overlap, self.dimY, self.dimX),
@@ -3118,11 +3204,13 @@ class OperatorSoftSenseStreamed(Operator):
                          bound_cond=0, wait_for=None):
         if wait_for is None:
             wait_for = []
+
         self._tmp_result[2*idx+idxq].add_event(
             self.NUFFT[2*idx+idxq].FFTH(
                 self._tmp_result[2*idx+idxq], inp[0],
                 wait_for=(wait_for+inp[0].events +
                           self._tmp_result[2*idx+idxq].events)))
+
         return self.prg[idx].update_Kyk1_ssense(
             self.queue[4*idx+idxq],
             (self.par_slices+self._overlap, self.dimY, self.dimX), None,

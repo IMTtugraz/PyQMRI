@@ -1,458 +1,997 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""Module holding the classes for Soft Sense Optimization."""
-from __future__ import division
-import time
-import numpy as np
+import argparse
+import math
+import csv
+import cv2
+import os
+import sys
+
+from scipy.io import loadmat
+from tkinter import filedialog
+from tkinter import Tk
+
+
 import h5py
-from PIL import Image
-from pathlib import Path
 
 from pkg_resources import resource_filename
-import pyopencl.array as clarray
+from pyqmri.pyqmri import _setupOCL
+#from pyqmri._helper_fun import CLProgram as Program
+# from ._helper_fun._utils import
+#
+# from pyqmri._my_helper_fun.import_data import import_data
+# from pyqmri._my_helper_fun.display_data import img_montage
+# from pyqmri._my_helper_fun.export_data import *
+# from pyqmri._my_helper_fun.recon import *
+# from pyqmri._my_helper_fun.helpers import *
 
-import pyqmri.operator as operator
-import pyqmri.solver as optimizer
-from pyqmri._helper_fun import CLProgram as Program
-from pyqmri._helper_fun import _utils as utils
-from pyqmri._my_helper_fun.display_data import img_montage
-from pyqmri._my_helper_fun.helpers import sqrt_sum_of_squares, normalize_imgs
+from .pdsose import SoftSenseOptimizer
+import pyqmri.solver as pyqmrisl
+
+from .pyqmri import _str2bool
+#
+#
+# def _set_output_dir(par, myargs):
+#     if myargs.outdir == '':
+#         outdir = Path.cwd()
+#     else:
+#         outdir = Path(myargs.outdir)
+#     out_folder = "SoftSense_out"
+#     if myargs.use_phantom:
+#         out_folder = "SoftSense_out_phantom"
+#     if myargs.use_in_vivo:
+#         out_folder = "SoftSense_out_invivo"
+#     outdir = outdir / out_folder / myargs.reg_type / time.strftime("%Y-%m-%d_%H")  # -%M-%S")
+#     if not outdir.exists():
+#         outdir.mkdir(parents=True, exist_ok=True)
+#     par["outdir"] = outdir
+#
+#
+# def _setup_par(par, myargs, ksp_data, cmaps):
+#     ksp_shape = np.shape(ksp_data)
+#     cmaps_shape = np.shape(cmaps)
+#
+#     if args.double_precision:
+#         par["DTYPE"] = np.complex128
+#         par["DTYPE_real"] = np.float64
+#     else:
+#         par["DTYPE"] = np.complex64
+#         par["DTYPE_real"] = np.float32
+#
+#     par["C"] = np.require(cmaps, requirements='C').astype(par["DTYPE"])
+#
+#     par["NScan"] = ksp_shape[0]
+#     par["dimX"] = ksp_shape[-1]
+#     par["dimY"] = ksp_shape[-2]
+#     par["NSlice"] = cmaps_shape[2]
+#     par["NC"] = cmaps_shape[1]
+#     par["NMaps"] = cmaps_shape[0]
+#
+#     par["N"] = par["dimX"]
+#     par["Nproj"] = par["dimY"]
+#
+#     par["unknowns_TGV"] = par["NMaps"]
+#     par["unknowns"] = par["NMaps"]
+#     par["weights"] = np.ones(par["unknowns"], dtype=par["DTYPE_real"])
+#     par["dz"] = 1
+#     # not relevant for my case but necessary for Operator class
+#     par["unknowns_H1"] = 0
+#
+#     par["fft_dim"] = (-2, -1)
+#
+#     par["mask"] = np.require(np.ones((par["dimY"], par["dimX"]), dtype=par["DTYPE_real"]), requirements='C')
+#
+#     par["R"] = myargs.acceleration_factor
+#
+#     par["overlap"] = 0
+#     par["par_slices"] = par["NSlice"]
+#
+#     if myargs.streamed:
+#         # par["mask"] = np.require(np.ones(ksp_shape, dtype=par["DTYPE_real"]), requirements='C')
+#         # par NSlice but x fully sampled
+#         if myargs.reco_slices == -1:
+#             par["par_slices"] = int(par["dimX"] / (2 * len(par["num_dev"])))
+#         else:
+#             par["par_slices"] = int(myargs.reco_slices / (2 * len(par["num_dev"])))
+#         par["overlap"] = 1
+#
+#     _set_output_dir(par, myargs)
+#
+#
+# def _setup_ss_par(ss_par, myargs):
+#     ss_par["display_iterations"] = True
+#     ss_par["adaptivestepsize"] = myargs.adapt_stepsize
+#     ss_par["tol"] = 1e-8
+#     ss_par["stag"] = 1e10
+#     ss_par["sigma"] = np.float32(1 / np.sqrt(12))
+#     ss_par["lambd"] = myargs.lamda
+#     ss_par["alpha0"] = np.sqrt(2) if myargs.recon_type == '2D' else np.sqrt(3)
+#     ss_par["alpha1"] = 1   # 1
+#
+#
+# def _gen_data_from_imgs(imgs, cmaps, par, type='2D'):
+#     result = np.zeros(np.shape(cmaps)).astype(np.complex64)
+#     if type == '3D':
+#         for c in range(np.shape(cmaps)[1]):
+#             for m in range(np.shape(cmaps)[0]):
+#                 if np.ndim(imgs) == 4:
+#                     result[m, c, ...] = np.fft.ifftshift(np.fft.fftn(
+#                         np.fft.fftshift(imgs[m, ...] * cmaps[m, c, ...]), norm='ortho'))
+#                 elif np.ndim(imgs) == 3:
+#                     result[m, c, ...] = np.fft.ifftshift(np.fft.fftn(
+#                         np.fft.fftshift(imgs * cmaps[m, c, ...]), norm='ortho'))
+#     elif type == '2D':
+#         for z in range(np.shape(imgs)[-3]):
+#             for c in range(np.shape(cmaps)[1]):
+#                 for m in range(np.shape(cmaps)[0]):
+#                     if np.ndim(imgs) == 4:
+#                         result[m, c, z, ...] = np.fft.ifftshift(np.fft.fft2(
+#                             np.fft.fftshift(imgs[m, z, ...] * cmaps[m, c, z, ...]), norm='ortho'))
+#                     elif np.ndim(imgs) == 3:
+#                         result[m, c, z, ...] = np.fft.ifftshift(np.fft.fft2(
+#                             np.fft.fftshift(imgs[z, ...] * cmaps[m, c, z, ...]), norm='ortho'))
+#     else:
+#         raise ValueError("Invalid recon type. Must be 2D or 3D.")
+#     return np.sum(result, axis=0, keepdims=True)
+#
+#
+# def _start_recon(data, par, myargs):
+#     optimizer = SoftSenseOptimizer(par,
+#                                    myargs,
+#                                    myargs.reg_type,
+#                                    streamed=myargs.streamed,
+#                                    DTYPE=par["DTYPE"],
+#                                    DTYPE_real=par["DTYPE_real"])
+#     result, i = optimizer.execute(data.copy())
+#
+#     elapsed_time = optimizer._elapsed_time
+#
+#     del optimizer
+#     return result, elapsed_time, i
+#
+#
+# def _cvt_structured_to_complex(data):
+#     return (data['real'] + 1j * data['imag']).astype(np.complex64)
+#
+#
+# def _check_data_shape(myargs, ksp_data):
+#     gpyfft_primes = [2, 3, 5, 7]
+#     z, y, x = np.shape(ksp_data)[-3:]
+#     reco_slices = myargs.reco_slices
+#     while reco_slices > 0:
+#         data_prime_factors = utils.prime_factors(reco_slices*y*x)
+#         l = [i for i in data_prime_factors if i not in gpyfft_primes]
+#         if not l:
+#             break
+#         else:
+#             reco_slices -= 1
+#
+#     if myargs.reco_slices != reco_slices:
+#         print("Reducing slices to %i" %reco_slices)
+#
+#     myargs.reco_slices = reco_slices
+#
+#
+# def _get_data(myargs):
+#     # import kspace and coil sensitivity data
+#     ksp_data = import_data(myargs.kspfile, 'k-space')[0].astype(np.complex64)
+#     print('k_space input shape (x, y, z, ncoils): ' + str(np.shape(ksp_data)))
+#
+#     cs_data = import_data(myargs.csfile, 'cmap')[0]
+#     # cmaps = cs_data.view(DTYPE)
+#     cmaps = _cvt_structured_to_complex(cs_data)
+#     print('c_maps input shape (nmaps, ncoils, z, y, x) ' + str(cs_data.shape))
+#
+#     # reorder kspace to (NScan, NC, NSlice, Ny, Nx)
+#     ksp_data = np.moveaxis(ksp_data, [0, 1, 2, 3], [3, 2, 1, 0])
+#     ksp_data = np.expand_dims(ksp_data, axis=0) * 2e4
+#     ksp_data = prepare_data(ksp_data, rescale=False, recon_type='3D') * 2e4
+#     ksp_data = np.fft.ifft(ksp_data, axis=-3, norm='ortho')
+#
+#
+#     myargs.full_dimXY = True
+#     # x = phase_recon(np.fft.fftshift(ksp_data, axes=(-2, -1)), cmaps, recon_type='2D')
+#     x = phase_recon(ksp_data, cmaps, recon_type='2D')
+#
+#     img_montage(sqrt_sum_of_squares(x))
+#
+#
+#     n_slices = x.shape[1]
+#
+#     if myargs.reco_slices < 0:
+#         myargs.reco_slices = n_slices
+#
+#     _check_data_shape(myargs, ksp_data)
+#
+#     return ksp_data, cmaps, x
+#
+#
+# def _normalize_data(x):
+#     return (x - np.min(x)) / (np.max(x) - np.min(x))
+#
+#
+# def _add_noise(data, noise_fac):
+#     return data + noise_fac * (np.random.randn(*np.shape(data)) + 1j * np.random.randn(*np.shape(data)))
+#
+#
+# def _preprocess_data(myargs, par, kspace, x, full_dim=False):
+#     swapaxis = -3
+#     kspace = prepare_data(kspace, rescale=False, recon_type=myargs.type)
+#     # par["mask"] = np.fft.fftshift(par["mask"], axes=par["fft_dim"])
+#
+#     if myargs.type == '3D':
+#         if not full_dim:
+#             # full_dimY = (np.all(np.abs(kspace[0, 0, 0, :, 0])) or
+#             #              np.all(np.abs(kspace[0, 0, 0, :, 1])))
+#             # full_dimX = (np.all(np.abs(kspace[0, 0, 0, 0, :])) or
+#             #              np.all(np.abs(kspace[0, 0, 0, 1, :])))
+#             full_dimX = True
+#             full_dimY = False
+#             # full_dimY = True
+#
+#             dimX = par["dimX"]
+#             dimY = par["dimY"]
+#             NSlice = par["NSlice"]
+#             if full_dimX and not full_dimY:
+#                 swapaxis = -1
+#                 par["dimX"] = NSlice
+#                 par["N"] = NSlice
+#                 par["NSlice"] = dimX
+#             elif full_dimY and not full_dimX:
+#                 swapaxis = -2
+#                 par["dimY"] = NSlice
+#                 par["Nproj"] = NSlice
+#                 par["NSlice"] = dimY
+#             # par["par_slices"] = par["NSlice"]
+#             kspace = np.fft.ifft(kspace, axis=swapaxis, norm='ortho')
+#             kspace = np.require(
+#                 np.swapaxes(kspace, swapaxis, -3),
+#                 requirements='C')
+#             par["C"] = np.require(
+#                 np.swapaxes(par["C"], swapaxis, -3),
+#                 requirements='C')
+#             if par["mask"].ndim > 2:
+#                 par["mask"] = np.require(
+#                     np.swapaxes(par["mask"], swapaxis, -3),
+#                     requirements='C')
+#                 img_montage(par["mask"][0, 0, [0]], 'Subsampling mask')
+#                 par["mask"] = np.fft.fftshift(par["mask"], axes=par["fft_dim"])
+#                 # par["mask"] = par["mask"][0, 0, 0, ...]
+#
+#     imgs = phase_recon(kspace, par["C"], recon_type='2D')
+#
+#     n_slices = np.shape(imgs)[abs(swapaxis)]
+#     # n_slices = 180
+#
+#     n_par_slices = myargs.reco_slices if myargs.reco_slices > 0 else n_slices
+#     if n_par_slices != n_slices and n_par_slices > 0:
+#         par["NSlice"] = n_par_slices
+#         if not myargs.streamed:
+#             par["par_slices"] = n_par_slices
+#
+#         slice_idx = (int(n_slices / 2) - int(math.floor(n_par_slices / 2)),
+#                      int(n_slices / 2) + int(math.ceil(n_par_slices / 2)))
+#         x = np.swapaxes(x, swapaxis, -3)
+#         imgs = np.swapaxes(imgs, swapaxis, -3)
+#         x = np.require(x[:, slice_idx[0]:slice_idx[-1], :, :].copy(),
+#                        requirements='C').astype(par["DTYPE"])
+#         imgs = np.require(imgs[:, slice_idx[0]:slice_idx[-1], :, :].copy(),
+#                           requirements='C').astype(par["DTYPE"])
+#         kspace = np.require(kspace[..., slice_idx[0]:slice_idx[-1], :, :],
+#                             requirements='C').astype(par["DTYPE"])
+#         par["C"] = np.require(par["C"][..., slice_idx[0]:slice_idx[-1], :, :],
+#                               requirements='C').astype(par["DTYPE"])
+#         if par["mask"].ndim > 2:
+#             par["mask"] = np.require(par["mask"][..., slice_idx[0]:slice_idx[-1], :, :],
+#                                      requirements='C').astype(par["DTYPE_real"])
+#
+#     # img_montage(sqrt_sum_of_squares(imgs), 'Selected phase sensitive recon images')
+#
+#     return kspace, x
+#
+#
+# def _get_phantom_data(myargs):
+#     with h5py.File(myargs.datafile, 'r') as f:
+#         img_ref1 = np.array(f.get('data/M0_img_red/ref1'))
+#         img_ref2 = np.array(f.get('data/M0_img_red/ref2'))
+#         kspace = np.array(f.get('data/M0_kspace'))
+#         cmap1 = np.array(f.get('data/coils_red/b1'))
+#         cmap2 = np.array(f.get('data/coils_red/b2'))
+#     f.close()
+#
+#     kspace = _cvt_structured_to_complex(kspace).copy()
+#     cmap1 = _cvt_structured_to_complex(cmap1).copy()
+#     cmap2 = _cvt_structured_to_complex(cmap2).copy()
+#     img_ref1 = _cvt_structured_to_complex(img_ref1).copy()
+#     img_ref2 = _cvt_structured_to_complex(img_ref2).copy()
+#
+#     kspace = np.require(np.expand_dims(kspace, axis=0).astype(np.complex64), requirements='C')
+#     kspace_noisy = _add_noise(kspace.copy(), noise_fac=myargs.noise).astype(DTYPE)
+#     # kspace_noisy = kspace.copy()
+#
+#     cmaps = np.require(np.stack((cmap1, cmap2), axis=0), requirements='C')
+#     imgs = np.require(np.stack((img_ref1, img_ref2), axis=0), requirements='C')
+#     imgs = _add_noise(imgs.copy(), noise_fac=myargs.noise).astype(DTYPE)
+#
+#     kspace_noisy = np.swapaxes(kspace_noisy, -1, -2)
+#     imgs = np.swapaxes(imgs, -1, -2)
+#     cmaps = np.swapaxes(cmaps, -1, -2)
+#
+#     return kspace_noisy, cmaps, imgs
+#
+#
+# def _read_data(file_name):
+#     with h5py.File(file_name, 'r') as f:
+#         data = np.array(f.get(list(f.keys())[0]))
+#     f.close()
+#     return data
+#
+#
+# def _get_in_vivo_data(myargs, data='data2', sampling='C2x2s0'):
+#     data_acl_file = Path.cwd() / 'Granat' / 'Results' / sampling / 'data_ACL.mat'
+#     data_kspace_file = Path.cwd() / 'Granat' / 'Results' / sampling / 'kspace_sc_cc.mat'
+#     cmaps_file = Path.cwd() / 'Granat' / 'Results' / sampling / 'sensitivities_ecalib.mat'
+#     mask_file = Path.cwd() / 'data_soft_sense_test' / 'us_masks' / 'in_vivo' / 'mask_{}.mat'.format(sampling)
+#     data_full_file = Path.cwd() / 'Granat' / 'Results' / 'full' / 'kspace_sc_cc.mat'
+#     cmaps_full_file = Path.cwd() / 'Granat' / 'Results' / 'full' / 'sensitivities_full_ecalib_coilcomp_1.mat'
+#
+#     # data_file = Path.cwd() / 'data_soft_sense_test' / data / sampling / 'kspace_sc_cc.mat'
+#     # data_acl_file_grappa = Path.cwd() / 'data_soft_sense_test' / data / 'G2x2' / 'data_ACL.mat'
+#     # data_acl_grappa = _cvt_structured_to_complex(_read_data(data_acl_file_grappa))
+#
+#     data_acl = _cvt_structured_to_complex(_read_data(data_acl_file))
+#     # data_kspace = _cvt_structured_to_complex(_read_data(data_k_space_file))
+#     cmaps = _cvt_structured_to_complex(_read_data(cmaps_file))
+#     data_full = _cvt_structured_to_complex(_read_data(data_full_file))
+#     cmaps_full = _cvt_structured_to_complex(_read_data(cmaps_full_file))
+#
+#     mask = np.expand_dims(_read_data(mask_file), axis=0)
+#
+#
+#
+#     kspace_data = np.require(np.expand_dims(data_acl, axis=0).astype(np.complex64), requirements='C') * 1e7
+#     # dscale = 1 / np.linalg.norm(kspace_data)
+#     # kspace_data *= dscale
+#     kspace_data_full = np.require(np.expand_dims(data_full, axis=0).astype(np.complex64), requirements='C')
+#     kspace_data_full = prepare_data(kspace_data_full, rescale=False, recon_type='3D')  # / np.linalg.norm(kspace_data_full)
+#
+#     cmaps = np.require(cmaps, requirements='C').astype(np.complex64)
+#     cmaps_full = np.require(cmaps_full, requirements='C').astype(np.complex64)
+#
+#     imgs = phase_recon(kspace_data_full, cmaps_full)
+#     img_montage(sqrt_sum_of_squares(imgs), 'fully sampled images')
+#
+#     #cmap1 = cmaps[[0]].copy()
+#     # mask = mask[0, 0, 0, :, :]
+#
+#     return kspace_data, cmaps, imgs, mask
+#
+#
+# def _get_undersampling_mask(par, myargs, file='', R=2):
+#     if file in ['us_z', 'us_y', 'us_x']:
+#         mask = np.zeros((par["NSlice"], par["dimY"], par["dimX"]), dtype=par["DTYPE_real"])
+#         if file == 'us_z':
+#             mask[::R, ...] = 1
+#         if file == 'us_y':
+#             mask[..., ::R, :] = 1
+#             mask[..., 71:88, :] = 1
+#         if file == 'us_x':
+#             mask[..., ::R] = 1
+#         par["mask"] = mask
+#
+#     elif myargs.maskfile:
+#         # with h5py.File(myargs.maskfile, 'r') as f:
+#         #     mask = np.array(f.get(myargs.maskfile.stem))
+#         # f.close()
+#         mask = _read_data(myargs.maskfile)
+#
+#         mask = np.require(mask.astype(par["DTYPE_real"]), requirements='C')
+#         par["mask"] = mask[0, ...]
+#
+#     R = np.size(par["mask"]) / np.sum(par["mask"])
+#     myargs.acceleration_factor = R
+#     print('Acceleration factor is: {:.2f}'.format(R))
+#
+#     par["mask"] = np.reshape(
+#         np.tile(
+#             par["mask"],
+#             (par["NScan"] * par["NC"], 1, 1)),
+#         (par["NScan"], par["NC"], par["NSlice"], par["dimY"], par["dimX"])
+#     )
+#
+#     # par["mask"] = np.fft.fftshift(par["mask"], axes=(-3, -2, -1))
+#
+#
+# def _write_to_csv_file_lambda(par, myargs, noise_fac, metrics, el_time):
+#     with open(par["outdir"] / "metrics.csv", "a", newline='') as file:
+#         fieldnames = ['reg', 'noise', 'lambda', 'MSE_mean',
+#                       'PSNR_mean', 'PSNR_std', 'PSNR_max', 'PSNR_min',
+#                       'SSIM_mean', 'SSIM_std', 'SSIM_max', 'SSIM_min',
+#                       'Elapsed time']
+#         writer = csv.DictWriter(file, fieldnames=fieldnames)
+#
+#         writer.writerow({'reg': str(myargs.reg_type),
+#                          'noise': str(noise_fac),
+#                          'lambda': str(myargs.lamda),
+#                          'MSE_mean': str(np.mean(metrics[0])),
+#                          'PSNR_mean': str(np.mean(metrics[1])),
+#                          'PSNR_std': str(np.std(metrics[1])),
+#                          'PSNR_max': str(np.max(metrics[1])),
+#                          'PSNR_min': str(np.min(metrics[1])),
+#                          'SSIM_mean': str(np.mean(metrics[2])),
+#                          'SSIM_std': str(np.std(metrics[2])),
+#                          'SSIM_max': str(np.max(metrics[2])),
+#                          'SSIM_min': str(np.min(metrics[2])),
+#                          'Elapsed time': str(el_time)
+#                          })
+#
+#
+# def _write_to_csv_file_masks(par, myargs, acc, mask, lamda, noise_fac, metrics, el_time, i):
+#     with open(par["outdir"] / "phantom_eval.csv", "a", newline='') as file:
+#         fieldnames = ['R', 'mask', 'noise', 'lambda', 'MSE_mean',
+#                       'PSNR_mean', 'PSNR_std', 'PSNR_max', 'PSNR_min',
+#                       'SSIM_mean', 'SSIM_std', 'SSIM_max', 'SSIM_min',
+#                       'Elapsed time', 'Iterations']
+#         writer = csv.DictWriter(file, fieldnames=fieldnames)
+#
+#         writer.writerow({'R': str(acc),
+#                          'mask': mask,
+#                          'noise': str(noise_fac),
+#                          'lambda': str(myargs.lamda),
+#                          'MSE_mean': str(np.mean(metrics[0])),
+#                          'PSNR_mean': str(np.mean(metrics[1])),
+#                          'PSNR_std': str(np.std(metrics[1])),
+#                          'PSNR_max': str(np.max(metrics[1])),
+#                          'PSNR_min': str(np.min(metrics[1])),
+#                          'SSIM_mean': str(np.mean(metrics[2])),
+#                          'SSIM_std': str(np.std(metrics[2])),
+#                          'SSIM_max': str(np.max(metrics[2])),
+#                          'SSIM_min': str(np.min(metrics[2])),
+#                          'Elapsed time': str(el_time),
+#                          'Iterations': str(i)
+#                          })
+#
+#
+# def _eval_mask(par, myargs, ksp_data, cmaps, x):
+#
+#     # x_noisy = _add_noise(x.copy(), myargs.noise).astype(par["DTYPE"])
+#     max_val = np.max(sqrt_sum_of_squares(x))
+#     par["max_val"] = max_val
+#
+#     for filedir in ['R9']:  # ['R8']
+#         R = int(filedir.split('R')[-1])
+#         myargs.acceleration_factor = R
+#         par["R"] = myargs.acceleration_factor
+#         for file in ['mask_CAIPI4x4x2.mat', 'mask_a.mat']:
+#
+#             _setup_par(par, myargs, ksp_data, cmaps)
+#             ksp_data_ = ksp_data.copy()
+#
+#             myargs.maskfile = Path.cwd() / 'data_soft_sense_test' / 'us_masks' / filedir / file
+#             myargs._mask_file = file
+#
+#             _get_undersampling_mask(par, myargs, file, R)
+#
+#             ksp_data_ = ksp_data_ * par["mask"] if par["mask"].ndim > 2 else ksp_data_
+#             ksp_data_, x = _preprocess_data(myargs, par, ksp_data_, x, myargs.full_dimXY)
+#
+#             par["mask"] = par["mask"][0, 0, 0, ...]
+#             par["mask"] = np.require(par["mask"], requirements='C', dtype=par["DTYPE_real"])
+#             ksp_data_ = ksp_data_.astype(par["DTYPE"])
+#
+#             # ksp_data_ = np.swapaxes(ksp_data_, -3, -2)
+#             # par["C"] = np.swapaxes(par["C"], -3, -2)
+#             x_ssense, recon_time, i = _start_recon(ksp_data_, par, myargs)
+#
+#             if myargs.reco_slices != -1 and myargs.streamed:
+#                 x_ssense = np.swapaxes(x_ssense, -3, -1)
+#
+#             x_ssense_ = normalize_imgs(sqrt_sum_of_squares(x_ssense)).astype(par["DTYPE_real"])
+#             x_ = normalize_imgs(sqrt_sum_of_squares(x)).astype(par["DTYPE_real"])
+#             # x_diff = x_ssense_ - x_
+#
+#             # img_montage(sqrt_sum_of_squares(x_ssense), 'Softsense recon ' + myargs.reg_type)
+#             img_montage(sqrt_sum_of_squares(x_ssense)[[int(np.shape(x_ssense)[-3]/2)], ...])
+#             # img_montage(x_diff, 'Diffs')
+#             # x_noisy = np.swapaxes(x_noisy, -3, -1).astype(par["DTYPE"])
+#
+#             m_fac = 2
+#             m_size = int(160 * m_fac)
+#             m_cen = int(m_size / 2)
+#             m_win = int(m_size / 4)
+#             m_l, m_t = m_cen - m_win, m_cen + m_win
+#
+#             x_1 = np.squeeze(sqrt_sum_of_squares(x_ssense.copy())[[int(np.shape(x_ssense)[-3]/2)], ...])
+#
+#             x_small_1 = cv2.resize(x_1, (m_size, m_size), interpolation=cv2.INTER_NEAREST)[m_l:m_t, m_l:m_t]
+#             x_small_2 = cv2.resize(x_1, (m_size, m_size), interpolation=cv2.INTER_NEAREST)[0:m_cen, 0:m_cen]
+#
+#             # _show_img(x_1, max_val, 0)
+#             try:
+#                 save_img(x_1, args.reg_type + '_res_x_{}'.format(file.split('.')[0]), max_val, 0)
+#                 save_img(x_small_1, args.reg_type + '_res_x_small_1_{}'.format(file.split('.')[0]), max_val, 0)
+#                 save_img(x_small_2, args.reg_type + '_res_x_small_2_{}'.format(file.split('.')[0]), max_val, 0)
+#             except Exception as ex:
+#                 print('something whent wrong...')
+#
+#             metrics = calc_image_metrics(x_ssense_[[int(np.shape(x_ssense_)[-3]/2)], ...], x_[[int(np.shape(x_)[-3]/2)], ...])
+#             # x_noisy = normalize_imgs(sqrt_sum_of_squares(x_noisy.copy())).astype(par["DTYPE_real"])
+#             # metrics_ = calc_image_metrics(x_ssense_, x_noisy)
+#             _write_to_csv_file_masks(par, myargs, myargs.acceleration_factor, myargs._mask_file, myargs.lamda, myargs.noise, metrics, recon_time, i)
+#             # _write_to_csv_file_masks(par, myargs, myargs.acceleration_factor, myargs._mask_file, myargs.lamda, myargs.noise, metrics_, recon_time)
+#
+#
+# def _eval_in_vivo(par, myargs, ksp_data, x, mask, mask_type=''):
+#     par["mask"] = np.require(mask, requirements='C', dtype=par["DTYPE_real"])
+#     ksp_data_, x = _preprocess_data(myargs, par, ksp_data, x, myargs.full_dimXY)
+#     ksp_data_ = ksp_data_.astype(par["DTYPE"])
+#     par["mask"] = par["mask"][0, 0, 0, ...]
+#
+#     myargs._mask_file = mask_type
+#     x_ssense, recon_time, i = _start_recon(ksp_data_, par, myargs)
+#
+#     if myargs.reco_slices != -1 and myargs.streamed:
+#         x_ssense = np.swapaxes(x_ssense, -3, -1)
+#
+#     x_ssense_ = normalize_imgs(sqrt_sum_of_squares(x_ssense)).astype(par["DTYPE_real"])
+#     x_ = normalize_imgs(sqrt_sum_of_squares(x)).astype(par["DTYPE_real"])
+#     x_diff = x_ssense_ - x_
+#
+#     img_montage(sqrt_sum_of_squares(x_ssense), 'Softsense recon ' + myargs.reg_type)
+#     img_montage(sqrt_sum_of_squares(x_ssense)[[int(np.shape(x_ssense)[-3] / 2)], ...])
+#     img_montage(x_diff, 'Diffs')
+#
+#     metrics = calc_image_metrics(x_ssense_, x_)
+#     _write_to_csv_file_masks(par, myargs, myargs.acceleration_factor, myargs._mask_file, myargs.lamda, myargs.noise,
+#                              metrics, recon_time, i)
+#
+#
+# def save_img(img, filename='', max_val=1, min_val=0):
+#     img_rescaled = (255.0 / max_val * (img - min_val)).astype(np.uint8)
+#     im = Image.fromarray(img_rescaled)
+#     directory = '/home/chrgla/masterthesis/deployed/results/imgs/'
+#     outdir = Path(directory)
+#     if not outdir.exists():
+#         outdir.mkdir(parents=True, exist_ok=True)
+#     file_dir = directory + filename + '.png'
+#     im.save(file_dir)
+#
+#
+# def _show_img(img, max_val, min_val):
+#     plt.figure()
+#     plt.imshow(img, cmap='gray', vmax=max_val, vmin=min_val)
+#     plt.show()
+#
+#
+# def _eval_lambda(par, myargs, ksp_data, cmaps, x, mask_file='C2x2x0.mat'):
+#     myargs._mask_file = mask_file
+#     for noise_fac in [0, 6.5, 13, 26, 65]:  # for phantom data --> SNR [inf, 100, 50, 25, 10]:
+#         myargs.noise = noise_fac
+#         max_val = 1
+#
+#         x_noisy = _add_noise(x.copy(), noise_fac=myargs.noise).astype(par["DTYPE"])
+#
+#         if myargs.reco_slices != -1:
+#             max_val = np.max(sqrt_sum_of_squares(x_noisy))
+#             par["max_val"] = max_val
+#             # x_noisy = np.swapaxes(x_noisy, -3, -1).astype(par["DTYPE"])
+#             n_par_slices = myargs.reco_slices
+#             n_slices = np.shape(x_noisy)[-3]
+#             slice_idx = (int(n_slices / 2) - int(math.floor(n_par_slices / 2)),
+#                          int(n_slices / 2) + int(math.ceil(n_par_slices / 2)))
+#
+#             x_1 = sqrt_sum_of_squares(x_noisy[:, 90, ...].copy())
+#             x_noisy = x_noisy[:, slice_idx[0]:slice_idx[-1], ...]
+#             x_noisy = normalize_imgs(sqrt_sum_of_squares(x_noisy))
+#
+#             m_fac = 2
+#             m_size = int(160 * m_fac)
+#             m_cen = int(m_size / 2)
+#             m_win = int(m_size / 4)
+#             m_l, m_t = m_cen - m_win, m_cen + m_win
+#             x_small = cv2.resize(x_1, (m_size, m_size), interpolation=cv2.INTER_NEAREST)[m_l:m_t, m_l:m_t]
+#
+#             x_small_2 = cv2.resize(x_1, (m_size, m_size), interpolation=cv2.INTER_NEAREST)[0:m_cen, 0:m_cen]
+#             # _show_img(x_1, max_val, 0)
+#             save_img(x_1, 'ref_n_{}'.format(noise_fac * 100), max_val, 0)
+#             save_img(x_small, 'ref_small1_n_{}'.format(noise_fac * 100), max_val, 0)
+#             save_img(x_small_2, 'ref_small2_n_{}'.format(noise_fac * 100), max_val, 0)
+#
+#         # lamda_list = [10, 2, 1, 0.75, 0.5, 0.25, 0.1, 0.05, 0.01] if myargs.reg_type != 'NoReg' else [1]
+#         # lamda_list = [50]
+#
+#         lamda_list = [5.0, 2.5, 1.0, 0.5, 0.25, 0.1, 0.05, 0.01] if myargs.reg_type != 'NoReg' else [1]
+#
+#         for lamda in lamda_list:
+#             myargs.lamda = lamda
+#
+#             ksp_data_ = ksp_data.copy()
+#             _setup_par(par, myargs, ksp_data_, cmaps)
+#
+#             ksp_data_noise = _add_noise(ksp_data_, noise_fac=myargs.noise).astype(DTYPE)
+#             # ksp_data_noise = ksp_data_
+#
+#             #mask_folder = 'R9' if myargs.use_phantom else 'in_vivo'
+#             #myargs.maskfile = Path.cwd() / 'data_soft_sense_test' / 'us_masks' / mask_folder / mask_file
+#             mask_file = 'us_y'
+#             _get_undersampling_mask(par, myargs, mask_file, 6)
+#
+#             ksp_data_ = ksp_data_noise * par["mask"] if par["mask"].ndim > 2 else ksp_data_noise
+#             ksp_data_, x_ = _preprocess_data(myargs, par, ksp_data_, x.copy(), myargs.full_dimXY)
+#             ksp_data_ = ksp_data_.astype(par["DTYPE"])
+#
+#             par["mask"] = par["mask"][0, 0, 0, ...]
+#             par["mask"] = np.require(par["mask"], requirements='C', dtype=par["DTYPE_real"])
+#
+#             x_ssense, elapsed_time, i = _start_recon(ksp_data_, par, myargs)
+#
+#             x_ssense_ = normalize_imgs(np.squeeze(sqrt_sum_of_squares(x_ssense))).astype(par["DTYPE_real"])
+#             x_ = normalize_imgs(np.squeeze(sqrt_sum_of_squares(x_))).astype(par["DTYPE_real"])
+#             x_diff = x_ssense_ - x_
+#
+#             # img_montage(sqrt_sum_of_squares(x_ssense), 'Softsense recon ' + myargs.reg_type)
+#             img_montage(np.squeeze(sqrt_sum_of_squares(x_ssense))[[int(np.shape(x_ssense)[-3] / 2)], ...], 'Softsense recon ' + myargs.reg_type)
+#             #img_montage(x_[[int(np.shape(x_)[-3] / 2)], ...], 'Fully sampled image')
+#             #img_montage(x_diff[[int(np.shape(x_ssense)[-3] / 2)], ...], 'Diffs')
+#
+#             metrics = calc_image_metrics(x_ssense_, x_noisy)
+#             # metrics = calc_image_metrics(x_ssense_, x_)
+#             _write_to_csv_file_lambda(par, myargs, myargs.noise, metrics, elapsed_time)
+#
+#             x_1 = sqrt_sum_of_squares(x_ssense[:, int(np.shape(x_ssense)[-3] / 2)].copy())
+#
+#             m_fac = 2
+#             m_size = int(160 * m_fac)
+#             m_cen = int(m_size / 2)
+#             m_win = int(m_size / 4)
+#             m_l, m_t = m_cen - m_win, m_cen + m_win
+#             x_small = cv2.resize(x_1, (m_size, m_size), interpolation=cv2.INTER_NEAREST)[m_l:m_t, m_l:m_t]
+#
+#             x_small_2 = cv2.resize(x_1, (m_size, m_size), interpolation=cv2.INTER_NEAREST)[0:m_cen, 0:m_cen]
+#             # _show_img(x_1, max_val, 0)
+#             save_img(x_1, myargs.reg_type + '_recon_n_{}_l_{}'.format(int(noise_fac * 100), int(lamda*1000)), max_val, 0)
+#             save_img(x_small, myargs.reg_type + '_recon_small1_n_{}_l_{}'.format(int(noise_fac * 100), int(lamda*1000)), max_val, 0)
+#             save_img(x_small_2, myargs.reg_type + '_recon_small2_n_{}_l_{}'.format(int(noise_fac * 100), int(lamda*1000)), max_val, 0)
+#
+#
+# def _main(myargs, data='', masktype=''):
+#
+#     if myargs.use_phantom:
+#         ksp_data_, cmaps, x = _get_phantom_data(myargs)
+#     elif myargs.use_in_vivo:
+#         ksp_data_, cmaps, x, mask = _get_in_vivo_data(myargs, data, masktype)
+#     else:
+#         ksp_data_, cmaps, x = _get_data(myargs)
+#
+#     # setup PyQMRI parameters and PyOCL
+#     par = {}
+#     _setupOCL(myargs, par)
+#     _setup_par(par, myargs, ksp_data_, cmaps)
+#
+#     # _eval_in_vivo(par, myargs, ksp_data_, x, mask, masktype)
+#     # _eval_lambda(par, myargs, ksp_data_, cmaps, x, 'mask_{}.mat'.format(masktype))
+#     _eval_mask(par, myargs, ksp_data_, cmaps, x)
+#
+#
+# def _set_outdir(myargs, par):
+#     if myargs.outdir == '':
+#         outdir = os.getcwd() + \
+#             "PyQMRI_Soft_Sense_out" + \
+#             time.strftime("%Y-%m-%d  %H-%M-%S") + os.sep
+#     else:
+#         outdir = myargs.outdir + os.sep + "PyQMRI_Soft_Sense_out" + \
+#             par["fname"] + os.sep + \
+#             time.strftime("%Y-%m-%d  %H-%M-%S") + os.sep
+#     if not os.path.exists(outdir):
+#         os.makedirs(outdir)
+#     par["outdir"] = outdir
+#
+
+def _read_input(file, par, data='file'):
+    if file == '':
+        select_file = True
+        while select_file is True:
+            root = Tk()
+            root.withdraw()
+            root.update()
+            file_fd = filedialog.askopenfilename()
+            root.destroy()
+            if file_fd and \
+               not file.endswith((('.h5'), ('.hdf5'), ('.mat'))):
+                print("Please specify a h5 or mat file. Press cancel to exit.")
+            elif not file_fd:
+                print("Exiting...")
+                sys.exit()
+            else:
+                select_file = False
+    else:
+        if not file.endswith((('.h5'), ('.hdf5'), ('.mat'))):
+            print("Please specify a h5 or mat file. ")
+            sys.exit()
+        f = file
+    name = os.path.normpath(f)
+    par["fname"] = name.split(os.sep)[-1]
+
+    if file.endswith((('.h5'), ('.hdf5'))):
+        par[data] = h5py.File(file, 'a')
+    else:
+        par[data] = loadmat(file)
+
+def _read_data_from_file(myargs, par):
+    pass
 
 
-class SoftSenseOptimizer:
-    """Main Soft Sense Optimization class.
+def _start_recon(myargs):
+    # Create par struct to store relevant parameters for reconstruction
+    par = {}
 
-    This Class performs Soft Sense Optimization either with TGV, TV or without regularization.
+    ###############################################################################
+    # Define precision ############################################################
+    ###############################################################################
+    if myargs.double_precision is True:
+        par["DTYPE"] = np.complex128
+        par["DTYPE_real"] = np.float64
+    else:
+        par["DTYPE"] = np.complex64
+        par["DTYPE_real"] = np.float32
+
+    _read_input(myargs.file, par, 'file')
+    _read_input(myargs.cmaps, par, 'C')
+    _read_input(myargs.mask, par, 'mask')
+
+    #_setupOCL(myargs, par)
+    #_setup_par(par, myargs, ksp_data_, cmaps)
+
+
+def run(recon_type='3D',
+        reg_type='TGV',
+        adapt_stepsize=True,
+        reco_slices=-1,
+        streamed=False,
+        par_slices=1,
+        devices=-1,
+        dz=1,
+        weights=-1,
+        data='',
+        cmaps='',
+        mask='',
+        config='default',
+        outdir='',
+        double_precision=False):
+    """
+    Start a Soft SENSE reconstruction
+
+    Start a Soft SENSE reconstruction
+    If no data path is given, a file dialog can be used to select data,
+    coil sensitivities and sampling mask (binary undersampling pattern)
+    at start up.
+
+    If no config file is passed, a default one will be generated in the
+    current folder, the script is run in.
 
     Parameters
     ----------
-      par : dict
-        A python dict containing the necessary information to
-        setup the object. Needs to contain the number of slices (NSlice),
-        number of scans (NScan), image dimensions (dimX, dimY), number of
-        coils (NC), sampling points (N) and read outs (NProj)
-        a PyOpenCL queue (queue) and the complex coil
-        sensitivities (C).
-      reg_type : str, "TGV"
-        Select between "TGV" (default), "TV" or "" (without) regularization.
-      config : str, ''
-        Name of config file. If empty, default config file will be generated.
-      streamed : bool, false
-        Select between standard reconstruction (false)
-        or streamed reconstruction (true) for large volumetric data which
-        does not fit on the GPU memory at once.
-      DTYPE : numpy.dtype, numpy.complex64
-        Complex working precission.
-      DTYPE_real : numpy.dtype, numpy.float32
-        Real working precission.
-
-    Attributes
-    ----------
-      par : dict
-        A python dict containing the necessary information to
-        setup the object. Needs to contain the number of slices (NSlice),
-        number of scans (NScan), image dimensions (dimX, dimY), number of
-        coils (NC), sampling points (N) and read outs (NProj)
-        a PyOpenCL queue (queue) and the complex coil
-        sensitivities (C).
-      ss_par : dict
-        The parameters read from the config file to guide the Soft Sense
-        optimization process
+      reg_type : str, TGV
+        TGV or TV, defaults to TGV
+      adapt_stepsize : bool, True
+        Primal dual algorithm with adaptive stepsize is used for reconstruction.
+        If false, step sizes are estimated using power method.
+      reco_slices : int, -1
+        The number of slices to reconsturct. Slices are picked symmetrically
+        from the volume center. Pass -1 to select all slices available.
+        Defaults to -1
+      streamed : bool, False
+        Toggle between streaming slices to the GPU (1) or computing
+        everything with a single memory transfer (0). Defaults to 0
+      par_slices : int, 1
+        Number of slices per streamed package. Volume devided by GPU's and
+        par_slices must be an even number! Defaults to 1
+      devices : list of int, 0
+        The device ID of device(s) to use for streaming/reconstruction
+      dz : float, 1
+        Ratio of physical Z to X/Y dimension. X/Y is assumed to be isotropic.
+      outdir : str, ''
+        Output directory. Defaults to the location of the input file.
+      weights : list of float, -1
+        Optional weights for each unknown. Defaults to -1, i.e. no additional
+        weights are used.
+      data : str, ''
+        The path to the .h5 file containing the data to reconstruct.
+        If left empty, a GUI will open and asks for data file selection. This
+        is also the default behaviour.
+      cmaps : str, ''
+        The path to the .h5 file containing the estimated coil sensitivities.
+        If left empty, a GUI will open and asks for data file selection. This
+        is also the default behaviour.
+      mask : str, ''
+        The path to the .h5 file containing the binary mask representing the
+        sampling pattern.
+        If left empty, a GUI will open and asks for data file selection. This
+        is also the default behaviour.
+      config : str, default
+        The path to the config file used for the Soft SENSE PD reconstruction. If
+        not specified the default config file will be used. If no default
+        config file is present in the current working directory one will be
+        generated.
+      double_precision : bool, False
+        Enable double precission computation.
     """
+    params = [('--recon_type', str(recon_type)),
+              ('--reg_type', str(reg_type)),
+              ('--adapt_stepsize', str(adapt_stepsize)),
+              ('--reco_slices', str(reco_slices)),
+              ('--streamed', str(streamed)),
+              ('--devices', str(devices)),
+              ('--dz', str(dz)),
+              ('--weights', str(weights)),
+              ('--par_slices', str(par_slices)),
+              ('--data', str(data)),
+              ('--cmaps', str(cmaps)),
+              ('--mask', str(mask)),
+              ('--config', str(config)),
+              ('--OCL_GPU', "True"),
+              ('--outdir', str(outdir)),
+              ('--double_precision', str(double_precision))
+              ]
 
-    def __init__(self,
-                 par,
-                 myargs,
-                 reg_type='TGV',
-                 streamed=False,
-                 DTYPE=np.complex64,
-                 DTYPE_real=np.float32):
-        self.par = par
-        self.ss_par = utils.read_config('', optimizer="SSense", reg_type=reg_type)
+    sysargs = sys.argv[1:]
+    for par_name, par_value in params:
+        if par_name not in sysargs:
+            sysargs.append(par_name)
+            sysargs.append(par_value)
+    argsrun, unknown = _parse_arguments(sysargs)
+    if unknown:
+        print("Unknown command line arguments passed: " + str(unknown) + "."
+              " These will be ignored for fitting.")
+    _start_recon(argsrun)
 
-        # temporary solution
-        self.ss_par["lambd"] = myargs.lamda
-        self.ss_par["linesearch"] = myargs.linesearch
-        self.ss_par["accelerated"] = myargs.accelerated
-        self.ss_par["adaptivestepsize"] = myargs.adapt_stepsize
-        self.ss_par["display_iterations"] = True
-        self.ss_par["sigma"] = np.float32(1 / np.sqrt(12))
+def _parse_arguments(args):
+    argpar = argparse.ArgumentParser(
+        description="Soft Sense reconstruction"
+                    "through Primal-dual algorithm"
+                    "with TV or TGV regularization."
+    )
+    argpar.add_argument(
+      '--recon_type', default='3D', dest='type',
+      help="Choose reconstruction type, 2D or 3D. "
+           "Default is 3D.")
+    argpar.add_argument(
+      '--reg_type', default='NoReg', dest='reg_type',
+      help="Choose regularization type "
+           "options are: 'TGV', 'TV'")
+    argpar.add_argument(
+        '--adapt_stepsize', default='0', dest='adapt_stepsize', type=_str2bool,
+        help='Enable accelerated optimization by adaptive step size computation.')
+    argpar.add_argument(
+        '--streamed', default='0', dest='streamed', type=_str2bool,
+        help='Enable streaming of large data arrays (e.g. >10 slices).')
+    argpar.add_argument(
+        '--reco_slices', default='-1', dest='reco_slices', type=int,
+        help='Number of slices taken around center for reconstruction (Default to -1, i.e. all slices)')
+    argpar.add_argument(
+      '--par_slices', dest='par_slices', type=int,
+      help='number of slices per package. Volume devided by GPU\'s and'
+           ' par_slices must be an even number!')
+    argpar.add_argument(
+      '--devices', dest='devices', type=int,
+      help="Device ID of device(s) to use for streaming. "
+           "-1 selects all available devices", nargs='*')
+    argpar.add_argument(
+      '--dz', dest='dz', type=float,
+      help="Ratio of physical Z to X/Y dimension. "
+           "X/Y is assumed to be isotropic. Defaults to  1")
+    argpar.add_argument(
+      '--weights', dest='weights', type=float,
+      help="Ratio of unkowns to each other. Defaults to 1. "
+           "If passed, needs to be in the same size as the number of unknowns",
+           nargs='*')
+    argpar.add_argument(
+      '--data', dest='file',
+      help="Full path to input data. "
+           "If not provided, a file dialog will open.")
+    argpar.add_argument(
+      '--cmaps', dest='file',
+      help="Full path to coil sensitivity maps. "
+           "If not provided, a file dialog will open.")
+    argpar.add_argument(
+      '--mask', dest='file',
+      help="Full path to binary mask. "
+           "If not provided, a file dialog will open.")
+    argpar.add_argument(
+        '--config', dest='config',
+        help='Name of config file to use (assumed to be in the same folder). \
+              If not specified, use default parameters.')
+    argpar.add_argument(
+      '--double_precision', dest='double_precision', type=_str2bool,
+      help="Switch between single (False, default) and double "
+           "precision (True). Usually, single precision gives high enough "
+           "accuracy.")
+    argpar.add_argument(
+        '--outdir', default='', dest='outdir', type=str,
+        help='Output directory.')
 
-        utils.save_config(self.ss_par, str(par["outdir"]), reg_type)
-        num_dev = len(par["num_dev"])
-        self._fval_old = 0
-        self._fval = 0
-        self._fval_init = 0
-        self._ctx = par["ctx"]
-        self._queue = par["queue"]
-        self._reg_type = reg_type
-        self._prg = []
-
-        self._DTYPE = DTYPE
-        self._DTYPE_real = DTYPE_real
-
-        if self.ss_par["accelerated"] and self.ss_par["adaptivestepsize"]:
-            raise ValueError(
-                "Choose between accelerated optimization and adaptive step size."
-                "Can not use both!"
-            )
-
-        self._elapsed_time = None
-
-        self._streamed = streamed
-        # if streamed and par["NSlice"]/(num_dev*par["par_slices"]) < 2:
-        #     raise ValueError(
-        #         "Number of Slices devided by parallel "
-        #         "computed slices and devices needs to be larger two.\n"
-        #         "Current values are %i total Slices, %i parallel slices and "
-        #         "%i compute devices."
-        #         % (par["NSlice"], par["par_slices"], num_dev))
-        # if streamed and par["NSlice"] % par["par_slices"]:
-        #     raise ValueError(
-        #         "Number of Slices devided by parallel "
-        #         "computed slices needs to be an integer.\n"
-        #         "Current values are %i total Slices with %i parallel slices."
-        #         % (par["NSlice"], par["par_slices"]))
-        if DTYPE == np.complex128:
-            if streamed:
-                kernname = 'kernels/OpenCL_Kernels_double_streamed.c'
-            else:
-                kernname = 'kernels/OpenCL_Kernels_double.c'
-            for j in range(num_dev):
-                self._prg.append(Program(
-                    self._ctx[j],
-                    open(
-                        resource_filename(
-                            'pyqmri', kernname)
-                        ).read()))
-        else:
-            if streamed:
-                kernname = 'kernels/OpenCL_Kernels_streamed.c'
-            else:
-                kernname = 'kernels/OpenCL_Kernels.c'
-            for j in range(num_dev):
-                self._prg.append(Program(
-                    self._ctx[j],
-                    open(
-                        resource_filename(
-                            'pyqmri', kernname)).read()))
-
-        self._data_shape = (par["NScan"], par["NC"],
-                            par["NSlice"], par["Nproj"], par["N"])
-        self._unknown_shape = (par["NMaps"], par["NSlice"],
-                               par["Nproj"], par["N"])
-
-        if self._streamed:
-            self._data_trans_axes = (2, 0, 1, 3, 4)
-            self._cmaps = np.require(
-                np.transpose(par["C"], self._data_trans_axes), requirements='C',
-                dtype=DTYPE)
-            self._unknown_shape = (par["NSlice"], par["NMaps"],
-                                   par["Nproj"], par["N"])
-            self._data_shape = (par["NSlice"], par["NScan"], par["NC"],
-                                par["Nproj"], par["N"])
-        else:
-            self._cmaps = clarray.to_device(self._queue[0],
-                                            self.par["C"])
-
-        self._MRI_operator, self._FT = operator.Operator.SoftSenseOperatorFactory(
-            par,
-            self._prg,
-            DTYPE,
-            DTYPE_real,
-            streamed
-            )
-
-        self._grad_op, self._symgrad_op, self._v = self._setup_linear_ops(
-            DTYPE,
-            DTYPE_real)
-
-        if self.ss_par["linesearch"]:
-            self._pdop = optimizer.PDALSoftSenseBaseSolver.factory(
-                self._prg,
-                self._queue,
-                self.par,
-                self.ss_par,
-                self._fval_init,
-                self._cmaps,
-                linops=(self._MRI_operator, self._grad_op, self._symgrad_op),
-                reg_type=self._reg_type,
-                streamed=self._streamed,
-                DTYPE=DTYPE,
-                DTYPE_real=DTYPE_real
-            )
-        else:
-            self._pdop = optimizer.PDSoftSenseBaseSolver.factory(
-                self._prg,
-                self._queue,
-                self.par,
-                self.ss_par,
-                self._fval_init,
-                self._cmaps,
-                linops=(self._MRI_operator, self._grad_op, self._symgrad_op),
-                reg_type=self._reg_type,
-                streamed=self._streamed,
-                DTYPE=DTYPE,
-                DTYPE_real=DTYPE_real
-            )
-
-    def _setup_linear_ops(self, DTYPE, DTYPE_real):
-        grad_op, _ = operator.Operator.GradientOperatorFactory(
-            self.par,
-            self._prg,
-            DTYPE,
-            DTYPE_real,
-            self._streamed)
-        symgrad_op = None
-        v = None
-        if self._reg_type == 'TGV':
-            symgrad_op = operator.Operator.SymGradientOperatorFactory(
-                self.par,
-                self._prg,
-                DTYPE,
-                DTYPE_real,
-                self._streamed)
-            v = np.zeros(
-                ([self.par["unknowns"], self.par["NSlice"],
-                  self.par["dimY"], self.par["dimX"], 4]),
-                dtype=DTYPE)
-            if self._streamed:
-                v = np.require(np.swapaxes(v, 0, 1), requirements='C')
-        return grad_op, symgrad_op, v
-
-    def _save_imgs(self, x):
-        if "fname" in self.par.keys():
-            filename = self.par["fname"]
-        else:
-            filename = 'Recon_R_' + str(self.par["R"]) + '_lambda_' + '{:.0e}'.format(self.ss_par["lambd"])
-        path = self.par["outdir"] / 'imgs'
-        if not path.exists():
-            path.mkdir(parents=True, exist_ok=True)
-
-        for i, img in enumerate(x):
-            img = np.flipud(np.abs(img))
-            img_rescaled = (255.0 / img.max() * (img - img.min())).astype(np.uint8)
-
-            im = Image.fromarray(img_rescaled)
-            file_dir = path / (filename + '_' + str(i) + '.png')
-            im.save(file_dir)
-
-    def _save_data(self, x):
-        if "fname" in self.par.keys():
-            filename = self.par["fname"]
-        else:
-            filename = 'Recon_R_' + str(self.par["R"]) + '_lambda_' + '{:.0e}'.format(self.ss_par["lambd"])
-        path = self.par["outdir"] / 'data'
-        if not path.exists():
-            path.mkdir(parents=True, exist_ok=True)
-        file_dir = path / (filename + '.hdf5')
-
-        with h5py.File(file_dir, 'w') as f:
-            dset = f.create_dataset(self._reg_type+'_result', x.shape,
-                                    dtype=self._DTYPE, data=x)
-            dset.attrs["R"] = self.par["R"]
-            dset.attrs["linesearch"] = self.ss_par["linesearch"]
-            dset.attrs["lambd"] = self.ss_par["lambd"]
-            dset.attrs["streamed"] = self._streamed
-            dset.attrs["elapsed_time"] = self._elapsed_time
-            if self._reg_type == 'TGV':
-                dset.attrs["alpha0"] = self.ss_par["alpha0"]
-                dset.attrs["alpha1"] = self.ss_par["alpha1"]
-
-    def _power_iterations(self, x, cmap, op, iters=10):
-        x = x.astype(self._DTYPE)
-
-        if len(cmap) > 0:
-            cmap = cmap.astype(self._DTYPE)
-            if self._streamed:
-                y = op.adjoop([[op.fwdoop([[x, cmap]]), cmap]])
-            else:
-                x = clarray.to_device(self._queue[0], x)
-                y = op.adjoop([op.fwdoop([x, cmap]), cmap]).get()
-        else:
-            if self._streamed:
-                y = op.adjoop([op.fwdoop([x])])
-            else:
-                x = clarray.to_device(self._queue[0], x)
-                y = op.adjoop(op.fwdoop(x)).get()
-
-        l1 = []
-        for i in range(iters):
-            y_norm = np.linalg.norm(y)
-            x = y / y_norm if y_norm != 0 else y
-            if self._streamed:
-                y = op.adjoop([[op.fwdoop([[x, cmap]]), cmap]]) if len(cmap) > 0 \
-                    else op.adjoop([op.fwdoop([x])])
-            else:
-                x = clarray.to_device(self._queue[0], x)
-                y = op.adjoop([op.fwdoop([x, cmap]), cmap]).get() if len(cmap) > 0 \
-                    else op.adjoop(op.fwdoop(x)).get()
-
-                if not isinstance(x, np.ndarray):
-                    x = x.get()
-                l1.append(np.vdot(y, x))
-
-        return np.sqrt(np.max(np.abs(l1)))
-
-    def _calc_step_size(self):
-
-        if self._streamed:
-            x = np.random.randn(self.par["NSlice"], 1, self.par["dimY"], self.par["dimX"]) + \
-                1j * np.random.randn(self.par["NSlice"], 1, self.par["dimY"], self.par["dimX"])
-        else:
-            x = np.random.randn(1, self.par["NSlice"], self.par["dimY"], self.par["dimX"]) + \
-                1j * np.random.randn(1, self.par["NSlice"], self.par["dimY"], self.par["dimX"])
-
-        opnorm_1 = self._power_iterations(x, self._cmaps[0], self._MRI_operator)
-        opnorm_2 = self._power_iterations(x, self._cmaps[1], self._MRI_operator)
-
-        K_ssense = np.array([opnorm_1, opnorm_2])
-
-        if self._reg_type != 'NoReg':
-            opnorm_grad = self._power_iterations(x, [], self._grad_op)
-
-            K_ssense_tv = np.array([[opnorm_1, opnorm_2],
-                                    [opnorm_grad, 0],
-                                    [0, opnorm_grad]])
-
-        if self._reg_type == 'TGV':
-            if self._streamed:
-                x_symgrad = np.random.randn(self.par["NSlice"], 1, self.par["dimY"], self.par["dimX"], 4) + \
-                            1j * np.random.randn(self.par["NSlice"], 1, self.par["dimY"], self.par["dimX"], 4)
-            else:
-                x_symgrad = np.random.randn(1, self.par["NSlice"], self.par["dimY"], self.par["dimX"], 4) + \
-                            1j * np.random.randn(1, self.par["NSlice"], self.par["dimY"], self.par["dimX"], 4)
-
-            opnorm_symgrad = self._power_iterations(x_symgrad, [], self._symgrad_op)
-
-            K_ssense_tgv = np.array([[opnorm_1, opnorm_2, 0, 0],
-                                     [opnorm_grad, 0, -1, 0],
-                                     [0, 0, opnorm_symgrad, 0],
-                                     [0, opnorm_grad, 0, -1],
-                                     [0, 0, 0, opnorm_symgrad]])
-
-        tau = 1 / np.sqrt(np.vdot(K_ssense, K_ssense))
-
-        if self._reg_type == 'TV':
-            tau = 1 / np.sqrt(np.vdot(K_ssense_tv, K_ssense_tv))
-        if self._reg_type == 'TGV':
-            tau = 1 / np.sqrt(np.vdot(K_ssense_tgv, K_ssense_tgv))
-
-        if tau < 0.1:  # or tau > 1.0:
-            tau = self._DTYPE_real(1 / np.sqrt(12))
-        sigma = tau
-        self._pdop.tau = tau
-        self._pdop.sigma = sigma
-
-        print("-" * 75)
-        print("Calculated step size: %f" % tau)
-        print("-" * 75)
-
-    def _calculate_cost(self, x, data):
-        if self._streamed:
-            fwd = self._MRI_operator.fwdoop([[x, self._cmaps]])
-            grad = self._grad_op.fwdoop([x])
-            if self._v is not None:
-                symgrad = self._symgrad_op.fwdoop([self._v])
-        else:
-            x = clarray.to_device(self._queue[0], x)
-            fwd = self._MRI_operator.fwdoop([x, self._cmaps]).get()
-            grad = self._grad_op.fwdoop(x).get()
-            if self._v is not None:
-                v = clarray.to_device(self._queue[0], self._v)
-                symgrad = self._symgrad_op.fwdoop(v).get()
-
-        data_cost = np.linalg.norm(fwd - data) ** 2
-        # datacost = np.vdot((out_fwd - ksp), (out_fwd - ksp)).real
-
-        reg_cost = 0
-        if self._reg_type == 'TV':
-            data_cost *= (self.ss_par["lambd"] * 0.5)
-            reg_cost = np.sum(np.abs(grad))
-        if self._reg_type == 'TGV':
-            data_cost *= self.ss_par["lambd"]
-            reg_cost = self.ss_par['alpha1'] * np.sum(np.abs(grad - self._v)) \
-                + self.ss_par['alpha0'] * np.sum(np.abs(symgrad))
-
-        self._fval = data_cost + reg_cost
-        self._fval_init = self._fval
-        self._pdop.setFvalInit(self._fval)
-
-        print("-" * 75)
-        print("Initial Cost: %f" % self._fval_init)
-        print("Costs of Data: %f" % data_cost)
-        if self._reg_type != 'NoReg':
-            print("Costs of T(G)V: %f" % reg_cost)
-        print("-" * 75)
-
-    def _solve(self, x, data, iters):
-        tmpres = self._pdop.run(x, data, iters)
-        for key in tmpres:
-            if key == 'x':
-                if isinstance(tmpres[key], np.ndarray):
-                    x = tmpres["x"]
-                else:
-                    x = tmpres["x"].get()
-
-        if self._streamed:
-            x = np.require(np.swapaxes(x, 0, 1), requirements='C')
-
-        return x
-
-    def execute(self, data):
-        """Start the Soft Sense optimization.
-
-        Parameters
-        ----------
-          data : numpy.array
-            the data to perform optimization on.
-        """
-        x = np.require(
-            np.zeros(self._unknown_shape, self._DTYPE)
-            + 1j * np.zeros(self._unknown_shape, self._DTYPE),
-            requirements='C')
-
-        if self._streamed:
-            data = np.require(
-                np.transpose(data, self._data_trans_axes),
-                requirements='C')
-
-            img_init = self._MRI_operator.adjoop([[data, self._cmaps]])
-            img_init_ = np.swapaxes(img_init, 0, 1)
-            img_montage(sqrt_sum_of_squares(img_init_))
-        else:
-            data_ = clarray.to_device(self._queue[0], data)
-            img_init = self._MRI_operator.adjoop([data_, self._cmaps]).get()
-            img_montage(sqrt_sum_of_squares(img_init))
-
-        iters = self.ss_par["max_iters"] if "max_iters" in self.ss_par.keys() else 1000
-
-        self._calculate_cost(img_init, data)
-
-        if not self.ss_par["linesearch"] and not self.ss_par["accelerated"]\
-                and not self.ss_par["adaptivestepsize"]:
-            self._calc_step_size()
-
-        if self.ss_par["adaptivestepsize"]:
-            self._pdop.tau = 2.0
-            self._pdop.sigma = 2.0
-
-        # if self.ss_par["accelerated"]:
-        #     self._pdop.tau = 1
-        #     self._pdop.sigma = 0.1
-
-        start_time = time.time()
-        result = self._solve(x, data, iters)
-        self._elapsed_time = time.time() - start_time
-
-        print("-" * 75)
-        print("Elapsed time PD algorithm: %f seconds" % self._elapsed_time)
-        print("-" * 75)
-
-        self._save_data(result)
-        self._save_imgs(sqrt_sum_of_squares(result))
-
-        return result
+    return argpar.parse_known_args(args)
 
 
-
+if __name__ == '__main__':
+    run()
+#
+#     args = argparse.ArgumentParser(
+#         description="Soft Sense reconstruction.")
+#     args.add_argument(
+#       '--recon_type', default='3D', dest='type',
+#       help='Choose reconstruction type, 2D or 3D')
+#     args.add_argument(
+#       '--reg_type', default='NoReg', dest='reg_type',
+#       help="Choose regularization type (default: without regularization) "
+#            "options are: 'TGV', 'TV', 'NoReg'")
+#     args.add_argument(
+#         '--lambda', default=1, dest='lamda',
+#         help="Regularization parameter (default: 1)", type=float)
+#     args.add_argument(
+#         '--linesearch', default='0', dest='linesearch',
+#         help="Use PD algorithm with linesearch (default: 0)", type=_str2bool)
+#     args.add_argument(
+#         '--accelerated', default='0', dest='accelerated',
+#         help="Use PD algorithm with adaptive step size (default: 0)", type=_str2bool)
+#     args.add_argument(
+#         '--streamed', default='0', dest='streamed', type=_str2bool,
+#         help='Enable streaming of large data arrays (e.g. >10 slices).')
+#     args.add_argument(
+#         '--reco_slices', default='-1', dest='reco_slices', type=int,
+#         help='Number of slices taken around center for reconstruction (Default to -1, i.e. all slices)')
+#     args.add_argument(
+#         '--outdir', default='', dest='outdir', type=str,
+#         help='Output directory.')
+#     args.add_argument(
+#         '--adapt_stepsize', default='0', dest='adapt_stepsize', type=_str2bool,
+#         help='Enable accelerated optimization by adaptive step size computation.')
+#     args.add_argument(
+#         '--use_phantom', default='0', dest='use_phantom', type=_str2bool,
+#         help='Use phantom instead...'
+#     )
+#     args.add_argument(
+#         '--use_in_vivo', default='0', dest='use_in_vivo', type=_str2bool,
+#         help='Use in-vivo data instead...'
+#     )
+#
+#     args = args.parse_args()
+#
+#     args.trafo = False
+#     args.use_GPU = True
+#     args.streamed = False
+#     args.devices = -1
+#     args.datafile = Path.cwd() / 'Granat' / 'Results' / 'C2x2s0' / 'data_softSense.mat'
+#     args.maskfile = Path.cwd() / 'data_soft_sense_test' / 'us_masks' / 'R4' 'mask_CAIPI2x2x0.mat'
+#     args.kspfile = Path.cwd() / 'data_soft_sense_test' / 'kspace.mat'
+#     args.csfile = Path.cwd() / 'data_soft_sense_test' / 'sensitivities_ecalib.mat'
+#
+#     args.double_precision = False
+#
+#     args.use_phantom = False
+#     args.use_in_vivo = True
+#
+#     args.type = '3D'
+#     # args.reg_type = 'TV'  # 'NoReg', 'TV', or 'TGV'
+#
+#     args.reco_slices = 6
+#     args.adapt_stepsize = True
+#     args.full_dimXY = False
+#     args.acceleration_factor = 4
+#
+#     np.random.seed(42)
+#
+#     args.noise = 0
+#     for reg_type in ['TV', 'TGV']:
+#         args.reg_type = reg_type
+#         #for mask in ['CAIPI2x2x0', 'CAIPI2x2x1', 'a']:  #, 6.5, 13, 26, 65]:
+#             # args.noise = noise
+#         args.lamda = 1.0
+#         _main(args, masktype='C2x2s0')
+#
+#     # args.noise = 0
+#     # for data in ['data1']:
+#     #     for mask in ['C2x2x0', 'C2x2x1']:
+#     #         for reg_type in ['TV', 'TGV']:
+#     #             args.lamda = 0.1
+#     #             args.reg_type = reg_type
+#     #
+#     #             _main(args, data, mask)

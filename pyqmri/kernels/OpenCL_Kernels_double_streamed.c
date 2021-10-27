@@ -1,4 +1,4 @@
-__kernel void extrapolate(
+__kernel void extrapolate_x(
                 __global double2 *xn1_,
                 __global double2 *xn1,
                 __global double2 *xn,
@@ -6,6 +6,16 @@ __kernel void extrapolate(
 {
     size_t i = get_global_id(0);
     xn1_[i] = xn1[i] * (1 + theta) - theta * xn[i];
+}
+
+__kernel void extrapolate_v(
+                __global double8 *vn1_,
+                __global double8 *vn1,
+                __global double8 *vn,
+                const float theta)
+{
+    size_t i = get_global_id(0);
+    vn1_[i] = vn1[i] * (1 + theta) - theta * vn[i];
 }
 
 __kernel void update_x(
@@ -49,7 +59,7 @@ __kernel void update_z_tv(
         __global double8 *zn, 
         __global double8 *gx,
         const double sigma, 
-        const double NUk)
+        const int NUk)
 {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
@@ -97,7 +107,7 @@ __kernel void update_z_tv_line(
                     __global double8 *gx_,
                     const double sigma,
                     const double theta,
-                    const double NUk)
+                    const int NUk)
 {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
@@ -156,7 +166,7 @@ __kernel void update_z1_tgv(
                 __global double8 *v,
                 const double sigma, 
                 const double alphainv, 
-                const double NUk)
+                const int NUk)
 {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
@@ -186,7 +196,8 @@ __kernel void update_z1_tgv(
                 z_new[i].s5
                 )
               )
-            )*alphainv);
+            )*alphainv
+          );
         i+=Nx*Ny;
   }
   i = k*NUk*Nx*Ny + Nx*y + x;
@@ -250,126 +261,10 @@ __kernel void update_z2_tgv(
              z_new[i].sb
              )
            )
-         )*alphainv);
+         )*alphainv
+       );
        i+=Nx*Ny;
   }
-  i = k*NUk*Nx*Ny + Nx*y + x;
-  for (int uk=0; uk<NUk; uk++)
-  {
-     if (fac > 1.0f) z_new[i] /=fac;
-     i += Nx*Ny;
-  }
-}
-
-__kernel void update_z1_tgv_line(
-                    __global double8 *z_new, 
-                    __global double8 *z, 
-                    __global double8 *gx, 
-                    __global double8 *gx_,
-                    __global double8 *v, 
-                    __global double8 *v_, 
-                    const double sigma, 
-                    const double theta,
-                    const double alphainv, 
-                    const double NUk)
-{
-  size_t Nx = get_global_size(2), Ny = get_global_size(1);
-  size_t NSl = get_global_size(0);
-  size_t x = get_global_id(2), y = get_global_id(1);
-  size_t k = get_global_id(0);
-  size_t i = k*NUk*Nx*Ny+Nx*y + x;
-
-  double fac = 0.0f;
-
-  for (int uk=0; uk<NUk; uk++)
-  {
-     z_new[i] = z[i] + sigma * ((1 + theta) * gx[i] - theta * gx_[i] - (1 + theta) * v[i] + theta * v_[i]);
-
-     fac = hypot(fac,
-       hypot(
-         hypot(
-           z_new[i].s0,
-           z_new[i].s1
-           ),
-         hypot(
-           hypot(
-             z_new[i].s2,
-             z_new[i].s3
-             ),
-           hypot(
-             z_new[i].s4,
-             z_new[i].s5
-             )
-           )
-         )*alphainv);
-     i+=Nx*Ny;
-  }
-  i = k*NUk*Nx*Ny + Nx*y + x;
-  for (int uk=0; uk<NUk; uk++)
-  {
-     if (fac > 1.0f) z_new[i] /=fac;
-     i += Nx*Ny;
-  }
-}
-
-__kernel void update_z2_tgv_line(
-                    __global double16 *z_new, 
-                    __global double16 *z, 
-                    __global double16 *symgv,
-                    __global double16 *symgv_, 
-                    const double sigma, 
-                    const double theta,
-                    const double alphainv, 
-                    const int NUk) 
-{
-  size_t Nx = get_global_size(2), Ny = get_global_size(1);
-  size_t NSl = get_global_size(0);
-  size_t x = get_global_id(2), y = get_global_id(1);
-  size_t k = get_global_id(0);
-  size_t i = k*NUk*Nx*Ny+Nx*y + x;
-
-  double fac = 0.0f;
-
-  for (int uk=0; uk<NUk; uk++)
-  {
-       z_new[i] = z[i] + sigma * ((1 + theta) * symgv[i] - theta * symgv_[i]);
-
-       fac = hypot(fac,hypot(
-           hypot(
-             hypot(
-               hypot(
-                 z_new[i].s0,
-                 z_new[i].s1
-                 ),
-             hypot(
-               z_new[i].s2,
-               z_new[i].s3
-               )
-             ),
-           hypot(
-             z_new[i].s4,
-             z_new[i].s5
-             )
-           ),
-         hypot(
-           hypot(
-             2.0f*hypot(
-               z_new[i].s6,
-               z_new[i].s7
-               ),
-             2.0f*hypot(
-               z_new[i].s8,
-               z_new[i].s9
-               )
-             ),
-           2.0f*hypot(
-             z_new[i].sa,
-             z_new[i].sb
-             )
-           )
-         )*alphainv);
-       i+=Nx*Ny;
-   }
   i = k*NUk*Nx*Ny + Nx*y + x;
   for (int uk=0; uk<NUk; uk++)
   {

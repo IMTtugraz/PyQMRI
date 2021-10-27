@@ -25,6 +25,9 @@ def undersample_kspace(par, ksp_data, args):
     acc = args.acceleration_factor
     dim = args.dim_us
 
+    if acc == 0:
+        return ksp_data
+
     par["mask"] = np.zeros(ksp_data.shape[2:], dtype=DTYPE_real)
     mask = create_mask(np.shape(ksp_data), acc, dim)
 
@@ -45,12 +48,14 @@ def sqrt_sum_of_squares(x):
 
 
 def normalize_imgs(x):
+    if x.ndim == 2:
+        x = np.expand_dims(x, 0)
     for i in range(x.shape[-3]):
         img = x[i]
         i_min = np.min(img)
         i_max = np.max(img)
-        x[i] = (img - i_min) / (i_max - i_min)
-    return x
+        x[i] = (img - i_min) / (i_max - i_min) if np.abs(i_max - i_min) > 0 else 0
+    return np.squeeze(x)
 
 
 def calc_psnr(img, orig_img):

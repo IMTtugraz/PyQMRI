@@ -69,13 +69,13 @@ class CGSolver:
             self._DTYPE_real,
             trafo=trafo,
             SMS=SMS
-            )
+        )
 
         if SMS:
             self._tmp_sino = clarray.empty(
                 self._queue,
                 (self._NScan, self._NC,
-                 int(self._NSlice/par["MB"]), par["Nproj"], par["N"]),
+                 int(self._NSlice / par["MB"]), par["Nproj"], par["N"]),
                 self._DTYPE, "C")
         else:
             self._tmp_sino = clarray.empty(
@@ -152,15 +152,15 @@ class CGSolver:
         self._operator_rhs(b, data)
         res = b
         p = res
-        delta = np.linalg.norm(res.get())**2/np.linalg.norm(b.get())**2
+        delta = np.linalg.norm(res.get())**2 / np.linalg.norm(b.get())**2
 
         for i in range(iters):
             self._operator_lhs(Ax, p)
-            Ax = Ax + lambd*p
+            Ax = Ax + lambd * p
             alpha = (clarray.vdot(res, res) /
                      (clarray.vdot(p, Ax))).real.get()
-            x = (x + alpha*p)
-            res_new = res - alpha*Ax
+            x = (x + alpha * p)
+            res_new = res - alpha * Ax
             delta = np.linalg.norm(res_new.get())**2 /\
                 np.linalg.norm(b.get())**2
             if delta < tol:
@@ -171,7 +171,7 @@ class CGSolver:
                 return np.squeeze(x.get())
             beta = (clarray.vdot(res_new, res_new) /
                     clarray.vdot(res, res)).real.get()
-            p = res_new+beta*p
+            p = res_new + beta * p
             (res, res_new) = (res_new, res)
         del Ax, b, res, p, data, res_new
         return np.squeeze(x.get())
@@ -224,7 +224,7 @@ class CGSolver:
         if wait_for is None:
             wait_for = []
         self._tmp_result.add_event(self.eval_fwd_kspace_cg(
-            self._tmp_result, x, wait_for=self._tmp_result.events+x.events))
+            self._tmp_result, x, wait_for=self._tmp_result.events + x.events))
         self._tmp_sino.add_event(self._FT(
             self._tmp_sino, self._tmp_result, scan_offset=self._scan_offset))
         return self._operator_rhs(out, self._tmp_sino)
@@ -249,7 +249,7 @@ class CGSolver:
         if wait_for is None:
             wait_for = []
         self._tmp_result.add_event(self._FTH(
-            self._tmp_result, x, wait_for=wait_for+x.events,
+            self._tmp_result, x, wait_for=wait_for + x.events,
             scan_offset=self._scan_offset))
         return self._prg.operator_ad_cg(self._queue,
                                         (self._NSlice, self._dimY,
@@ -259,7 +259,7 @@ class CGSolver:
                                         self._coils, np.int32(self._NC),
                                         np.int32(self._NScan),
                                         wait_for=(self._tmp_result.events +
-                                                  out.events+wait_for))
+                                                  out.events + wait_for))
 
 
 class PDBaseSolver:
@@ -485,7 +485,6 @@ class PDBaseSolver:
                                   DTYPE=DTYPE,
                                   DTYPE_real=DTYPE_real
                                   )
-
         elif reg_type == 'TGV':
             L = DTYPE_real(0.5 * (18.0 + np.sqrt(33)))
             if streamed:
@@ -593,7 +592,7 @@ class PDBaseSolver:
             out_adj=tmp_results_adjoint,
             in_primal=primal_vars,
             in_dual=dual_vars
-            )
+        )
 
         for i in range(iters):
             self._updatePrimal(
@@ -602,10 +601,10 @@ class PDBaseSolver:
                 in_primal=primal_vars,
                 in_precomp_adj=tmp_results_adjoint,
                 tau=tau
-                )
+            )
 
             beta_new = beta_line * (1 + self.mu * tau)
-            tau_new = tau * np.sqrt(beta_line / beta_new*(1 + theta_line))
+            tau_new = tau * np.sqrt(beta_line / beta_new * (1 + theta_line))
             beta_line = beta_new
 
             while True:
@@ -623,7 +622,7 @@ class PDBaseSolver:
                     beta=beta_line,
                     tau=tau_new,
                     theta=theta_line
-                    )
+                )
                 if lhs <= ynorm * delta_line:
                     break
                 tau_new = tau_new * mu_line
@@ -635,11 +634,11 @@ class PDBaseSolver:
                  primal_vars_new[j],
                  tmp_results_adjoint[k],
                  tmp_results_adjoint_new[k]) = (
-                         primal_vars_new[j],
-                         primal_vars[j],
-                         tmp_results_adjoint_new[k],
-                         tmp_results_adjoint[k],
-                         )
+                    primal_vars_new[j],
+                    primal_vars[j],
+                    tmp_results_adjoint_new[k],
+                    tmp_results_adjoint[k],
+                )
 
             for j, k in zip(dual_vars_new,
                             tmp_results_forward_new):
@@ -647,11 +646,11 @@ class PDBaseSolver:
                  dual_vars_new[j],
                  tmp_results_forward[k],
                  tmp_results_forward_new[k]) = (
-                         dual_vars_new[j],
-                         dual_vars[j],
-                         tmp_results_forward_new[k],
-                         tmp_results_forward[k]
-                         )
+                    dual_vars_new[j],
+                    dual_vars[j],
+                    tmp_results_forward_new[k],
+                    tmp_results_forward[k]
+                )
 
             if not np.mod(i, 10):
                 if self.display_iterations:
@@ -669,12 +668,12 @@ class PDBaseSolver:
 
                 if i == 0:
                     gap_init = gap
-                if np.abs(primal - primal_new)/self._fval_init <\
+                if np.abs(primal - primal_new) / self._fval_init <\
                    self.tol:
                     print("Terminated at iteration %d because the energy "
                           "decrease in the primal problem was less than %.3e" %
                           (i,
-                           np.abs(primal - primal_new)/self._fval_init))
+                           np.abs(primal - primal_new) / self._fval_init))
                     return primal_vars_new
                 if gap > gap_old * self.stag and i > 1:
                     print("Terminated at iteration %d "
@@ -691,9 +690,9 @@ class PDBaseSolver:
                 sys.stdout.write(
                     "Iteration: %04d ---- Primal: %2.2e, "
                     "Dual: %2.2e, Gap: %2.2e, Beta: %2.2e \r" %
-                    (i, 1000*primal / self._fval_init,
-                     1000*dual / self._fval_init,
-                     1000*gap / self._fval_init,
+                    (i, 1000 * primal / self._fval_init,
+                     1000 * dual / self._fval_init,
+                     1000 * gap / self._fval_init,
                      beta_line))
                 sys.stdout.flush()
 
@@ -733,12 +732,12 @@ class PDBaseSolver:
         return ({}, {})
 
     def _calcResidual(
-                    self,
-                    in_primal,
-                    in_dual,
-                    in_precomp_fwd,
-                    in_precomp_adj,
-                    data):
+            self,
+            in_primal,
+            in_dual,
+            in_precomp_fwd,
+            in_precomp_adj,
+            data):
         return ({}, {}, {})
 
     def _setupVariables(self, inp, data):
@@ -759,11 +758,11 @@ class PDBaseSolver:
         self.real_const = []
         for j in range(self.num_dev):
             self.min_const.append(
-                clarray.to_device(self._queue[4*j], min_const))
+                clarray.to_device(self._queue[4 * j], min_const))
             self.max_const.append(
-                clarray.to_device(self._queue[4*j], max_const))
+                clarray.to_device(self._queue[4 * j], max_const))
             self.real_const.append(
-                clarray.to_device(self._queue[4*j], real_const))
+                clarray.to_device(self._queue[4 * j], real_const))
 
     def updateRegPar(self, irgn_par):
         """Update the regularization parameters.
@@ -780,7 +779,7 @@ class PDBaseSolver:
         self.delta = irgn_par["delta"]
         self.omega = irgn_par["omega"]
         self.lambd = irgn_par["lambd"]
-        self.mu = 1/self.delta
+        self.mu = 1 / self.delta
 
     def update_primal(self, outp, inp, par, idx=0, idxq=0,
                       bound_cond=0, wait_for=None):
@@ -811,16 +810,16 @@ class PDBaseSolver:
         if wait_for is None:
             wait_for = []
         return self._prg[idx].update_primal_LM(
-            self._queue[4*idx+idxq],
+            self._queue[4 * idx + idxq],
             self._kernelsize, None,
             outp.data, inp[0].data, inp[1].data, inp[2].data, inp[3].data,
             self._DTYPE_real(par[0]),
-            self._DTYPE_real(par[0]/par[1]),
+            self._DTYPE_real(par[0] / par[1]),
             self.min_const[idx].data, self.max_const[idx].data,
             self.real_const[idx].data, np.int32(self.unknowns),
             wait_for=(outp.events +
-                      inp[0].events+inp[1].events +
-                      inp[2].events+wait_for))
+                      inp[0].events + inp[1].events +
+                      inp[2].events + wait_for))
 
     def update_v(self, outp, inp, par=None, idx=0, idxq=0,
                  bound_cond=0, wait_for=None):
@@ -851,9 +850,9 @@ class PDBaseSolver:
         if wait_for is None:
             wait_for = []
         return self._prg[idx].update_v(
-            self._queue[4*idx+idxq], (outp[..., 0].size,), None,
+            self._queue[4 * idx + idxq], (outp[..., 0].size,), None,
             outp.data, inp[0].data, inp[1].data, self._DTYPE_real(par[0]),
-            wait_for=outp.events+inp[0].events+inp[1].events+wait_for)
+            wait_for=outp.events + inp[0].events + inp[1].events + wait_for)
 
     def update_z1(self, outp, inp, par=None, idx=0, idxq=0,
                   bound_cond=0, wait_for=None):
@@ -885,16 +884,16 @@ class PDBaseSolver:
             wait_for = []
 
         return self._prg[idx].update_z1(
-            self._queue[4*idx+idxq],
+            self._queue[4 * idx + idxq],
             self._kernelsize, None,
             outp.data, inp[0].data, inp[1].data,
             inp[2].data, inp[3].data, inp[4].data,
             self._DTYPE_real(par[0]), self._DTYPE_real(par[1]),
-            self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
+            self._DTYPE_real(1 / par[2]), np.int32(self.unknowns_TGV),
             np.int32(self.unknowns_H1),
             self._DTYPE_real(1 / (1 + par[0] / par[3])),
-            wait_for=(outp.events+inp[0].events+inp[1].events +
-                      inp[2].events+inp[3].events+inp[4].events+wait_for))
+            wait_for=(outp.events + inp[0].events + inp[1].events +
+                      inp[2].events + inp[3].events + inp[4].events + wait_for))
 
     def update_z1_tv(self, outp, inp, par=None, idx=0, idxq=0,
                      bound_cond=0, wait_for=None):
@@ -925,16 +924,16 @@ class PDBaseSolver:
         if wait_for is None:
             wait_for = []
         return self._prg[idx].update_z1_tv(
-            self._queue[4*idx+idxq],
+            self._queue[4 * idx + idxq],
             self._kernelsize, None,
             outp.data, inp[0].data, inp[1].data, inp[2].data,
             self._DTYPE_real(par[0]),
             self._DTYPE_real(par[1]),
-            self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
+            self._DTYPE_real(1 / par[2]), np.int32(self.unknowns_TGV),
             np.int32(self.unknowns_H1),
             self._DTYPE_real(1 / (1 + par[0] / par[3])),
-            wait_for=(outp.events+inp[0].events +
-                      inp[1].events+inp[2].events+wait_for))
+            wait_for=(outp.events + inp[0].events +
+                      inp[1].events + inp[2].events + wait_for))
 
     def update_z2(self, outp, inp, par=None, idx=0, idxq=0,
                   bound_cond=0, wait_for=None):
@@ -965,14 +964,14 @@ class PDBaseSolver:
         if wait_for is None:
             wait_for = []
         return self._prg[idx].update_z2(
-            self._queue[4*idx+idxq],
+            self._queue[4 * idx + idxq],
             self._kernelsize, None,
             outp.data, inp[0].data, inp[1].data, inp[2].data,
             self._DTYPE_real(par[0]),
             self._DTYPE_real(par[1]),
-            self._DTYPE_real(1/par[2]), np.int32(self.unknowns),
-            wait_for=(outp.events+inp[0].events +
-                      inp[1].events+inp[2].events+wait_for))
+            self._DTYPE_real(1 / par[2]), np.int32(self.unknowns),
+            wait_for=(outp.events + inp[0].events +
+                      inp[1].events + inp[2].events + wait_for))
 
     def update_Kyk2(self,
                     outp,
@@ -1010,14 +1009,14 @@ class PDBaseSolver:
         if wait_for is None:
             wait_for = []
         return self._prg[idx].update_Kyk2(
-            self._queue[4*idx+idxq],
+            self._queue[4 * idx + idxq],
             self._kernelsize, None,
             outp.data, inp[0].data, inp[1].data,
             np.int32(self.unknowns),
             par[idx].data,
             np.int32(bound_cond),
             self._DTYPE_real(self.dz),
-            wait_for=outp.events + inp[0].events + inp[1].events+wait_for)
+            wait_for=outp.events + inp[0].events + inp[1].events + wait_for)
 
     def update_r(self, outp, inp, par=None, idx=0, idxq=0,
                  bound_cond=0, wait_for=None):
@@ -1048,13 +1047,13 @@ class PDBaseSolver:
         if wait_for is None:
             wait_for = []
         return self._prg[idx].update_r(
-            self._queue[4*idx+idxq], (outp.size,), None,
+            self._queue[4 * idx + idxq], (outp.size,), None,
             outp.data, inp[0].data,
             inp[1].data, inp[2].data, inp[3].data,
             self._DTYPE_real(par[0]), self._DTYPE_real(par[1]),
-            self._DTYPE_real(1/(1+par[0]/par[2])),
-            wait_for=(outp.events+inp[0].events +
-                      inp[1].events+inp[2].events+wait_for))
+            self._DTYPE_real(1 / (1 + par[0] / par[2])),
+            wait_for=(outp.events + inp[0].events +
+                      inp[1].events + inp[2].events + wait_for))
 
     def setFvalInit(self, fval):
         """Set the initial value of the cost function.
@@ -1161,7 +1160,7 @@ class PDSolverTV(PDBaseSolver):
         dual_vars_new["r"] = clarray.empty_like(dual_vars["r"])
 
         dual_vars["z1"] = clarray.zeros(self._queue[0],
-                                        primal_vars["x"].shape+(4,),
+                                        primal_vars["x"].shape + (4,),
                                         dtype=self._DTYPE)
         dual_vars_new["z1"] = clarray.empty_like(dual_vars["z1"])
 
@@ -1233,26 +1232,26 @@ class PDSolverTV(PDBaseSolver):
             self.update_z1_tv(
                 outp=out_dual["z1"],
                 inp=(
-                        in_dual["z1"],
-                        in_precomp_fwd_new["gradx"],
-                        in_precomp_fwd["gradx"],
-                    ),
-                par=(beta*tau, theta, self.alpha, self.omega)
-                )
+                    in_dual["z1"],
+                    in_precomp_fwd_new["gradx"],
+                    in_precomp_fwd["gradx"],
+                ),
+                par=(beta * tau, theta, self.alpha, self.omega)
             )
+        )
 
         out_dual["r"].add_event(
             self.update_r(
                 outp=out_dual["r"],
                 inp=(
-                        in_dual["r"],
-                        in_precomp_fwd_new["Ax"],
-                        in_precomp_fwd["Ax"],
-                        data
-                     ),
-                par=(beta*tau, theta, self.lambd)
-                )
+                    in_dual["r"],
+                    in_precomp_fwd_new["Ax"],
+                    in_precomp_fwd["Ax"],
+                    data
+                ),
+                par=(beta * tau, theta, self.lambd)
             )
+        )
 
         out_adj["Kyk1"].add_event(
             self._op.adjKyk1(
@@ -1267,18 +1266,18 @@ class PDSolverTV(PDBaseSolver):
                 clarray.vdot(
                     out_dual["r"] - in_dual["r"],
                     out_dual["r"] - in_dual["r"]
-                    )
+                )
                 + clarray.vdot(
                     out_dual["z1"] - in_dual["z1"],
                     out_dual["z1"] - in_dual["z1"]
-                    )
+                )
             )**(1 / 2)).real
         lhs = np.sqrt(beta) * tau * (
             (
                 clarray.vdot(
                     out_adj["Kyk1"] - in_precomp_adj["Kyk1"],
                     out_adj["Kyk1"] - in_precomp_adj["Kyk1"]
-                    )
+                )
             )**(1 / 2)).real
         return lhs.get(), ynorm.get()
 
@@ -1296,12 +1295,12 @@ class PDSolverTV(PDBaseSolver):
                 in_precomp_fwd["Ax"] - data)
             + self.alpha * clarray.sum(
                 abs(in_precomp_fwd["gradx"])
-                )
+            )
             + 1 / (2 * self.delta) * clarray.vdot(
-                (in_primal["x"] - in_primal["xk"])*self.jacobi,
+                (in_primal["x"] - in_primal["xk"]) * self.jacobi,
                 in_primal["x"] - in_primal["xk"]
-                )
-            ).real
+            )
+        ).real
 
         dual = (
             -self.delta / 2 * clarray.vdot(
@@ -1310,27 +1309,27 @@ class PDSolverTV(PDBaseSolver):
             - clarray.vdot(
                 in_primal["xk"],
                 - in_precomp_adj["Kyk1"]
-                )
+            )
             - 1 / (2 * self.lambd) * clarray.vdot(
                 in_dual["r"],
                 in_dual["r"])
             - clarray.vdot(data, in_dual["r"])
-            ).real
+        ).real
 
         if self.unknowns_H1 > 0:
             primal_new += (
-                 self.omega / 2 * clarray.vdot(
-                     in_precomp_fwd["gradx"][self.unknowns_TGV:],
-                     in_precomp_fwd["gradx"][self.unknowns_TGV:]
-                     )
-                 ).real
+                self.omega / 2 * clarray.vdot(
+                    in_precomp_fwd["gradx"][self.unknowns_TGV:],
+                    in_precomp_fwd["gradx"][self.unknowns_TGV:]
+                )
+            ).real
 
             dual += (
                 - 1 / (2 * self.omega) * clarray.vdot(
                     in_dual["z1"][self.unknowns_TGV:],
                     in_dual["z1"][self.unknowns_TGV:]
-                    )
-                ).real
+                )
+            ).real
         gap = np.abs(primal_new - dual)
         return primal_new.get(), dual.get(), gap.get()
 
@@ -1409,7 +1408,7 @@ class PDSolverTGV(PDBaseSolver):
         primal_vars["xk"] = primal_vars["x"].copy()
         primal_vars_new["x"] = clarray.empty_like(primal_vars["x"])
         primal_vars["v"] = clarray.zeros(self._queue[0],
-                                         primal_vars["x"].shape+(4,),
+                                         primal_vars["x"].shape + (4,),
                                          dtype=self._DTYPE)
         primal_vars_new["v"] = clarray.empty_like(primal_vars["v"])
 
@@ -1429,11 +1428,11 @@ class PDSolverTGV(PDBaseSolver):
         dual_vars_new["r"] = clarray.empty_like(dual_vars["r"])
 
         dual_vars["z1"] = clarray.zeros(self._queue[0],
-                                        primal_vars["x"].shape+(4,),
+                                        primal_vars["x"].shape + (4,),
                                         dtype=self._DTYPE)
         dual_vars_new["z1"] = clarray.empty_like(dual_vars["z1"])
         dual_vars["z2"] = clarray.zeros(self._queue[0],
-                                        primal_vars["x"].shape+(8,),
+                                        primal_vars["x"].shape + (8,),
                                         dtype=self._DTYPE)
         dual_vars_new["z2"] = clarray.empty_like(dual_vars["z2"])
 
@@ -1525,36 +1524,36 @@ class PDSolverTGV(PDBaseSolver):
             self.update_z1(
                 outp=out_dual["z1"],
                 inp=(
-                        in_dual["z1"],
-                        in_precomp_fwd_new["gradx"],
-                        in_precomp_fwd["gradx"],
-                        in_primal_new["v"],
-                        in_primal["v"]
-                    ),
-                par=(beta*tau, theta, self.alpha, self.omega)
-                )
+                    in_dual["z1"],
+                    in_precomp_fwd_new["gradx"],
+                    in_precomp_fwd["gradx"],
+                    in_primal_new["v"],
+                    in_primal["v"]
+                ),
+                par=(beta * tau, theta, self.alpha, self.omega)
             )
+        )
         out_dual["z2"].add_event(
             self.update_z2(
                 outp=out_dual["z2"],
                 inp=(
-                        in_dual["z2"],
-                        in_precomp_fwd_new["symgradx"],
-                        in_precomp_fwd["symgradx"]
-                    ),
-                par=(beta*tau, theta, self.beta)))
+                    in_dual["z2"],
+                    in_precomp_fwd_new["symgradx"],
+                    in_precomp_fwd["symgradx"]
+                ),
+                par=(beta * tau, theta, self.beta)))
         out_dual["r"].add_event(
             self.update_r(
                 outp=out_dual["r"],
                 inp=(
-                        in_dual["r"],
-                        in_precomp_fwd_new["Ax"],
-                        in_precomp_fwd["Ax"],
-                        data
-                     ),
-                par=(beta*tau, theta, self.lambd)
-                )
+                    in_dual["r"],
+                    in_precomp_fwd_new["Ax"],
+                    in_precomp_fwd["Ax"],
+                    data
+                ),
+                par=(beta * tau, theta, self.lambd)
             )
+        )
 
         out_adj["Kyk1"].add_event(
             self._op.adjKyk1(
@@ -1574,26 +1573,26 @@ class PDSolverTGV(PDBaseSolver):
                 clarray.vdot(
                     out_dual["r"] - in_dual["r"],
                     out_dual["r"] - in_dual["r"]
-                    )
+                )
                 + clarray.vdot(
                     out_dual["z1"] - in_dual["z1"],
                     out_dual["z1"] - in_dual["z1"]
-                    )
+                )
                 + clarray.vdot(
                     out_dual["z2"] - in_dual["z2"],
                     out_dual["z2"] - in_dual["z2"]
-                    )
+                )
             )**(1 / 2)).real
         lhs = np.sqrt(beta) * tau * (
             (
                 clarray.vdot(
                     out_adj["Kyk1"] - in_precomp_adj["Kyk1"],
                     out_adj["Kyk1"] - in_precomp_adj["Kyk1"]
-                    )
+                )
                 + clarray.vdot(
                     out_adj["Kyk2"] - in_precomp_adj["Kyk2"],
                     out_adj["Kyk2"] - in_precomp_adj["Kyk2"]
-                    )
+                )
             )**(1 / 2)).real
         return lhs.get(), ynorm.get()
 
@@ -1611,45 +1610,45 @@ class PDSolverTGV(PDBaseSolver):
                 in_precomp_fwd["Ax"] - data)
             + self.alpha * clarray.sum(
                 abs(in_precomp_fwd["gradx"] - in_primal["v"])
-                )
+            )
             + self.beta * clarray.sum(
                 abs(in_precomp_fwd["symgradx"])
-                )
+            )
             + 1 / (2 * self.delta) * clarray.vdot(
-                (in_primal["x"] - in_primal["xk"])*self.jacobi,
+                (in_primal["x"] - in_primal["xk"]) * self.jacobi,
                 in_primal["x"] - in_primal["xk"]
-                )
-            ).real
+            )
+        ).real
 
         dual = (
             -self.delta / 2 * clarray.vdot(
-                - in_precomp_adj["Kyk1"]*self.jacobi,
+                - in_precomp_adj["Kyk1"] * self.jacobi,
                 - in_precomp_adj["Kyk1"])
             - clarray.vdot(
                 in_primal["xk"],
                 - in_precomp_adj["Kyk1"]
-                )
+            )
             + clarray.sum(in_precomp_adj["Kyk2"])
             - 1 / (2 * self.lambd) * clarray.vdot(
                 in_dual["r"],
                 in_dual["r"])
             - clarray.vdot(data, in_dual["r"])
-            ).real
+        ).real
 
         if self.unknowns_H1 > 0:
             primal_new += (
-                 self.omega / 2 * clarray.vdot(
-                     in_precomp_fwd["gradx"][self.unknowns_TGV:],
-                     in_precomp_fwd["gradx"][self.unknowns_TGV:]
-                     )
-                 ).real
+                self.omega / 2 * clarray.vdot(
+                    in_precomp_fwd["gradx"][self.unknowns_TGV:],
+                    in_precomp_fwd["gradx"][self.unknowns_TGV:]
+                )
+            ).real
 
             dual += (
                 - 1 / (2 * self.omega) * clarray.vdot(
                     in_dual["z1"][self.unknowns_TGV:],
                     in_dual["z1"][self.unknowns_TGV:]
-                    )
-                ).real
+                )
+            ).real
         gap = np.abs(primal_new - dual)
         return primal_new.get(), dual.get(), gap.get()
 
@@ -1768,8 +1767,8 @@ class PDSolverStreamed(PDBaseSolver):
         self._setupstreamingops(reg_type, SMS=SMS)
 
         self.r = np.zeros(
-                self.data_shape,
-                dtype=self._DTYPE)
+            self.data_shape,
+            dtype=self._DTYPE)
         self.z1 = np.zeros(
             self.grad_shape,
             dtype=self._DTYPE)
@@ -1890,7 +1889,7 @@ class PDSolverStreamed(PDBaseSolver):
                   self.data_shape,
                   self.data_shape,
                   self.data_shape]],
-                slices=self._packs*self._numofpacks,
+                slices=self._packs * self._numofpacks,
                 reverse_dir=True,
                 posofnorm=[False])
             del self.stream_primal
@@ -2032,8 +2031,8 @@ class PDSolverStreamedTGV(PDSolverStreamed):
         primal_vars["xk"] = primal_vars["x"].copy()
         primal_vars_new["x"] = np.zeros_like(primal_vars["x"])
         primal_vars["v"] = np.zeros(
-                                        primal_vars["x"].shape+(4,),
-                                        dtype=self._DTYPE)
+            primal_vars["x"].shape + (4,),
+            dtype=self._DTYPE)
         primal_vars_new["v"] = np.zeros_like(primal_vars["v"])
 
         tmp_results_adjoint["Kyk1"] = np.zeros_like(primal_vars["x"])
@@ -2051,12 +2050,12 @@ class PDSolverStreamedTGV(PDSolverStreamed):
         dual_vars_new["r"] = np.zeros_like(dual_vars["r"])
 
         dual_vars["z1"] = np.zeros(
-                                            primal_vars["x"].shape+(4,),
-                                            dtype=self._DTYPE)
+            primal_vars["x"].shape + (4,),
+            dtype=self._DTYPE)
         dual_vars_new["z1"] = np.zeros_like(dual_vars["z1"])
         dual_vars["z2"] = np.zeros(
-                                            primal_vars["x"].shape+(8,),
-                                            dtype=self._DTYPE)
+            primal_vars["x"].shape + (8,),
+            dtype=self._DTYPE)
         dual_vars_new["z2"] = np.zeros_like(dual_vars["z2"])
 
         tmp_results_forward["gradx"] = np.zeros_like(
@@ -2154,7 +2153,7 @@ class PDSolverStreamedTGV(PDSolverStreamed):
               in_precomp_fwd["Ax"], data],
              [[], [], self._coils, self.modelgrad, in_precomp_adj["Kyk1"]]],
             [
-                [beta*tau, theta, self.alpha, self.omega],
+                [beta * tau, theta, self.alpha, self.omega],
                 [beta * tau, theta, self.lambd],
                 [self._grad_op.ratio]
             ])
@@ -2164,11 +2163,11 @@ class PDSolverStreamedTGV(PDSolverStreamed):
             [[in_dual["z2"], in_precomp_fwd_new["symgradx"],
               in_precomp_fwd["symgradx"]],
              [[], out_dual["z1"], in_precomp_adj["Kyk2"]]],
-            [[beta*tau, theta, self.beta],
+            [[beta * tau, theta, self.beta],
              self._symgrad_op.ratio])
 
-        ynorm = np.abs(ynorm1 + ynorm2)**(1/2)
-        lhs = np.sqrt(beta) * tau * np.abs(lhs1 + lhs2)**(1/2)
+        ynorm = np.abs(ynorm1 + ynorm2)**(1 / 2)
+        lhs = np.sqrt(beta) * tau * np.abs(lhs1 + lhs2)**(1 / 2)
 
         return lhs, ynorm
 
@@ -2185,45 +2184,45 @@ class PDSolverStreamedTGV(PDSolverStreamed):
                 in_precomp_fwd["Ax"] - data)
             + self.alpha * np.sum(
                 abs(in_precomp_fwd["gradx"] - in_primal["v"])
-                )
+            )
             + self.beta * np.sum(
                 abs(in_precomp_fwd["symgradx"])
-                )
+            )
             + 1 / (2 * self.delta) * np.vdot(
-                (in_primal["x"] - in_primal["xk"])*self.jacobi,
+                (in_primal["x"] - in_primal["xk"]) * self.jacobi,
                 in_primal["x"] - in_primal["xk"]
-                )
-            ).real
+            )
+        ).real
 
         dual = (
             -self.delta / 2 * np.vdot(
-                - in_precomp_adj["Kyk1"]/self.jacobi,
+                - in_precomp_adj["Kyk1"] / self.jacobi,
                 - in_precomp_adj["Kyk1"])
             - np.vdot(
                 in_primal["xk"],
                 - in_precomp_adj["Kyk1"]
-                )
+            )
             + np.sum(in_precomp_adj["Kyk2"])
             - 1 / (2 * self.lambd) * np.vdot(
                 in_dual["r"],
                 in_dual["r"])
             - np.vdot(data, in_dual["r"])
-            ).real
+        ).real
 
         if self.unknowns_H1 > 0:
             primal_new += (
-                 self.omega / 2 * np.vdot(
-                     in_precomp_fwd["gradx"][self.unknowns_TGV:],
-                     in_precomp_fwd["gradx"][self.unknowns_TGV:]
-                     )
-                 ).real
+                self.omega / 2 * np.vdot(
+                    in_precomp_fwd["gradx"][self.unknowns_TGV:],
+                    in_precomp_fwd["gradx"][self.unknowns_TGV:]
+                )
+            ).real
 
             dual += (
                 - 1 / (2 * self.omega) * np.vdot(
                     in_dual["z1"][self.unknowns_TGV:],
                     in_dual["z1"][self.unknowns_TGV:]
-                    )
-                ).real
+                )
+            ).real
         gap = np.abs(primal_new - dual)
         return primal_new, dual, gap
 
@@ -2280,10 +2279,10 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
 
         self._packs = par["packs"]
         self._numofpacks = par["numofpacks"]
-        self.data_shape = (self._packs*self._numofpacks, par["NScan"],
+        self.data_shape = (self._packs * self._numofpacks, par["NScan"],
                            par["NC"], par["dimY"], par["dimX"])
         self.data_shape_T = (par["NScan"], par["NC"],
-                             self._packs*self._numofpacks,
+                             self._packs * self._numofpacks,
                              par["dimY"], par["dimX"])
         self._expdim_dat = 1
         self._expdim_C = 0
@@ -2368,13 +2367,13 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
               in_precomp_fwd_new["gradx"],
               in_precomp_fwd["gradx"],
               in_primal_new["v"], in_primal["v"]]],
-            [[beta*tau, theta,
+            [[beta * tau, theta,
               self.alpha, self.omega]])
         (lhs2, ynorm2) = self.stream_update_r.evalwithnorm(
             [out_dual["r"]],
             [[in_dual["r"], in_precomp_fwd_new["Ax"],
               in_precomp_fwd["Ax"], data]],
-            [[beta*tau, theta,
+            [[beta * tau, theta,
               self.lambd]])
         (lhs3, ynorm3) = self._op.adjKyk1(
             [out_adj["Kyk1"]],
@@ -2389,11 +2388,11 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
             [[in_dual["z2"], in_precomp_fwd_new["symgradx"],
               in_precomp_fwd["symgradx"]],
              [[], out_dual["z1"], in_precomp_adj["Kyk2"]]],
-            [[beta*tau, theta, self.beta],
+            [[beta * tau, theta, self.beta],
              self._symgrad_op.ratio])
 
-        ynorm = np.abs(ynorm1+ynorm2+ynorm3+ynorm4)**(1/2)
-        lhs = np.sqrt(beta)*tau*np.abs(lhs1+lhs2+lhs3+lhs4)**(1/2)
+        ynorm = np.abs(ynorm1 + ynorm2 + ynorm3 + ynorm4)**(1 / 2)
+        lhs = np.sqrt(beta) * tau * np.abs(lhs1 + lhs2 + lhs3 + lhs4)**(1 / 2)
 
         return lhs, ynorm
 
@@ -2488,7 +2487,7 @@ class PDSolverStreamedTV(PDSolverStreamed):
             dtype=self._DTYPE)
         dual_vars_new["r"] = np.zeros_like(dual_vars["r"])
 
-        dual_vars["z1"] = np.zeros(primal_vars["x"].shape+(4,),
+        dual_vars["z1"] = np.zeros(primal_vars["x"].shape + (4,),
                                    dtype=self._DTYPE)
         dual_vars_new["z1"] = np.zeros_like(dual_vars["z1"])
 
@@ -2564,13 +2563,13 @@ class PDSolverStreamedTV(PDSolverStreamed):
               in_precomp_fwd["Ax"], data],
              [[], [], self._coils, self.modelgrad, in_precomp_adj["Kyk1"]]],
             [
-                [beta*tau, theta, self.alpha, self.omega],
+                [beta * tau, theta, self.alpha, self.omega],
                 [beta * tau, theta, self.lambd],
                 [self._grad_op.ratio]
             ])
 
-        ynorm = np.abs(ynorm1)**(1/2)
-        lhs = np.sqrt(beta) * tau * np.abs(lhs1)**(1/2)
+        ynorm = np.abs(ynorm1)**(1 / 2)
+        lhs = np.sqrt(beta) * tau * np.abs(lhs1)**(1 / 2)
 
         return lhs, ynorm
 
@@ -2588,41 +2587,41 @@ class PDSolverStreamedTV(PDSolverStreamed):
                 in_precomp_fwd["Ax"] - data)
             + self.alpha * np.sum(
                 abs(in_precomp_fwd["gradx"])
-                )
+            )
             + 1 / (2 * self.delta) * np.vdot(
-                (in_primal["x"] - in_primal["xk"])*self.jacobi,
+                (in_primal["x"] - in_primal["xk"]) * self.jacobi,
                 in_primal["x"] - in_primal["xk"]
-                )
-            ).real
+            )
+        ).real
 
         dual = (
             -self.delta / 2 * np.vdot(
-                - in_precomp_adj["Kyk1"]/self.jacobi,
+                - in_precomp_adj["Kyk1"] / self.jacobi,
                 - in_precomp_adj["Kyk1"])
             - np.vdot(
                 in_primal["xk"],
                 - in_precomp_adj["Kyk1"]
-                )
+            )
             - 1 / (2 * self.lambd) * np.vdot(
                 in_dual["r"],
                 in_dual["r"])
             - np.vdot(data, in_dual["r"])
-            ).real
+        ).real
 
         if self.unknowns_H1 > 0:
             primal_new += (
-                 self.omega / 2 * np.vdot(
-                     in_precomp_fwd["gradx"][self.unknowns_TGV:],
-                     in_precomp_fwd["gradx"][self.unknowns_TGV:]
-                     )
-                 ).real
+                self.omega / 2 * np.vdot(
+                    in_precomp_fwd["gradx"][self.unknowns_TGV:],
+                    in_precomp_fwd["gradx"][self.unknowns_TGV:]
+                )
+            ).real
 
             dual += (
                 - 1 / (2 * self.omega) * np.vdot(
                     in_dual["z1"][self.unknowns_TGV:],
                     in_dual["z1"][self.unknowns_TGV:]
-                    )
-                ).real
+                )
+            ).real
         gap = np.abs(primal_new - dual)
         return primal_new, dual, gap
 
@@ -2674,10 +2673,10 @@ class PDSolverStreamedTVSMS(PDSolverStreamedTV):
                  linop, coils, model, imagespace=False, **kwargs):
         self._packs = par["packs"]
         self._numofpacks = par["numofpacks"]
-        self.data_shape = (self._packs*self._numofpacks, par["NScan"],
+        self.data_shape = (self._packs * self._numofpacks, par["NScan"],
                            par["NC"], par["dimY"], par["dimX"])
         self.data_shape_T = (par["NScan"], par["NC"],
-                             self._packs*self._numofpacks,
+                             self._packs * self._numofpacks,
                              par["dimY"], par["dimX"])
 
         self._expdim_dat = 1
@@ -2742,13 +2741,13 @@ class PDSolverStreamedTVSMS(PDSolverStreamedTV):
             [[in_dual["z1"],
               in_precomp_fwd_new["gradx"],
               in_precomp_fwd["gradx"]]],
-            [[beta*tau, theta,
+            [[beta * tau, theta,
               self.alpha, self.omega]])
         (lhs2, ynorm2) = self.stream_update_r.evalwithnorm(
             [out_dual["r"]],
             [[in_dual["r"], in_precomp_fwd_new["Ax"],
               in_precomp_fwd["Ax"], data]],
-            [[beta*tau, theta,
+            [[beta * tau, theta,
               self.lambd]])
         (lhs3, ynorm3) = self._op.adjKyk1(
             [out_adj["Kyk1"]],
@@ -2757,8 +2756,8 @@ class PDSolverStreamedTVSMS(PDSolverStreamedTV):
               self._coils, self.modelgrad, in_precomp_adj["Kyk1"]]],
             [[self._grad_op.ratio]])
 
-        ynorm = np.abs(ynorm1+ynorm2+ynorm3)**(1/2)
-        lhs = np.sqrt(beta)*tau*np.abs(lhs1+lhs2+lhs3)**(1/2)
+        ynorm = np.abs(ynorm1 + ynorm2 + ynorm3)**(1 / 2)
+        lhs = np.sqrt(beta) * tau * np.abs(lhs1 + lhs2 + lhs3)**(1 / 2)
 
         return lhs, ynorm
 
@@ -2785,10 +2784,7 @@ class PDSoftSenseBaseSolver:
         self._DTYPE = DTYPE
         self._DTYPE_real = DTYPE_real
         self.sigma = self._DTYPE_real(ss_par["sigma"])
-        self.delta = self._DTYPE_real(ss_par["delta"])
-        self.gamma = self._DTYPE_real(ss_par["gamma"])
         self.lambd = self._DTYPE_real(ss_par["lambd"])
-        self.accelerated = ss_par["accelerated"]
         self.adaptive_stepsize = ss_par["adaptivestepsize"]
         self.stag = ss_par["stag"]
         self.tol = ss_par["tol"]
@@ -2801,6 +2797,7 @@ class PDSoftSenseBaseSolver:
         self._prg = prg
         self._queue = queue
         self._coils = coil
+        # self._mask = par["mask"]
         self._kernelsize = (par["par_slices"] + par["overlap"], par["dimY"],
                             par["dimX"])
 
@@ -2949,12 +2946,8 @@ class PDSoftSenseBaseSolver:
 
         tau = self.tau
         sigma = self.sigma
-        gamma = self.gamma
         lambd = self.lambd
         theta = np.float32(1.0)
-        # theta_adapt = np.float32(1.0)
-        # if self.adaptive_stepsize:
-        #     theta = np.float32(0.0)
         primal = np.float32(0.0)
         primal_new = np.float32(0)
         dual = np.float32(0.0)
@@ -2975,7 +2968,7 @@ class PDSoftSenseBaseSolver:
             out_adj=tmp_results_adjoint,
             in_primal=primal_vars,
             in_dual=dual_vars
-            )
+        )
 
         for i in range(iters):
             self._updateDual(
@@ -2988,11 +2981,6 @@ class PDSoftSenseBaseSolver:
                 sigma=sigma
             )
 
-            if self.accelerated:
-                theta = 1 / np.sqrt(1 + 2*gamma*tau)
-                tau = theta * tau
-                sigma = sigma / theta
-
             self._updatePrimal(
                 out_primal=primal_vars_new,
                 out_fwd=tmp_results_forward,
@@ -3000,18 +2988,17 @@ class PDSoftSenseBaseSolver:
                 in_precomp_adj=tmp_results_adjoint,
                 tau=tau,
                 theta=theta
-                )
+            )
 
             if self.adaptive_stepsize:
                 tau, sigma = self._updateStepSize(
                     primal_vars=primal_vars,
                     primal_vars_new=primal_vars_new,
+                    tmp_results_forward=tmp_results_forward,
                     theta=theta,
                     tau=tau,
                     sigma=sigma
                 )
-                if not np.mod(i, 10):
-                    print("Calculated step size: %f" %tau)
 
             self._extrapolatePrimal(
                 out_primal=primal_vars,
@@ -3039,40 +3026,43 @@ class PDSoftSenseBaseSolver:
                     in_precomp_fwd=tmp_results_forward,
                     data=data)
                 if self.display_iterations:
-                    print("Iteration: %i" %i)
-                    print("Primal: %f" %primal_new)
-                    print("Dual: %f" %dual)
-                    print("Gap: %f" %gap)
+                    print("Iteration: %04d ---- Primal: %2.2e, "
+                          "Dual: %2.2e, Gap: %2.2e \r" %
+                          (i, 1000 * primal_new / self._fval_init,
+                           1000 * dual / self._fval_init,
+                           1000 * gap / self._fval_init))
+                    if self.adaptive_stepsize:
+                        print("Current step size: %f" % tau)
                 if i == 0:
                     gap_init = gap
-                if np.abs(primal - primal_new)/self._fval_init <\
+                if np.abs(primal - primal_new) / self._fval_init <\
                    self.tol:
                     print("Terminated at iteration %d because the energy "
                           "decrease in the primal problem was less than %.3e" %
                           (i,
-                           np.abs(primal - primal_new)/self._fval_init))
-                    return primal_vars_new
+                           np.abs(primal - primal_new) / self._fval_init))
+                    return primal_vars_new, i
                 if gap > gap_old * self.stag and i > 1:
                     print("Terminated at iteration %d "
                           "because the method stagnated" % (i))
-                    return primal_vars_new
+                    return primal_vars_new, i
                 if np.abs((gap - gap_old) / gap_init) < self.tol:
                     print("Terminated at iteration %d because the "
                           "relative energy decrease of the PD gap was "
                           "less than %.3e"
                           % (i, np.abs((gap - gap_old) / gap_init)))
-                    return primal_vars_new
+                    return primal_vars_new, i
                 primal = primal_new
                 gap_old = gap
                 sys.stdout.write(
                     "Iteration: %04d ---- Primal: %2.2e, "
                     "Dual: %2.2e, Gap: %2.2e \r" %
-                    (i, 1000*primal / self._fval_init,
-                     1000*dual / self._fval_init,
-                     1000*gap / self._fval_init))
+                    (i, 1000 * primal / self._fval_init,
+                     1000 * dual / self._fval_init,
+                     1000 * gap / self._fval_init))
                 sys.stdout.flush()
 
-        return primal_vars
+        return primal_vars, i
 
     def _updateInitial(
             self,
@@ -3105,6 +3095,7 @@ class PDSoftSenseBaseSolver:
     def _updateStepSize(self,
                         primal_vars,
                         primal_vars_new,
+                        tmp_results_forward,
                         theta,
                         tau,
                         sigma):
@@ -3130,28 +3121,30 @@ class PDSoftSenseBaseSolver:
         pass
 
     def extrapolate_x(self, outp, inp, par=None, idx=0, idxq=0,
-                    bound_cond=0, wait_for=None):
+                      bound_cond=0, wait_for=None):
         if wait_for is None:
             wait_for = []
-        return self._prg[idx].extrapolate(
-            self._queue[4*idx+idxq], (outp.size,), None,
+        return self._prg[idx].extrapolate_x(
+            self._queue[4 * idx + idxq], (outp.size,), None,
             outp.data,
             inp[0].data,
             inp[1].data,
             self._DTYPE_real(par[0]),
-            wait_for=outp.events + inp[0].events + inp[1].events + wait_for)
+            wait_for=(outp.events + inp[0].events
+                      + inp[1].events + wait_for))
 
     def extrapolate_v(self, outp, inp, par=None, idx=0, idxq=0,
-                    bound_cond=0, wait_for=None):
+                      bound_cond=0, wait_for=None):
         if wait_for is None:
             wait_for = []
-        return self._prg[idx].extrapolate(
-            self._queue[4*idx+idxq], (outp[..., 0].size,), None,
+        return self._prg[idx].extrapolate_v(
+            self._queue[4 * idx + idxq], (outp[..., 0].size,), None,
             outp.data,
             inp[0].data,
             inp[1].data,
             self._DTYPE_real(par[0]),
-            wait_for=outp.events + inp[0].events + inp[1].events + wait_for)
+            wait_for=(outp.events + inp[0].events
+                      + inp[1].events + wait_for))
 
     def update_x(self, outp, inp, par=None, idx=0, idxq=0,
                  bound_cond=0, wait_for=None):
@@ -3172,16 +3165,17 @@ class PDSoftSenseBaseSolver:
         if wait_for is None:
             wait_for = []
         return self._prg[idx].update_x(
-            self._queue[4*idx+idxq], (outp.size,), None,
+            self._queue[4 * idx + idxq], (outp.size,), None,
             outp.data,
             inp[0].data,
             inp[1].data,
             self._DTYPE_real(par[0]),
             self._DTYPE_real(par[1]),
-            wait_for=outp.events + inp[0].events + inp[1].events + wait_for)
+            wait_for=(outp.events + inp[0].events
+                      + inp[1].events + wait_for))
 
     def update_x_tgv(self, outp, inp, par=None, idx=0, idxq=0,
-                 bound_cond=0, wait_for=None):
+                     bound_cond=0, wait_for=None):
         """
         Primal update of the v variable in Primal-Dual Algorithm.
 
@@ -3209,7 +3203,7 @@ class PDSoftSenseBaseSolver:
             self._DTYPE_real(par[0]),         # tau
             self._DTYPE_real(par[1]),         # theta
             wait_for=outp.events + inp[0].events +
-                     inp[1].events + inp[2].events + wait_for)
+            inp[1].events + inp[2].events + wait_for)
 
     def update_y(self, outp, inp, par=None, idx=0, idxq=0,
                  bound_cond=0, wait_for=None):
@@ -3231,18 +3225,18 @@ class PDSoftSenseBaseSolver:
         if wait_for is None:
             wait_for = []
         return self._prg[idx].update_y(
-            self._queue[4*idx+idxq], (outp.size,), None,
+            self._queue[4 * idx + idxq], (outp.size,), None,
             outp.data,
             inp[0].data,
             inp[1].data,
             inp[2].data,
-            self._DTYPE_real(par[0]),           # sigma
-            self._DTYPE_real(1 / par[1]),       # lambdainv
-            wait_for=(outp.events+inp[0].events +
-                      inp[1].events+wait_for))
+            self._DTYPE_real(par[0]),
+            self._DTYPE_real(1 / (1 + par[0] / par[1])),
+            wait_for=(outp.events + inp[0].events +
+                      inp[1].events + inp[2].events + wait_for))
 
     def update_z_tv(self, outp, inp, par=None, idx=0, idxq=0,
-                     bound_cond=0, wait_for=None):
+                    bound_cond=0, wait_for=None):
         """
         Dual update of the z variable in Primal-Dual Algorithm for TV.
 
@@ -3257,7 +3251,7 @@ class PDSoftSenseBaseSolver:
         if wait_for is None:
             wait_for = []
         return self._prg[idx].update_z_tv(
-            self._queue[4*idx+idxq],
+            self._queue[4 * idx + idxq],
             self._kernelsize, None,
             outp.data,
             inp[0].data,
@@ -3282,14 +3276,15 @@ class PDSoftSenseBaseSolver:
         if wait_for is None:
             wait_for = []
         return self._prg[idx].update_Kyk2(
-            self._queue[4*idx+idxq],
+            self._queue[4 * idx + idxq],
             self._kernelsize, None,
             outp.data, inp[0].data, inp[1].data,
             np.int32(self.unknowns),
             par[idx].data,
             np.int32(bound_cond),
             self._DTYPE_real(self.dz),
-            wait_for=outp.events + inp[0].events + inp[1].events+wait_for)
+            wait_for=(outp.events + inp[0].events
+                      + inp[1].events + wait_for))
 
     def update_z1_tgv(self, outp, inp, par=None, idx=0, idxq=0,
                       bound_cond=0, wait_for=None):
@@ -3310,7 +3305,7 @@ class PDSoftSenseBaseSolver:
         if wait_for is None:
             wait_for = []
         return self._prg[idx].update_z1_tgv(
-            self._queue[4*idx+idxq],
+            self._queue[4 * idx + idxq],
             self._kernelsize, None,
             outp.data,
             inp[0].data,
@@ -3341,7 +3336,7 @@ class PDSoftSenseBaseSolver:
         if wait_for is None:
             wait_for = []
         return self._prg[idx].update_z2_tgv(
-            self._queue[4*idx+idxq],
+            self._queue[4 * idx + idxq],
             self._kernelsize, None,
             outp.data,
             inp[0].data,
@@ -3372,10 +3367,10 @@ class PDSoftSenseBaseSolver:
         if wait_for is None:
             wait_for = []
         return self._prg[idx].update_v(
-            self._queue[4*idx+idxq], (outp[..., 0].size,), None,
+            self._queue[4 * idx + idxq], (outp[..., 0].size,), None,
             outp.data, inp[0].data, inp[1].data,
             self._DTYPE_real(par[0]),
-            wait_for=outp.events+inp[0].events+inp[1].events+wait_for)
+            wait_for=outp.events + inp[0].events + inp[1].events + wait_for)
 
     def setFvalInit(self, fval):
         """Set the initial value of the cost function.
@@ -3392,6 +3387,7 @@ class PDSoftSenseSolver(PDSoftSenseBaseSolver):
     """
     PD Algorithm for Soft Sense reconstruction without regularization
     """
+
     def __init__(self,
                  par,
                  ss_par,
@@ -3456,10 +3452,10 @@ class PDSoftSenseSolver(PDSoftSenseBaseSolver):
                        in_primal,
                        in_dual):
         out_adj["Kay"].add_event(self._op.adj(
-                out_adj["Kay"], [in_dual["y"], self._coils]))
+            out_adj["Kay"], [in_dual["y"], self._coils]))
 
         out_fwd["Kx"].add_event(self._op.fwd(
-                out_fwd["Kx"], [in_primal["x"], self._coils]))
+            out_fwd["Kx"], [in_primal["x"], self._coils]))
 
     def _updatePrimal(self,
                       out_primal,
@@ -3492,28 +3488,31 @@ class PDSoftSenseSolver(PDSoftSenseBaseSolver):
                 out_adj["Kay"],
                 [out_dual["y"],
                  self._coils],
-               ))
+            ))
 
     def _updateStepSize(self,
                         primal_vars,
                         primal_vars_new,
+                        tmp_results_forward,
                         theta,
                         tau,
                         sigma):
         diffx = primal_vars_new["x"] - primal_vars["x"]
-        nx = (clarray.vdot(diffx, diffx) ** (1 / 2)).real.get()
+        nx = clarray.vdot(diffx, diffx).real ** (1 / 2)
+        nx = nx.get()
         fwddiffx = self._op.fwdoop([diffx, self._coils])
-        nKx = (clarray.vdot(fwddiffx, fwddiffx) ** (1 / 2)).real.get()
+        nKx = clarray.vdot(fwddiffx, fwddiffx).real ** (1 / 2)
+        nKx = nKx.get()
         n = nx / nKx if nKx != 0 else 0
-        s = np.sqrt(sigma * tau)
-        fac = np.sqrt(theta * sigma * tau)
+        s = sigma * tau  # np.sqrt(sigma * tau)
+        fac = theta * sigma * tau  # np.sqrt(theta * sigma * tau)
 
         if fac >= n > 0:
             s = n
         elif s >= n > fac:
-            s = np.sqrt(theta * sigma * tau)
+            s = np.sqrt(fac)
         else:
-            s = np.sqrt(sigma * tau)
+            s = np.sqrt(s)
 
         return s, s
 
@@ -3561,6 +3560,7 @@ class PDSoftSenseSolverTV(PDSoftSenseBaseSolver):
     """
     PD Algorithm for Soft Sense reconstruction with TV regularization
     """
+
     def __init__(self,
                  par,
                  ss_par,
@@ -3607,7 +3607,7 @@ class PDSoftSenseSolverTV(PDSoftSenseBaseSolver):
             dtype=self._DTYPE
         )
         dual_vars["z"] = clarray.zeros(self._queue[0],
-                                       primal_vars["x"].shape+(4,),
+                                       primal_vars["x"].shape + (4,),
                                        dtype=self._DTYPE)
 
         dual_vars_new["y"] = clarray.zeros_like(dual_vars["y"])
@@ -3627,12 +3627,17 @@ class PDSoftSenseSolverTV(PDSoftSenseBaseSolver):
     def _updateInitial(self,
                        out_fwd, out_adj,
                        in_primal, in_dual):
-        out_adj["Kyk1"].add_event(self._op.adjKyk1(
-            out=out_adj["Kyk1"],
-            inp=[in_dual["y"], self._coils, in_dual["z"], self._grad_op.ratio]))
+        out_adj["Kyk1"].add_event(
+            self._op.adjKyk1(
+                out=out_adj["Kyk1"],
+                inp=[
+                    in_dual["y"],
+                    self._coils,
+                    in_dual["z"],
+                    self._grad_op.ratio]))
 
         out_fwd["Kx"].add_event(self._op.fwd(
-                out_fwd["Kx"], [in_primal["x"], self._coils]))
+            out_fwd["Kx"], [in_primal["x"], self._coils]))
 
         out_fwd["gradx"].add_event(self._grad_op.fwd(
             out_fwd["gradx"], in_primal["x"]))
@@ -3654,53 +3659,61 @@ class PDSoftSenseSolverTV(PDSoftSenseBaseSolver):
                     in_precomp_fwd,
                     data,
                     sigma):
-        out_dual["y"].add_event(
-            self.update_y(
-                outp=out_dual["y"],
-                inp=(in_dual["y"], in_precomp_fwd["Kx"], data),
-                par=(sigma, self.lambd)))
-
         out_dual["z"].add_event(
             self.update_z_tv(
                 outp=out_dual["z"],
                 inp=(in_dual["z"], in_precomp_fwd["gradx"]),
                 par=(sigma,)))
 
-        out_adj["Kyk1"].add_event(self._op.adjKyk1(
-            out=out_adj["Kyk1"],
-            inp=[out_dual["y"], self._coils, out_dual["z"], self._grad_op.ratio]))
+        out_dual["y"].add_event(
+            self.update_y(
+                outp=out_dual["y"],
+                inp=(in_dual["y"], in_precomp_fwd["Kx"], data),
+                par=(sigma, self.lambd)))
+
+        out_adj["Kyk1"].add_event(
+            self._op.adjKyk1(
+                out=out_adj["Kyk1"],
+                inp=[
+                    out_dual["y"],
+                    self._coils,
+                    out_dual["z"],
+                    self._grad_op.ratio]))
 
     def _updateStepSize(self,
                         primal_vars,
                         primal_vars_new,
+                        tmp_results_forward,
                         theta,
                         tau,
                         sigma):
         diffx = primal_vars_new["x"] - primal_vars["x"]
-        nx = (clarray.vdot(diffx, diffx) ** (1 / 2)).real.get()
+        nx = clarray.vdot(diffx, diffx).real ** (1 / 2)
+        nx = nx.get()
+
         fwddiffx = self._op.fwdoop([diffx, self._coils])
         graddiffx = self._grad_op.fwdoop(diffx)
         nKx = (
-                (
-                    clarray.vdot(
-                        fwddiffx,
-                        fwddiffx
-                    )
-                    + clarray.vdot(
-                      graddiffx,
-                      graddiffx
-                  )
-              ) ** (1 / 2)).real.get()
+            clarray.vdot(
+                fwddiffx,
+                fwddiffx
+            )
+            + clarray.vdot(
+                graddiffx,
+                graddiffx
+            )
+        ).real ** (1 / 2)
+        nKx = nKx.get()
         n = nx / nKx if nKx != 0 else 0
-        s = np.sqrt(sigma * tau)
-        fac = np.sqrt(theta * sigma * tau)
+        s = sigma * tau  # np.sqrt(sigma * tau)
+        fac = theta * sigma * tau  # np.sqrt(theta * sigma * tau)
 
         if fac >= n > 0:
             s = n
         elif s >= n > fac:
-            s = np.sqrt(theta * sigma * tau)
+            s = np.sqrt(fac)
         else:
-            s = np.sqrt(sigma * tau)
+            s = np.sqrt(s)
 
         return s, s
 
@@ -3736,7 +3749,7 @@ class PDSoftSenseSolverTV(PDSoftSenseBaseSolver):
                 Kx - data)
             + clarray.sum(
                 abs(gradx)
-                )
+            )
         ).real
 
         dual = (
@@ -3792,7 +3805,7 @@ class PDSoftSenseSolverTGV(PDSoftSenseBaseSolver):
 
         primal_vars["x"] = clarray.to_device(self._queue[0], inp)
         primal_vars["v"] = clarray.zeros(self._queue[0],
-                                         primal_vars["x"].shape+(4,),
+                                         primal_vars["x"].shape + (4,),
                                          dtype=self._DTYPE)
         primal_vars_new["x"] = clarray.empty_like(primal_vars["x"])
         primal_vars_new["v"] = clarray.empty_like(primal_vars["v"])
@@ -3810,11 +3823,11 @@ class PDSoftSenseSolverTGV(PDSoftSenseBaseSolver):
             dtype=self._DTYPE
         )
         dual_vars["z1"] = clarray.zeros(self._queue[0],
-                                        primal_vars["x"].shape+(4,),
+                                        primal_vars["x"].shape + (4,),
                                         dtype=self._DTYPE)
 
         dual_vars["z2"] = clarray.zeros(self._queue[0],
-                                        primal_vars["x"].shape+(8,),
+                                        primal_vars["x"].shape + (8,),
                                         dtype=self._DTYPE)
 
         dual_vars_new["y"] = clarray.empty_like(dual_vars["y"])
@@ -3839,9 +3852,14 @@ class PDSoftSenseSolverTGV(PDSoftSenseBaseSolver):
                        in_primal,
                        in_dual):
 
-        out_adj["Kyk1"].add_event(self._op.adjKyk1(
-            out=out_adj["Kyk1"],
-            inp=[in_dual["y"], self._coils, in_dual["z1"], self._grad_op.ratio]))
+        out_adj["Kyk1"].add_event(
+            self._op.adjKyk1(
+                out=out_adj["Kyk1"],
+                inp=[
+                    in_dual["y"],
+                    self._coils,
+                    in_dual["z1"],
+                    self._grad_op.ratio]))
 
         out_adj["Kyk2"].add_event(
             self.update_Kyk2(
@@ -3850,7 +3868,7 @@ class PDSoftSenseSolverTGV(PDSoftSenseBaseSolver):
                 par=[self._symgrad_op.ratio]))
 
         out_fwd["Kx"].add_event(self._op.fwd(
-                out_fwd["Kx"], [in_primal["x"], self._coils]))
+            out_fwd["Kx"], [in_primal["x"], self._coils]))
 
         out_fwd["gradx"].add_event(self._grad_op.fwd(
             out_fwd["gradx"], in_primal["x"]))
@@ -3897,9 +3915,14 @@ class PDSoftSenseSolverTGV(PDSoftSenseBaseSolver):
                 inp=(in_dual["z1"], in_precomp_fwd["gradx"], in_primal["v"]),
                 par=(sigma, self.alpha_1)))
 
-        out_adj["Kyk1"].add_event(self._op.adjKyk1(
-            out=out_adj["Kyk1"],
-            inp=[out_dual["y"], self._coils, out_dual["z1"], self._grad_op.ratio]))
+        out_adj["Kyk1"].add_event(
+            self._op.adjKyk1(
+                out=out_adj["Kyk1"],
+                inp=[
+                    out_dual["y"],
+                    self._coils,
+                    out_dual["z1"],
+                    self._grad_op.ratio]))
 
         out_dual["z2"].add_event(
             self.update_z2_tgv(
@@ -3916,54 +3939,51 @@ class PDSoftSenseSolverTGV(PDSoftSenseBaseSolver):
     def _updateStepSize(self,
                         primal_vars,
                         primal_vars_new,
+                        tmp_results_forward,
                         theta,
                         tau,
                         sigma):
         diffx = primal_vars_new["x"] - primal_vars["x"]
         diffv = primal_vars_new["v"] - primal_vars["v"]
         nx = (
-                (
-                    clarray.vdot(
-                        diffx,
-                        diffx
-                    )
-                    + clarray.vdot(
-                        diffv,
-                        diffv,
-                    )
-                ) ** (1 / 2)).real.get()
-
+            clarray.vdot(
+                diffx,
+                diffx
+            )
+            + clarray.vdot(
+                diffv,
+                diffv,
+            )
+        ).real ** (1 / 2)
+        nx = nx.get()
         fwddiffx = self._op.fwdoop([diffx, self._coils])
         graddiffx = self._grad_op.fwdoop(diffx)
         symgraddiffv = self._symgrad_op.fwdoop(diffv)
         nKx = (
-                (
-                    clarray.vdot(
-                        fwddiffx,
-                        fwddiffx
-                    )
-                    + clarray.vdot(
-                        graddiffx - diffv,
-                        graddiffx - diffv
-                    )
-                    + clarray.vdot(
-                        symgraddiffv,
-                        symgraddiffv
-                    )
-                ) ** (1 / 2)).real.get()
+            clarray.vdot(
+                fwddiffx,
+                fwddiffx
+            )
+            + clarray.vdot(
+                graddiffx - diffv,
+                graddiffx - diffv
+            )
+            + clarray.vdot(
+                symgraddiffv,
+                symgraddiffv
+            )
+        ).real ** (1 / 2)
+        nKx = nKx.get()
         n = nx / nKx if nKx != 0 else 0
-        s = np.sqrt(sigma * tau)
-        fac = np.sqrt(theta * sigma * tau)
+        s = sigma * tau  # np.sqrt(sigma * tau)
+        fac = theta * sigma * tau  # np.sqrt(theta * sigma * tau)
 
         if fac >= n > 0:
             s = n
         elif s >= n > fac:
-            s = np.sqrt(theta * sigma * tau)
+            s = np.sqrt(fac)
         else:
-            s = np.sqrt(sigma * tau)
-
-        # if s < 0.01:
-        #     s = 0.01
+            s = np.sqrt(s)
 
         return s, s
 
@@ -4008,1238 +4028,12 @@ class PDSoftSenseSolverTGV(PDSoftSenseBaseSolver):
             self.lambd / 2 * clarray.vdot(
                 Kx - data,
                 Kx - data)
-            + self.alpha_0 * clarray.sum(
+            + self.alpha_1 * clarray.sum(
                 abs(gradx - in_primal["v"])
-                )
-            + self.alpha_1 * clarray.sum(
-                abs(symgradv)
-                )
-        ).real
-
-        # primal = (
-        #     self.lambd / 2 * clarray.vdot(
-        #         in_precomp_fwd["Kx"] - data,
-        #         in_precomp_fwd["Kx"] - data)
-        #     + self.alpha_0 * clarray.sum(
-        #         abs(in_precomp_fwd["gradx"] - in_primal["v"])
-        #         )
-        #     + self.alpha_1 * clarray.sum(
-        #         abs(in_precomp_fwd["symgradv"])
-        #         )
-        # ).real
-
-        dual = (
-            1 / (2 * self.lambd) * clarray.vdot(
-                in_dual["y"],
-                in_dual["y"]
             )
-        ).real
-
-        gap = np.abs(primal - dual)
-        return primal.get(), dual.get(), gap.get()
-
-
-class PDALSoftSenseBaseSolver:
-    """
-    Primal Dual splitting optimization.
-
-    This Class performs a primal-dual variable splitting based reconstruction
-    on single precission complex input data.
-    """
-
-    def __init__(self,
-                 par,
-                 ss_par,
-                 queue,
-                 tau,
-                 fval,
-                 prg,
-                 coil,
-                 DTYPE=np.complex64,
-                 DTYPE_real=np.float32):
-        """
-        PD reconstruction Object.
-
-        Args
-        ----
-          par (dict): A python dict containing the necessary information to
-            setup the object. Needs to contain the number of slices (NSlice),
-            number of scans (NScan), image dimensions (dimX, dimY), number of
-            coils (NC), sampling points (N) and read outs (NProj)
-            a PyOpenCL queue (queue) and the complex coil
-            sensitivities (C).
-          irgn_par (dict): A python dict containing the regularization
-            parameters for a given gauss newton step.
-          queue (list): A list of PyOpenCL queues to perform the optimization.
-          tau (float): Estimate of the initial step size based on the
-            operator norm of the linear operator.
-          fval (float): Estimate of the initial cost function value to
-            scale the displayed values.
-          prg (PyOpenCL Program): A PyOpenCL Program containing the
-            kernels for optimization.
-          reg_type (string): String to choose between "TV" and "TGV"
-            optimization.
-          data_operator (PyQMRI Operator): The operator to traverse from
-            parameter to data space.
-          coils (PyOpenCL Buffer or empty List): optional coil buffer.
-          NScan (int): Number of Scan which should be used internally. Do not
-            need to be the same number as in par["NScan"]
-          trafo (bool): Switch between radial (1) and Cartesian (0) fft.
-          and slice accelerated (1) reconstruction.
-        """
-        self._DTYPE = DTYPE
-        self._DTYPE_real = DTYPE_real
-        self.sigma = ss_par["sigma"]
-        self.delta = ss_par["delta"]
-        self.lambd = ss_par["lambd"]
-        self.stag = ss_par["stag"]
-        self.tol = ss_par["tol"]
-        self.display_iterations = ss_par["display_iterations"]
-        self.mu = 1 / self.delta
-        self.tau = tau
-        self.beta_line = 1e5  # choice of beta_line and mu crucial for faster convergence
-        self.theta_line = np.float32(1.0)
-        self.unknowns = par["unknowns"]
-        self.num_dev = len(par["num_dev"])
-        self.dz = par["dz"]
-        self._fval_init = fval
-        self._prg = prg
-        self._queue = queue
-        self._coils = coil
-        self._kernelsize = (par["par_slices"] + par["overlap"], par["dimY"],
-                            par["dimX"])
-
-    @staticmethod
-    def factory(
-            prg,
-            queue,
-            par,
-            ss_par,
-            init_fval,
-            coils,
-            linops,
-            reg_type='',
-            streamed=False,
-            DTYPE=np.complex64,
-            DTYPE_real=np.float32):
-        """
-        Generate a PDSolver object.
-
-        Args
-        ----
-          par (dict): A python dict containing the necessary information to
-            setup the object. Needs to contain the number of slices (NSlice),
-            number of scans (NScan), image dimensions (dimX, dimY), number of
-            coils (NC), sampling points (N) and read outs (NProj)
-            a PyOpenCL queue (queue) and the complex coil
-            sensitivities (C).
-          irgn_par (dict): A python dict containing the regularization
-            parameters for a given gauss newton step.
-          queue (list): A list of PyOpenCL queues to perform the optimization.
-          tau (float): Estimate of the initial step size based on the
-            operator norm of the linear operator.
-          fval (float): Estimate of the initial cost function value to
-            scale the displayed values.
-          prg (PyOpenCL Program): A PyOpenCL Program containing the
-            kernels for optimization.
-          reg_type (string): String to choose between "TV" and "TGV"
-            optimization.
-          data_operator (PyQMRI Operator): The operator to traverse from
-            parameter to data space.
-          coils (PyOpenCL Buffer or empty List): optional coil buffer.
-          NScan (int): Number of Scan which should be used internally. Do not
-            need to be the same number as in par["NScan"]
-          trafo (bool): Switch between radial (1) and Cartesian (0) fft.
-          and slice accelerated (1) reconstruction.
-        """
-        if reg_type == 'NoReg':
-            if not streamed:
-                pdop = PDALSoftSenseSolver(
-                    par,
-                    ss_par,
-                    queue,
-                    np.float32(1 / np.sqrt(12)),
-                    init_fval,
-                    prg,
-                    linops,
-                    coils,
-                    DTYPE=DTYPE,
-                    DTYPE_real=DTYPE_real)
-        elif reg_type == 'TV':
-            if not streamed:
-                pdop = PDALSoftSenseSolverTV(
-                    par,
-                    ss_par,
-                    queue,
-                    np.float32(1 / np.sqrt(8)),
-                    init_fval,
-                    prg,
-                    linops,
-                    coils,
-                    DTYPE=DTYPE,
-                    DTYPE_real=DTYPE_real)
-        elif reg_type == 'TGV':
-            if not streamed:
-                pdop = PDALSoftSenseSolverTGV(
-                    par,
-                    ss_par,
-                    queue,
-                    np.float32(1 / np.sqrt(8)),
-                    init_fval,
-                    prg,
-                    linops,
-                    coils,
-                    DTYPE=DTYPE,
-                    DTYPE_real=DTYPE_real)
-        else:
-            raise NotImplementedError
-        return pdop
-
-    def __del__(self):
-        """
-        Destructor.
-
-        Releases GPU memory arrays.
-        """
-
-    def run(self, inp, data, iters):
-        """
-        Optimization with 3D T(G)V regularization.
-
-        Args
-        ----
-          inp (numpy.array):
-            Initial guess for the reconstruction
-          data (numpy.array):
-            The complex valued (undersampled) kspace data.
-          iters (int):
-            Number of primal-dual iterations to run
-        """
-        tau = self.tau
-        tau_new = self._DTYPE_real(0)
-
-        theta_line = self.theta_line
-        beta_line = self.beta_line
-        beta_new = self._DTYPE_real(0)
-        mu_line = self._DTYPE_real(0.7)
-        delta_line = self._DTYPE_real(0.99)
-        ynorm = self._DTYPE_real(0)
-        lhs = self._DTYPE_real(0.0)
-        sigma = self.sigma
-        lambd = self.lambd
-        primal = self._DTYPE_real(0.0)
-        primal_new = self._DTYPE_real(0)
-        dual = self._DTYPE_real(0.0)
-        gap_init = self._DTYPE_real(0.0)
-        gap_old = self._DTYPE_real(0.0)
-        gap = self._DTYPE_real(0.0)
-
-        (primal_vars,
-         primal_vars_new,
-         tmp_results_forward,
-         tmp_results_forward_new,
-         dual_vars,
-         dual_vars_new,
-         tmp_results_adjoint,
-         tmp_results_adjoint_new,
-         data) = self._setupVariables(inp, data)
-
-        self._updateInitial(
-            out_fwd=tmp_results_forward,
-            out_adj=tmp_results_adjoint,
-            in_primal=primal_vars,
-            in_dual=dual_vars
-            )
-
-        for i in range(iters):
-            self._updatePrimal(
-                out_primal=primal_vars_new,
-                out_fwd=tmp_results_forward_new,
-                in_primal=primal_vars,
-                in_precomp_adj=tmp_results_adjoint,
-                tau=tau
-                )
-
-            beta_new = beta_line * (1 + self.mu * tau)
-            tau_new = tau * np.sqrt(beta_line / beta_new * (1 + theta_line))
-            beta_line = beta_new
-
-            while True:
-                theta_line = tau_new / tau
-                lhs, ynorm = self._updateDual(
-                    out_dual=dual_vars_new,
-                    out_adj=tmp_results_adjoint_new,
-                    in_primal=primal_vars,
-                    in_primal_new=primal_vars_new,
-                    in_dual=dual_vars,
-                    in_precomp_fwd=tmp_results_forward,
-                    in_precomp_fwd_new=tmp_results_forward_new,
-                    in_precomp_adj=tmp_results_adjoint,
-                    data=data,
-                    beta=beta_line,
-                    tau=tau_new,
-                    theta=theta_line
-                    )
-                if lhs <= ynorm * delta_line:
-                    break
-                else:
-                    tau_new = tau_new * mu_line
-
-            tau = tau_new
-
-            for j, k in zip(primal_vars_new,
-                            tmp_results_adjoint_new):
-                (primal_vars[j],
-                 primal_vars_new[j],
-                 tmp_results_adjoint[k],
-                 tmp_results_adjoint_new[k]) = (
-                    primal_vars_new[j],
-                    primal_vars[j],
-                    tmp_results_adjoint_new[k],
-                    tmp_results_adjoint[k],
-                )
-
-            for j, k in zip(dual_vars_new,
-                            tmp_results_forward_new):
-                (dual_vars[j],
-                 dual_vars_new[j],
-                 tmp_results_forward[k],
-                 tmp_results_forward_new[k]) = (
-                    dual_vars_new[j],
-                    dual_vars[j],
-                    tmp_results_forward_new[k],
-                    tmp_results_forward[k]
-                )
-
-            if not np.mod(i, 10):
-                primal_new, dual, gap = self._calcResidual(
-                    in_primal=primal_vars,
-                    in_dual=dual_vars,
-                    in_precomp_fwd=tmp_results_forward,
-                    data=data)
-                if self.display_iterations:
-                    print("Iteration: %i" %i)
-                    print("Primal: %f" %primal_new)
-                    print("Dual: %f" %dual)
-                    print("Gap: %f" %gap)
-                if i == 0:
-                    gap_init = gap
-                if np.abs(primal - primal_new)/self._fval_init <\
-                   self.tol:
-                    print("Terminated at iteration %d because the energy "
-                          "decrease in the primal problem was less than %.3e" %
-                          (i,
-                           np.abs(primal - primal_new)/self._fval_init))
-                    return primal_vars_new
-                if gap > gap_old * self.stag and i > 1:
-                    print("Terminated at iteration %d "
-                          "because the method stagnated" % (i))
-                    return primal_vars_new
-                if np.abs((gap - gap_old) / gap_init) < self.tol:
-                    print("Terminated at iteration %d because the "
-                          "relative energy decrease of the PD gap was "
-                          "less than %.3e"
-                          % (i, np.abs((gap - gap_old) / gap_init)))
-                    return primal_vars_new
-                primal = primal_new
-                gap_old = gap
-                sys.stdout.write(
-                    "Iteration: %04d ---- Primal: %2.2e, "
-                    "Dual: %2.2e, Gap: %2.2e, Beta: %2.2e \r" %
-                    (i, 1000*primal / self._fval_init,
-                     1000*dual / self._fval_init,
-                     1000*gap / self._fval_init,
-                     beta_line))
-                sys.stdout.flush()
-
-        return primal_vars
-
-    def _updateInitial(
-            self,
-            out_fwd,
-            out_adj,
-            in_primal,
-            in_dual):
-        pass
-
-    def _updatePrimal(
-            self,
-            out_primal,
-            out_fwd,
-            in_primal,
-            in_precomp_adj,
-            tau):
-        pass
-
-    def _updateDual(self,
-                    out_dual,
-                    out_adj,
-                    in_primal,
-                    in_primal_new,
-                    in_dual,
-                    in_precomp_fwd,
-                    in_precomp_fwd_new,
-                    in_precomp_adj,
-                    data,
-                    beta,
-                    tau,
-                    theta
-                    ):
-        return ({}, {})
-
-    def _calcResidual(self,
-                      in_primal,
-                      in_dual,
-                      in_precomp_fwd,
-                      data):
-        pass
-
-    def _setupVariables(self,
-                        inp,
-                        data):
-        pass
-
-    def update_x(self, outp, inp, par=None, idx=0, idxq=0,
-                 bound_cond=0, wait_for=None):
-        """
-        Primal update of the x variable in Primal-Dual Algorithm.
-
-        Args
-        ----
-          xn1 (PyOpenCL.Array): The result of the update step
-          xn (PyOpenCL.Array): The previous values of x
-          Kay (PyOpenCL.Array): x-Part of the precomputed result of
-            the adjoint linear operator applied to y
-          tau (float): Primal step size
-          theta (float): Variable controling the extrapolation step of the
-            PD-algorithm
-          wait_for (list): A optional list for PyOpenCL.events to wait for
-        """
-        if wait_for is None:
-            wait_for = []
-        return self._prg[idx].update_x(
-            self._queue[4 * idx + idxq], (outp.size,), None,
-            outp.data,
-            inp[0].data,
-            inp[1].data,
-            self._DTYPE_real(par[0]),
-            self._DTYPE_real(par[1]),
-            wait_for=outp.events + inp[0].events + inp[1].events + wait_for)
-
-    def update_x_tgv(self, outp, inp, par=None, idx=0, idxq=0,
-                 bound_cond=0, wait_for=None):
-        """
-        Primal update of the v variable in Primal-Dual Algorithm.
-
-        Args
-        ----
-          xn1 (PyOpenCL.Array): The result of the update step
-          xn (PyOpenCL.Array): The previous values of x
-          Kay (PyOpenCL.Array): x-Part of the precomputed result of
-            the adjoint linear operator applied to y
-          divz (PyOpenCL.Array): x-Part of the precomputed result of
-            the divergence operator applied to z
-          tau (float): Primal step size
-          theta (float): Variable controling the extrapolation step of the
-            PD-algorithm
-          wait_for (list): A optional list for PyOpenCL.events to wait for
-        """
-        if wait_for is None:
-            wait_for = []
-        return self._prg[idx].update_x_tgv(
-            self._queue[4 * idx + idxq], (outp.size,), None,
-            outp.data,
-            inp[0].data,
-            inp[1].data,
-            inp[2].data,
-            self._DTYPE_real(par[0]),         # tau
-            self._DTYPE_real(par[1]),         # theta
-            wait_for=outp.events + inp[0].events +
-                     inp[1].events + inp[2].events + wait_for)
-
-    def update_y(self, outp, inp, par=None, idx=0, idxq=0,
-                 bound_cond=0, wait_for=None):
-        """
-        Update the data dual variable y according to line search derivation.
-
-        Args
-        ----
-          r_new (PyOpenCL.Array): New value of the data dual variable
-          r (PyOpenCL.Array): Old value of the data dual variable
-          A (PyOpenCL.Array): Precomputed Linear Operator applied to the new x
-          A_ (PyOpenCL.Array):Precomputed Linear Operator applied to the old x
-          res (PyOpenCL.Array): Precomputed data to compare to
-          sigma (float): Dual step size
-          theta (float): Variable controling the extrapolation step of the
-            PD-algorithm
-          lambd (float): Regularization parameter in front of the data fidelity
-            term
-          wait_for (list): A optional list for PyOpenCL.events to wait for
-        """
-        if wait_for is None:
-            wait_for = []
-        return self._prg[idx].update_r(
-            self._queue[4*idx+idxq], (outp.size,), None,
-            outp.data, inp[0].data,
-            inp[1].data, inp[2].data, inp[3].data,
-            self._DTYPE_real(par[0]), self._DTYPE_real(par[1]),
-            self._DTYPE_real(1/(1+par[0]/par[2])),
-            wait_for=(outp.events+inp[0].events +
-                      inp[1].events+inp[2].events+wait_for))
-
-    def update_z_tv(self, outp, inp, par=None, idx=0, idxq=0,
-                     bound_cond=0, wait_for=None):
-        """
-        Dual update of the z variable in Primal-Dual Algorithm for TV including line search.
-
-        Args
-        ----
-          z_new (PyOpenCL.Array): The result of the update step
-          z (PyOpenCL.Array): The previous values of z
-          gx (PyOpenCL.Array): Linear Operator applied to the new x
-          gx_ (PyOpenCL.Array): Linear Operator applied to the previous x
-          sigma (float): Dual step size
-          theta (float): Variable controling the extrapolation step of the
-            PD-algorithm
-          alpha (float): Regularization parameter of the first TGV functional
-          wait_for (list): A optional list for PyOpenCL.events to wait for
-        """
-        if wait_for is None:
-            wait_for = []
-        return self._prg[idx].update_z_tv_line(
-            self._queue[4*idx+idxq],
-            self._kernelsize, None,
-            outp.data, inp[0].data, inp[1].data, inp[2].data,
-            self._DTYPE_real(par[0]),
-            self._DTYPE_real(par[1]),
-            np.int32(self.unknowns),
-            wait_for=(outp.events+inp[0].events +
-                      inp[1].events+inp[2].events+wait_for))
-
-    def update_z1_tgv(self, outp, inp, par=None, idx=0, idxq=0,
-                      bound_cond=0, wait_for=None):
-        """
-        Dual update of the z1 variable in Primal-Dual Algorithm for TGV.
-
-        Args
-        ----
-          zn1 (PyOpenCL.Array): The result of the update step
-          zn (PyOpenCL.Array): The previous values of z1
-          gx (PyOpenCL.Array): Linear gradient operator applied to x
-          v (PyOpenCL.Array): Primal variable v
-          sigma (float): Dual step size
-          alpha (float): Regularization parameter of the first
-            TGV functional
-          wait_for (list): A optional list for PyOpenCL.events to wait for
-        """
-        if wait_for is None:
-            wait_for = []
-        return self._prg[idx].update_z1_tgv_line(
-            self._queue[4*idx+idxq],
-            self._kernelsize, None,
-            outp.data,
-            inp[0].data, inp[1].data,
-            inp[2].data, inp[3].data,
-            inp[4].data,
-            self._DTYPE_real(par[0]),
-            self._DTYPE_real(par[1]),
-            self._DTYPE_real(1 / par[2]),
-            np.int32(self.unknowns),
-            wait_for=(outp.events+inp[0].events+inp[1].events+inp[2].events+inp[3].events+inp[4].events+wait_for))
-
-    def update_z2_tgv(self, outp, inp, par=None, idx=0, idxq=0,
-                      bound_cond=0, wait_for=None):
-        """
-        Dual update of the z2 variable in Primal-Dual Algorithm for TGV.
-
-        Args
-        ----
-          zn1 (PyOpenCL.Array): The result of the update step
-          zn (PyOpenCL.Array): The previous values of z2
-          gx (PyOpenCL.Array): Linear gradient operator applied to x
-          symgv (PyOpenCL.Array): Linear symmetrized gradient operator
-            applied to v
-          sigma (float): Dual step size
-          alpha (float): Regularization parameter of the second
-            TGV functional
-          wait_for (list): A optional list for PyOpenCL.events to wait for
-        """
-        if wait_for is None:
-            wait_for = []
-        return self._prg[idx].update_z2_tgv_line(
-            self._queue[4*idx+idxq],
-            self._kernelsize, None,
-            outp.data,
-            inp[0].data,
-            inp[1].data,
-            inp[2].data,
-            self._DTYPE_real(par[0]),
-            self._DTYPE_real(par[1]),
-            self._DTYPE_real(1 / par[1]),
-            np.int32(self.unknowns),
-            wait_for=(outp.events+inp[0].events+inp[1].events+inp[2].events+wait_for))
-
-    def update_Kyk2(self, outp, inp, par=None, idx=0, idxq=0,
-                    bound_cond=0, wait_for=None):
-        """
-        Precompute the v-part of the Adjoint Linear operator.
-
-        Args
-        ----
-          div (PyOpenCL.Array): The result of the computation
-          u (PyOpenCL.Array): Dual Variable of the symmetrized gradient of TGV
-          z (PyOpenCL.Array): Dual Variable of the gradient of TGV
-          wait_for (list): A optional list for PyOpenCL.events to wait for
-        """
-        if wait_for is None:
-            wait_for = []
-        return self._prg[idx].update_Kyk2(
-            self._queue[4*idx+idxq],
-            self._kernelsize, None,
-            outp.data, inp[0].data, inp[1].data,
-            np.int32(self.unknowns),
-            par[idx].data,
-            np.int32(bound_cond),
-            self._DTYPE_real(self.dz),
-            wait_for=outp.events + inp[0].events + inp[1].events+wait_for)
-
-    def update_v(self, outp, inp, par=None, idx=0, idxq=0,
-                 bound_cond=0, wait_for=None):
-        """
-        Primal update of the v variable in Primal-Dual Algorithm.
-
-        Args
-        ----
-          vn1 (PyOpenCL.Array): The result of the update step
-          vn (PyOpenCL.Array): The previous values of v
-          z1 (PyOpenCL.Array): Dual variable z1
-          ez2 (PyOpenCL.Array): Linear adjoint symmetrized gradient operator
-            applied to z2
-          tau (float): Primal step size
-          theta (float): Variable controling the extrapolation step of the
-            PD-algorithm
-          wait_for (list): A optional list for PyOpenCL.events to wait for
-        """
-        if wait_for is None:
-            wait_for = []
-        return self._prg[idx].update_v_tgv(
-            self._queue[4*idx+idxq], (outp[..., 0].size,), None,
-            outp.data, inp[0].data, inp[1].data, inp[2].data,
-            self._DTYPE_real(par[0]), self._DTYPE_real(par[1]),
-            wait_for=outp.events+inp[0].events+inp[1].events+inp[2].events+wait_for)
-
-    def setFvalInit(self, fval):
-        """Set the initial value of the cost function.
-
-        Parameters
-        ----------
-          fval : float
-            The initial cost of the optimization problem
-        """
-        self._fval_init = fval
-
-
-class PDALSoftSenseSolver(PDALSoftSenseBaseSolver):
-    """
-    PD Algorithm for Soft Sense reconstruction without regularization
-    """
-    def __init__(self,
-                 par,
-                 ss_par,
-                 queue,
-                 tau,
-                 fval,
-                 prg,
-                 linop,
-                 coils,
-                 **kwargs
-                 ):
-
-        super().__init__(
-            par,
-            ss_par,
-            queue,
-            tau,
-            fval,
-            prg,
-            coils,
-            **kwargs)
-        self._op = linop[0]
-
-    def _setupVariables(self, inp, data):
-        data = clarray.to_device(self._queue[0], data.astype(self._DTYPE))
-
-        primal_vars = {}
-        primal_vars_new = {}
-        tmp_results_adjoint = {}
-        tmp_results_adjoint_new = {}
-
-        primal_vars["x"] = clarray.to_device(self._queue[0], inp)
-        primal_vars_new["x"] = clarray.empty_like(primal_vars["x"])
-
-        tmp_results_adjoint["Kay"] = clarray.empty_like(primal_vars["x"])
-        tmp_results_adjoint_new["Kay"] = clarray.empty_like(primal_vars["x"])
-
-        dual_vars = {}
-        dual_vars_new = {}
-        tmp_results_forward = {}
-        tmp_results_forward_new = {}
-
-        dual_vars["y"] = clarray.zeros(
-            self._queue[0],
-            data.shape,
-            dtype=self._DTYPE
-        )
-        dual_vars_new["y"] = clarray.zeros_like(dual_vars["y"])
-
-        tmp_results_forward["Kx"] = clarray.empty_like(data)
-        tmp_results_forward_new["Kx"] = clarray.empty_like(data)
-
-        return (primal_vars,
-                primal_vars_new,
-                tmp_results_forward,
-                tmp_results_forward_new,
-                dual_vars,
-                dual_vars_new,
-                tmp_results_adjoint,
-                tmp_results_adjoint_new,
-                data)
-
-    def _updateInitial(self,
-                       out_fwd, out_adj,
-                       in_primal, in_dual):
-        out_adj["Kay"].add_event(self._op.adj(
-                out_adj["Kay"], [in_dual["y"], self._coils]))
-
-        out_fwd["Kx"].add_event(self._op.fwd(
-                out_fwd["Kx"], [in_primal["x"], self._coils]))
-
-    def _updatePrimal(self,
-                      out_primal,
-                      out_fwd,
-                      in_primal,
-                      in_precomp_adj,
-                      tau
-                      ):
-        out_primal["x"].add_event(self.update_x(
-            outp=out_primal["x"],
-            inp=(in_primal["x"], in_precomp_adj["Kay"]),
-            par=(tau, 1)))  # 2nd parameter is theta, set to 1
-
-        out_fwd["Kx"].add_event(self._op.fwd(
-            out_fwd["Kx"], [out_primal["x"], self._coils]))
-
-    def _updateDual(self,
-                    out_dual,
-                    out_adj,
-                    in_primal,
-                    in_primal_new,
-                    in_dual,
-                    in_precomp_fwd,
-                    in_precomp_fwd_new,
-                    in_precomp_adj,
-                    data,
-                    beta,
-                    tau,
-                    theta):
-        out_dual["y"].add_event(
-            self.update_y(
-                outp=out_dual["y"],
-                inp=(
-                    in_dual["y"],
-                    in_precomp_fwd_new["Kx"],
-                    in_precomp_fwd["Kx"],
-                    data),
-                par=(beta*tau, theta, 1.0)))  # without regularization lambda set to 1
-
-        out_adj["Kay"].add_event(
-            self._op.adj(
-                out_adj["Kay"],
-                [out_dual["y"],
-                 self._coils],
-               ))
-
-        ynorm = (
-            (
-                clarray.vdot(
-                    out_dual["y"] - in_dual["y"],
-                    out_dual["y"] - in_dual["y"]
-                    )
-            ) ** (1 / 2)).real
-        lhs = np.sqrt(beta) * tau * (
-                (
-                    clarray.vdot(
-                        out_adj["Kay"] - in_precomp_adj["Kay"],
-                        out_adj["Kay"] - in_precomp_adj["Kay"]
-                    )
-                ) ** (1 / 2)).real
-        return lhs.get(), ynorm.get()
-
-    def _calcResidual(self,
-                    in_primal,
-                    in_dual,
-                    in_precomp_fwd,
-                    data):
-
-        primal = (
-            clarray.vdot(
-                (in_precomp_fwd["Kx"] - data),
-                (in_precomp_fwd["Kx"] - data)
-            )
-        ).real
-
-        dual = (
-            clarray.vdot(
-                in_dual["y"],
-                in_dual["y"]
-            )
-        ).real
-
-        gap = np.abs(primal - dual)
-        return primal.get(), dual.get(), gap.get()
-
-
-class PDALSoftSenseSolverTV(PDALSoftSenseBaseSolver):
-    """
-    PD Algorithm for Soft Sense reconstruction with TV regularization
-    """
-    def __init__(self,
-                 par,
-                 ss_par,
-                 queue,
-                 tau,
-                 fval,
-                 prg,
-                 linop,
-                 coils,
-                 **kwargs
-                 ):
-
-        super().__init__(
-            par,
-            ss_par,
-            queue,
-            tau,
-            fval,
-            prg,
-            coils,
-            **kwargs)
-        self._op = linop[0]
-        self._grad_op = linop[1]
-
-    def _setupVariables(self, inp, data):
-        data = clarray.to_device(self._queue[0], data.astype(self._DTYPE))
-
-        primal_vars = {}
-        primal_vars_new = {}
-        tmp_results_adjoint = {}
-        tmp_results_adjoint_new = {}
-
-        primal_vars["x"] = clarray.to_device(self._queue[0], inp)
-        primal_vars_new["x"] = clarray.empty_like(primal_vars["x"])
-
-        tmp_results_adjoint["Kyk1"] = clarray.empty_like(primal_vars["x"])
-        tmp_results_adjoint_new["Kyk1"] = clarray.empty_like(primal_vars["x"])
-
-        dual_vars = {}
-        dual_vars_new = {}
-        tmp_results_forward = {}
-        tmp_results_forward_new = {}
-
-        dual_vars["y"] = clarray.zeros(
-            self._queue[0],
-            data.shape,
-            dtype=self._DTYPE
-        )
-        dual_vars["z"] = clarray.zeros(self._queue[0],
-                                       primal_vars["x"].shape+(4,),
-                                       dtype=self._DTYPE)
-
-        dual_vars_new["y"] = clarray.zeros_like(dual_vars["y"])
-        dual_vars_new["z"] = clarray.zeros_like(dual_vars["z"])
-
-        tmp_results_forward["Kx"] = clarray.empty_like(data)
-        tmp_results_forward["gradx"] = clarray.empty_like(dual_vars["z"])
-        tmp_results_forward_new["Kx"] = clarray.empty_like(data)
-        tmp_results_forward_new["gradx"] = clarray.empty_like(dual_vars["z"])
-
-        return (primal_vars,
-                primal_vars_new,
-                tmp_results_forward,
-                tmp_results_forward_new,
-                dual_vars,
-                dual_vars_new,
-                tmp_results_adjoint,
-                tmp_results_adjoint_new,
-                data)
-
-    def _updateInitial(self,
-                       out_fwd, out_adj,
-                       in_primal, in_dual):
-
-        out_adj["Kyk1"].add_event(
-            self._op.adjKyk1(out_adj["Kyk1"],
-                             [in_dual["y"],
-                              self._coils,
-                              in_dual["z"],
-                              self._grad_op.ratio]))
-
-        out_fwd["Kx"].add_event(self._op.fwd(
-                out_fwd["Kx"], [in_primal["x"], self._coils]))
-
-        out_fwd["gradx"].add_event(self._grad_op.fwd(
-            out_fwd["gradx"], in_primal["x"]))
-
-    def _updatePrimal(self,
-                      out_primal,
-                      out_fwd,
-                      in_primal,
-                      in_precomp_adj,
-                      tau):
-
-        out_primal["x"].add_event(self.update_x(
-            outp=out_primal["x"],
-            inp=(in_primal["x"], in_precomp_adj["Kyk1"]),
-            par=(tau, 1)))
-
-        out_fwd["Kx"].add_event(self._op.fwd(
-            out_fwd["Kx"], [out_primal["x"], self._coils]))
-
-        out_fwd["gradx"].add_event(self._grad_op.fwd(
-            out_fwd["gradx"], out_primal["x"]))
-
-    def _updateDual(self,
-                    out_dual,
-                    out_adj,
-                    in_primal,
-                    in_primal_new,
-                    in_dual,
-                    in_precomp_fwd,
-                    in_precomp_fwd_new,
-                    in_precomp_adj,
-                    data,
-                    beta,
-                    tau,
-                    theta):
-        out_dual["y"].add_event(
-            self.update_y(
-                outp=out_dual["y"],
-                inp=(
-                    in_dual["y"],
-                    in_precomp_fwd_new["Kx"],
-                    in_precomp_fwd["Kx"],
-                    data),
-                par=(beta*tau, theta, self.lambd)))
-
-        out_dual["z"].add_event(
-            self.update_z_tv(
-                outp=out_dual["z"],
-                inp=(in_dual["z"], in_precomp_fwd_new["gradx"], in_precomp_fwd["gradx"]),
-                par=(beta*tau, theta, self.lambd)))
-
-        out_adj["Kyk1"].add_event(
-            self._op.adjKyk1(out_adj["Kyk1"],
-                             [out_dual["y"],
-                              self._coils,
-                              out_dual["z"],
-                              self._grad_op.ratio]))
-
-        ynorm = (
-            (
-                clarray.vdot(
-                    out_dual["y"] - in_dual["y"],
-                    out_dual["y"] - in_dual["y"]
-                    )
-                + clarray.vdot(
-                    out_dual["z"] - in_dual["z"],
-                    out_dual["z"] - in_dual["z"]
-                    )
-            ) ** (1 / 2)).real
-        lhs = np.sqrt(beta) * tau * (
-                (
-                    clarray.vdot(
-                        out_adj["Kyk1"] - in_precomp_adj["Kyk1"],
-                        out_adj["Kyk1"] - in_precomp_adj["Kyk1"]
-                    )
-                ) ** (1 / 2)).real
-        return lhs.get(), ynorm.get()
-
-    def _calcResidual(self,
-                    in_primal,
-                    in_dual,
-                    in_precomp_fwd,
-                    data):
-
-        primal = (
-            self.lambd / 2 * clarray.vdot(
-                in_precomp_fwd["Kx"] - data,
-                in_precomp_fwd["Kx"] - data)
-            + clarray.sum(
-                abs(in_precomp_fwd["gradx"])
-                )
-        ).real
-
-        dual = (
-            1 / (2 * self.lambd) * clarray.vdot(
-                in_dual["y"],
-                in_dual["y"]
-            )
-        ).real
-
-        gap = np.abs(primal - dual)
-        return primal.get(), dual.get(), gap.get()
-
-
-class PDALSoftSenseSolverTGV(PDALSoftSenseBaseSolver):
-    """
-    PD Algorithm for Soft Sense reconstruction with TGV regularization
-    """
-
-    def __init__(self,
-                 par,
-                 ss_par,
-                 queue,
-                 tau,
-                 fval,
-                 prg,
-                 linop,
-                 coils,
-                 **kwargs
-                 ):
-
-        super().__init__(
-            par,
-            ss_par,
-            queue,
-            tau,
-            fval,
-            prg,
-            coils,
-            **kwargs)
-
-        self.alpha_0 = ss_par["alpha0"]
-        self.alpha_1 = ss_par["alpha1"]
-        self._op = linop[0]
-        self._grad_op = linop[1]
-        self._symgrad_op = linop[2]
-
-    def _setupVariables(self, inp, data):
-        data = clarray.to_device(self._queue[0], data.astype(self._DTYPE))
-
-        primal_vars = {}
-        primal_vars_new = {}
-        tmp_results_adjoint = {}
-        tmp_results_adjoint_new = {}
-
-        primal_vars["x"] = clarray.to_device(self._queue[0], inp)
-        primal_vars["v"] = clarray.zeros(self._queue[0],
-                                         primal_vars["x"].shape+(4,),
-                                         dtype=self._DTYPE)
-        primal_vars_new["x"] = clarray.empty_like(primal_vars["x"])
-        primal_vars_new["v"] = clarray.empty_like(primal_vars["v"])
-
-        tmp_results_adjoint["Kyk1"] = clarray.empty_like(primal_vars["x"])
-        tmp_results_adjoint_new["Kyk1"] = clarray.empty_like(primal_vars["x"])
-        tmp_results_adjoint["Kyk2"] = clarray.empty_like(primal_vars["v"])
-        tmp_results_adjoint_new["Kyk2"] = clarray.empty_like(primal_vars["v"])
-
-        dual_vars = {}
-        dual_vars_new = {}
-        tmp_results_forward = {}
-        tmp_results_forward_new = {}
-
-        dual_vars["y"] = clarray.zeros(
-            self._queue[0],
-            data.shape,
-            dtype=self._DTYPE
-        )
-        dual_vars["z1"] = clarray.zeros(self._queue[0],
-                                        primal_vars["x"].shape+(4,),
-                                        dtype=self._DTYPE)
-
-        dual_vars["z2"] = clarray.zeros(self._queue[0],
-                                        primal_vars["x"].shape+(8,),
-                                        dtype=self._DTYPE)
-
-        dual_vars_new["y"] = clarray.empty_like(dual_vars["y"])
-        dual_vars_new["z1"] = clarray.empty_like(dual_vars["z1"])
-        dual_vars_new["z2"] = clarray.empty_like(dual_vars["z2"])
-
-        tmp_results_forward["Kx"] = clarray.empty_like(data)
-        tmp_results_forward["gradx"] = clarray.empty_like(dual_vars["z1"])
-        tmp_results_forward["symgradv"] = clarray.empty_like(dual_vars["z2"])
-        tmp_results_forward_new["Kx"] = clarray.empty_like(data)
-        tmp_results_forward_new["gradx"] = clarray.empty_like(dual_vars["z1"])
-        tmp_results_forward_new["symgradv"] = clarray.empty_like(dual_vars["z2"])
-
-        return (primal_vars,
-                primal_vars_new,
-                tmp_results_forward,
-                tmp_results_forward_new,
-                dual_vars,
-                dual_vars_new,
-                tmp_results_adjoint,
-                tmp_results_adjoint_new,
-                data)
-
-    def _updateInitial(self,
-                       out_fwd, out_adj,
-                       in_primal, in_dual):
-
-        out_adj["Kyk1"].add_event(
-            self._op.adjKyk1(out_adj["Kyk1"],
-                             [in_dual["y"],
-                              self._coils,
-                              in_dual["z1"],
-                              self._grad_op.ratio]))
-
-        out_adj["Kyk2"].add_event(
-            self.update_Kyk2(
-                outp=out_adj["Kyk2"],
-                inp=(in_dual["z2"], in_dual["z1"]),
-                par=[self._symgrad_op.ratio]))
-
-        out_fwd["Kx"].add_event(self._op.fwd(
-                out_fwd["Kx"], [in_primal["x"], self._coils]))
-
-        out_fwd["gradx"].add_event(self._grad_op.fwd(
-            out_fwd["gradx"], in_primal["x"]))
-
-        out_fwd["symgradv"].add_event(self._symgrad_op.fwd(
-            out_fwd["symgradv"], in_primal["v"]
-        ))
-
-    def _updatePrimal(self,
-                      out_primal,
-                      out_fwd,
-                      in_primal,
-                      in_precomp_adj,
-                      tau):
-
-        out_primal["x"].add_event(self.update_x(
-            outp=out_primal["x"],
-            inp=(in_primal["x"], in_precomp_adj["Kyk1"]),
-            par=(tau, 1)))
-
-        out_fwd["Kx"].add_event(self._op.fwd(
-            out_fwd["Kx"], [out_primal["x"], self._coils]))
-
-        out_fwd["gradx"].add_event(self._grad_op.fwd(
-            out_fwd["gradx"], out_primal["x"]))
-
-        out_primal["v"].add_event(self.update_x(
-            outp=out_primal["v"],
-            inp=(
-                in_primal["v"],
-                in_precomp_adj["Kyk2"]),
-            par=(tau, 0)))
-
-        out_fwd["symgradv"].add_event(self._symgrad_op.fwd(
-            out_fwd["symgradv"], out_primal["v"]))
-
-    def _updateDual(self,
-                    out_dual,
-                    out_adj,
-                    in_primal,
-                    in_primal_new,
-                    in_dual,
-                    in_precomp_fwd,
-                    in_precomp_fwd_new,
-                    in_precomp_adj,
-                    data,
-                    beta,
-                    tau,
-                    theta):
-
-        out_dual["y"].add_event(
-            self.update_y(
-                outp=out_dual["y"],
-                inp=(
-                    in_dual["y"],
-                    in_precomp_fwd_new["Kx"],
-                    in_precomp_fwd["Kx"],
-                    data),
-                par=(beta*tau, theta, self.lambd)))
-
-        out_dual["z1"].add_event(
-            self.update_z1_tgv(
-                outp=out_dual["z1"],
-                inp=(
-                    in_dual["z1"],
-                    in_precomp_fwd_new["gradx"],
-                    in_precomp_fwd["gradx"],
-                    in_primal_new["v"],
-                    in_primal["v"]),
-                par=(beta*tau, theta, self.alpha_1)))
-
-        out_adj["Kyk1"].add_event(
-            self._op.adjKyk1(
-                out_adj["Kyk1"],
-                [out_dual["y"],
-                 self._coils,
-                 out_dual["z1"],
-                 self._grad_op.ratio]))
-
-        out_dual["z2"].add_event(
-            self.update_z2_tgv(
-                outp=out_dual["z2"],
-                inp=(
-                    in_dual["z2"],
-                    in_precomp_fwd_new["symgradv"],
-                    in_precomp_fwd["symgradv"]),
-                par=(beta*tau, theta, self.alpha_0)))
-
-        out_adj["Kyk2"].add_event(
-            self.update_Kyk2(
-                outp=out_adj["Kyk2"],
-                inp=(out_dual["z2"], out_dual["z1"]),
-                par=[self._symgrad_op.ratio]))
-
-        ynorm = (
-            (
-                clarray.vdot(
-                    out_dual["y"] - in_dual["y"],
-                    out_dual["y"] - in_dual["y"]
-                    )
-                + clarray.vdot(
-                    out_dual["z1"] - in_dual["z1"],
-                    out_dual["z1"] - in_dual["z1"]
-                    )
-                + clarray.vdot(
-                    out_dual["z2"] - in_dual["z2"],
-                    out_dual["z2"] - in_dual["z2"]
-                    )
-            )**(1 / 2)).real
-        lhs = np.sqrt(beta) * tau * (
-            (
-                clarray.vdot(
-                    out_adj["Kyk1"] - in_precomp_adj["Kyk1"],
-                    out_adj["Kyk1"] - in_precomp_adj["Kyk1"]
-                    )
-                + clarray.vdot(
-                    out_adj["Kyk2"] - in_precomp_adj["Kyk2"],
-                    out_adj["Kyk2"] - in_precomp_adj["Kyk2"]
-                    )
-            )**(1 / 2)).real
-        return lhs.get(), ynorm.get()
-
-    def _calcResidual(
-            self,
-            in_primal,
-            in_dual,
-            in_precomp_fwd,
-            data):
-
-        primal = (
-            self.lambd / 2 * clarray.vdot(
-                in_precomp_fwd["Kx"] - data,
-                in_precomp_fwd["Kx"] - data)
-            + self.alpha_1 * clarray.sum(
-                abs(in_precomp_fwd["gradx"] - in_primal["v"])
-                )
             + self.alpha_0 * clarray.sum(
-                abs(in_precomp_fwd["symgradv"])
-                )
+                abs(symgradv)
+            )
         ).real
 
         dual = (
@@ -5300,175 +4094,201 @@ class PDSoftSenseBaseSolverStreamed(PDSoftSenseBaseSolver):
         self.data_shape = (par["NSlice"], par["NScan"],
                            par["NC"], par["Nproj"], par["N"])
 
-    def _setup_reg_tmp_arrays(self, reg_type, SMS=False):
-        if reg_type != 'TGV':
-            pass
-        elif reg_type == 'TGV':
-            self.v = np.zeros(
-                self.grad_shape,
-                dtype=self._DTYPE)
-            self.z2 = np.zeros(
-                self.symgrad_shape,
-                dtype=self._DTYPE)
-        else:
-            raise NotImplementedError("Not implemented")
-        self._setupstreamingops(reg_type, SMS=SMS)
-
-        self.r = np.zeros(
-                self.data_shape,
-                dtype=self._DTYPE)
-        self.z1 = np.zeros(
-            self.grad_shape,
-            dtype=self._DTYPE)
-
-    def _setupstreamingops(self, reg_type, SMS=False):
-        if not SMS:
-            self.stream_initial_1 = self._defineoperator(
-                [],
-                [],
-                [[]],
-                reverse_dir=True)
-            self.stream_initial_1 += self._op.fwdstr
-            if reg_type == 'NoReg':
-                self.stream_initial_1 += self._op.adjstr
-            if reg_type != 'NoReg':
-                self.stream_initial_1 += self._op.adjstrKyk1
-            if reg_type == 'TGV':
-                self.stream_initial_1 += self._symgrad_op.getStreamedSymGradientObject()
-
-        if reg_type == 'TGV':
-            self.stream_Kyk2 = self._defineoperator(
-                [self.update_Kyk2],
-                [self.grad_shape],
-                [[self.symgrad_shape,
-                  self.grad_shape,
-                  self.grad_shape]])
-
-            self.stream_initial_2 = self._defineoperator(
-                [],
-                [],
-                [[]])
-
-            self.stream_initial_2 += self._grad_op.getStreamedGradientObject()
-            self.stream_initial_2 += self.stream_Kyk2
-
-        self.stream_primal = self._defineoperator(
-            [self.update_x],
-            [self.unknown_shape],
-            [[self.unknown_shape,
-              self.unknown_shape,
-              self.unknown_shape,
-              self.unknown_shape]])
-
-        self.update_primal_1 = self._defineoperator(
-            [],
-            [],
-            [[]])
-
-        self.update_primal_1 += self.stream_primal
-
-        if not SMS:
-            self.update_primal_1 += self._op.fwdstr
-            self.update_primal_1.connectouttoin(0, (1, 0))
-
-        if reg_type != 'NoReg':
-            self.update_primal_1 += self._grad_op.getStreamedGradientObject()
-            self.update_primal_1.connectouttoin(0, (2, 0))
-
-        if reg_type == 'TGV':
-            self.stream_update_v = self._defineoperator(
-                [self.update_x],
-                [self.grad_shape],
-                [[self.grad_shape,
-                  self.grad_shape]])
-
-            self.update_primal_2 = self._defineoperator(
-                [],
-                [],
-                [[]],
-                reverse_dir=True)
-
-            self.update_primal_2 += self.stream_update_v
-            self.update_primal_2 += self._symgrad_op.getStreamedSymGradientObject()
-            self.update_primal_2.connectouttoin(0, (1, 0))
-            self.stream_update_z1 = self._defineoperator(
-                [self.update_z1_tgv],
-                [self.grad_shape],
-                [[self.grad_shape,
-                  self.grad_shape,
-                  self.grad_shape,
-                  self.grad_shape,
-                  self.grad_shape]],
-                reverse_dir=True,
-                posofnorm=[False])
-        else:
-            self.stream_update_z1 = self._defineoperator(
-                [self.update_z_tv],
-                [self.grad_shape],
-                [[self.grad_shape,
-                  self. grad_shape]],
-                reverse_dir=True,
-                posofnorm=[False])
-        if not SMS:
-            self.stream_update_y = self._defineoperator(
-                [self.update_y],
-                [self.data_shape],
-                [[self.data_shape,
-                  self.data_shape,
-                  self.data_shape,
-                  self.data_shape]])
-            self.update_dual_1 = self._defineoperator(
-                [],
-                [],
-                [[]],
-                reverse_dir=True,
-                posofnorm=[False, False, True])
-
-            if reg_type != 'NoReg':
-                self.update_dual_1 += self.stream_update_z1
-
-            self.update_dual_1 += self.stream_update_y
-
-            if reg_type == 'NoReg':
-                self.update_dual_1 += self._op.adjstr
-                self.update_dual_1.connectouttoin(0, (1, 0))
-            else:
-                self.update_dual_1 += self._op.adjstrKyk1
-                self.update_dual_1.connectouttoin(1, (2, 0))
-                self.update_dual_1.connectouttoin(0, (2, 2))
-
-            del self.stream_update_z1, self.stream_update_y, self.stream_primal
-
-        # else:
-        #     self.stream_update_r = self._defineoperator(
-        #         [self.update_r],
-        #         [self.data_shape],
-        #         [[self.data_shape,
-        #           self.data_shape,
-        #           self.data_shape,
-        #           self.data_shape]],
-        #         slices=self.packs*self.numofpacks,
-        #         reverse_dir=True,
-        #         posofnorm=[False])
-        #     del self.stream_primal
-
-        if reg_type == 'TGV':
-            self.stream_update_z2 = self._defineoperator(
-                [self.update_z2_tgv],
-                [self.symgrad_shape],
-                [[self.symgrad_shape,
-                  self.symgrad_shape,
-                  self.symgrad_shape]])
-            self.update_dual_2 = self._defineoperator(
-                [],
-                [],
-                [[]],
-                posofnorm=[False, True])
-
-            self.update_dual_2 += self.stream_update_z2
-            self.update_dual_2 += self.stream_Kyk2
-            self.update_dual_2.connectouttoin(0, (1, 0))
-            del self.stream_Kyk2, self.stream_update_z2, self.stream_update_v
+    # def _setupstreamingops(self, reg_type):
+    #
+    #     self.stream_initial_1 = self._defineoperator(
+    #         [],
+    #         [],
+    #         [[]],
+    #         reverse_dir=True)
+    #     self.stream_initial_1 += self._op.fwdstr
+    #     if reg_type == 'NoReg':
+    #         self.stream_initial_1 += self._op.adjstr
+    #     if reg_type != 'NoReg':
+    #         self.stream_initial_1 += self._op.adjstrKyk1
+    #     if reg_type == 'TGV':
+    #     #    self.stream_initial_1 += self._symgrad_op.getStreamedSymGradientObject()
+    #
+    #         self.stream_initial_1_tgv = self._defineoperator(
+    #             [],
+    #             [],
+    #             [[]],
+    #             reverse_dir=True)
+    #
+    #         self.stream_initial_1_tgv += self._symgrad_op.getStreamedSymGradientObject()
+    #
+    #     if reg_type == 'TGV':
+    #         self.stream_Kyk2 = self._defineoperator(
+    #             [self.update_Kyk2],
+    #             [self.grad_shape],
+    #             [[self.symgrad_shape,
+    #               self.grad_shape,
+    #               self.grad_shape]])
+    #
+    #         self.stream_initial_2 = self._defineoperator(
+    #             [],
+    #             [],
+    #             [[]])
+    #
+    #         self.stream_initial_2_tgv = self._defineoperator(
+    #             [],
+    #             [],
+    #             [[]])
+    #
+    #         self.stream_initial_2_tgv += self._grad_op.getStreamedGradientObject()
+    #         self.stream_initial_2 += self.stream_Kyk2
+    #
+    #     self.stream_update_x = self._defineoperator(
+    #         [self.update_x],
+    #         [self.unknown_shape],
+    #         [[self.unknown_shape,
+    #           self.unknown_shape,
+    #           self.unknown_shape,
+    #           self.unknown_shape]])
+    #
+    #     self.update_primal_1 = self._defineoperator(
+    #         [],
+    #         [],
+    #         [[]])
+    #
+    #     self.update_primal_1 += self.stream_update_x
+    #
+    #     self.stream_extrapolate_x = self._defineoperator(
+    #         [self.extrapolate_x],
+    #         [self.unknown_shape],
+    #         [[self.unknown_shape,
+    #           self.unknown_shape]])
+    #
+    #     self.extrapolate_primal_1 = self._defineoperator(
+    #         [],
+    #         [],
+    #         [[]])
+    #
+    #     self.extrapolate_primal_1 += self.stream_extrapolate_x
+    #     self.extrapolate_primal_1 += self._op.fwdstr
+    #     self.extrapolate_primal_1.connectouttoin(0, (1, 0))
+    #
+    #     if reg_type != 'NoReg':
+    #         self.extrapolate_primal_1 += self._grad_op.getStreamedGradientObject()
+    #         self.extrapolate_primal_1.connectouttoin(0, (2, 0))
+    #
+    #     if reg_type == 'TGV':
+    #         self.stream_update_v = self._defineoperator(
+    #             [self.update_v],
+    #             [self.grad_shape],
+    #             [[self.grad_shape,
+    #               self.grad_shape]])
+    #
+    #         self.update_primal_2 = self._defineoperator(
+    #             [],
+    #             [],
+    #             [[]],
+    #             reverse_dir=True)
+    #
+    #         self.update_primal_2 += self.stream_update_v
+    #
+    #         self.stream_extrapolate_v = self._defineoperator(
+    #             [self.extrapolate_v],
+    #             [self.grad_shape],
+    #             [[self.grad_shape,
+    #               self.grad_shape]])
+    #
+    #         self.extrapolate_primal_2 = self._defineoperator(
+    #             [],
+    #             [],
+    #             [[]],
+    #             reverse_dir=False)
+    #
+    #         self.extrapolate_primal_2 += self.stream_extrapolate_v
+    #
+    #         self.extrapolate_primal_2_2 = self._defineoperator(
+    #             [],
+    #             [],
+    #             [[]],
+    #             reverse_dir=True)
+    #         self.extrapolate_primal_2_2 += self._symgrad_op.getStreamedSymGradientObject()
+    #         # self.extrapolate_primal_2.connectouttoin(0, (1, 0))
+    #
+    #         self.stream_update_z1 = self._defineoperator(
+    #             [self.update_z1_tgv],
+    #             [self.grad_shape],
+    #             [[self.grad_shape,
+    #               self.grad_shape,
+    #               self.grad_shape]],
+    #             reverse_dir=True)
+    #     else:
+    #         self.stream_update_z1 = self._defineoperator(
+    #             [self.update_z_tv],
+    #             [self.grad_shape],
+    #             [[self.grad_shape,
+    #               self. grad_shape]],
+    #             reverse_dir=True)
+    #
+    #     self.stream_update_y = self._defineoperator(
+    #         [self.update_y],
+    #         [self.data_shape],
+    #         [[self.data_shape,
+    #           self.data_shape,
+    #           self.data_shape]])
+    #     self.update_dual_1 = self._defineoperator(
+    #         [],
+    #         [],
+    #         [[]],
+    #         reverse_dir=True)
+    #
+    #     self.update_dual_1_1 = self._defineoperator(
+    #         [],
+    #         [],
+    #         [[]],
+    #         reverse_dir=True)
+    #
+    #     self.update_dual_1_2 = self._defineoperator(
+    #         [],
+    #         [],
+    #         [[]],
+    #         reverse_dir=True)
+    #
+    #     if reg_type != 'NoReg':
+    #         self.update_dual_1 += self.stream_update_z1
+    #
+    #     # self.update_dual_1 += self.stream_update_y
+    #     self.update_dual_1_1 += self.stream_update_y
+    #
+    #     if reg_type == 'NoReg':
+    #         self.update_dual_1 += self._op.adjstr
+    #         self.update_dual_1.connectouttoin(0, (1, 0))
+    #     else:
+    #         if reg_type == 'TV':
+    #             self.update_dual_1 += self.stream_update_y
+    #             self.update_dual_1 += self._op.adjstrKyk1
+    #             self.update_dual_1.connectouttoin(0, (2, 2))
+    #             self.update_dual_1.connectouttoin(1, (2, 0))
+    #         self.update_dual_1_2 += self._op.adjstrKyk1
+    #
+    #     del self.stream_update_z1, self.stream_update_y, self.stream_update_x, self.stream_extrapolate_x
+    #
+    #     if reg_type == 'TGV':
+    #         self.stream_update_z2 = self._defineoperator(
+    #             [self.update_z2_tgv],
+    #             [self.symgrad_shape],
+    #             [[self.symgrad_shape,
+    #               self.symgrad_shape]])
+    #         self.update_dual_2 = self._defineoperator(
+    #             [],
+    #             [],
+    #             [[]])
+    #
+    #         self.update_dual_2_1 = self._defineoperator(
+    #             [],
+    #             [],
+    #             [[]])
+    #
+    #         self.update_dual_2_1 += self.stream_Kyk2
+    #
+    #         self.update_dual_2 += self.stream_update_z2
+    #         # self.update_dual_2 += self.stream_Kyk2
+    #         # self.update_dual_2.connectouttoin(0, (1, 0))
+    #         del self.stream_Kyk2, self.stream_update_z2, self.stream_update_v, self.stream_extrapolate_v
 
     def _defineoperator(self,
                         functions,
@@ -5497,6 +4317,7 @@ class PDSoftSenseSolverStreamed(PDSoftSenseBaseSolverStreamed):
     """
     Streamed version of PD Algorithm for Soft Sense reconstruction without regularization
     """
+
     def __init__(self,
                  par,
                  ss_par,
@@ -5520,7 +4341,64 @@ class PDSoftSenseSolverStreamed(PDSoftSenseBaseSolverStreamed):
             **kwargs)
         self._op = linop[0]
 
-        self._setup_reg_tmp_arrays('NoReg', SMS=False)
+        self._setupstreamingops('NoReg')
+
+    def _setupstreamingops(self, reg_type='NoReg'):
+
+        self.stream_initial = self._defineoperator(
+            [],
+            [],
+            [[]],
+            reverse_dir=True)
+        self.stream_initial += self._op.fwdstr
+        self.stream_initial += self._op.adjstr
+
+        self.stream_update_x = self._defineoperator(
+            [self.update_x],
+            [self.unknown_shape],
+            [[self.unknown_shape,
+              self.unknown_shape]])
+
+        self.update_primal = self._defineoperator(
+            [],
+            [],
+            [[]])
+
+        self.update_primal += self.stream_update_x
+
+        self.stream_update_y = self._defineoperator(
+            [self.update_y],
+            [self.data_shape],
+            [[self.data_shape,
+              self.data_shape,
+              self.data_shape]])
+
+        self.update_dual = self._defineoperator(
+            [],
+            [],
+            [[]],
+            reverse_dir=True)
+
+        self.update_dual += self.stream_update_y
+        self.update_dual += self._op.adjstr
+        self.update_dual.connectouttoin(0, (1, 0))
+
+        self.stream_extrapolate_x = self._defineoperator(
+            [self.extrapolate_x],
+            [self.unknown_shape],
+            [[self.unknown_shape,
+              self.unknown_shape]])
+
+        self.extrapolate_primal = self._defineoperator(
+            [],
+            [],
+            [[]])
+
+        self.extrapolate_primal += self.stream_extrapolate_x
+        self.extrapolate_primal += self._op.fwdstr
+        self.extrapolate_primal.connectouttoin(0, (1, 0))
+
+        del self.stream_update_x, self.stream_extrapolate_x, self.stream_update_y
 
     def _setupVariables(self, inp, data):
         primal_vars = {}
@@ -5558,7 +4436,7 @@ class PDSoftSenseSolverStreamed(PDSoftSenseBaseSolverStreamed):
                        in_primal,
                        in_dual):
 
-        self.stream_initial_1.eval(
+        self.stream_initial.eval(
             [
                 out_fwd["Kx"],
                 out_adj["Kay"]
@@ -5581,18 +4459,15 @@ class PDSoftSenseSolverStreamed(PDSoftSenseBaseSolverStreamed):
                       tau,
                       theta):
 
-        self.update_primal_1.eval(
+        self.update_primal.eval(
             [
-                out_primal["x"],
-                out_fwd["Kx"]
+                out_primal["x"]
             ],
             [
-                [in_primal["x"], in_precomp_adj["Kay"], [], []],
-                [[], self._coils]
+                [in_primal["x"], in_precomp_adj["Kay"]],
             ],
             [
-                [tau, theta],
-                []
+                [tau, 0],
             ]
         )
 
@@ -5605,13 +4480,13 @@ class PDSoftSenseSolverStreamed(PDSoftSenseBaseSolverStreamed):
                     data,
                     sigma):
 
-        self.update_dual_1.eval(
+        self.update_dual.eval(
             [
                 out_dual["y"],
                 out_adj["Kay"]
             ],
             [
-                [in_dual["y"], in_precomp_fwd["Kx"], data, []],
+                [in_dual["y"], in_precomp_fwd["Kx"], data],
                 [[], self._coils]
             ],
             [
@@ -5620,16 +4495,63 @@ class PDSoftSenseSolverStreamed(PDSoftSenseBaseSolverStreamed):
             ]
         )
 
+    def _updateStepSize(self,
+                        primal_vars,
+                        primal_vars_new,
+                        tmp_results_forward,
+                        theta,
+                        tau,
+                        sigma):
+
+        diffx = primal_vars_new["x"] - primal_vars["x"]
+        nx = np.vdot(diffx, diffx).real ** (1 / 2)
+        fwddiffx = self._op.fwdoop([[diffx, self._coils]])
+        nKx = np.vdot(fwddiffx, fwddiffx).real ** (1 / 2)
+        n = nx / nKx if nKx != 0 else 0
+        s = sigma * tau  # np.sqrt(sigma * tau)
+        fac = theta * sigma * tau  # np.sqrt(theta * sigma * tau)
+
+        if fac >= n > 0:
+            s = n
+        elif s >= n > fac:
+            s = np.sqrt(fac)
+        else:
+            s = np.sqrt(s)
+
+        return s, s
+
+    def _extrapolatePrimal(self,
+                           out_primal,
+                           out_fwd,
+                           in_primal,
+                           theta):
+        self.extrapolate_primal.eval(
+            [
+                out_primal["x"],
+                out_fwd["Kx"]
+            ],
+            [
+                [in_primal["x"], out_primal["x"]],
+                [[], self._coils]
+            ],
+            [
+                [theta, ],
+                []
+            ]
+        )
+
     def _calcResidual(self,
-                    in_primal,
-                    in_dual,
-                    in_precomp_fwd,
-                    data):
+                      in_primal,
+                      in_dual,
+                      in_precomp_fwd,
+                      data):
+
+        Kx = self._op.fwdoop([[in_primal["x"], self._coils]])
 
         primal = (
             np.vdot(
-                (in_precomp_fwd["Kx"] - data),
-                (in_precomp_fwd["Kx"] - data)
+                (Kx - data),
+                (Kx - data)
             )
         ).real
 
@@ -5648,6 +4570,7 @@ class PDSoftSenseSolverStreamedTV(PDSoftSenseBaseSolverStreamed):
     """
     PD Algorithm for Soft Sense reconstruction with TV regularization
     """
+
     def __init__(self,
                  par,
                  ss_par,
@@ -5673,14 +4596,82 @@ class PDSoftSenseSolverStreamedTV(PDSoftSenseBaseSolverStreamed):
         self._op = linop[0]
         self._grad_op = linop[1]
 
-        self._setup_reg_tmp_arrays('TV', SMS=False)
+        self._setupstreamingops('TV')
+
+    def _setupstreamingops(self, reg_type):
+
+        self.stream_initial = self._defineoperator(
+            [],
+            [],
+            [[]],
+            reverse_dir=True)
+        self.stream_initial += self._op.fwdstr
+        self.stream_initial += self._op.adjstrKyk1
+
+        self.stream_update_x = self._defineoperator(
+            [self.update_x],
+            [self.unknown_shape],
+            [[self.unknown_shape,
+              self.unknown_shape]])
+
+        self.update_primal = self._defineoperator(
+            [],
+            [],
+            [[]])
+
+        self.update_primal += self.stream_update_x
+
+        self.stream_update_y = self._defineoperator(
+            [self.update_y],
+            [self.data_shape],
+            [[self.data_shape,
+              self.data_shape,
+              self.data_shape]])
+
+        self.stream_update_z1 = self._defineoperator(
+            [self.update_z_tv],
+            [self.grad_shape],
+            [[self.grad_shape,
+              self. grad_shape]],
+            reverse_dir=True)
+
+        self.update_dual = self._defineoperator(
+            [],
+            [],
+            [[]],
+            reverse_dir=True)
+
+        self.update_dual += self.stream_update_z1
+        self.update_dual += self.stream_update_y
+        self.update_dual += self._op.adjstrKyk1
+
+        self.update_dual.connectouttoin(0, (2, 2))
+        self.update_dual.connectouttoin(1, (2, 0))
+
+        self.stream_extrapolate_x = self._defineoperator(
+            [self.extrapolate_x],
+            [self.unknown_shape],
+            [[self.unknown_shape,
+              self.unknown_shape]])
+
+        self.extrapolate_primal = self._defineoperator(
+            [],
+            [],
+            [[]])
+
+        self.extrapolate_primal += self.stream_extrapolate_x
+        self.extrapolate_primal += self._op.fwdstr
+        self.extrapolate_primal += self._grad_op.getStreamedGradientObject()
+
+        self.extrapolate_primal.connectouttoin(0, (1, 0))
+        self.extrapolate_primal.connectouttoin(0, (2, 0))
 
     def _setupVariables(self, inp, data):
         primal_vars = {}
         primal_vars_new = {}
         tmp_results_adjoint = {}
 
-        primal_vars["x"] = inp
+        primal_vars["x"] = inp.copy()
         primal_vars_new["x"] = np.zeros_like(primal_vars["x"])
 
         tmp_results_adjoint["Kyk1"] = np.zeros_like(primal_vars["x"])
@@ -5696,7 +4687,7 @@ class PDSoftSenseSolverStreamedTV(PDSoftSenseBaseSolverStreamed):
         dual_vars_new["y"] = np.zeros_like(dual_vars["y"])
 
         dual_vars["z"] = np.zeros(
-            primal_vars["x"].shape+(4,),
+            primal_vars["x"].shape + (4,),
             dtype=self._DTYPE
         )
         dual_vars_new["z"] = np.zeros_like(dual_vars["z"])
@@ -5718,7 +4709,7 @@ class PDSoftSenseSolverStreamedTV(PDSoftSenseBaseSolverStreamed):
                        in_primal,
                        in_dual):
 
-        self.stream_initial_1.eval(
+        self.stream_initial.eval(
             [
                 out_fwd["Kx"],
                 out_adj["Kyk1"]
@@ -5741,21 +4732,16 @@ class PDSoftSenseSolverStreamedTV(PDSoftSenseBaseSolverStreamed):
                       tau,
                       theta):
 
-        self.update_primal_1.eval(
+        self.update_primal.eval(
             [
-                out_primal["x"],
-                out_fwd["Kx"],
-                out_fwd["gradx"]
+                out_primal["x"]
             ],
             [
-                [in_primal["x"], in_precomp_adj["Kyk1"], [], []],
-                [[], self._coils],
-                []
+                [in_primal["x"], in_precomp_adj["Kyk1"]],
+
             ],
             [
-                [tau, theta],
-                [],
-                []
+                [tau, 0]
             ]
         )
 
@@ -5768,7 +4754,7 @@ class PDSoftSenseSolverStreamedTV(PDSoftSenseBaseSolverStreamed):
                     data,
                     sigma):
 
-        self.update_dual_1.eval(
+        self.update_dual.eval(
             [
                 out_dual["z"],
                 out_dual["y"],
@@ -5776,29 +4762,84 @@ class PDSoftSenseSolverStreamedTV(PDSoftSenseBaseSolverStreamed):
             ],
             [
                 [in_dual["z"], in_precomp_fwd["gradx"]],
-                [in_dual["y"], in_precomp_fwd["Kx"], data, []],
+                [in_dual["y"], in_precomp_fwd["Kx"], data],
                 [[], self._coils, []]
             ],
             [
-                [sigma, self.lambd],
+                [sigma, ],
                 [sigma, self.lambd],
                 [self._grad_op.ratio]
             ]
         )
 
+    def _updateStepSize(self,
+                        primal_vars,
+                        primal_vars_new,
+                        tmp_results_forward,
+                        theta,
+                        tau,
+                        sigma):
+
+        diffx = primal_vars_new["x"] - primal_vars["x"]
+        nx = np.vdot(diffx, diffx).real ** (1 / 2)
+        fwddiffx = self._op.fwdoop([[diffx, self._coils]])
+        graddiffx = self._grad_op.fwdoop([diffx])
+        nKx = (
+            np.vdot(fwddiffx, fwddiffx) +
+            np.vdot(graddiffx, graddiffx)
+        ).real ** (1 / 2)
+        n = nx / nKx if nKx != 0 else 0
+        s = sigma * tau  # np.sqrt(sigma * tau)
+        fac = theta * sigma * tau  # np.sqrt(theta * sigma * tau)
+
+        if fac >= n > 0:
+            s = n
+        elif s >= n > fac:
+            s = np.sqrt(fac)
+        else:
+            s = np.sqrt(s)
+
+        return s, s
+
+    def _extrapolatePrimal(self,
+                           out_primal,
+                           out_fwd,
+                           in_primal,
+                           theta):
+        self.extrapolate_primal.eval(
+            [
+                out_primal["x"],
+                out_fwd["Kx"],
+                out_fwd["gradx"]
+            ],
+            [
+                [in_primal["x"], out_primal["x"]],
+                [[], self._coils],
+                [[]]
+            ],
+            [
+                [theta, ],
+                [],
+                []
+            ]
+        )
+
     def _calcResidual(self,
-                    in_primal,
-                    in_dual,
-                    in_precomp_fwd,
-                    data):
+                      in_primal,
+                      in_dual,
+                      in_precomp_fwd,
+                      data):
+
+        Kx = self._op.fwdoop([[in_primal["x"], self._coils]])
+        gradx = self._grad_op.fwdoop([in_primal["x"]])
 
         primal = (
             self.lambd / 2 * np.vdot(
-                     (in_precomp_fwd["Kx"] - data),
-                     (in_precomp_fwd["Kx"] - data))
+                (Kx - data),
+                (Kx - data))
             + np.sum(
-                abs(in_precomp_fwd["gradx"])
-                )
+                abs(gradx)
+            )
         ).real
 
         dual = (
@@ -5816,6 +4857,7 @@ class PDSoftSenseSolverStreamedTGV(PDSoftSenseBaseSolverStreamed):
     """
     PD Algorithm for Soft Sense reconstruction with TGV regularization
     """
+
     def __init__(self,
                  par,
                  ss_par,
@@ -5846,7 +4888,146 @@ class PDSoftSenseSolverStreamedTGV(PDSoftSenseBaseSolverStreamed):
 
         self.symgrad_shape = self.unknown_shape + (8,)
 
-        self._setup_reg_tmp_arrays('TGV', SMS=False)
+        self._setupstreamingops('TGV')
+
+    def _setupstreamingops(self, reg_type):
+
+        self.stream_initial_1 = self._defineoperator(
+            [],
+            [],
+            [[]],
+            reverse_dir=True)
+        self.stream_initial_1 += self._op.fwdstr
+        self.stream_initial_1 += self._op.adjstrKyk1
+        self.stream_initial_1 += self._symgrad_op.getStreamedSymGradientObject()
+
+        self.stream_Kyk2 = self._defineoperator(
+            [self.update_Kyk2],
+            [self.grad_shape],
+            [[self.symgrad_shape,
+              self.grad_shape,
+              self.grad_shape]])
+
+        self.stream_initial_2 = self._defineoperator(
+            [],
+            [],
+            [[]])
+
+        self.stream_initial_2 += self._grad_op.getStreamedGradientObject()
+        self.stream_initial_2 += self.stream_Kyk2
+
+        self.stream_update_x = self._defineoperator(
+            [self.update_x],
+            [self.unknown_shape],
+            [[self.unknown_shape,
+              self.unknown_shape]])
+
+        self.update_primal_1 = self._defineoperator(
+            [],
+            [],
+            [[]])
+
+        self.update_primal_1 += self.stream_update_x
+
+        self.stream_update_v = self._defineoperator(
+            [self.update_v],
+            [self.grad_shape],
+            [[self.grad_shape,
+              self.grad_shape]])
+
+        self.update_primal_2 = self._defineoperator(
+            [],
+            [],
+            [[]],
+            reverse_dir=True)
+
+        self.update_primal_2 += self.stream_update_v
+
+        self.stream_update_z1 = self._defineoperator(
+            [self.update_z1_tgv],
+            [self.grad_shape],
+            [[self.grad_shape,
+              self.grad_shape,
+              self.grad_shape]],
+            reverse_dir=True)
+
+        self.stream_update_y = self._defineoperator(
+            [self.update_y],
+            [self.data_shape],
+            [[self.data_shape,
+              self.data_shape,
+              self.data_shape]])
+
+        self.update_dual_1 = self._defineoperator(
+            [],
+            [],
+            [[]],
+            reverse_dir=True)
+
+        self.update_dual_1 += self.stream_update_z1
+        self.update_dual_1 += self.stream_update_y
+        self.update_dual_1 += self._op.adjstrKyk1
+        self.update_dual_1.connectouttoin(0, (2, 2))
+        self.update_dual_1.connectouttoin(1, (2, 0))
+
+        self.stream_update_z2 = self._defineoperator(
+            [self.update_z2_tgv],
+            [self.symgrad_shape],
+            [[self.symgrad_shape,
+              self.symgrad_shape]])
+        self.update_dual_2 = self._defineoperator(
+            [],
+            [],
+            [[]])
+
+        self.update_dual_2 += self.stream_update_z2
+        self.update_dual_2 += self.stream_Kyk2
+
+        self.update_dual_2.connectouttoin(0, (1, 0))
+
+        self.stream_extrapolate_x = self._defineoperator(
+            [self.extrapolate_x],
+            [self.unknown_shape],
+            [[self.unknown_shape,
+              self.unknown_shape]])
+
+        self.extrapolate_primal_1 = self._defineoperator(
+            [],
+            [],
+            [[]])
+
+        self.extrapolate_primal_1 += self.stream_extrapolate_x
+        self.extrapolate_primal_1 += self._op.fwdstr
+        self.extrapolate_primal_1 += self._grad_op.getStreamedGradientObject()
+
+        self.extrapolate_primal_1.connectouttoin(0, (1, 0))
+        self.extrapolate_primal_1.connectouttoin(0, (2, 0))
+
+        self.stream_extrapolate_v = self._defineoperator(
+            [self.extrapolate_v],
+            [self.grad_shape],
+            [[self.grad_shape,
+              self.grad_shape]])
+
+        self.extrapolate_primal_2 = self._defineoperator(
+            [],
+            [],
+            [[]],
+            reverse_dir=True)
+
+        self.extrapolate_primal_2 += self.stream_extrapolate_v
+        self.extrapolate_primal_2 += self._symgrad_op.getStreamedSymGradientObject()
+
+        self.extrapolate_primal_2.connectouttoin(0, (1, 0))
+
+        self.step_size_update = self._defineoperator(
+            [],
+            [],
+            [[]],
+            reverse_dir=True)
+        self.step_size_update += self._op.fwdstr
+        self.step_size_update += self._grad_op.getStreamedGradientObject()
+        self.step_size_update += self._symgrad_op.getStreamedSymGradientObject()
 
     def _setupVariables(self, inp, data):
         primal_vars = {}
@@ -5854,7 +5035,8 @@ class PDSoftSenseSolverStreamedTGV(PDSoftSenseBaseSolverStreamed):
         tmp_results_adjoint = {}
 
         primal_vars["x"] = inp
-        primal_vars["v"] = np.zeros(primal_vars["x"].shape+(4,), dtype=self._DTYPE)
+        primal_vars["v"] = np.zeros(
+            primal_vars["x"].shape + (4,), dtype=self._DTYPE)
 
         primal_vars_new["x"] = np.zeros_like(primal_vars["x"])
         primal_vars_new["v"] = np.zeros_like(primal_vars["v"])
@@ -5870,18 +5052,18 @@ class PDSoftSenseSolverStreamedTGV(PDSoftSenseBaseSolverStreamed):
             data.shape,
             dtype=self._DTYPE
         )
-        dual_vars_new["y"] = np.zeros_like(dual_vars["y"])
 
         dual_vars["z1"] = np.zeros(
-            primal_vars["x"].shape+(4,),
+            primal_vars["x"].shape + (4,),
             dtype=self._DTYPE
         )
-        dual_vars_new["z1"] = np.zeros_like(dual_vars["z1"])
 
         dual_vars["z2"] = np.zeros(
-            primal_vars["x"].shape+(4,),
+            primal_vars["x"].shape + (8,),
             dtype=self._DTYPE
         )
+        dual_vars_new["y"] = np.zeros_like(dual_vars["y"])
+        dual_vars_new["z1"] = np.zeros_like(dual_vars["z1"])
         dual_vars_new["z2"] = np.zeros_like(dual_vars["z2"])
 
         tmp_results_forward["Kx"] = np.zeros_like(data)
@@ -5944,34 +5126,25 @@ class PDSoftSenseSolverStreamedTGV(PDSoftSenseBaseSolverStreamed):
 
         self.update_primal_1.eval(
             [
-                out_primal["x"],
-                out_fwd["Kx"],
-                out_fwd["gradx"],
+                out_primal["x"]
             ],
             [
-                [in_primal["x"], in_precomp_adj["Kyk1"], [], []],
-                [[], self._coils],
-                [],
+                [in_primal["x"], in_precomp_adj["Kyk1"]]
             ],
             [
-                [tau, theta],
-                [],
-                []
+                [tau, 0]
             ]
         )
 
         self.update_primal_2.eval(
             [
-                out_primal["v"],
-                out_fwd["symgradv"]
+                out_primal["v"]
             ],
             [
-                [in_primal["v"], in_precomp_adj["Kyk2"]],
-                []
+                [in_primal["v"], in_precomp_adj["Kyk2"]]
             ],
             [
-                [tau, theta],
-                []
+                [tau, 0]
             ]
         )
 
@@ -5991,12 +5164,12 @@ class PDSoftSenseSolverStreamedTGV(PDSoftSenseBaseSolverStreamed):
                 out_adj["Kyk1"]
             ],
             [
-                [in_dual["z1"], in_precomp_fwd["gradx"], in_primal["v"], [], []],
-                [in_dual["y"], in_precomp_fwd["Kx"], data, []],
+                [in_dual["z1"], in_precomp_fwd["gradx"], in_primal["v"]],
+                [in_dual["y"], in_precomp_fwd["Kx"], data],
                 [[], self._coils, []]
             ],
             [
-                [sigma, self.alpha_0],
+                [sigma, self.alpha_1],
                 [sigma, self.lambd],
                 [self._grad_op.ratio]
             ]
@@ -6008,30 +5181,141 @@ class PDSoftSenseSolverStreamedTGV(PDSoftSenseBaseSolverStreamed):
                 out_adj["Kyk2"]
             ],
             [
-                [in_dual["z2"], in_precomp_fwd["symgradv"], []],
+                [in_dual["z2"], in_precomp_fwd["symgradv"]],
                 [[], out_dual["z1"], []]
             ],
             [
-                [sigma, self.alpha_1],
+                [sigma, self.alpha_0],
                 self._symgrad_op.ratio
             ]
         )
 
+    def _updateStepSize(self,
+                        primal_vars,
+                        primal_vars_new,
+                        tmp_results_forward,
+                        theta,
+                        tau,
+                        sigma):
+        diffx = primal_vars_new["x"] - primal_vars["x"]
+        diffv = primal_vars_new["v"] - primal_vars["v"]
+        nx = (
+            np.vdot(
+                diffx,
+                diffx
+            )
+            + np.vdot(
+                diffv,
+                diffv,
+            )
+        ).real ** (1 / 2)
+
+        fwddiffx = np.zeros(self.data_shape, dtype=self._DTYPE)
+        graddiffx = np.zeros(self.grad_shape, dtype=self._DTYPE)
+        symgraddiffv = np.zeros(self.symgrad_shape, dtype=self._DTYPE)
+
+        self.step_size_update.eval(
+            [
+                fwddiffx,
+                graddiffx,
+                symgraddiffv
+            ],
+            [
+                [diffx, self._coils],
+                [diffx],
+                [diffv]
+            ],
+            [
+                [],
+                [],
+                []
+            ]
+        )
+
+        nKx = (
+            np.vdot(
+                fwddiffx,
+                fwddiffx
+            )
+            + np.vdot(
+                graddiffx - diffv,
+                graddiffx - diffv
+            )
+            + np.vdot(
+                symgraddiffv,
+                symgraddiffv
+            )
+        ).real ** (1 / 2)
+        n = nx / nKx if nKx != 0 else 0
+        s = sigma * tau  # np.sqrt(sigma * tau)
+        fac = theta * sigma * tau  # np.sqrt(theta * sigma * tau)
+
+        if fac >= n > 0:
+            s = n
+        elif s >= n > fac:
+            s = np.sqrt(fac)
+        else:
+            s = np.sqrt(s)
+
+        return s, s
+
+    def _extrapolatePrimal(self,
+                           out_primal,
+                           out_fwd,
+                           in_primal,
+                           theta):
+        self.extrapolate_primal_1.eval(
+            [
+                out_primal["x"],
+                out_fwd["Kx"],
+                out_fwd["gradx"]
+            ],
+            [
+                [in_primal["x"], out_primal["x"]],
+                [[], self._coils],
+                [[]]
+            ],
+            [
+                [theta, ],
+                [],
+                []
+            ]
+        )
+
+        self.extrapolate_primal_2.eval(
+            [
+                out_primal["v"],
+                out_fwd["symgradv"]
+            ],
+            [
+                [in_primal["v"], out_primal["v"]],
+                [[]]
+            ],
+            [
+                [theta, ],
+                []
+            ]
+        )
+
     def _calcResidual(self,
-                    in_primal,
-                    in_dual,
-                    in_precomp_fwd,
-                    data):
+                      in_primal,
+                      in_dual,
+                      in_precomp_fwd,
+                      data):
+
+        Kx = self._op.fwdoop([[in_primal["x"], self._coils]])
+        gradx = self._grad_op.fwdoop([in_primal["x"]])
+        symgradv = self._symgrad_op.fwdoop([in_primal["v"]])
 
         primal = (
             self.lambd / 2 * np.vdot(
-                     (in_precomp_fwd["Kx"] - data),
-                     (in_precomp_fwd["Kx"] - data))
-            + self.alpha_0 * np.sum(
-                abs(in_precomp_fwd["gradx"] - in_primal["v"])
-                )
+                (Kx - data),
+                (Kx - data))
             + self.alpha_1 * np.sum(
-                abs(in_precomp_fwd["symgradv"])
+                abs(gradx - in_primal["v"])
+            )
+            + self.alpha_0 * np.sum(
+                abs(symgradv)
             )
         ).real
 

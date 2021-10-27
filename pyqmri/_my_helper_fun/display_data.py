@@ -15,7 +15,7 @@ def img_montage(imgs, title=''):
 
         xx = int(np.ceil(np.sqrt(z)))
         yy = xx
-        montage = np.zeros((xx * x, yy * y))
+        montage = np.zeros((yy * y, xx * x))
 
         img_id = 0
         for m in range(xx):
@@ -23,7 +23,9 @@ def img_montage(imgs, title=''):
                 if img_id >= z:
                     break
                 slice_n, slice_m = n * y, m * x
-                montage[slice_m:slice_m + x, slice_n:slice_n + y] \
+                # montage[slice_m:slice_m + x, slice_n:slice_n + y] \
+                #     = np.flipud(imgs[i, img_id, :, :])
+                montage[slice_n:slice_n + y, slice_m:slice_m + x] \
                     = np.flipud(imgs[i, img_id, :, :])
                 img_id += 1
 

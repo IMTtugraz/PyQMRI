@@ -60,28 +60,21 @@ def gen_soft_sense_default_config():
     config['TGV'] = {}
     config['TGV']["max_iters"] = '1000'
     config['TGV']["lambd"] = '1e0'
-    config['TGV']["gamma"] = '1e-3'
-    config['TGV']["delta"] = '1e-2'
     config['TGV']["display_iterations"] = '0'
     config['TGV']["tol"] = '1e-8'
     config['TGV']["stag"] = '1e10'
-    config['TGV']["alpha0"] = '1414e-3'
+    config['TGV']["alpha0"] = '1732e-3'
     config['TGV']["alpha1"] = '1e0'
 
     config['TV'] = {}
     config['TV']["max_iters"] = '1000'
     config['TV']["lambd"] = '1e0'
-    config['TV']["gamma"] = '1e-3'
-    config['TV']["delta"] = '1e-2'
     config['TV']["display_iterations"] = '0'
     config['TV']["tol"] = '1e-8'
     config['TV']["stag"] = '1e10'
 
     config['NoReg'] = {}
     config['NoReg']["max_iters"] = '1000'
-    config['NoReg']["lambd"] = '1e0'
-    config['NoReg']["gamma"] = '1e-3'
-    config['NoReg']["delta"] = '1e-2'
     config['NoReg']["display_iterations"] = '0'
     config['NoReg']["tol"] = '1e-8'
     config['NoReg']["stag"] = '1e10'
