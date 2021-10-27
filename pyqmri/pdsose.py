@@ -88,6 +88,7 @@ class SoftSenseOptimizer:
         self._DTYPE = DTYPE
         self._DTYPE_real = DTYPE_real
 
+        self.result = None
         self._elapsed_time = None
         self._i_term = -1
 
@@ -196,14 +197,14 @@ class SoftSenseOptimizer:
                 v = np.require(np.swapaxes(v, 0, 1), requirements='C')
         return grad_op, symgrad_op, v
 
-    def _save_imgs(self, x, fname='', max_val=None, min_val=None):
+    def _save_imgs(self, fname='', max_val=None, min_val=None):
+        x = self.result
         if fname:
             filename = fname
         elif "fname" in self.par.keys():
             filename = self.par["fname"]
         else:
-            filename = self._reg_type + '_recon_R_{:.2f}'.format(self.par["R"]) + '_lambda_' + '{:.0e}'.format(self.ss_par["lambd"]) \
-                       + '_noise_' + '{}'.format(self.ss_par["noise"]) + '_' + self.ss_par["mask_file"]
+            filename = self._reg_type + '_recon_R_{:.2f}'.format(self.par["R"]) + '_lambda_' + '{:.0e}'.format(self.pdsose_par["lambd"])
         path = self.par["outdir"] / 'imgs'
         if not path.exists():
             path.mkdir(parents=True, exist_ok=True)
@@ -220,12 +221,12 @@ class SoftSenseOptimizer:
             file_dir = path / (filename + '_' + str(i) + '.png')
             im.save(file_dir)
 
-    def _save_data(self, x):
+    def _save_data(self):
+        x = self.result
         if "fname" in self.par.keys():
             filename = self.par["fname"]
         else:
-            filename = 'Recon_R_{:.2f}'.format(self.par["R"]) + '_lambda_' + '{:.0e}'.format(self.ss_par["lambd"]) \
-                       + '_noise_' + '{}'.format(self.ss_par["noise"]) + '_' + self.ss_par["mask_file"]
+            filename = 'Recon_R_{:.2f}'.format(self.par["R"]) + '_lambda_' + '{:.0e}'.format(self.pdsose_par["lambd"])
         path = self.par["outdir"] / 'data' / self._reg_type
         if not path.exists():
             path.mkdir(parents=True, exist_ok=True)
@@ -235,12 +236,12 @@ class SoftSenseOptimizer:
             dset = f.create_dataset(self._reg_type+'_result', x.shape,
                                     dtype=self._DTYPE, data=x)
             dset.attrs["R"] = self.par["R"]
-            dset.attrs["lambd"] = self.ss_par["lambd"]
+            dset.attrs["lambd"] = self.pdsose_par["lambd"]
             dset.attrs["streamed"] = self._streamed
             dset.attrs["elapsed_time"] = self._elapsed_time
             if self._reg_type == 'TGV':
-                dset.attrs["alpha0"] = self.ss_par["alpha0"]
-                dset.attrs["alpha1"] = self.ss_par["alpha1"]
+                dset.attrs["alpha0"] = self.pdsose_par["alpha0"]
+                dset.attrs["alpha1"] = self.pdsose_par["alpha1"]
 
     def _power_iterations(self, x, cmap, op, iters=10):
         x = np.require(x.astype(self._DTYPE), requirements='C')
@@ -348,12 +349,12 @@ class SoftSenseOptimizer:
 
         reg_cost = 0
         if self._reg_type == 'TV':
-            data_cost *= (self.ss_par["lambd"] * 0.5)
+            data_cost *= (self.pdsose_par["lambd"] * 0.5)
             reg_cost = np.sum(np.abs(grad))
         if self._reg_type == 'TGV':
-            data_cost *= self.ss_par["lambd"]
-            reg_cost = self.ss_par['alpha1'] * np.sum(np.abs(grad - self._v)) \
-                + self.ss_par['alpha0'] * np.sum(np.abs(symgrad))
+            data_cost *= self.pdsose_par["lambd"]
+            reg_cost = self.pdsose_par['alpha1'] * np.sum(np.abs(grad - self._v)) \
+                + self.pdsose_par['alpha0'] * np.sum(np.abs(symgrad))
 
         self._fval = data_cost + reg_cost
         self._fval_init = self._fval
@@ -374,10 +375,8 @@ class SoftSenseOptimizer:
                     x = tmpres["x"]
                 else:
                     x = tmpres["x"].get()
-
         if self._streamed:
             x = np.require(np.swapaxes(x, 0, 1), requirements='C')
-            x = np.require(np.swapaxes(x, -3, -1), requirements='C')
 
         self._i_term = i
 
@@ -402,18 +401,11 @@ class SoftSenseOptimizer:
                 requirements='C')
 
             img_init = self._MRI_operator.adjoop([[data, self._cmaps]])
-            img_init_ = np.swapaxes(img_init, 0, 1)
-            img_montage(sqrt_sum_of_squares(img_init_), 'Initial image(s) view dim YZ')
-            if self.args.reco_slices == -1:
-                img_init_ = np.swapaxes(img_init_, -3, -1)
-                img_montage(sqrt_sum_of_squares(img_init_), 'Initial image(s) view dim YX')
-            img_montage(sqrt_sum_of_squares(img_init_)[[int(np.shape(img_init_)[-3] / 2)], ...],
-                        'Initial image view dim YX')
 
         else:
             data_ = clarray.to_device(self._queue[0], data)
             img_init = self._MRI_operator.adjoop([data_, self._cmaps]).get()
-            img_montage(sqrt_sum_of_squares(img_init), 'Initial image(s)')
+            # img_montage(sqrt_sum_of_squares(img_init), 'Initial image(s)')
 
         iters = self.pdsose_par["max_iters"] if "max_iters" in self.pdsose_par.keys() else 1000
 
@@ -438,8 +430,7 @@ class SoftSenseOptimizer:
         print("Elapsed time PD algorithm: {:.2f} seconds".format(self._elapsed_time))
         print("-" * 75)
 
-        # self._save_data(result)
-#        self._save_imgs(np.squeeze(sqrt_sum_of_squares(result)))
+        self.result = result
 
         return result
 

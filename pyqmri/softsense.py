@@ -52,7 +52,10 @@ def _fft_shift_data(ksp, recon_type='3D'):
     return result
 
 
-def _preprocess_data(myargs, par, kspace, cmaps):
+def _preprocess_data(myargs, par, kspace, cmaps, mask):
+    if kspace.ndim < 5:
+        kspace = np.expand_dims(kspace, axis=0)
+
     kspace = _fft_shift_data(kspace, recon_type=myargs.type)
 
     if myargs.type == '3D':
@@ -63,19 +66,29 @@ def _preprocess_data(myargs, par, kspace, cmaps):
         cmaps = np.require(
             np.swapaxes(cmaps, -1, -3),
             dtype=par["DTYPE"], requirements='C')
+        if mask.ndim > 2:
+            mask = np.require(
+                np.swapaxes(mask, -1, -3), requirements='C')
+            mask = np.fft.fftshift(mask, axes=(-2, -1))
 
-    # _check_data_shape(myargs, kspace)  # TODO: check data shape if suitable for clFFT
+    # TODO: check data shape if suitable for clFFT
+    # _check_data_shape(myargs, kspace)
 
-    if myargs.reco_slices > 0:
-        slice_idx = (int(par["NSlice"] / 2) - int(math.floor(par["NSlice"] / 2)),
-                     int(par["NSlice"] / 2) + int(math.ceil(par["NSlice"] / 2)))
+    nslice = np.shape(kspace)[-3]
+
+    if 0 < myargs.reco_slices < nslice:
+        slice_idx = (int(nslice / 2) - int(math.floor(myargs.reco_slices / 2)),
+                     int(nslice / 2) + int(math.ceil(myargs.reco_slices / 2)))
 
         kspace = np.require(kspace[..., slice_idx[0]:slice_idx[-1], :, :],
                             requirements='C').astype(par["DTYPE"])
         cmaps = np.require(cmaps[..., slice_idx[0]:slice_idx[-1], :, :],
                            requirements='C').astype(par["DTYPE"])
+    if mask.ndim > 2:
+        mask = np.require(np.squeeze(mask[0, 0, :, :]),
+                          requirements='C').astype(par["DTYPE_real"])
 
-    return kspace, cmaps
+    return kspace, cmaps, mask
 
 
 def _setup_par(par, myargs, ksp_data, cmaps, mask):
@@ -209,15 +222,21 @@ def _start_recon(myargs):
         par["DTYPE"] = np.complex64
         par["DTYPE_real"] = np.float32
 
-    data = _read_data_from_file(_read_input(myargs.file, myargs, par, set_outdir=True), myargs.double_precision)
-    cmaps = _read_data_from_file(_read_input(myargs.cmaps, myargs, par), myargs.double_precision)
-    mask = _read_data_from_file(_read_input(myargs.mask, myargs, par), myargs.double_precision)
+    ###############################################################################
+    # Read data from files ########################################################
+    ###############################################################################
+    data = _read_data_from_file(
+        _read_input(myargs.file, myargs, par, set_outdir=True), myargs.double_precision)
+    cmaps = _read_data_from_file(
+        _read_input(myargs.cmaps, myargs, par), myargs.double_precision)
+    mask = _read_data_from_file(
+        _read_input(myargs.mask, myargs, par), myargs.double_precision)
 
     data = data * 1e7
 
     _setupOCL(myargs, par)
 
-    data, cmaps = _preprocess_data(myargs, par, data, cmaps)
+    data, cmaps, mask = _preprocess_data(myargs, par, data, cmaps, mask)
 
     _setup_par(par, myargs, data, cmaps, mask)
 
@@ -229,7 +248,12 @@ def _start_recon(myargs):
                                    DTYPE_real=par["DTYPE_real"])
     result = optimizer.execute(data.copy())
 
+    optimizer._save_imgs()
+    optimizer._save_data()
+
     del optimizer
+
+    return result
 
 
 

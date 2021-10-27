@@ -123,6 +123,7 @@ def _gen_data_from_imgs(imgs, cmaps, par, type='2D'):
 
 
 def _start_recon(data, par, myargs):
+    myargs.config = 'default_soft_sense.ini'
     optimizer = SoftSenseOptimizer(par,
                                    myargs,
                                    myargs.reg_type,
@@ -783,7 +784,7 @@ if __name__ == '__main__':
     args.kspfile = Path.cwd() / 'data_soft_sense_test' / 'kspace.mat'
     args.csfile = Path.cwd() / 'data_soft_sense_test' / 'sensitivities_ecalib.mat'
 
-    args.double_precision = True
+    args.double_precision = False
 
     args.use_phantom = False
     args.use_in_vivo = True
@@ -791,7 +792,7 @@ if __name__ == '__main__':
     args.type = '3D'
     # args.reg_type = 'TV'  # 'NoReg', 'TV', or 'TGV'
 
-    args.reco_slices = 64
+    args.reco_slices = 6
     args.adapt_stepsize = True
     args.full_dimXY = False
     args.acceleration_factor = 4
