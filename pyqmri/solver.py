@@ -690,6 +690,7 @@ class PDBaseSolver:
         self._prg = prg
         self._queue = queue
         self.model = model
+        self.ratio = None
         self._coils = coil
         self.modelgrad = None
         self.min_const = None
@@ -863,7 +864,7 @@ class PDBaseSolver:
                                   )
 
         elif reg_type == 'TGV':
-            L = DTYPE_real(1e-10)#((0.5 * (18.0 + np.sqrt(33)))**2))
+            L = DTYPE_real(1e2)#+irgn_par["gamma"]*((0.5 * (18.0 + np.sqrt(33)))**2)
             if streamed:
                 if SMS:
                     pdop = PDSolverStreamedTGVSMS(
@@ -937,19 +938,31 @@ class PDBaseSolver:
             otherwise Numpy.Array.
         """
         self._updateConstraints()
-        tau = self.tau
+        
+        l_max = self.power_iteration(inp[0], data.shape)
+        l_max += self.alpha*((0.5 * (18.0 + np.sqrt(33)))**2)
+        print("Estimated L: ", l_max)
+        
+        tau = 1/np.sqrt(l_max)
         tau_new = self._DTYPE_real(0)
 
         theta_line = self.theta_line
         beta_line = self.beta_line
         beta_new = self._DTYPE_real(0)
-        mu_line = self._DTYPE_real(0.9)
+        mu_line = self._DTYPE_real(0.75)
         delta_line = self._DTYPE_real(0.99)
         ynorm = self._DTYPE_real(0.0)
         lhs = self._DTYPE_real(0.0)
         primal = [0]
         dual = [0]
         gap = [0]
+        
+        self.ratio = clarray.to_device(
+            self._op.queue,
+            np.array(self.model.uk_scale).astype(
+                      dtype=self._DTYPE_real))
+        
+
 
         (primal_vars,
          primal_vars_new,
@@ -1035,7 +1048,9 @@ class PDBaseSolver:
             primal.append(primal_val)
             dual.append(dual_val)
             gap.append(gap_val)
-                
+            
+            # self.tau = tau
+            
             if not np.mod(i+1, 100):
                 if self.display_iterations:
                     if isinstance(primal_vars["x"], np.ndarray):
@@ -1081,14 +1096,14 @@ class PDBaseSolver:
         "relative tolerance of %.3e" 
         % (i+1, np.abs((gap[-1] - gap[-2]) / gap[1]), self.rtol))
                 return primal_vars
-            sys.stdout.write(
-                "Iteration: %04d ---- Primal: %2.2e, "
-                "Dual: %2.2e, Gap: %2.2e, Beta: %2.2e \r" %
-                (i+1, 1000*primal[-1] / gap[1],
-                 1000*dual[-1] / gap[1],
-                 1000*gap[-1] / gap[1],
-                 beta_line))
-            sys.stdout.flush()
+            # sys.stdout.write(
+            #     "Iteration: %04d ---- Primal: %2.2e, "
+            #     "Dual: %2.2e, Gap: %2.2e, Beta: %2.2e \r" %
+            #     (i+1, 1000*primal[-1] / gap[1],
+            #      1000*dual[-1] / gap[1],
+            #      1000*gap[-1] / gap[1],
+            #      beta_line))
+            # sys.stdout.flush()
         #     if np.abs(primal[-1])/primal[1] <\
         #         self.atol:
         #         print(
@@ -1246,6 +1261,7 @@ class PDBaseSolver:
             self._DTYPE_real(par[0]/par[1]),
             self.min_const[idx].data, self.max_const[idx].data,
             self.real_const[idx].data, np.int32(self.unknowns),
+            self.ratio[idx].data,
             wait_for=(outp.events +
                       inp[0].events+inp[1].events +
                       inp[2].events+inp[3].events + wait_for))
@@ -1495,6 +1511,34 @@ class PDBaseSolver:
         """
         self._fval_init = fval
 
+
+    def power_iteration(self, x, data_shape, num_simulations=50):
+        # Ideally choose a random vector
+        # To decrease the chance that our vector
+        # Is orthogonal to the eigenvector
+        x = clarray.to_device(self._queue[0], x)
+        y = clarray.zeros(self._queue[0], data_shape, self._DTYPE)
+        b_k = clarray.to_device(self._queue[0], 
+                                (np.random.randn(*(x.shape))
+                                 +1j*np.random.randn(*(x.shape))
+                                 ).astype(self._DTYPE))
+        b_k1 = clarray.zeros_like(b_k)
+    
+        for _ in range(num_simulations):
+            # calculate the matrix-by-vector product Ab
+            # self._operator_lhs(b_k1, b_k).wait()
+            self._op.fwd(y, [x, self._coils, self.modelgrad])
+            self._op.adj(b_k1, [y, self._coils, self.modelgrad])
+    
+            # calculate the norm
+            b_k1_norm = np.linalg.norm(b_k1.get())
+    
+            # re normalize the vector
+            b_k = b_k1 / self._DTYPE_real(b_k1_norm)
+            
+            lmax = np.abs((clarray.vdot(b_k1,b_k)/np.linalg.norm(b_k.get())**2).get())
+    
+        return lmax
 
 class PDSolverTV(PDBaseSolver):
     """Primal Dual splitting optimization for TV.

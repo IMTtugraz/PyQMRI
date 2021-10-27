@@ -13,6 +13,7 @@ import pyqmri.operator as operator
 import pyqmri.solver as optimizer
 from pyqmri._helper_fun import CLProgram as Program
 from pyqmri._helper_fun import _utils as utils
+from scipy import linalg as spl
 import faulthandler; faulthandler.enable()
 
 
@@ -283,29 +284,6 @@ class IRGNOptimizer:
         self._modelgrad = np.nan_to_num(
             self._model.execute_gradient(result))
 
-        # M0_scale = np.quantile(np.abs(result[0])*self._model.uk_scale[0], 0.9)
-        # print("M0_scale: ", M0_scale)
-        # data /= M0_scale
-        # self._modelgrad /= M0_scale
-        # self._step_val /= M0_scale
-        # self._model.uk_scale[0] /= M0_scale
-        # if hasattr(self._model, "images"):
-        #     self._model.images /= M0_scale
-        
-        
-        self._calcResidual(result, data, -1)
-        scale = np.sqrt(1e3/self._datacost)
-        self.par["dscale"] *=scale
-        data *= scale
-        # result[0,0] *= scale
-        self._step_val *= scale
-        self._modelgrad *= scale
-        # self._balanceModelGradients(result, 0)
-        # if hasattr(self._model, "images"):
-        #     self._model.images *= scale
-        if hasattr(self._model, "dscale"):
-            self._model.dscale *= scale
-
         if self._streamed:
             if self._SMS is False:
                 self._step_val = np.require(
@@ -313,19 +291,20 @@ class IRGNOptimizer:
 
         for ign in range(self.irgn_par["max_gn_it"]):
             start = time.time()
-            self._updateIRGNRegPar(ign)
+
             if ign > 0:
                 self._modelgrad = np.nan_to_num(
                     self._model.execute_gradient(result))
                 self._step_val = np.nan_to_num(
                     self._model.execute_forward(result))
-
-
             self._balanceModelGradients(result, ign)
-            # self._pdop._grad_op.updateRatio(
-            #     self._model.uk_scale, result)
-            # if self._reg_type == 'TGV':
-            #     self._pdop._symgrad_op.updateRatio(self._pdop._grad_op.ratio)
+            
+            self._updateIRGNRegPar(ign)
+            self._pdop._grad_op.updateRatio(
+                self._model.uk_scale, result)
+            if self._reg_type == 'TGV':
+                self._pdop._symgrad_op.updateRatio(
+                    self._pdop._grad_op.ratio)
 
             if self._streamed:
                 if self._SMS is False:
@@ -366,6 +345,17 @@ class IRGNOptimizer:
             print("-" * 75)
             self._fval_old = self._fval
             self._saveToFile(ign, self._model.rescale(result)["data"])
+            if ign > 1:
+                if (np.abs(self.gn_res[-1]-self.gn_res[-2])/self.gn_res[0]
+                    < self.irgn_par["rtol"]):
+                    print(
+            "Terminated after GN iteration %d because the energy "
+            "decrease in the GN-problem was %.3e which is below the "
+            "relative tolerance of %.3e" 
+            % (ign, np.abs(self.gn_res[-1]-self.gn_res[-2])/self.gn_res[0], 
+                             self.irgn_par["rtol"]))
+                    break
+                    
         self._calcResidual(result, data, ign+1)
 
     def _updateIRGNRegPar(self, ign):
@@ -373,29 +363,52 @@ class IRGNOptimizer:
         self.irgn_par["delta"] = np.maximum(
             self._delta
             * self.irgn_par["delta_dec"]**ign,
-            self.irgn_par["delta_min"])*self.irgn_par["lambd"]
+            self.irgn_par["delta_min"])*self.irgn_par["lambd"] 
         self.irgn_par["gamma"] = np.maximum(
             self._gamma * self.irgn_par["gamma_dec"]**ign,
-            self.irgn_par["gamma_min"])/self.irgn_par["lambd"]
+            self.irgn_par["gamma_min"])/self.irgn_par["lambd"] 
         self.irgn_par["omega"] = np.maximum(
             self._omega * self.irgn_par["omega_dec"]**ign,
             self.irgn_par["omega_min"])/self.irgn_par["lambd"]
 
     def _balanceModelGradients(self, result, ign):
-        scale = np.reshape(
-            self._modelgrad,
-            (self.par["unknowns"],
-             self.par["NScan"] * self.par["NSlice"] *
-             self.par["dimY"] * self.par["dimX"]))
+        # scale = self._modelgrad.reshape(self.par["unknowns"], -1)
+        # tmp = scale@scale.T
+        # eig = np.abs(spl.eigvals(tmp))
+        # scale = np.abs(np.diag(tmp))
+        # print("Initial Norm: ", np.linalg.norm(eig))
+        # print("Initial Ratio: ", eig)
+        # # if ign == 0:
+        # # scale /= 1/np.sqrt(self.par["unknowns"])
+        # # else:
+        #     # scale /= np.linalg.norm(scale)/np.sqrt(self.par["unknowns"])
+        # scale = 1e3/np.sqrt(scale)
+        # # scale[:] = scale[0]
+        # scale[~np.isfinite(scale)] = 1
+        # for uk in range(self.par["unknowns"]):
+        #     self._model.constraints[uk].update(scale[uk])
+        #     result[uk, ...] *= self._model.uk_scale[uk]
+        #     self._modelgrad[uk] /= self._model.uk_scale[uk]
+        #     self._model.uk_scale[uk] *= scale[uk]
+        #     result[uk, ...] /= self._model.uk_scale[uk]
+        #     self._modelgrad[uk] *= self._model.uk_scale[uk]
+        # scale = self._modelgrad.reshape(self.par["unknowns"], -1)
+        # # tmp = tmp*scale[:,None]
+        # # scale = np.linalg.norm(scale, axis=-1)
+        # scale = spl.eigvals(scale@scale.T)
+        # print("Norm after rescale: ", np.linalg.norm(scale))
+        # print("Ratio after rescale: ", np.abs(scale))
+        scale = self._modelgrad.reshape(self.par["unknowns"], -1)
         scale = np.linalg.norm(scale, axis=-1)
         print("Initial Norm: ", np.linalg.norm(scale))
         print("Initial Ratio: ", scale)
         # if ign == 0:
-        scale /= 100/np.sqrt(self.par["unknowns"])
+        scale /= 1e2/np.sqrt(self.par["unknowns"])
         # else:
-        #     scale /= np.linalg.norm(scale)/np.sqrt(self.par["unknowns"])
-        scale = 1 / scale
-        scale[~np.isfinite(scale)] = 1
+            # scale /= np.linalg.norm(scale)/np.sqrt(self.par["unknowns"])
+        scale = 1/scale
+        # scale[:] = scale[0]
+        scale[~np.isfinite(scale)] = 1e2/np.sqrt(self.par["unknowns"])
         for uk in range(self.par["unknowns"]):
             self._model.constraints[uk].update(scale[uk])
             result[uk, ...] *= self._model.uk_scale[uk]
@@ -403,14 +416,16 @@ class IRGNOptimizer:
             self._model.uk_scale[uk] *= scale[uk]
             result[uk, ...] /= self._model.uk_scale[uk]
             self._modelgrad[uk] *= self._model.uk_scale[uk]
-        scale = np.reshape(
-            self._modelgrad,
-            (self.par["unknowns"],
-             self.par["NScan"] * self.par["NSlice"] *
-             self.par["dimY"] * self.par["dimX"]))
+        # import ipdb
+        # ipdb.set_trace()
+        scale = self._modelgrad.reshape(self.par["unknowns"], -1)
+        # tmp = tmp*scale[:,None]
+        # scale = np.linalg.norm(scale, axis=-1)
         scale = np.linalg.norm(scale, axis=-1)
         print("Norm after rescale: ", np.linalg.norm(scale))
-        print("Ratio after rescale: ", scale)
+        print("Ratio after rescale: ", np.abs(scale))
+        # print("Ratio after rescale: ", np.abs(self._model.uk_scale))
+
 
 ###############################################################################
 # New .hdf5 save files ########################################################
@@ -428,6 +443,7 @@ class IRGNOptimizer:
             f.attrs['res_tv_iter_'+str(myit)] = self._fval
         f.attrs['datacost_iter_'+str(myit)] = self._datacost
         f.attrs['regcost_iter_'+str(myit)] = self._regcost 
+        f.attrs['data_norm'] = self.par["dscale"]
         # f.attrs['L2Cost_iter_'+str(myit)] = self._L2Cost 
         f.close()
 

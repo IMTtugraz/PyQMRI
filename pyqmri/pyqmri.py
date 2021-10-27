@@ -48,6 +48,7 @@ def _choosePlatform(myargs, par):
                          str(platform.get_info(cl.platform_info.VERSION))))
                 use_GPU = True
                 dev_ind.append(j)
+                inp = 0
         if len(dev_ind) > 1:
             while True:
                 try:
@@ -71,10 +72,8 @@ def _choosePlatform(myargs, par):
                               +str(len(dev_ind)-1))
                         continue
                 break
-        if inp:
+        if inp is not None:
             par["Platform_Indx"] = dev_ind[inp]
-        else:
-            par["Platform_Indx"] = dev_ind[0]
      
     if not use_GPU:
         if myargs.use_GPU:
@@ -412,7 +411,8 @@ def _estScaleNorm(myargs, par, images, data):
     # SNR_est = (np.abs(sig/noise))
     # par["SNR_est"] = SNR_est
     # print("Estimated SNR from kspace", SNR_est)
-    dscale = par["DTYPE_real"](1 / np.linalg.norm(np.abs(data)))
+    dscale = par["DTYPE_real"](np.sqrt(2*1e3) / np.linalg.norm(np.abs(data)))
+    # dscale = 1/np.quantile(np.abs(images), 0.9)
     print("Data scale: ", dscale)
     par["dscale"] = dscale
     images = images*dscale
@@ -824,7 +824,6 @@ def _start_recon(myargs):
                         DTYPE_real=par["DTYPE_real"])
     f = h5py.File(par["outdir"]+"output_" + par["fname"]+".h5", "a")
     f.create_dataset("images_ifft", data=images)
-    f.attrs['data_norm'] = par["dscale"]
     f.close()
     par["file"].close()
 ###############################################################################

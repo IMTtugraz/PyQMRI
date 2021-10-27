@@ -348,7 +348,8 @@ __kernel void update_primal_LM(
                 __global float* min,
                 __global float* max,
                 __global int* real,
-                const int NUk
+                const int NUk,
+                __global float* ratio
                 )
 {
     size_t Nx = get_global_size(2), Ny = get_global_size(1);
@@ -360,7 +361,7 @@ __kernel void update_primal_LM(
 
     for (int uk=0; uk<NUk; uk++)
     {
-        u_new[i] = (u[i]-tau*Kyk[i]+tauinv*A[i]*u_k[i])/(1+tauinv*A[i]);
+        u_new[i] = (u[i]-tau*Kyk[i]+ratio[uk]*tauinv*A[i]*u_k[i])/(1+ratio[uk]*tauinv*A[i]);
 
         if(real[uk]>=1)
         {

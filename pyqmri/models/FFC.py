@@ -316,11 +316,14 @@ class Model(BaseModel):
         self.images = np.reshape(np.abs(kwargs['images']/kwargs['dscale']),
                                  self.t.shape+kwargs['images'].shape[-3:])
         
+        scale = np.max(np.abs(self.images))
+        print("Scale: ", scale)
+        
         test_M0 = []
         for j in range(self.numC):
-            test_M0.append(1/self.dscale*np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)*
+            test_M0.append(1e1*np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)*
                 np.exp(1j*np.angle(kwargs['images'][0])))
-            # self.constraints[j].update(1/kwargs['dscale'])
+            self.constraints[j].update(1/kwargs['dscale'])
         test_Xi = []
         for j in range(self.numAlpha):
             test_Xi.append(

@@ -199,7 +199,7 @@ class Model(BaseModel):
                   0.02,0.3,-1,
                   0.0,0.4,+3,
                   0.0,0.5,-4,
-                  0.0,10,-4,
+                  0.0,10,-5,
                   0.0,1,1.7]
             ub = [1e5,
                   1,10,+1,
@@ -216,7 +216,7 @@ class Model(BaseModel):
                 0.9,1.4,0, #Wasser #[1, #ground truth
                 0.025,0.5,3.5, #APT
                 0.02,3,-3.5, #NOE #mittlerer Wert war 7
-                0.1,25,-2, #MT
+                0.1,25,-4, #MT
                 0.01,1.0,2.2]
             # self.guess = self.popt 
         elif self.amount_pools==6:
@@ -254,7 +254,8 @@ class Model(BaseModel):
         #     const.real = False
         # self.guess[0] = args[0][self.omega.squeeze()==0]
         self.guess = self.guess.astype(self._DTYPE)
-        self.guess[0] = (kwargs["images"][0])/self.dscale
+        # self.guess[0] = (kwargs["images"][0])/self.dscale
+        print("Max Signal intensity: ", np.max(np.abs(self.guess[0])))
         # self.guess[1] = np.exp(1j*np.angle(args[0][0]))
         # x = self.guess
         # x_scale = np.max(np.abs(x).reshape(x.shape[0], -1), axis=-1)
