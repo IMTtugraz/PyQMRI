@@ -120,7 +120,8 @@ def tv_entire_ds_test_streamed():
         cmaps=cmaps_file_name,
         streamed=True,
         reg_type='TV',
-        config='default_soft_sense.ini'
+        config='default_soft_sense.ini',
+        par_slices=16
     )
 
 
@@ -130,7 +131,8 @@ def tgv_entire_ds_test_streamed():
         cmaps=cmaps_file_name,
         streamed=True,
         reg_type='TGV',
-        config='default_soft_sense.ini'
+        config='default_soft_sense.ini',
+        par_slices=16
     )
 
 
@@ -156,14 +158,44 @@ def tgv_chunk_ds_test():
     )
 
 
+def tv_chunk_ds_test_streamed():
+    _ = softsense.run(
+        data=data_file_name,
+        cmaps=cmaps_file_name,
+        streamed=False,
+        reg_type='TV',
+        config='default_soft_sense.ini',
+        reco_slices=64,
+        par_slices=8
+    )
+
+
+def tgv_chunk_ds_test_streamed():
+    _ = softsense.run(
+        data=data_file_name,
+        cmaps=cmaps_file_name,
+        streamed=False,
+        reg_type='TGV',
+        config='default_soft_sense.ini',
+        reco_slices=64,
+        par_slices=8
+    )
+
 def main():
     if not os.path.exists(os.getcwd() + os.sep + 'default_soft_sense.ini'):
         gen_soft_sense_default_config()
 
-    tv_chunk_ds_test()
+    #tv_chunk_ds_test()
     tv_entire_ds_test()
 
-    # tgv_chunk_ds_test()
+    #tgv_chunk_ds_test()
+    tgv_entire_ds_test()
+
+    #tv_entire_ds_test_streamed()
+    #tgv_entire_ds_test_streamed()
+
+    #tv_chunk_ds_test_streamed()
+    #tgv_chunk_ds_test_streamed()
 
 
 if __name__ == '__main__':

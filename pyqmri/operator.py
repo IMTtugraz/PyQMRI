@@ -2989,8 +2989,36 @@ class OperatorFiniteSymGradientStreamed(Operator):
                 (self._weights*inp).astype(
                          dtype=self.DTYPE_real))
 
+
 class OperatorSoftSense(Operator):
-    """ Soft Sense Operator
+    """Soft-SENSE Operator.
+
+    Parameters
+    ----------
+      par : dict A python dict containing the necessary information to
+        setup the object. Needs to contain the number of slices (NSlice),
+        number of scans (NScan), image dimensions (dimX, dimY), number of
+        coils (NC), sampling points (N) and read outs (NProj)
+        a PyOpenCL queue (queue) and the complex coil
+        sensitivities (C).
+      prg : PyOpenCL.Program
+        The PyOpenCL.Program object containing the necessary kernels to
+        execute the linear Operator.
+      DTYPE : numpy.dtype, numpy.complex64
+        Complex working precission.
+      DTYPE_real : numpy.dtype, numpy.float32
+        Real working precission.
+      trafo : bool, true
+        Switch between cartesian (false) and non-cartesian FFT (True, default).
+
+    Attributes
+    ----------
+    ctx : PyOpenCL.Context
+      The context for the PyOpenCL computations.
+    queue : PyOpenCL.Queue
+      The computation Queue for the PyOpenCL kernels.
+    NUFFT : PyQMRI.PyOpenCLnuFFT
+      The (nu) FFT used for fitting.
     """
 
     def __init__(self, par, prg, DTYPE=np.complex64,
@@ -3001,13 +3029,26 @@ class OperatorSoftSense(Operator):
 
         self.NMaps = par["NMaps"]
 
-        self._tmp_result = clarray.empty(
+        self._tmp_result = clarray.zeros(
             self.queue, (self.NScan, self.NC,
                          self.NSlice, self.dimY, self.dimX),
             self.DTYPE, "C")
         if not trafo:
             self.Nproj = self.dimY
             self.N = self.dimX
+
+        self._out_shape_fwd = (self.NScan, self.NC,
+                               self.NSlice, self.Nproj, self.N)
+
+        # in case of 3D mask include in operator and mask fft with ones
+        self.mask = np.array([])
+        self._mask_tmp = par["mask"].copy()
+
+        if self._mask_tmp.ndim > 2:
+            self.mask = clarray.to_device(self.queue, par["mask"])
+            par["mask"] = np.require(
+                np.ones((par["dimY"], par["dimX"]), dtype=par["DTYPE_real"]),
+                requirements='C')
 
         self.NUFFT = CLnuFFT.create(self.ctx,
                                     self.queue,
@@ -3016,7 +3057,31 @@ class OperatorSoftSense(Operator):
                                     DTYPE=DTYPE,
                                     DTYPE_real=DTYPE_real)
 
+        par["mask"] = self._mask_tmp.copy()
+        del self._mask_tmp
+
     def fwd(self, out, inp, **kwargs):
+        """Forward operator application in-place.
+
+        Apply the linear Soft-SENSE operator from image space to kspace
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+
+        Parameters
+        ----------
+          out : PyOpenCL.Array
+            The complex image data which is the result of the
+            computation.
+          inp : PyOpenCL.Array
+            The complex kspace data which is used as input.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+          PyOpenCL.Event
+            A PyOpenCL event to wait for.
+        """
         if "wait_for" in kwargs.keys():
             wait_for = kwargs["wait_for"]
         else:
@@ -3053,6 +3118,26 @@ class OperatorSoftSense(Operator):
                     wait_for=wait_for + self._tmp_result.events)
 
     def fwdoop(self, inp, **kwargs):
+        """Forward operator application out-of-place.
+
+        Apply the linear Soft-SENSE operator from image space to kspace
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+        This method needs to generate a temporary array and will return it as
+        the result.
+
+        Parameters
+        ----------
+          inp : PyOpenCL.Array
+            The complex image data which is used as input.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+          PyOpenCL.Array: A PyOpenCL array containing the result of the
+          computation.
+        """
         if "wait_for" in kwargs.keys():
             wait_for = kwargs["wait_for"]
         else:
@@ -3067,15 +3152,14 @@ class OperatorSoftSense(Operator):
                 inp[1].data,
                 np.int32(self.NC),
                 np.int32(self.NMaps),
-                wait_for=(self._tmp_result.events + inp[0].events + wait_for)))
-        tmp_sino = clarray.empty(
+                wait_for=(self._tmp_result.events + inp[0].events
+                          + wait_for)))
+        tmp_sino = clarray.zeros(
             self.queue,
-            (self.NScan, self.NC, self.NSlice, self.Nproj, self.N),
+            self._out_shape_fwd,
             self.DTYPE, "C")
-        tmp_sino.add_event(
-            self.NUFFT.FFT(
-                tmp_sino,
-                self._tmp_result))
+        self.NUFFT.FFT(tmp_sino, self._tmp_result,
+                       wait_for=tmp_sino.events).wait()
         if self.mask.size != 0:
             tmp_sino.add_event(
                 self.NUFFT.prg.masking(
@@ -3090,6 +3174,27 @@ class OperatorSoftSense(Operator):
         return tmp_sino
 
     def adj(self, out, inp, **kwargs):
+        """Adjoint operator application in-place.
+
+        Apply the linear Soft-SENSE operator from kspace to image space
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+
+        Parameters
+        ----------
+          out : PyOpenCL.Array
+            The complex image data which is the result of the
+            computation.
+          inp : PyOpenCL.Array
+            The complex kspace data which is used as input.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+          PyOpenCL.Event
+            A PyOpenCL event to wait for.
+        """
         if "wait_for" in kwargs.keys():
             wait_for = kwargs["wait_for"]
         else:
@@ -3122,6 +3227,26 @@ class OperatorSoftSense(Operator):
             wait_for=self._tmp_result.events + out.events)
 
     def adjoop(self, inp, **kwargs):
+        """Adjoint operator application out-of-place.
+
+        Apply the linear Soft-SENSE operator from kspace to image space
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+        This method needs to generate a temporary array and will return it as
+        the result.
+
+        Parameters
+        ----------
+          inp : PyOpenCL.Array
+            The complex kspace data which is used as input.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+          PyOpenCL.Array: A PyOpenCL array containing the result of the
+          computation.
+        """
         if "wait_for" in kwargs.keys():
             wait_for = kwargs["wait_for"]
         else:
@@ -3159,6 +3284,24 @@ class OperatorSoftSense(Operator):
         return out
 
     def adjKyk1(self, out, inp, **kwargs):
+        """Apply the linear operator from kspace to image space.
+
+        This method fully implements the combined linear operator
+        consisting of the data part as well as the TGV regularization part.
+
+        Parameters
+        ----------
+          out : PyOpenCL.Array
+            The complex parameter space data which is used as input.
+          inp : PyOpenCL.Array
+            The complex parameter space data which is used as input.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+          PyOpenCL.Event: A PyOpenCL event to wait for.
+        """
         if "wait_for" in kwargs.keys():
             wait_for = kwargs["wait_for"]
         else:
@@ -3194,21 +3337,28 @@ class OperatorSoftSense(Operator):
 
 
 class OperatorSoftSenseStreamed(Operator):
-    """ The streamed version of the Soft Sense Operator
+    """ The streamed version of the Soft-SENSE Operator
 
     Attributes:
-      overlap (int):
+      overlap : int
         Number of slices that overlap between adjacent blocks.
-      par_slices (int):
+      par_slices : int
         Number of slices per streamed block
-      fwdstr (PyQMRI.Stream):
+      fwdstr : PyQMRI.Stream
         The streaming object to perform the forward evaluation
-      adjstr (PyQMRI.Stream):
+      adjstr : PyQMRI.Stream
         The streaming object to perform the adjoint evaluation
-      NUFFT (list of PyQMRI.transforms.PyOpenCLnuFFT):
+      adjstrKyk1 : PyQMRI.Stream
+        The streaming object to perform the adjoint evaluation including z1
+        of the algorithm.
+      NUFFT : list of PyQMRI.transforms.PyOpenCLnuFFT
         A list of NUFFT objects. One for each context.
-      FTstr (PyQMRI.Stream):
+      FTstr : PyQMRI.Stream
         A streamed version of the used (non-uniform) FFT, applied forward.
+      unknown_shape : tuple of int
+        Size of the reconstructed images
+      data_shape : tuple of int
+        Size of the data
     """
 
     def __init__(self,
@@ -3277,22 +3427,116 @@ class OperatorSoftSenseStreamed(Operator):
             [[trans_shape]])
 
     def fwd(self, out, inp, **kwargs):
+        """Forward operator application in-place.
+
+        Apply the linear Soft-SENSE operator from image space to kspace
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+
+        Parameters
+        ----------
+          out : PyOpenCL.Array
+            The complex image data which is the result of the
+            computation.
+          inp : PyOpenCL.Array
+            The complex kspace data which is used as input.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+          PyOpenCL.Event
+            A PyOpenCL event to wait for.
+        """
         self.fwdstr.eval(out, inp)
 
     def fwdoop(self, inp, **kwargs):
+        """Forward operator application out-of-place.
+
+        Apply the linear Soft-SENSE operator from image space to kspace
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+        This method needs to generate a temporary array and will return it as
+        the result.
+
+        Parameters
+        ----------
+          inp : PyOpenCL.Array
+            The complex image data which is used as input.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+          PyOpenCL.Array: A PyOpenCL array containing the result of the
+          computation.
+        """
         tmp_result = np.zeros(self.data_shape, dtype=self.DTYPE)
         self.fwdstr.eval([tmp_result], inp)
         return tmp_result
 
     def adj(self, out, inp, **kwargs):
+        """Adjoint operator application in-place.
+
+        Apply the linear Soft-SENSE operator from kspace to image space
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+
+        Parameters
+        ----------
+          out : PyOpenCL.Array
+            The complex image data which is the result of the
+            computation.
+          inp : PyOpenCL.Array
+            The complex kspace data which is used as input.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+          PyOpenCL.Event
+            A PyOpenCL event to wait for.
+        """
         self.adjstr.eval(out, inp)
 
     def adjoop(self, inp, **kwargs):
+        """Adjoint operator application out-of-place.
+
+        Apply the linear Soft-SENSE operator from kspace to image space
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+        This method needs to generate a temporary array and will return it as
+        the result.
+
+        Parameters
+        ----------
+          inp : PyOpenCL.Array
+            The complex kspace data which is used as input.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+          PyOpenCL.Array: A PyOpenCL array containing the result of the
+          computation.
+        """
         tmp_result = np.zeros(self.unknown_shape, dtype=self.DTYPE)
         self.adjstr.eval([tmp_result], inp)
         return tmp_result
 
     def adjKyk1(self, out, inp):
+        """Apply the linear operator from kspace to image space.
+
+        This method fully implements the combined linear operator
+        consisting of the data part as well as the TGV regularization part.
+
+        Parameters
+        ----------
+          out : PyOpenCL.Array
+            The complex parameter space data which is used as input.
+          inp : PyOpenCL.Array
+            The complex parameter space data which is used as input.
+        """
         self.adjstrKyk1.eval(out, inp)
 
     def _fwdstreamed(self, out, inp, par=None, idx=0, idxq=0,

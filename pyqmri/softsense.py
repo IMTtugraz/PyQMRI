@@ -120,6 +120,9 @@ def _setup_par(par, myargs, ksp_data, cmaps):
     # not relevant for this case but necessary for Operator class
     par["unknowns_H1"] = 0
 
+    # TODO: implement for 3D FFT
+    par["is3D"] = False
+
     par["fft_dim"] = (-2, -1)
 
     par["overlap"] = 0

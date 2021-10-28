@@ -337,8 +337,8 @@ class SoftSenseOptimizer:
         if tau < 0.1 or tau > 1.0:
             raise
         sigma = tau
-        self._pdop.tau = tau
-        self._pdop.sigma = sigma
+        self._pdop.set_tau(tau)
+        self._pdop.set_sigma(sigma)
 
         print("-" * 75)
         print("Calculated step size: %f" % tau)
@@ -372,7 +372,7 @@ class SoftSenseOptimizer:
 
         self._fval = data_cost + reg_cost
         self._fval_init = self._fval
-        self._pdop.setFvalInit(self._fval)
+        self._pdop.set_fval_init(self._fval)
 
         print("-" * 75)
         print("Initial Cost: %f" % self._fval_init)
