@@ -30,3 +30,6 @@ dist*
 pyqmri.egg*
 .coverage
 doc/_build*
+Granat/
+gpyfft/
+.idea/

@@ -504,7 +504,7 @@ __kernel void update_z1(
     for (int uk=0; uk<NUk_tgv; uk++)
     {
         z_new[i] = z[i] + sigma*(
-            (1+theta)*gx[i]-theta*gx_[i]-(1+theta)*vx[i]+theta*vx_[i]);
+            (1+theta)*gx[i]-theta*gx_[i]-((1+theta)*vx[i]-theta*vx_[i]));
 
         // reproject
         fac = hypot(fac,
@@ -746,7 +746,7 @@ __kernel void gradient(
     for (int uk=0; uk<NUk; uk++)
     {
         // gradient
-        grad[i] = (float8)(-u[i],-u[i],-u[i]/dz,0.0f,0.0f);
+        grad[i] = (float8)(-u[i],-u[i],-u[i]*dz,0.0f,0.0f);
         if (x < Nx-1)
         {
             grad[i].s01 += u[i+1].s01;
@@ -765,7 +765,7 @@ __kernel void gradient(
         }
         if (k < NSl-1)
         {
-            grad[i].s45 += u[i+Nx*Ny*NUk].s01/dz;
+            grad[i].s45 += u[i+Nx*Ny*NUk].s01*dz;
         }
         else
         {
@@ -832,13 +832,13 @@ __kernel void sym_grad(
     }
 
     sym[i] = (float16)(val_real.s0, val_imag.s0, val_real.s4,
-                       val_imag.s4,val_real.s8/dz,val_imag.s8/dz,
+                       val_imag.s4,val_real.s8*dz,val_imag.s8*dz,
                        0.5f*(val_real.s1 + val_real.s3),
                        0.5f*(val_imag.s1 + val_imag.s3),
-                       0.5f*(val_real.s2 + val_real.s6/dz),
-                       0.5f*(val_imag.s2 + val_imag.s6/dz),
-                       0.5f*(val_real.s5 + val_real.s7/dz),
-                       0.5f*(val_imag.s5 + val_imag.s7/dz),
+                       0.5f*(val_real.s2 + val_real.s6*dz),
+                       0.5f*(val_imag.s2 + val_imag.s6*dz),
+                       0.5f*(val_real.s5 + val_real.s7*dz),
+                       0.5f*(val_imag.s5 + val_imag.s7*dz),
                        0.0f,0.0f,0.0f,0.0f);
     sym[i]*=ratio[uk];
     i+=Nx*Ny;
@@ -912,7 +912,7 @@ __kernel void divergence(
             //imag
             val.s5 -= p[i-Nx*Ny*NUk].s5;
         }
-        div[i] = val.s01+val.s23+val.s45/dz;
+        div[i] = val.s01+val.s23+val.s45*dz;
         div[i]*=ratio[ukn];
         i+=Nx*Ny;
     }
@@ -993,9 +993,9 @@ __kernel void sym_divergence(
         }
         // linear step
         //real
-        w[i].s024 = val_real.s012 + val_real.s345 + val_real.s678/dz;
+        w[i].s024 = val_real.s012 + val_real.s345 + val_real.s678*dz;
         //imag
-        w[i].s135 = val_imag.s012 + val_imag.s345 + val_imag.s678/dz;
+        w[i].s135 = val_imag.s012 + val_imag.s345 + val_imag.s678*dz;
         w[i]*=ratio[uk];
         i+=Nx*Ny;
     }
@@ -1007,7 +1007,8 @@ __kernel void update_Kyk2(
                 __global float16 *q,
                 __global float8 *z,
                 const int NUk,
-                __global float* ratio,
+                __global float* gradratio,
+                __global float* symratio,
                 const int first,
                 const float dz
                 )
@@ -1076,18 +1077,18 @@ __kernel void update_Kyk2(
             val_imag.s678 += (float3)(q[i+Nx*Ny*NUk].s9b, q[i+Nx*Ny*NUk].s5);
         }
         // linear step
-        {val_real*=ratio[uk];}
-        {val_imag*=ratio[uk];}
+        {val_real*=symratio[uk];}
+        {val_imag*=symratio[uk];}
         //real
         w[i].s024 = - val_real.s012
                     - val_real.s345
-                    - val_real.s678/dz
-                    -z[i].s024;
+                    - val_real.s678*dz
+                    -z[i].s024*gradratio[uk];
         //imag
         w[i].s135 = - val_imag.s012
                     - val_imag.s345
-                    - val_imag.s678/dz
-                    -z[i].s135;
+                    - val_imag.s678*dz
+                    -z[i].s135*gradratio[uk];
         i+=Nx*Ny;
     }
 }
@@ -1305,7 +1306,7 @@ __kernel void update_Kyk1(
         }
         // scale gradients
         val*=ratio[uk];
-        out[i] = sum - (val.s01+val.s23+val.s45/dz);
+        out[i] = sum - (val.s01+val.s23+val.s45*dz);
         i+=X*Y;
     }
 }
@@ -1382,7 +1383,7 @@ for (int uk=0; uk<Nuk; uk++)
     }
     // scale gradients
     val*=ratio[uk];
-    out[i] = in[i] - (val.s01+val.s23+val.s45/dz);
+    out[i] = in[i] - (val.s01+val.s23+val.s45*dz);
     i+=X*Y;
     }
 }
@@ -1544,7 +1545,7 @@ __kernel void update_Kyk1_imagespace(
         }
         // scale gradients
         val*=ratio[uk];
-        out[i] = sum - (val.s01+val.s23+val.s45/dz);
+        out[i] = sum - (val.s01+val.s23+val.s45*dz);
         i += X*Y;
     }
 }

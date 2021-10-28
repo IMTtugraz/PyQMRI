@@ -97,6 +97,7 @@ class BaseModel(ABC):
         self._plot_trans = []
         self._plot_cor = []
         self._plot_sag = []
+        self.guess = None
 
     def rescale(self, x):
         """Rescale the unknowns with the scaling factors.
@@ -243,8 +244,6 @@ class BaseModel(ABC):
                     cbar.ax.tick_params(labelsize=12, colors='white')
                     for spine in cbar.ax.spines:
                         cbar.ax.spines[spine].set_color('white')
-            plt.draw()
-            plt.pause(1e-10)
 
         else:
             for j in range(numunknowns):
@@ -263,16 +262,31 @@ class BaseModel(ABC):
                 self._plot_sag[j].set_data(
                     mytrafo(unknowns["data"][j,
                                              ..., int(dimX / 2)].T))
+
                 minval = mytrafo(unknowns["data"][j]).min()
                 maxval = mytrafo(unknowns["data"][j]).max()
+                
                 self._plot_trans[j].set_clim([minval, maxval])
                 self._plot_cor[j].set_clim([minval, maxval])
                 self._plot_sag[j].set_clim([minval, maxval])
-            plt.draw()
-            plt.pause(1e-10)
+        plt.draw()
+        plt.pause(1e-10)
+
+    def _rescaleInitGuess(self):
+        self.uk_scale = np.max(
+          np.abs(
+            self.guess).reshape(self.guess.shape[0], -1), axis=-1)
+        self.uk_scale[self.uk_scale==0] = 1
+        self.guess = self.guess/self.uk_scale[:,None,None,None]
+        for uk in range(self.guess.shape[0]):
+            self.constraints[uk].update(self.uk_scale[uk])
+
+    def setInitalGuess(self, **kwargs):
+      self.computeInitialGuess(**kwargs)
+      self._rescaleInitGuess()
 
     @abstractmethod
-    def computeInitialGuess(self, *args):
+    def computeInitialGuess(self, **kwargs):
         """Initialize unknown array for the fitting.
 
         This function provides an initial guess for the fitting.

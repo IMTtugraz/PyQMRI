@@ -1,37 +1,55 @@
-default:
-    image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri
-
 stages:
     - build
     - linting
-    - test
+    - unittests
     - integration-test
-
-# include:
-#  - template: Code-Quality.gitlab-ci.yml
-#code_quality:
-#    artifacts:
-#        paths: [gl-code-quality-report.json]
 
 build-job:
     stage: build
+    image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
+    tags: [cpu]
     script:
-        - pip3 install -r requirements.txt
-        - pip3 install .
+        - python3.8 -m pip install -r requirements.txt
+        - python3.8 -m pip install .
 
 lint-job:
     stage: linting
+    image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
+    tags: [cpu]
     script:
         pylint -ry --output-format=parseable --exit-zero ./pyqmri > pylint.log
     artifacts:
         paths: 
             - pylint.log
 
-test-job:
-    stage: test
+test-single-on-cpu:
+    stage: unittests
+    image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
+    tags: [cpu]
     before_script:
-        - pip3 install -r requirements.txt --no-cache-dir
-        - pip3 install -e . --no-cache-dir
+        - python3.8 -m pip install -r requirements.txt --no-cache-dir
+        - python3.8 -m pip install -e . --no-cache-dir
+    script:
+        - pytest --junitxml results_unittests_LinOp_CPU.xml --cov=pyqmri test/unittests/test_LinearDataOperator_CPU.py
+        - coverage xml -o coverage_unittests_LinOp_CPU.xml
+        - pytest --junitxml results_unittests_grad_CPU.xml --cov=pyqmri test/unittests/test_gradient_CPU.py
+        - coverage xml -o coverage_unittests_grad_CPU.xml
+        - pytest --junitxml results_unittests_symgrad_CPU.xml --cov=pyqmri test/unittests/test_symmetrized_gradient_CPU.py
+        - coverage xml -o coverage_unittests_symgrad_CPU.xml
+        - pytest --junitxml test_Linear3DDataOperator_CPU.xml --cov=pyqmri test/unittests/test_Linear3DDataOperator_CPU.py
+        - coverage xml -o coverage_unittests_Linear3DDataOperator_CPU.xml
+    artifacts: 
+        reports:    
+            junit: results_unittests_*.xml
+            cobertura: coverage_unittests_*.xml
+
+test-single-on-amd-gpu:
+    stage: unittests
+    image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
+    tags: [gpu]
+    before_script:
+        - python3.8 -m pip install -r requirements.txt --no-cache-dir
+        - python3.8 -m pip install -e . --no-cache-dir
     script:
         - pytest --junitxml results_unittests_LinOp.xml --cov=pyqmri test/unittests/test_LinearDataOperator.py
         - coverage xml -o coverage_unittests_LinOp.xml
@@ -39,16 +57,117 @@ test-job:
         - coverage xml -o coverage_unittests_grad.xml
         - pytest --junitxml results_unittests_symgrad.xml --cov=pyqmri test/unittests/test_symmetrized_gradient.py
         - coverage xml -o coverage_unittests_symgrad.xml
+        - pytest --junitxml test_Linear3DDataOperator.xml --cov=pyqmri test/unittests/test_Linear3DDataOperator.py
+        - coverage xml -o coverage_unittests_Linear3DDataOperator.xml
+    artifacts:
+        reports:
+            junit: results_unittests_*.xml
+            cobertura: coverage_unittests_*.xml
+
+test-single-on-nvidia-gpu:
+    stage: unittests
+    image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private
+    tags: [nvidia_gpu]
+    before_script:
+        - python3.8 -m pip install -r requirements.txt --no-cache-dir
+        - python3.8 -m pip install -e . --no-cache-dir
+    script:
+        - pytest --junitxml results_unittests_LinOp.xml --cov=pyqmri test/unittests/test_LinearDataOperator.py
+        - coverage xml -o coverage_unittests_LinOp.xml
+        - pytest --junitxml results_unittests_grad.xml --cov=pyqmri test/unittests/test_gradient.py
+        - coverage xml -o coverage_unittests_grad.xml
+        - pytest --junitxml results_unittests_symgrad.xml --cov=pyqmri test/unittests/test_symmetrized_gradient.py
+        - coverage xml -o coverage_unittests_symgrad.xml
+        - pytest --junitxml test_Linear3DDataOperator.xml --cov=pyqmri test/unittests/test_Linear3DDataOperator.py
+        - coverage xml -o coverage_unittests_Linear3DDataOperator.xml
+    artifacts:
+        reports:
+            junit: results_unittests_*.xml
+            cobertura: coverage_unittests_*.xml
+            
+test-double-on-cpu:
+    stage: unittests
+    image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
+    tags: [cpu]
+    before_script:
+        - python3.8 -m pip install -r requirements.txt --no-cache-dir
+        - python3.8 -m pip install -e . --no-cache-dir
+    script:       
+        - pytest --junitxml results_unittests_LinOp_CPU_double.xml --cov=pyqmri test/unittests/test_LinearDataOperator_CPU_double.py
+        - coverage xml -o coverage_unittests_LinOp_CPU_double.xml
+        - pytest --junitxml results_unittests_grad_CPU_double.xml --cov=pyqmri test/unittests/test_gradient_CPU_double.py
+        - coverage xml -o coverage_unittests_grad_CPU_double.xml
+        - pytest --junitxml results_unittests_symgrad_CPU_double.xml --cov=pyqmri test/unittests/test_symmetrized_gradient_CPU_double.py
+        - coverage xml -o coverage_unittests_symgrad_CPU_double.xml
     artifacts: 
         reports:    
             junit: results_unittests_*.xml
             cobertura: coverage_unittests_*.xml
 
-integration-job:
-    stage: integration-test
+test-double-on-amd-gpu:
+    stage: unittests
+    image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
+    tags: [gpu]
     before_script:
-        - pip3 install -r requirements.txt --no-cache-dir
-        - pip3 install -e . --no-cache-dir
+        - python3.8 -m pip install -r requirements.txt --no-cache-dir
+        - python3.8 -m pip install -e . --no-cache-dir
+    script:
+        - pytest --junitxml results_unittests_LinOp_double.xml --cov=pyqmri test/unittests/test_LinearDataOperator_double.py
+        - coverage xml -o coverage_unittests_LinOp_double.xml
+        - pytest --junitxml results_unittests_grad_double.xml --cov=pyqmri test/unittests/test_gradient_double.py
+        - coverage xml -o coverage_unittests_grad_double.xml
+        - pytest --junitxml results_unittests_symgrad_double.xml --cov=pyqmri test/unittests/test_symmetrized_gradient_double.py
+        - coverage xml -o coverage_unittests_symgrad_double.xml
+    artifacts:
+        reports:
+            junit: results_unittests_*.xml
+            cobertura: coverage_unittests_*.xml
+
+test-double-on-nvidia-gpu:
+    stage: unittests
+    image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private
+    tags: [nvidia_gpu]
+    before_script:
+        - python3.8 -m pip install -r requirements.txt --no-cache-dir
+        - python3.8 -m pip install -e . --no-cache-dir
+    script:
+        - pytest --junitxml results_unittests_LinOp_double.xml --cov=pyqmri test/unittests/test_LinearDataOperator_double.py
+        - coverage xml -o coverage_unittests_LinOp_double.xml
+        - pytest --junitxml results_unittests_grad_double.xml --cov=pyqmri test/unittests/test_gradient_double.py
+        - coverage xml -o coverage_unittests_grad_double.xml
+        - pytest --junitxml results_unittests_symgrad_double.xml --cov=pyqmri test/unittests/test_symmetrized_gradient_double.py
+        - coverage xml -o coverage_unittests_symgrad_double.xml
+    artifacts:
+        reports:
+            junit: results_unittests_*.xml
+            cobertura: coverage_unittests_*.xml
+
+integration-job-cpu:
+    stage: integration-test
+    image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
+    tags: [cpu]
+    before_script:
+        - python3.8 -m pip install -r requirements.txt --no-cache-dir
+        - python3.8 -m pip install -e . --no-cache-dir
+    script:
+        - ipcluster start&
+        - pytest --junitxml results_integrationtests_single_slice.xml --cov=pyqmri --integration-cover test/integrationtests/test_integration_test_single_slice_CPU.py
+        - coverage xml -o coverage_integrationtests_single_slice.xml
+        - pytest --junitxml results_integrationtests_multi_slice.xml --cov=pyqmri --integration-cover test/integrationtests/test_integration_test_multi_slice_CPU.py
+        - coverage xml -o coverage_integrationtests_multi_slice.xml
+        - ipcluster stop&
+    artifacts:
+        reports:
+            junit: results_integrationtests_*.xml
+            cobertura: coverage_integrationtests_*.xml
+
+integration-job-gpu:
+    stage: integration-test
+    image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
+    tags: [gpu]
+    before_script:
+        - python3.8 -m pip install -r requirements.txt --no-cache-dir
+        - python3.8 -m pip install -e . --no-cache-dir
     script:
         - ipcluster start&
         - pytest --junitxml results_integrationtests_single_slice.xml --cov=pyqmri --integration-cover test/integrationtests/test_integration_test_single_slice.py
@@ -60,6 +179,26 @@ integration-job:
         reports:    
             junit: results_integrationtests_*.xml
             cobertura: coverage_integrationtests_*.xml
+
+integration-job-nvidia-gpu:
+    stage: integration-test
+    image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private
+    tags: [nvidia_gpu]
+    before_script:
+        - python3.8 -m pip install -r requirements.txt --no-cache-dir
+        - python3.8 -m pip install -e . --no-cache-dir
+    script:
+        - ipcluster start&
+        - pytest --junitxml results_integrationtests_single_slice.xml --cov=pyqmri --integration-cover test/integrationtests/test_integration_test_single_slice.py
+        - coverage xml -o coverage_integrationtests_single_slice.xml
+        - pytest --junitxml results_integrationtests_multi_slice.xml --cov=pyqmri --integration-cover test/integrationtests/test_integration_test_multi_slice.py
+        - coverage xml -o coverage_integrationtests_multi_slice.xml
+        - ipcluster stop&
+    artifacts:
+        reports:
+            junit: results_integrationtests_*.xml
+            cobertura: coverage_integrationtests_*.xml
+
 
 #pages:
 #  stage: deploy

@@ -16,9 +16,10 @@ from pkg_resources import resource_filename
 import pyopencl.array as clarray
 import numpy as np
 
-DTYPE = np.complex128
-DTYPE_real = np.float64
-
+DTYPE = np.complex64
+DTYPE_real = np.float32
+RTOL=1e-4
+ATOL=1e-7
 
 class tmpArgs():
     pass
@@ -36,7 +37,7 @@ def setupPar(par):
     par["unknowns_H1"] = 0
     par["unknowns"] = 2
     par["dz"] = 1
-    par["weights"] = np.array([1, 1])
+    par["weights"] = np.array([1, 0.1])
 
 
 class GradientTest(unittest.TestCase):
@@ -63,6 +64,8 @@ class GradientTest(unittest.TestCase):
                 par["ctx"][j],
                 myfile.read()))
         prg = prg[0]
+        
+        self.weights = par["weights"]
 
         self.grad = pyqmri.operator.OperatorFiniteGradient(
             par, prg,
@@ -89,17 +92,19 @@ class GradientTest(unittest.TestCase):
 
         gradx[..., :-1] = np.diff(self.gradin, axis=-1)
         grady[..., :-1, :] = np.diff(self.gradin, axis=-2)
-        gradz[:, :-1, ...] = np.diff(self.gradin, axis=-3)/self.dz
+        gradz[:, :-1, ...] = np.diff(self.gradin, axis=-3)*self.dz
 
         grad = np.stack((gradx,
                          grady,
                          gradz), axis=-1)
+        
+        grad *= self.weights[:, None, None, None, None]
 
         inp = clarray.to_device(self.queue, self.gradin)
         outp = self.grad.fwdoop(inp)
         outp = outp.get()
 
-        np.testing.assert_allclose(outp[..., :-1], grad, rtol=0)
+        np.testing.assert_allclose(outp[..., :-1], grad, rtol=RTOL, atol=ATOL)
 
     def test_grad_inplace(self):
         gradx = np.zeros_like(self.gradin)
@@ -108,18 +113,20 @@ class GradientTest(unittest.TestCase):
 
         gradx[..., :-1] = np.diff(self.gradin, axis=-1)
         grady[..., :-1, :] = np.diff(self.gradin, axis=-2)
-        gradz[:, :-1, ...] = np.diff(self.gradin, axis=-3)/self.dz
+        gradz[:, :-1, ...] = np.diff(self.gradin, axis=-3)*self.dz
 
         grad = np.stack((gradx,
                          grady,
                          gradz), axis=-1)
+        
+        grad *= self.weights[:, None, None, None, None]
 
         inp = clarray.to_device(self.queue, self.gradin)
         outp = clarray.to_device(self.queue, self.divin)
-        self.grad.fwd(outp, inp)
+        outp.add_event(self.grad.fwd(outp, inp))
         outp = outp.get()
 
-        np.testing.assert_allclose(outp[..., :-1], grad, rtol=0)
+        np.testing.assert_allclose(outp[..., :-1], grad, rtol=RTOL, atol=ATOL)
 
     def test_adj_outofplace(self):
         inpgrad = clarray.to_device(self.queue, self.gradin)
@@ -137,7 +144,7 @@ class GradientTest(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=15)
+        np.testing.assert_allclose(a, b, rtol=RTOL, atol=ATOL)
 
     def test_adj_inplace(self):
         inpgrad = clarray.to_device(self.queue, self.gradin)
@@ -146,8 +153,8 @@ class GradientTest(unittest.TestCase):
         outgrad = clarray.zeros_like(inpdiv)
         outdiv = clarray.zeros_like(inpgrad)
 
-        self.grad.fwd(outgrad, inpgrad)
-        self.grad.adj(outdiv, inpdiv)
+        outgrad.add_event(self.grad.fwd(outgrad, inpgrad))
+        outgrad.add_event(self.grad.adj(outdiv, inpdiv))
 
         outgrad = outgrad.get()
         outdiv = outdiv.get()
@@ -158,7 +165,7 @@ class GradientTest(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=15)
+        np.testing.assert_allclose(a, b, rtol=RTOL, atol=ATOL)
 
 
 class GradientStreamedTest(unittest.TestCase):
@@ -186,6 +193,7 @@ class GradientStreamedTest(unittest.TestCase):
                 myfile.read()))
 
         par["par_slices"] = 1
+        self.weights = par["weights"]
 
         self.grad = pyqmri.operator.OperatorFiniteGradientStreamed(
             par, prg,
@@ -211,15 +219,17 @@ class GradientStreamedTest(unittest.TestCase):
 
         gradx[..., :-1] = np.diff(self.gradin, axis=-1)
         grady[..., :-1, :] = np.diff(self.gradin, axis=-2)
-        gradz[:-1, ...] = np.diff(self.gradin, axis=0)/self.dz
+        gradz[:-1, ...] = np.diff(self.gradin, axis=0)*self.dz
 
         grad = np.stack((gradx,
                          grady,
                          gradz), axis=-1)
+        
+        grad *= self.weights[None, :, None, None, None]
 
         outp = self.grad.fwdoop([[self.gradin]])
 
-        np.testing.assert_allclose(outp[..., :-1], grad, rtol=0)
+        np.testing.assert_allclose(outp[..., :-1], grad, rtol=RTOL, atol=ATOL)
 
     def test_grad_inplace(self):
         gradx = np.zeros_like(self.gradin)
@@ -228,17 +238,19 @@ class GradientStreamedTest(unittest.TestCase):
 
         gradx[..., :-1] = np.diff(self.gradin, axis=-1)
         grady[..., :-1, :] = np.diff(self.gradin, axis=-2)
-        gradz[:-1, ...] = np.diff(self.gradin, axis=0)/self.dz
+        gradz[:-1, ...] = np.diff(self.gradin, axis=0)*self.dz
 
         grad = np.stack((gradx,
                          grady,
                          gradz), axis=-1)
+        
+        grad *= self.weights[None, :, None, None, None]
 
         outp = np.zeros_like(self.divin)
 
         self.grad.fwd([outp], [[self.gradin]])
 
-        np.testing.assert_allclose(outp[..., :-1], grad, rtol=0)
+        np.testing.assert_allclose(outp[..., :-1], grad, rtol=RTOL, atol=ATOL)
 
     def test_adj_outofplace(self):
 
@@ -251,7 +263,7 @@ class GradientStreamedTest(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=15)
+        np.testing.assert_allclose(a, b, rtol=RTOL, atol=ATOL)
 
     def test_adj_inplace(self):
 
@@ -267,7 +279,7 @@ class GradientStreamedTest(unittest.TestCase):
 
         print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
 
-        self.assertAlmostEqual(a, b, places=15)
+        np.testing.assert_allclose(a, b, rtol=RTOL, atol=ATOL)
 
 
 if __name__ == '__main__':

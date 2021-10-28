@@ -30,6 +30,7 @@ class Model(BaseModel):
         par["unknowns_TGV"] = self.NScan
         par["unknowns_H1"] = 0
         par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
+        self.unknowns = par["unknowns_TGV"]+par["unknowns_H1"]
 
         for j in range(par["unknowns"]):
             self.uk_scale.append(1)
@@ -39,7 +40,7 @@ class Model(BaseModel):
                 constraints(-100 / self.uk_scale[j],
                             100 / self.uk_scale[j],
                             False))
-        self._image_plot = []
+            
         self.guess = None
 
     def rescale(self, x):
@@ -81,11 +82,11 @@ class Model(BaseModel):
     def _execute_gradient_3D(self, x):
         grad_M0 = np.zeros(((self.NScan, )+x.shape), dtype=self._DTYPE)
         for j in range(self.NScan):
-            grad_M0[j, ...] = self.uk_scale[j]*np.ones_like(x)
+            grad_M0[j, j, ...] = self.uk_scale[j]*np.ones_like(x[j])
         grad_M0[~np.isfinite(grad_M0)] = 1e-20
         return grad_M0
 
-    def computeInitialGuess(self, *args):
+    def computeInitialGuess(self, **kwargs):
         """Initialize unknown array for the fitting.
 
         This function provides an initial guess for the fitting.
@@ -96,4 +97,4 @@ class Model(BaseModel):
             Assumes the images series at position 0 and uses it as initial
             guess.
         """
-        self.guess = ((args[0]).astype(self._DTYPE))
+        self.guess = np.zeros_like((kwargs['images']).astype(self._DTYPE))

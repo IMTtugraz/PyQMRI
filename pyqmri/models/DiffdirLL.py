@@ -58,6 +58,7 @@ class Model(BaseModel):
         par["unknowns_TGV"] = 7
         par["unknowns_H1"] = 0
         par["unknowns"] = par["unknowns_TGV"] + par["unknowns_H1"]
+        self.unknowns = par["unknowns_TGV"] + par["unknowns_H1"]
         self.uk_scale = []
         for j in range(par["unknowns"]):
             self.uk_scale.append(1)
@@ -75,67 +76,38 @@ class Model(BaseModel):
                 False))
         self.constraints.append(
             constraints(
-                (-10e0 / self.uk_scale[1]),
-                (10e0 / self.uk_scale[1]),
+                (-np.sqrt(5) / self.uk_scale[1]),
+                (np.sqrt(5) / self.uk_scale[1]),
                 True))
         self.constraints.append(
             constraints(
-                (-10e0 / self.uk_scale[2]),
-                (10e0 / self.uk_scale[2]),
+                (-1 / self.uk_scale[2]),
+                (1 / self.uk_scale[2]),
                 True))
         self.constraints.append(
             constraints(
-                (-10e0 / self.uk_scale[3]),
-                (10e0 / self.uk_scale[3]),
+                (-2 / self.uk_scale[3]),
+                (2 / self.uk_scale[3]),
                 True))
         self.constraints.append(
             constraints(
-                (-10e0 / self.uk_scale[4]),
-                (10e0 / self.uk_scale[4]),
+                (-1 / self.uk_scale[4]),
+                (1 / self.uk_scale[4]),
                 True))
         self.constraints.append(
             constraints(
-                (-10e0 / self.uk_scale[5]),
-                (10e0 / self.uk_scale[5]),
+                (-np.sqrt(3) / self.uk_scale[5]),
+                (np.sqrt(3) / self.uk_scale[5]),
                 True))
         self.constraints.append(
             constraints(
-                (-10e0 / self.uk_scale[6]),
-                (10e0 / self.uk_scale[6]),
+                (-1 / self.uk_scale[6]),
+                (1 / self.uk_scale[6]),
                 True))
 
         self.guess = None
         self.phase = None
 
-        self._ax = None
-
-        self._M0_plot = None
-        self._M0_plot_cor = None
-        self._M0_plot_sag = None
-
-        self._ADC_x_plot = None
-        self._ADC_x_plot_cor = None
-        self._ADC_x_plot_sag = None
-
-        self._ADC_y_plot = None
-        self._ADC_y_plot_cor = None
-        self._ADC_y_plot_sag = None
-
-        self._ADC_z_plot = None
-        self._ADC_z_plot_cor = None
-        self._ADC_z_plot_sag = None
-
-        self._ADC_xy_plot = None
-        self._ADC_xy_plot_cor = None
-        self._ADC_xy_plot_sag = None
-
-        self._ADC_xz_plot = None
-        self._ADC_xz_plot_cor = None
-        self._ADC_xz_plot_sag = None
-
-        self._ADC_yz_plot = None
-        self._ADC_yz_plot_cor = None
-        self._ADC_yz_plot_sag = None
 
     def rescale(self, x):
         """Rescale the unknowns with the scaling factors.
@@ -274,7 +246,7 @@ class Model(BaseModel):
         grad[~np.isfinite(grad)] = 0
         return grad
 
-    def computeInitialGuess(self, *args):
+    def computeInitialGuess(self, **kwargs):
         """Initialize unknown array for the fitting.
 
         This function provides an initial guess for the fitting. args[0] is
@@ -290,12 +262,19 @@ class Model(BaseModel):
             phase correction is needed as each diffusion weighting has a
             different phase.
         """
-        self.phase = np.exp(1j*(np.angle(args[0])-np.angle(args[0][0])))
+        self.phase = np.exp(1j*(np.angle(kwargs['images'])-np.angle(kwargs['images'][0])))
         if self.b0 is not None:
             test_M0 = self.b0
         else:
-            test_M0 = args[0][0]
-        ADC = 1 * np.ones(args[0].shape[-3:], dtype=self._DTYPE)
+            test_M0 = kwargs['images'][0]
+        
+        if np.allclose(kwargs['initial_guess'],-1):
+            #default setting
+            ADC = 1 * np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)
+        else:
+            #custom initial guess
+            assert len(kwargs['intial_guess']) == self.unknowns-1
+            ADC = kwargs['initial_guess'][0] * np.ones(kwargs['intial_guess'].shape[-3:], dtype=self._DTYPE)
 
         x = np.array(
             [

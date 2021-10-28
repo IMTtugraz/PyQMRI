@@ -5,7 +5,7 @@
 import numpy as np
 import pyopencl as cl
 import pyopencl.array as clarray
-
+import pyopencl.reduction as clred
 
 class Stream:
     """Basic streaming Class.
@@ -96,7 +96,8 @@ class Stream:
                  num_dev,
                  reverse=False,
                  lhs=None,
-                 DTYPE=np.complex64):
+                 DTYPE=np.complex64,
+                 DTYPE_real = np.float32):
         self.fun = fun
         self.num_dev = num_dev
         self.slices = par_slices
@@ -119,6 +120,21 @@ class Stream:
         self.outp = []
 
         self._alloctmparrays(inp_shape, outp_shape)
+        
+        self.normkrnldiff = []
+        for q in queue:
+            if DTYPE is np.complex64:
+                self.normkrnldiff.append(clred.ReductionKernel(
+                    q.context, DTYPE_real, 0, 
+                    reduce_expr="a+b", 
+                    map_expr="pown(x[i].s0-y[i].s0,2)+pown(x[i].s1-y[i].s1,2)",
+                    arguments="__global float2 *x, __global float2 *y"))
+            elif DTYPE is np.complex128:
+                self.normkrnldiff.append(clred.ReductionKernel(
+                    q.context, DTYPE_real, 0, 
+                    reduce_expr="a+b", 
+                    map_expr="pown(x[i].s0-y[i].s0,2)+pown(x[i].s1-y[i].s1,2)",
+                    arguments="__global double2 *x, __global double2 *y"))
 
     def __add__(self, other):
         """Overloading add.
@@ -157,7 +173,7 @@ class Stream:
                 for k in range(len(inp_shape[j])):
                     if not len(inp_shape[j][k]) == 0:
                         self.inp[j][i].append(
-                            clarray.empty(
+                            clarray.zeros(
                                 self.queue[4*int(i/2)],
                                 ((block_size, )+inp_shape[j][k][1:]),
                                 dtype=self.dtype))
@@ -168,7 +184,7 @@ class Stream:
             self.outp.append([])
             for i in range(2*self.num_dev):
                 self.outp[j].append(
-                    clarray.empty(
+                    clarray.zeros(
                         self.queue[4*int(i/2)],
                         ((block_size, )+outp_shape[j][1:]),
                         dtype=self.dtype))
@@ -471,31 +487,19 @@ class Stream:
 
     def _calcnormreverse(self, rhs, lhs, idev, ifun, odd=0):
         if self.lhs[ifun] is False:
-            rhs += clarray.vdot(
+            rhs += self.normkrnldiff[4*idev+odd](
                 self.outp[
                     ifun][
-                        2*idev+odd][self.overlap:, ...] -
+                        2*idev+odd][self.overlap:, ...],
                 self.inp[
                     ifun][
-                        2*idev+odd][0][self.overlap:, ...],
-                self.outp[
-                    ifun][
-                        2*idev+odd][self.overlap:, ...] -
-                self.inp[
-                    ifun][
-                        2*idev+odd][0][self.overlap:, ...]
+                        2*idev+odd][0][self.overlap:, ...]        
                 ).get()
         else:
-            lhs += clarray.vdot(
+            lhs += self.normkrnldiff[4*idev+odd](
                 self.outp[
                     ifun][
-                        2*idev+odd][self.overlap:, ...] -
-                self.inp[
-                    ifun][
-                        2*idev+odd][-1][self.overlap:, ...],
-                self.outp[
-                    ifun][
-                        2*idev+odd][self.overlap:, ...] -
+                        2*idev+odd][self.overlap:, ...],
                 self.inp[
                     ifun][
                         2*idev+odd][-1][self.overlap:, ...]
@@ -504,31 +508,19 @@ class Stream:
 
     def _calcnormforward(self, rhs, lhs, idev, ifun, odd=0):
         if self.lhs[ifun] is False:
-            rhs += clarray.vdot(
+            rhs += self.normkrnldiff[4*idev+odd](
                 self.outp[
                     ifun][
-                        2*idev+odd][:self.slices, ...] -
-                self.inp[
-                    ifun][
-                        2*idev+odd][0][:self.slices, ...],
-                self.outp[
-                    ifun][
-                        2*idev+odd][:self.slices, ...] -
+                        2*idev+odd][:self.slices, ...] ,
                 self.inp[
                     ifun][
                         2*idev+odd][0][:self.slices, ...]
                 ).get()
         else:
-            lhs += clarray.vdot(
+            lhs += self.normkrnldiff[4*idev+odd](
                 self.outp[
                     ifun][
-                        2*idev+odd][:self.slices, ...] -
-                self.inp[
-                    ifun][
-                        2*idev+odd][-1][:self.slices, ...],
-                self.outp[
-                    ifun][
-                        2*idev+odd][:self.slices, ...] -
+                        2*idev+odd][:self.slices, ...],
                 self.inp[
                     ifun][
                         2*idev+odd][-1][:self.slices, ...]

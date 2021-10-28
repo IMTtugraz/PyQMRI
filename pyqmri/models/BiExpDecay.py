@@ -41,6 +41,7 @@ class Model(BaseModel):
         par["unknowns_TGV"] = 5
         par["unknowns_H1"] = 0
         par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
+        self.unknowns = par["unknowns_TGV"]+par["unknowns_H1"]
 
         for j in range(par["unknowns"]):
             self.uk_scale.append(1)
@@ -70,27 +71,6 @@ class Model(BaseModel):
                 ((1 / 150) / self.uk_scale[4]),
                 True))
         self.guess = None
-
-        self._ax = []
-        self._M0_plot = None
-        self._M0_plot_cor = None
-        self._M0_plot_sag = None
-
-        self._M01_plot = None
-        self._M01_plot_cor = None
-        self._M01_plot_sag = None
-
-        self._M02_plot = None
-        self._M02_plot_cor = None
-        self._M02_plot_sag = None
-
-        self._T21_plot = None
-        self._T21_plot_cor = None
-        self._T21_plot_sag = None
-
-        self._T22_plot = None
-        self._T22_plot_cor = None
-        self._T22_plot_sag = None
 
     def rescale(self, x):
         """Rescale the unknowns with the scaling factors.
@@ -162,7 +142,7 @@ class Model(BaseModel):
         grad[~np.isfinite(grad)] = 1e-20
         return grad
 
-    def computeInitialGuess(self, *args):
+    def computeInitialGuess(self, **kwargs):
         """Initialize unknown array for the fitting.
 
         This function provides an initial guess for the fitting.
@@ -173,19 +153,28 @@ class Model(BaseModel):
             Serves as universal interface. No objects need to be passed
             here.
         """
-        test_M0 = 0.1 * np.ones(
-            (self.NSlice, self.dimY, self.dimX),
-            dtype=self._DTYPE)
-        test_M01 = 0.5 * np.ones(
-            (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
-        test_T11 = 1/10 * np.ones(
-            (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
-        test_T12 = 1/150 * np.ones(
-            (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
-
-        self.guess = np.array([
+        if np.allclose(kwargs['initial_guess'],-1):
+            #default setting
+            test_M0 = 0.1 * np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)
+            test_M01 = 0.5 * np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)
+            test_T11 = 1/10 * np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)
+            test_T12 = 1/150 * np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)
+        else:
+            #custom initial guess
+            assert len(kwargs['initial_guess']) == self.unknowns
+            test_M0 = kwargs['initial_guess'][0] * np.ones(
+                kwargs['images'].shape[-3:], dtype=self._DTYPE)
+            test_M01 = kwargs['initial_guess'][1] * np.ones(
+                kwargs['images'].shape[-3:], dtype=self._DTYPE)
+            test_T11 = kwargs['initial_guess'][2] * np.ones(
+                kwargs['images'].shape[-3:], dtype=self._DTYPE)
+            test_T12 = kwargs['initial_guess'][3] * np.ones(
+                kwargs['images'].shape[-3:], dtype=self._DTYPE)
+            
+        x = np.array([
             test_M0,
             test_M01,
             test_T11,
             test_M01,
             test_T12], dtype=self._DTYPE)
+        self.guess = x

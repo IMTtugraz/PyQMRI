@@ -49,6 +49,43 @@ def test_VFA_model_kspace_TV_cart_multislice_streamed(gen_multislice_data):
                       devices=0,
                       reg_type='TV'
                       ) is None
+    
+@pytest.mark.integration_test
+def test_VFA_model_kspace_TGV_cart_multislice_double(gen_multislice_data):
+    assert pyqmri.run(data=pjoin(data_dir, 'VFA_cart_test.h5'),
+                      model='VFA',
+                      config=pjoin(data_dir, 'default.ini'),
+                      trafo=False,
+                      slices=4,
+                      double_precision=True
+                      ) is None
+
+
+@pytest.mark.integration_test
+def test_VFA_model_kspace_TGV_cart_multislice_streamed_double(gen_multislice_data):
+    assert pyqmri.run(data=pjoin(data_dir, 'VFA_cart_test.h5'),
+                      model='VFA',
+                      config=pjoin(data_dir, 'default.ini'),
+                      trafo=False,
+                      slices=4,
+                      streamed=1,
+                      devices=0,
+                      double_precision=True
+                      ) is None
+
+
+@pytest.mark.integration_test
+def test_VFA_model_kspace_TV_cart_multislice_streamed_double(gen_multislice_data):
+    assert pyqmri.run(data=pjoin(data_dir, 'VFA_cart_test.h5'),
+                      model='VFA',
+                      config=pjoin(data_dir, 'default.ini'),
+                      trafo=False,
+                      slices=4,
+                      streamed=1,
+                      devices=0,
+                      reg_type='TV',
+                      double_precision=True
+                      ) is None
 
 
 @pytest.fixture(scope="function")

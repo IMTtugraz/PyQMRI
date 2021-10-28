@@ -87,13 +87,14 @@ __kernel void zero_tmp(__global float2 *tmp)
 __kernel void grid_lut(
                 __global float *sg,
                 __global float2 *s,
-                __global float2 *kpos,
+                __global float *kpos,
                 const int gridsize,
                 const int NC,
                 const float kwidth,
                 __global float *dcf,
                 __constant float* kerneltable,
-                const int nkernelpts )
+                const int nkernelpts,
+                const int scanoffset )
 {
     size_t k = get_global_id(2);
     size_t kDim = get_global_size(2);
@@ -111,20 +112,20 @@ __kernel void grid_lut(
 
     float2 kdat = s[k+kDim*n+kDim*NDim*slice]*(float2)(dcf[k],dcf[k]);
 
-    kx = (kpos[k+kDim*scan]).s0;
-    ky = (kpos[k+kDim*scan]).s1;
+    kx = (kpos[2*(k+kDim*scan)]);
+    ky = (kpos[2*(k+kDim*scan)+1]);
 
-    ixmin =  (int)((kx-kwidth)*gridsize +gridcenter);
-    ixmax = (int)((kx+kwidth)*gridsize +gridcenter)+1;
-    iymin = (int)((ky-kwidth)*gridsize +gridcenter);
-    iymax =  (int)((ky+kwidth)*gridsize +gridcenter)+1;
+    ixmin =  (int)((kx-kwidth) +gridcenter);
+    ixmax = (int)((kx+kwidth) +gridcenter)+1;
+    iymin = (int)((ky-kwidth) +gridcenter);
+    iymax =  (int)((ky+kwidth) +gridcenter)+1;
 
     for (int gcount1 = ixmin; gcount1 <= ixmax; gcount1++)
     {
-        dkx = (float)(gcount1-gridcenter) / (float)gridsize - kx;
+        dkx = (float)(gcount1-gridcenter) - kx;
         for (int gcount2 = iymin; gcount2 <= iymax; gcount2++)
         {
-            dky = (float)(gcount2-gridcenter) / (float)gridsize - ky;
+            dky = (float)(gcount2-gridcenter) - ky;
 
             dk = sqrt(dkx*dkx+dky*dky);
 
@@ -167,13 +168,14 @@ __kernel void grid_lut(
 __kernel void invgrid_lut(
                 __global float2 *s,
                 __global float2 *sg,
-                __global float2 *kpos,
+                __global float *kpos,
                 const int gridsize,
                 const int NC,
                 const float kwidth,
                 __global float *dcf,
                 __constant float* kerneltable,
-                const int nkernelpts
+                const int nkernelpts,
+                const int scanoffset 
                 )
 {
     size_t k = get_global_id(2);
@@ -193,20 +195,20 @@ __kernel void invgrid_lut(
     float2 tmp_dat = 0.0;
 
 
-    kx = (kpos[k+kDim*scan]).s0;
-    ky = (kpos[k+kDim*scan]).s1;
-
-    ixmin =  (int)((kx-kwidth)*gridsize +gridcenter);
-    ixmax = (int)((kx+kwidth)*gridsize +gridcenter)+1;
-    iymin = (int)((ky-kwidth)*gridsize +gridcenter);
-    iymax =  (int)((ky+kwidth)*gridsize +gridcenter)+1;
+    kx = (kpos[2*(k+kDim*scan)]);
+    ky = (kpos[2*(k+kDim*scan)+1]);
+    
+    ixmin =  (int)((kx-kwidth) +gridcenter);
+    ixmax = (int)((kx+kwidth) +gridcenter)+1;
+    iymin = (int)((ky-kwidth) +gridcenter);
+    iymax =  (int)((ky+kwidth) +gridcenter)+1;
 
     for (int gcount1 = ixmin; gcount1 <= ixmax; gcount1++)
     {
-        dkx = (float)(gcount1-gridcenter) / (float)gridsize  - kx;
+        dkx = (float)(gcount1-gridcenter)  - kx;
         for (int gcount2 = iymin; gcount2 <= iymax; gcount2++)
         {
-            dky = (float)(gcount2-gridcenter) / (float)gridsize - ky;
+            dky = (float)(gcount2-gridcenter) - ky;
 
             dk = sqrt(dkx*dkx+dky*dky);
 
