@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 """Module holding the classes for Soft Sense Optimization."""
 from __future__ import division
-import time
-import numpy as np
 import h5py
-from PIL import Image
-from pathlib import Path
+import numpy as np
+import os
+import time
+import imageio
 
 from pkg_resources import resource_filename
 import pyopencl.array as clarray
@@ -15,14 +15,12 @@ import pyqmri.operator as operator
 import pyqmri.solver as optimizer
 from pyqmri._helper_fun import CLProgram as Program
 from pyqmri._helper_fun import _utils as utils
-from pyqmri._my_helper_fun.display_data import img_montage
-from pyqmri._my_helper_fun.helpers import sqrt_sum_of_squares, normalize_imgs, calc_image_metrics
 
 
 class SoftSenseOptimizer:
     """Main Soft Sense Optimization class.
 
-    This Class performs Soft Sense Optimization either with TGV, TV or without regularization.
+    This Class performs Soft Sense Optimization either with TGV or TV regularization.
 
     Parameters
     ----------
@@ -55,23 +53,22 @@ class SoftSenseOptimizer:
         coils (NC), sampling points (N) and read outs (NProj)
         a PyOpenCL queue (queue) and the complex coil
         sensitivities (C).
-      ss_par : dict
+      pdsose_par : dict
         The parameters read from the config file to guide the Soft Sense
         optimization process
     """
 
     def __init__(self,
                  par,
-                 myargs,
+                 config,
                  reg_type='TGV',
                  streamed=False,
                  DTYPE=np.complex64,
                  DTYPE_real=np.float32):
 
-        self.args = myargs
         self.par = par
         self.pdsose_par = utils.read_config(
-            myargs.config,
+            config,
             optimizer="SSense",
             reg_type=reg_type
         )
@@ -197,45 +194,62 @@ class SoftSenseOptimizer:
                 v = np.require(np.swapaxes(v, 0, 1), requirements='C')
         return grad_op, symgrad_op, v
 
-    def _save_imgs(self, fname='', max_val=None, min_val=None):
+    def root_sum_squared(self, x):
+        return np.sqrt(np.sum(np.abs(x) ** 2, axis=0)) if x.ndim > 2 else np.abs(x)
+
+    def save_imgs(self, fname='', max_val=None, min_val=None):
+        """Save center slice as image once results are computed.
+        """
         x = self.result
+
+        if x is None:
+            print("No result obtained! Saving not possible!")
+            return
+
         if fname:
             filename = fname
         elif "fname" in self.par.keys():
-            filename = self.par["fname"]
+            filename = self.par["fname"].split('.')[0]
         else:
-            filename = self._reg_type + '_recon_R_{:.2f}'.format(self.par["R"]) + '_lambda_' + '{:.0e}'.format(self.pdsose_par["lambd"])
-        path = self.par["outdir"] / 'imgs'
-        if not path.exists():
-            path.mkdir(parents=True, exist_ok=True)
+            filename = 'Soft_SENSE_recon_' + self._reg_type
+        path = os.path.normpath(self.par["outdir"] + os.sep + 'imgs')
+        if not os.path.exists(path):
+            os.makedirs(path)
 
-        x = sqrt_sum_of_squares(x)[[int(np.shape(x)[-3]/2)], ...]
-        # x1 = sqrt_sum_of_squares(x)[[3], ...]
+        x_ = self.root_sum_squared(x)[int(np.shape(x)[-3]/2), ...]
 
-        for i, img in enumerate(x):
-            img_max = max_val if max_val else img.max()
-            img_min = min_val if min_val else img.min()
-            img_rescaled = (255.0 / img_max * (img - img_min)).astype(np.uint8)
+        img_max = max_val if max_val else np.max(np.abs(x))
+        img_min = min_val if min_val else np.min(np.abs(x))
+        img_rescaled = (255.0 / img_max * (x_ - img_min)).astype(np.uint8)
 
-            im = Image.fromarray(img_rescaled)
-            file_dir = path / (filename + '_' + str(i) + '.png')
-            im.save(file_dir)
+        name = path + os.sep + filename + '.png'
+        imageio.imwrite(name, img_rescaled)
 
-    def _save_data(self):
+    def save_data(self, fname=''):
+        """Save data in h5 file format once results are computed.
+        """
         x = self.result
-        if "fname" in self.par.keys():
-            filename = self.par["fname"]
-        else:
-            filename = 'Recon_R_{:.2f}'.format(self.par["R"]) + '_lambda_' + '{:.0e}'.format(self.pdsose_par["lambd"])
-        path = self.par["outdir"] / 'data' / self._reg_type
-        if not path.exists():
-            path.mkdir(parents=True, exist_ok=True)
-        file_dir = path / (filename + '.hdf5')
 
-        with h5py.File(file_dir, 'w') as f:
+        if x is None:
+            print("No result obtained! Saving not possible!")
+            return
+
+        if fname:
+            filename = fname
+        elif "fname" in self.par.keys():
+            filename = self.par["fname"].split('.')[0]
+        else:
+            filename = 'Soft_SENSE_recon_' + self._reg_type
+
+        path = os.path.normpath(self.par["outdir"] + os.sep + 'h5')
+        if not os.path.exists(path):
+            os.makedirs(path)
+
+        name = path + os.sep + filename + '.hdf5'
+
+        with h5py.File(name, 'w') as f:
             dset = f.create_dataset(self._reg_type+'_result', x.shape,
                                     dtype=self._DTYPE, data=x)
-            dset.attrs["R"] = self.par["R"]
             dset.attrs["lambd"] = self.pdsose_par["lambd"]
             dset.attrs["streamed"] = self._streamed
             dset.attrs["elapsed_time"] = self._elapsed_time
@@ -395,6 +409,9 @@ class SoftSenseOptimizer:
             + 1j * np.zeros(self._unknown_shape, self._DTYPE),
             requirements='C')
 
+        if "data_scaling" in self.pdsose_par.keys():
+            data *= self._DTYPE_real(self.pdsose_par["data_scaling"])
+
         if self._streamed:
             data = np.require(
                 np.transpose(data, self._data_trans_axes),
@@ -405,7 +422,6 @@ class SoftSenseOptimizer:
         else:
             data_ = clarray.to_device(self._queue[0], data)
             img_init = self._MRI_operator.adjoop([data_, self._cmaps]).get()
-            # img_montage(sqrt_sum_of_squares(img_init), 'Initial image(s)')
 
         iters = self.pdsose_par["max_iters"] if "max_iters" in self.pdsose_par.keys() else 1000
 
@@ -433,6 +449,3 @@ class SoftSenseOptimizer:
         self.result = result
 
         return result
-
-
-

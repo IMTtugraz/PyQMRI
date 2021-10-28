@@ -12,9 +12,9 @@ from tkinter import Tk
 
 from pyqmri.pyqmri import _str2bool
 from pyqmri.pyqmri import _setupOCL
-from pyqmri._helper_fun import _utils as utils
 from pyqmri.pdsose import SoftSenseOptimizer
 
+# from pyqmri._helper_fun import _utils as utils
 
 # def _check_data_shape(myargs, data):
 #     gpyfft_primes = [2, 3, 5, 7, 11, 13]
@@ -52,7 +52,13 @@ def _fft_shift_data(ksp, recon_type='3D'):
     return result
 
 
-def _preprocess_data(myargs, par, kspace, cmaps, mask):
+def _get_sampling_mask_from_ksp(kspace):
+    mask = np.ones(kspace.shape[-3:])
+    mask[np.abs(kspace[0, 0, ...]) == 0] = 0
+    return mask
+
+
+def _preprocess_data(myargs, par, kspace, cmaps):
     if kspace.ndim < 5:
         kspace = np.expand_dims(kspace, axis=0)
 
@@ -66,13 +72,11 @@ def _preprocess_data(myargs, par, kspace, cmaps, mask):
         cmaps = np.require(
             np.swapaxes(cmaps, -1, -3),
             dtype=par["DTYPE"], requirements='C')
-        if mask.ndim > 2:
-            mask = np.require(
-                np.swapaxes(mask, -1, -3), requirements='C')
-            mask = np.fft.fftshift(mask, axes=(-2, -1))
 
     # TODO: check data shape if suitable for clFFT
     # _check_data_shape(myargs, kspace)
+
+    mask = _get_sampling_mask_from_ksp(kspace)
 
     nslice = np.shape(kspace)[-3]
 
@@ -84,14 +88,13 @@ def _preprocess_data(myargs, par, kspace, cmaps, mask):
                             requirements='C').astype(par["DTYPE"])
         cmaps = np.require(cmaps[..., slice_idx[0]:slice_idx[-1], :, :],
                            requirements='C').astype(par["DTYPE"])
-    if mask.ndim > 2:
-        mask = np.require(np.squeeze(mask[0, 0, :, :]),
-                          requirements='C').astype(par["DTYPE_real"])
 
-    return kspace, cmaps, mask
+    par["mask"] = np.require(np.squeeze(mask[0, :, :]), requirements='C').astype(par["DTYPE_real"])
+
+    return kspace, cmaps
 
 
-def _setup_par(par, myargs, ksp_data, cmaps, mask):
+def _setup_par(par, myargs, ksp_data, cmaps):
     ksp_shape = np.shape(ksp_data)
     cmaps_shape = np.shape(cmaps)
 
@@ -119,18 +122,14 @@ def _setup_par(par, myargs, ksp_data, cmaps, mask):
 
     par["fft_dim"] = (-2, -1)
 
-    par["mask"] = np.require(mask, requirements='C', dtype=par["DTYPE_real"])
-
-    par["R"] = 4  # TODO: replace with actual estimation
-
     par["overlap"] = 0
     par["par_slices"] = par["NSlice"]
 
     if myargs.streamed:
-        if myargs.reco_slices == -1:
-            par["par_slices"] = int(par["dimX"] / (2 * len(par["num_dev"])))
+        if myargs.reco_slices == -1 and myargs.par_slices == -1:
+            par["par_slices"] = int(par["NSlice"] / (2 * len(par["num_dev"])))
         else:
-            par["par_slices"] = int(myargs.reco_slices / (2 * len(par["num_dev"])))
+            par["par_slices"] = myargs.par_slices
         par["overlap"] = 1
 
 
@@ -173,7 +172,8 @@ def _read_input(file, myargs, par, set_outdir=False):
             sys.exit()
 
     fname = os.path.normpath(file)
-    par["fname"] = fname.split(os.sep)[-1]
+    if "fname" not in par.keys():
+        par["fname"] = fname.split(os.sep)[-1]
 
     if set_outdir:
         _set_output_dir(myargs, par, fname)
@@ -229,32 +229,45 @@ def _start_recon(myargs):
         _read_input(myargs.file, myargs, par, set_outdir=True), myargs.double_precision)
     cmaps = _read_data_from_file(
         _read_input(myargs.cmaps, myargs, par), myargs.double_precision)
-    mask = _read_data_from_file(
-        _read_input(myargs.mask, myargs, par), myargs.double_precision)
 
-    data = data * 1e7
-
+    ###############################################################################
+    # Create OpenCL Context and Queues ############################################
+    ###############################################################################
     _setupOCL(myargs, par)
 
-    data, cmaps, mask = _preprocess_data(myargs, par, data, cmaps, mask)
+    ###############################################################################
+    # Preprocess read data ########################################################
+    ###############################################################################
+    data, cmaps = _preprocess_data(myargs, par, data, cmaps)
 
-    _setup_par(par, myargs, data, cmaps, mask)
+    ###############################################################################
+    # Setup parameters for optimization ###########################################
+    ###############################################################################
+    _setup_par(par, myargs, data, cmaps)
 
+    ###############################################################################
+    # initialize operator  ########################################################
+    ###############################################################################
     optimizer = SoftSenseOptimizer(par,
-                                   myargs,
+                                   myargs.config,
                                    myargs.reg_type,
                                    streamed=myargs.streamed,
                                    DTYPE=par["DTYPE"],
                                    DTYPE_real=par["DTYPE_real"])
+
+    ###############################################################################
+    # Execute optimizer ###########################################################
+    ###############################################################################
     result = optimizer.execute(data.copy())
 
-    optimizer._save_imgs()
-    optimizer._save_data()
+    ###############################################################################
+    # Store results ###############################################################
+    ###############################################################################
+    optimizer.save_imgs()
+    optimizer.save_data()
 
     del optimizer
-
     return result
-
 
 
 def run(recon_type='3D',
@@ -262,13 +275,12 @@ def run(recon_type='3D',
         adapt_stepsize=True,
         reco_slices=-1,
         streamed=False,
-        par_slices=1,
+        par_slices=-1,
         devices=-1,
         dz=1,
         weights=-1,
         data='',
         cmaps='',
-        mask='',
         config='default',
         outdir='',
         double_precision=False):
@@ -320,11 +332,6 @@ def run(recon_type='3D',
         The path to the .h5 file containing the estimated coil sensitivities.
         If left empty, a GUI will open and asks for data file selection. This
         is also the default behaviour.
-      mask : str, ''
-        The path to the .h5 file containing the binary mask representing the
-        sampling pattern.
-        If left empty, a GUI will open and asks for data file selection. This
-        is also the default behaviour.
       config : str, default
         The path to the config file used for the Soft SENSE PD reconstruction. If
         not specified the default config file will be used. If no default
@@ -344,7 +351,6 @@ def run(recon_type='3D',
               ('--par_slices', str(par_slices)),
               ('--data', str(data)),
               ('--cmaps', str(cmaps)),
-              ('--mask', str(mask)),
               ('--config', str(config)),
               ('--OCL_GPU', "True"),
               ('--outdir', str(outdir)),
@@ -414,10 +420,6 @@ def _parse_arguments(args):
     argpar.add_argument(
       '--cmaps', dest='cmaps',
       help="Full path to coil sensitivity maps. "
-           "If not provided, a file dialog will open.")
-    argpar.add_argument(
-      '--mask', dest='mask',
-      help="Full path to binary mask. "
            "If not provided, a file dialog will open.")
     argpar.add_argument(
         '--config', dest='config',
