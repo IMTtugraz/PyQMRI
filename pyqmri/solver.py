@@ -939,11 +939,11 @@ class PDBaseSolver:
         """
         self._updateConstraints()
         
-        l_max = self.power_iteration(inp[0], data.shape)
-        l_max += self.alpha*((0.5 * (18.0 + np.sqrt(33)))**2)
-        print("Estimated L: ", l_max)
+        # l_max = self.power_iteration(inp[0], data.shape)*1e3
+        # l_max += self.alpha*((0.5 * (18.0 + np.sqrt(33)))**2)
+        # print("Estimated L: ", l_max)
         
-        tau = 1/np.sqrt(l_max)
+        tau = self.tau#1/np.sqrt(l_max)
         tau_new = self._DTYPE_real(0)
 
         theta_line = self.theta_line

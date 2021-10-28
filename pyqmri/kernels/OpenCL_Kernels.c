@@ -361,7 +361,7 @@ __kernel void update_primal_LM(
 
     for (int uk=0; uk<NUk; uk++)
     {
-        u_new[i] = (u[i]-tau*Kyk[i]+ratio[uk]*tauinv*A[i]*u_k[i])/(1+ratio[uk]*tauinv*A[i]);
+        u_new[i] = (u[i]-tau*Kyk[i]+tauinv*A[i]*u_k[i])/(1+tauinv*A[i]);
 
         if(real[uk]>=1)
         {
