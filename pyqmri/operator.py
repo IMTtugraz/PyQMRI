@@ -2849,25 +2849,12 @@ class OperatorSoftSense(Operator):
             self.Nproj = self.dimY
             self.N = self.dimX
 
-        # in case of 3D mask include in operator and mask fft with ones
-        self.mask = np.array([])
-        self._mask_tmp = par["mask"].copy()
-
-        if self._mask_tmp.ndim > 2:
-            self.mask = clarray.to_device(self.queue, par["mask"])
-            par["mask"] = np.require(
-                np.ones((par["dimY"], par["dimX"]), dtype=par["DTYPE_real"]),
-                requirements='C')
-
         self.NUFFT = CLnuFFT.create(self.ctx,
                                     self.queue,
                                     par,
                                     radial=trafo,
                                     DTYPE=DTYPE,
                                     DTYPE_real=DTYPE_real)
-
-        par["mask"] = self._mask_tmp.copy()
-        del self._mask_tmp
 
     def fwd(self, out, inp, **kwargs):
         if "wait_for" in kwargs.keys():
@@ -3078,12 +3065,6 @@ class OperatorSoftSenseStreamed(Operator):
         self.par_slices = par["par_slices"]
         self.NMaps = par["NMaps"]
 
-        # self._mask_tmp = par["mask"].copy()
-        # if self._mask_tmp.ndim > 2:
-        #     par["mask"] = np.require(
-        #         np.ones((par["dimY"], par["dimX"]), dtype=par["DTYPE_real"]),
-        #         requirements='C')
-
         if not trafo:
             self.Nproj = self.dimY
             self.N = self.dimX
@@ -3134,9 +3115,6 @@ class OperatorSoftSenseStreamed(Operator):
             [self.FT],
             [self.data_shape],
             [[trans_shape]])
-
-        # par["mask"] = self._mask_tmp.copy()
-        # del self._mask_tmp
 
     def fwd(self, out, inp, **kwargs):
         self.fwdstr.eval(out, inp)

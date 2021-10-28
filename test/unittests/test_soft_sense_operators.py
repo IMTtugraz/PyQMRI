@@ -24,7 +24,7 @@ class Args:
 def _setup_par(par):
     par["dimX"] = 160
     par["dimY"] = 160
-    par["NSlice"] = 180
+    par["NSlice"] = 128
     par["NC"] = 32
     par["NScan"] = 1
     par["NMaps"] = 2
@@ -36,15 +36,13 @@ def _setup_par(par):
     par["unknowns"] = 2
     par["dz"] = 1
 
-    par["overlap"] = 0
-    par["par_slices"] = 18 # par["NSlice"]
-
+    par["overlap"] = 1
+    par["par_slices"] = 16
     par["DTYPE_real"] = DTYPE_real
     par["DTYPE"] = DTYPE
 
     par["fft_dim"] = (-2, -1)
-    par["mask"] = np.ones((1, 32, 180, 160, 160), dtype=DTYPE_real)
-    # par["mask"][..., ::2, :] = 0
+    par["mask"] = np.ones((par["dimY"], par["dimX"]), dtype=DTYPE_real)
 
 
 class OperatorSoftSenseTest(unittest.TestCase):
@@ -71,15 +69,6 @@ class OperatorSoftSenseTest(unittest.TestCase):
             par["ctx"][0],
             file.read())
         file.close()
-
-        maskfile = Path.cwd() / 'data' / 'R4' / 'mask_a.mat'
-
-        with h5py.File(maskfile, 'r') as f:
-            mask = np.array(f.get('mask_a'))
-        f.close()
-
-        par['mask'] = np.require(mask.astype(par["DTYPE_real"]), requirements='C')
-        par['mask'] = np.require(np.fft.fftshift(par['mask'], axes=par["fft_dim"]), requirements='C')
 
         self.op = pyqmirop.OperatorSoftSense(par, prg)
 
@@ -163,19 +152,6 @@ class OperatorSoftSenseStreamedTest(unittest.TestCase):
 
         par["par_slices"] = 1
 
-        maskfile = Path.cwd() / 'data' / 'R4' / 'mask_a.mat'
-
-        with h5py.File(maskfile, 'r') as f:
-            mask = np.array(f.get('mask_a'))
-        f.close()
-
-        par['mask'] = np.require(mask.astype(par["DTYPE_real"]), requirements='C')
-        par['mask'] = np.require(np.fft.fftshift(par['mask'], axes=par["fft_dim"]), requirements='C')
-
-        self._data_trans_axes = (2, 0, 1, 3, 4)
-        par["mask"] = np.transpose(np.expand_dims(par["mask"], axis=0), self._data_trans_axes)
-        self.mask = np.require(par["mask"], requirements='C', dtype=DTYPE_real)
-
         self.op = pyqmirop.OperatorSoftSenseStreamed(
             par, prg,
             DTYPE=DTYPE,
@@ -202,8 +178,8 @@ class OperatorSoftSenseStreamedTest(unittest.TestCase):
 
     def test_adj_outofplace(self):
 
-        outfwd = self.op.fwdoop([[self.opinfwd, self.C, self.mask]])
-        outadj = self.op.adjoop([[self.opinadj, self.C, self.mask]])
+        outfwd = self.op.fwdoop([[self.opinfwd, self.C]])
+        outadj = self.op.adjoop([[self.opinadj, self.C]])
 
         a = np.vdot(outfwd.flatten(),
                     self.opinadj.flatten())/self.opinadj.size
@@ -219,8 +195,8 @@ class OperatorSoftSenseStreamedTest(unittest.TestCase):
         outfwd = np.zeros_like(self.opinadj)
         outadj = np.zeros_like(self.opinfwd)
 
-        self.op.fwd([outfwd], [[self.opinfwd, self.C, self.mask]])
-        self.op.adj([outadj], [[self.opinadj, self.C, self.mask]])
+        self.op.fwd([outfwd], [[self.opinfwd, self.C]])
+        self.op.adj([outadj], [[self.opinadj, self.C]])
 
         a = np.vdot(outfwd.flatten(),
                     self.opinadj.flatten())/self.opinadj.size
