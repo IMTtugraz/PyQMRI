@@ -297,6 +297,7 @@ class IRGNOptimizer:
                 self._model.execute_forward(result))
                 
             # Precond only for image data!!!!
+            # if ign > 2:
             self._balanceModelGradients(result, ign)
             data = self.applyPrecond(data_save)
             self._step_val = self.applyPrecond(self._step_val)
@@ -305,6 +306,7 @@ class IRGNOptimizer:
                 self._MRI_operator.queue, self._data_shape,
                 self._MRI_operator.DTYPE, "C")
             self._MRI_operator._out_shape_fwd = data.shape
+            self._MRI_operator.NScan = data.shape[0]
             
             self._updateIRGNRegPar(ign)
             self._pdop._grad_op.updateRatio(
@@ -379,90 +381,45 @@ class IRGNOptimizer:
             self.irgn_par["omega_min"])/self.irgn_par["lambd"]
 
     def _balanceModelGradients(self, result, ign):
-        # scale = self._modelgrad.reshape(self.par["unknowns"], -1)
-        # tmp = scale@scale.T
-        # eig = np.abs(spl.eigvals(tmp))
-        # scale = np.abs(np.diag(tmp))
-        # print("Initial Norm: ", np.linalg.norm(eig))
-        # print("Initial Ratio: ", eig)
-        # # if ign == 0:
-        # # scale /= 1/np.sqrt(self.par["unknowns"])
-        # # else:
-        #     # scale /= np.linalg.norm(scale)/np.sqrt(self.par["unknowns"])
-        # scale = 1e3/np.sqrt(scale)
-        # # scale[:] = scale[0]
-        # scale[~np.isfinite(scale)] = 1
-        # for uk in range(self.par["unknowns"]):
-        #     self._model.constraints[uk].update(scale[uk])
-        #     result[uk, ...] *= self._model.uk_scale[uk]
-        #     self._modelgrad[uk] /= self._model.uk_scale[uk]
-        #     self._model.uk_scale[uk] *= scale[uk]
-        #     result[uk, ...] /= self._model.uk_scale[uk]
-        #     self._modelgrad[uk] *= self._model.uk_scale[uk]
-        # scale = self._modelgrad.reshape(self.par["unknowns"], -1)
-        # # tmp = tmp*scale[:,None]
-        # # scale = np.linalg.norm(scale, axis=-1)
-        # scale = spl.eigvals(scale@scale.T)
-        # print("Norm after rescale: ", np.linalg.norm(scale))
-        # print("Ratio after rescale: ", np.abs(scale))
         
-        # import ipdb
-        # ipdb.set_trace()
+        jacobi = self._modelgrad.reshape(*self._modelgrad.shape[:2], -1)
         
-        jacobi = self._modelgrad.reshape(self.par["unknowns"], self.par["NScan"], -1)
+        self.k = np.minimum(*self._modelgrad.shape[:2])
         
-        self.k = np.minimum(self.par["unknowns"], self.par["NScan"])
-        
-        self.U = np.zeros((jacobi.shape[-1],self.k, self.par["unknowns"]), dtype=self.par["DTYPE"])
-        self.V = np.zeros((jacobi.shape[-1],self.par["NScan"], self.k), dtype=self.par["DTYPE"])
+        self.U = np.zeros((jacobi.shape[-1],self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
+        self.V = np.zeros((jacobi.shape[-1],self._modelgrad.shape[1], self.k), dtype=self.par["DTYPE"])
         self.E = np.zeros((jacobi.shape[-1],self.k), dtype=self.par["DTYPE"])
         
         jacobi = np.require(jacobi.T, requirements='C')
         
+        cutoff =  1e2
+        maxval = 0
+
         for j in range(jacobi.shape[0]):
             self.V[j], self.E[j], self.U[j] = spl.svd(jacobi[j], full_matrices=False)
+            einv = 1/self.E[j]
+            einv[~np.isfinite(einv)] = cutoff*einv[0]
+            einv[einv/einv[0] > cutoff] = cutoff*einv[0]
+
+            self.U[j] = np.diag(einv)@np.diag(self.E[j])@self.U[j]
+            maxval = np.maximum(maxval, np.max(np.abs(einv*self.E[j])))
+            self.E[j] = einv
             
-        self.U = np.transpose(self.U, (1,2,0))
-        self._modelgrad = np.require(self.U.reshape(self.par["unknowns"],self.par["unknowns"],*self._modelgrad.shape[2:]),requirements='C')  
-        self._MRI_operator.NScan = self.k
+        print("Maximum Eigenvalue: ", maxval)
+            
+        self.U = np.require(np.transpose(self.U, (2,1,0)), requirements='C')
+        self._modelgrad = self.U.reshape(*self.U.shape[:2],*self._modelgrad.shape[2:])
         
-        import ipdb
-        ipdb.set_trace()
+        self.V = np.require(np.conj(self.V.transpose(0,2,1)), requirements='C')
+
         
-        # scale = self._modelgrad.reshape(self.par["unknowns"], -1)
-        # scale = np.linalg.norm(scale, axis=-1)
-        # print("Initial Norm: ", np.linalg.norm(scale))
-        # print("Initial Ratio: ", scale)
-        # # if ign == 0:
-        # scale /= 1e2/np.sqrt(self.par["unknowns"])
-        # # else:
-        #     # scale /= np.linalg.norm(scale)/np.sqrt(self.par["unknowns"])
-        # scale = 1/scale
-        # # scale[:] = scale[0]
-        # scale[~np.isfinite(scale)] = 1e2/np.sqrt(self.par["unknowns"])
-        # for uk in range(self.par["unknowns"]):
-        #     self._model.constraints[uk].update(scale[uk])
-        #     result[uk, ...] *= self._model.uk_scale[uk]
-        #     self._modelgrad[uk] /= self._model.uk_scale[uk]
-        #     self._model.uk_scale[uk] *= scale[uk]
-        #     result[uk, ...] /= self._model.uk_scale[uk]
-        #     self._modelgrad[uk] *= self._model.uk_scale[uk]
-        # # import ipdb
-        # # ipdb.set_trace()
-        # scale = self._modelgrad.reshape(self.par["unknowns"], -1)
-        # # tmp = tmp*scale[:,None]
-        # # scale = np.linalg.norm(scale, axis=-1)
-        # scale = np.linalg.norm(scale, axis=-1)
-        # print("Norm after rescale: ", np.linalg.norm(scale))
-        # print("Ratio after rescale: ", np.abs(scale))
-        # # print("Ratio after rescale: ", np.abs(self._model.uk_scale))
         
     def applyPrecond(self, inp):
-        tmp_step_val = inp.reshape(self.par["NScan"], -1)
+        tmp_step_val = np.require(inp.reshape(inp.shape[0], -1).T, requirements='C')
         precond_stepval = np.zeros((np.prod(inp.shape[1:]), self.k), dtype=self.par["DTYPE"])
-        for j in range(tmp_step_val.shape[-1]):
-            precond_stepval[j] = np.diag(1/self.E[j])@(np.conj(self.V[j].T))@tmp_step_val[:,j]
-        return np.require(precond_stepval.T.reshape(self.k, *inp.shape[1:]), requirements='C')
+        for j in range(tmp_step_val.shape[0]):
+            precond_stepval[j] = np.diag(self.E[j])@(self.V[j]@tmp_step_val[j])
+        return np.require(precond_stepval.T.reshape(self.k, *inp.shape[1:]), requirements='C', dtype=self.par["DTYPE"])
 
 
 ###############################################################################
@@ -504,8 +461,8 @@ class IRGNOptimizer:
             tmpx = clarray.to_device(self._queue[0], x)
             res = data - b + self._MRI_operator.fwdoop(
                 [tmpx, self._coils, self._modelgrad]).get()
-            del tmpx
-
+            del tmpx   
+        
         tmpres = self._pdop.run((x, self._v), res, iters)
         for key in tmpres:
             if key == 'x':

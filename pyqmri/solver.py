@@ -864,7 +864,7 @@ class PDBaseSolver:
                                   )
 
         elif reg_type == 'TGV':
-            L = DTYPE_real(1e2)#+irgn_par["gamma"]*((0.5 * (18.0 + np.sqrt(33)))**2)
+            L = 1#irgn_par["gamma"]*((0.5 * (18.0 + np.sqrt(33)))**2)
             if streamed:
                 if SMS:
                     pdop = PDSolverStreamedTGVSMS(
@@ -939,11 +939,11 @@ class PDBaseSolver:
         """
         self._updateConstraints()
         
-        # l_max = self.power_iteration(inp[0], data.shape)*1e3
+        # l_max = self.power_iteration(inp[0], data.shape)
         # l_max += self.alpha*((0.5 * (18.0 + np.sqrt(33)))**2)
         # print("Estimated L: ", l_max)
         
-        tau = self.tau#1/np.sqrt(l_max)
+        tau = 1#/np.sqrt(np.sqrt(l_max))
         tau_new = self._DTYPE_real(0)
 
         theta_line = self.theta_line
@@ -1337,6 +1337,7 @@ class PDBaseSolver:
             self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
             np.int32(self.unknowns_H1),
             self._DTYPE_real(1 / (1 + par[0] / par[3])),
+            par[4].data,
             wait_for=(outp.events+inp[0].events+inp[1].events +
                       inp[2].events+inp[3].events+inp[4].events+wait_for))
 
@@ -1415,6 +1416,7 @@ class PDBaseSolver:
             self._DTYPE_real(par[0]),
             self._DTYPE_real(par[1]),
             self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
+            self._grad_op.ratio.data,
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
 
@@ -1986,7 +1988,7 @@ class PDSolverTGV(PDBaseSolver):
                         in_primal_new["v"],
                         in_primal["v"]
                     ),
-                par=(beta*tau, theta, self.alpha, self.omega)
+                par=(beta*tau, theta, self.alpha, self.omega, self._grad_op.ratio)
                 )
             )
         out_dual["z2"].add_event(

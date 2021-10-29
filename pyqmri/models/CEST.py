@@ -45,6 +45,11 @@ class Model(BaseModel):
         for j in range(par["unknowns"]):
             self.uk_scale.append(1)
             
+        par["weights"] = np.array([1e3/self.unknowns]*self.unknowns,dtype=par["DTYPE_real"])
+        par["weights"][-3:] *= 2
+        par["weights"][4:7] *= 2
+        par["weights"][7:10] /= 2
+        
     def rescale(self, x):
         """Rescale the unknowns with the scaling factors.
 
@@ -82,7 +87,7 @@ class Model(BaseModel):
         gradients = []
         for grad_fun in self.gradients:
             gradients.append(grad_fun(x, self.uk_scale, self.omega)*
-                             np.ones((1,self.NScan)+x.shape[1:]))    
+                             np.ones((self.NScan,)+x.shape[1:]))    
         gradients = np.array(gradients, dtype=self._DTYPE, order='C')
         
         return gradients*self.dscale
