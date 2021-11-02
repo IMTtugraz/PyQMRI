@@ -1337,7 +1337,7 @@ class PDBaseSolver:
             self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
             np.int32(self.unknowns_H1),
             self._DTYPE_real(1 / (1 + par[0] / par[3])),
-            par[4].data,
+            par[4][4*idx+idxq].data,
             wait_for=(outp.events+inp[0].events+inp[1].events +
                       inp[2].events+inp[3].events+inp[4].events+wait_for))
 
@@ -1378,6 +1378,7 @@ class PDBaseSolver:
             self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
             np.int32(self.unknowns_H1),
             self._DTYPE_real(1 / (1 + par[0] / par[3])),
+            par[4][4*idx+idxq].data,
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
 
@@ -1416,7 +1417,7 @@ class PDBaseSolver:
             self._DTYPE_real(par[0]),
             self._DTYPE_real(par[1]),
             self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
-            self._grad_op.ratio.data,
+            par[3][4*idx+idxq].data,
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
 
@@ -1712,7 +1713,7 @@ class PDSolverTV(PDBaseSolver):
                         in_precomp_fwd_new["gradx"],
                         in_precomp_fwd["gradx"],
                     ),
-                par=(beta*tau, theta, self.alpha, self.omega)
+                par=(beta*tau, theta, self.alpha, self.omega, self._op.ratio)
                 )
             )
 
@@ -1988,7 +1989,7 @@ class PDSolverTGV(PDBaseSolver):
                         in_primal_new["v"],
                         in_primal["v"]
                     ),
-                par=(beta*tau, theta, self.alpha, self.omega, self._grad_op.ratio)
+                par=(beta*tau, theta, self.alpha, self.omega, self._op.ratio)
                 )
             )
         out_dual["z2"].add_event(
@@ -1999,7 +2000,7 @@ class PDSolverTGV(PDBaseSolver):
                         in_precomp_fwd_new["symgradx"],
                         in_precomp_fwd["symgradx"]
                     ),
-                par=(beta*tau, theta, self.beta)))
+                par=(beta*tau, theta, self.beta, self._op.ratio)))
         out_dual["r"].add_event(
             self.update_r(
                 outp=out_dual["r"],

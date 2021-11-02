@@ -108,7 +108,14 @@ class Operator(ABC):
                                self.dimY, 
                                self.dimX)
         self._overlap = 0
-
+        self.ratio = []
+        for j in range(self.num_dev):
+            self.ratio.append(
+                clarray.to_device(
+                    self.queue[4*j],
+                    (par["weights"]).astype(
+                        dtype=self.DTYPE_real)))
+            
     @abstractmethod
     def fwd(self, out, inp, **kwargs):
         """Forward operator application in-place.

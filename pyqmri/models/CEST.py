@@ -46,9 +46,11 @@ class Model(BaseModel):
             self.uk_scale.append(1)
             
         par["weights"] = np.array([1e3/self.unknowns]*self.unknowns,dtype=par["DTYPE_real"])
-        par["weights"][-3:] *= 2
-        par["weights"][4:7] *= 2
-        par["weights"][7:10] /= 2
+        par["weights"][5] /= 4
+        par["weights"][8:10] /= 10
+        par["weights"][11] /= 50
+        par["weights"][12] /= 4
+        par["weights"][-2] /= 2
         
     def rescale(self, x):
         """Rescale the unknowns with the scaling factors.

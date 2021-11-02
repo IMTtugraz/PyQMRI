@@ -266,6 +266,7 @@ class IRGNOptimizer:
         self._gamma = self.irgn_par["gamma"]
         self._delta = self.irgn_par["delta"]
         self._omega = self.irgn_par["omega"]
+        self.lambd = self.irgn_par["lambd"]
 
         iters = self.irgn_par["start_iters"]
         result = np.copy(self._model.guess)
@@ -279,8 +280,6 @@ class IRGNOptimizer:
             data = np.require(
                 np.transpose(data, self._data_trans_axes),
                 requirements='C')
-
-        if self._streamed:
             if self._SMS is False:
                 self._step_val = np.require(
                     np.swapaxes(self._step_val, 0, 1), requirements='C')
@@ -297,16 +296,18 @@ class IRGNOptimizer:
                 self._model.execute_forward(result))
                 
             # Precond only for image data!!!!
-            # if ign > 2:
-            self._balanceModelGradients(result, ign)
-            data = self.applyPrecond(data_save)
-            self._step_val = self.applyPrecond(self._step_val)
-            self._data_shape = data.shape
-            self._MRI_operator._tmp_result = clarray.zeros(
-                self._MRI_operator.queue, self._data_shape,
-                self._MRI_operator.DTYPE, "C")
-            self._MRI_operator._out_shape_fwd = data.shape
-            self._MRI_operator.NScan = data.shape[0]
+            if ign >= 0:
+                self._balanceModelGradients(result, ign)
+                data = self.applyPrecond(data_save)
+                self._step_val = self.applyPrecond(self._step_val)
+                self._data_shape = data.shape
+                self._MRI_operator._tmp_result = clarray.zeros(
+                    self._MRI_operator.queue, self._data_shape,
+                    self._MRI_operator.DTYPE, "C")
+                self._MRI_operator._out_shape_fwd = data.shape
+                self._MRI_operator.NScan = data.shape[0]
+            else:
+                self._balanceModelGradientsNorm(result, ign)
             
             self._updateIRGNRegPar(ign)
             self._pdop._grad_op.updateRatio(
@@ -372,10 +373,10 @@ class IRGNOptimizer:
         self.irgn_par["delta"] = np.maximum(
             self._delta
             * self.irgn_par["delta_dec"]**ign,
-            self.irgn_par["delta_min"])*self.irgn_par["lambd"] 
+            self.irgn_par["delta_min"])*self.irgn_par["lambd"]
         self.irgn_par["gamma"] = np.maximum(
             self._gamma * self.irgn_par["gamma_dec"]**ign,
-            self.irgn_par["gamma_min"])/self.irgn_par["lambd"] 
+            self.irgn_par["gamma_min"])/self.irgn_par["lambd"]
         self.irgn_par["omega"] = np.maximum(
             self._omega * self.irgn_par["omega_dec"]**ign,
             self.irgn_par["omega_min"])/self.irgn_par["lambd"]
@@ -405,6 +406,7 @@ class IRGNOptimizer:
             maxval = np.maximum(maxval, np.max(np.abs(einv*self.E[j])))
             self.E[j] = einv
             
+        # self.irgn_par["lambd"] = self.lambd/np.quantile(np.abs(self.E),0.6)**2
         print("Maximum Eigenvalue: ", maxval)
             
         self.U = np.require(np.transpose(self.U, (2,1,0)), requirements='C')
@@ -420,6 +422,26 @@ class IRGNOptimizer:
         for j in range(tmp_step_val.shape[0]):
             precond_stepval[j] = np.diag(self.E[j])@(self.V[j]@tmp_step_val[j])
         return np.require(precond_stepval.T.reshape(self.k, *inp.shape[1:]), requirements='C', dtype=self.par["DTYPE"])
+    
+    def _balanceModelGradientsNorm(self, result, ign):
+        scale = self._modelgrad.reshape(self.par["unknowns"], -1)
+        scale = np.linalg.norm(scale, axis=-1)
+        print("Initial Norm: ", np.linalg.norm(scale))
+        print("Initial Ratio: ", scale)
+        scale /= 1e2/np.sqrt(self.par["unknowns"])
+        scale = 1/scale
+        scale[~np.isfinite(scale)] = 1e2/np.sqrt(self.par["unknowns"])
+        for uk in range(self.par["unknowns"]):
+            self._model.constraints[uk].update(scale[uk])
+            result[uk, ...] *= self._model.uk_scale[uk]
+            self._modelgrad[uk] /= self._model.uk_scale[uk]
+            self._model.uk_scale[uk] *= scale[uk]
+            result[uk, ...] /= self._model.uk_scale[uk]
+            self._modelgrad[uk] *= self._model.uk_scale[uk]
+        scale = self._modelgrad.reshape(self.par["unknowns"], -1)
+        scale = np.linalg.norm(scale, axis=-1)
+        print("Norm after rescale: ", np.linalg.norm(scale))
+        print("Ratio after rescale: ", np.abs(scale))
 
 
 ###############################################################################
