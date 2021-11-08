@@ -612,6 +612,12 @@ class OperatorImagespace(Operator):
             wait_for = kwargs["wait_for"]
         else:
             wait_for = []
+        if self.tmp_grad_array is None:
+            self.tmp_grad_array = clarray.zeros_like(inp[0])
+        self.prg.squarematvecmult(self.queue, inp[0].shape[1:], None,
+            self.tmp_grad_array.data, self.ratio.data, inp[0].data, np.int32(self.unknowns),
+            wait_for=self.tmp_grad_array.events + inp[0].events + inp.events + wait_for)
+        
         return self.prg.update_Kyk1_imagespace(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data, inp[0].data, inp[3].data, inp[1].data,
@@ -2121,12 +2127,14 @@ class OperatorFiniteGradient(Operator):
         super().__init__(par, prg, DTYPE, DTYPE_real)
         self.queue = self.queue[0]
         self.ctx = self.ctx[0]
-        self._weights = par["weights"]
+        # self._weights = par["weights"]
         # self._weights /= np.sum(self._weights)
-        self.ratio = clarray.to_device(
-            self.queue,
-            (self._weights).astype(
-                     dtype=self.DTYPE_real))
+        self.ratio = None
+        # clarray.to_device(
+        #     self.queue,
+        #     (self._weights).astype(
+        #              dtype=self.DTYPE_real))
+        self.tmp_grad_array = None
 
     def fwd(self, out, inp, **kwargs):
         """Forward operator application in-place.
@@ -2154,11 +2162,18 @@ class OperatorFiniteGradient(Operator):
             wait_for = kwargs["wait_for"]
         else:
             wait_for = []
+            
+        if self.tmp_grad_array is None:
+            self.tmp_grad_array = clarray.zeros_like(inp)
+        self.prg.squarematvecmult(self.queue, inp.shape[1:], None,
+            self.tmp_grad_array.data, self.ratio.data, inp.data, np.int32(self.unknowns),
+            wait_for=self.tmp_grad_array.events + inp.events + wait_for)
+            
         return self.prg.gradient(
-            self.queue, inp.shape[1:], None, out.data, inp.data,
+            self.queue, inp.shape[1:], None, out.data, self.tmp_grad_array.data,
             np.int32(self.unknowns),
             self.ratio.data, self.DTYPE_real(self._dz),
-            wait_for=out.events + inp.events + wait_for)
+            wait_for=out.events + self.tmp_grad_array.events + wait_for)
 
     def fwdoop(self, inp, **kwargs):
         """Forward operator application out-of-place.
@@ -2189,11 +2204,17 @@ class OperatorFiniteGradient(Operator):
             self.queue, (self.unknowns,
                          self.NSlice, self.dimY, self.dimX, 4),
             self.DTYPE, "C")
+        if self.tmp_grad_array is None:
+            self.tmp_grad_array = clarray.zeros_like(inp)
+        self.prg.squarematvecmult(self.queue, inp.shape[1:], None,
+            self.tmp_grad_array.data, self.ratio.data, inp.data, np.int32(self.unknowns),
+            wait_for=self.tmp_grad_array.events + tmp_result.events + inp.events + wait_for)
+        
         self.prg.gradient(
-            self.queue, inp.shape[1:], None, tmp_result.data, inp.data,
+            self.queue, inp.shape[1:], None, tmp_result.data, self.tmp_grad_array.data,
             np.int32(self.unknowns),
             self.ratio.data, self.DTYPE_real(self._dz),
-            wait_for=tmp_result.events + inp.events + wait_for).wait()
+            wait_for=tmp_result.events + self.tmp_grad_array.events + wait_for).wait()
         return tmp_result
 
     def adj(self, out, inp, **kwargs):
@@ -2221,11 +2242,17 @@ class OperatorFiniteGradient(Operator):
             wait_for = kwargs["wait_for"]
         else:
             wait_for = []
-        return self.prg.divergence(
-            self.queue, inp.shape[1:-1], None, out.data, inp.data,
-            np.int32(self.unknowns), self.ratio.data,
-            self.DTYPE_real(self._dz),
-            wait_for=out.events + inp.events + wait_for)
+        if self.tmp_grad_array is None:
+            self.tmp_grad_array = clarray.zeros_like(out)
+        self.prg.divergence(
+                    self.queue, inp.shape[1:-1], None, self.tmp_grad_array.data, inp.data,
+                    np.int32(self.unknowns), self.ratioT.data,
+                    self.DTYPE_real(self._dz),
+                    wait_for=self.tmp_grad_array.events + inp.events + wait_for)
+            
+        return self.prg.squarematvecmult(self.queue, inp.shape[1:-1], None,
+            out.data, self.ratioT.data, self.tmp_grad_array.data, np.int32(self.unknowns),
+            wait_for=self.tmp_grad_array.events + out.events + wait_for)
 
     def adjoop(self, inp, **kwargs):
         """Adjoint operator application out-of-place.
@@ -2255,21 +2282,31 @@ class OperatorFiniteGradient(Operator):
         tmp_result = clarray.zeros(
             self.queue, (self.unknowns, self.NSlice, self.dimY, self.dimX),
             self.DTYPE, "C")
+        
+        if self.tmp_grad_array is None:
+            self.tmp_grad_array = clarray.zeros_like(tmp_result)
+            
         self.prg.divergence(
-            self.queue, tmp_result.shape[1:], None, tmp_result.data, inp.data,
-            np.int32(self.unknowns),
-            self.ratio.data,
-            self.DTYPE_real(self._dz),
-            wait_for=tmp_result.events + inp.events + wait_for).wait()
+                    self.queue, inp.shape[1:-1], None, self.tmp_grad_array.data, inp.data,
+                    np.int32(self.unknowns), self.ratioT.data,
+                    self.DTYPE_real(self._dz),
+                    wait_for=self.tmp_grad_array.events + inp.events + wait_for).wait()
+            
+        self.prg.squarematvecmult(self.queue, inp.shape[1:-1], None,
+            tmp_result.data, self.ratioT.data, self.tmp_grad_array.data, np.int32(self.unknowns),
+            wait_for=self.tmp_grad_array.events + tmp_result.events + wait_for).wait()
         return tmp_result
 
-    def updateRatio(self, inp, x):
-        pass
-#         inp = np.array(inp)
-#         self.ratio = clarray.to_device(
-#             self.queue,
-#             np.array(inp).astype(
-#                       dtype=self.DTYPE_real))
+    def updateRatio(self, inp):
+        # pass
+        # inp = np.array(inp)
+        self.ratio = clarray.to_device(
+            self.queue,
+            inp)
+        self.ratioT = clarray.to_device(
+            self.queue,
+            np.require(np.conj(np.transpose(inp,(1,0,2))),requirements='C'))
+        
 #         # print("Ratio: ", self.ratio)
 #         x = clarray.to_device(self.queue, x)
 #         grad = clarray.to_device(
@@ -2374,7 +2411,7 @@ class OperatorFiniteSymGradient(Operator):
         super().__init__(par, prg, DTYPE, DTYPE_real)
         self.queue = self.queue[0]
         self.ctx = self.ctx[0]
-        self._weights = par["weights"]
+        self._weights = np.ones_like(par["weights"])
         # self._weights /= np.sum(self._weights)
         self.ratio = clarray.to_device(
             self.queue,
@@ -2521,8 +2558,8 @@ class OperatorFiniteSymGradient(Operator):
         return tmp_result
 
     def updateRatio(self, inp):
-        # pass
-        self.ratio = inp
+        pass
+        # self.ratio = inp
         # clarray.to_device(
         #     self.queue,
         #     (self._weights*inp).astype(

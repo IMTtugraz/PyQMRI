@@ -71,6 +71,16 @@ class GradientTest(unittest.TestCase):
             par, prg,
             DTYPE=DTYPE,
             DTYPE_real=DTYPE_real)
+        
+        
+        self.UTE = (np.random.randn(par["unknowns"],par["unknowns"], par["NSlice"]*par["dimY"]*par["dimX"])
+                    +1j*np.random.randn(par["unknowns"],par["unknowns"], par["NSlice"]*par["dimY"]*par["dimX"])
+                    ).astype(DTYPE)
+        
+        self.grad.updateRatio(np.require(self.UTE
+                                    ,requirements='C'))
+        
+        self.UTE = np.require(self.UTE.T, requirements='C')
 
         self.gradin = np.random.randn(par["unknowns"], par["NSlice"],
                                       par["dimY"], par["dimX"]) +\
@@ -89,16 +99,25 @@ class GradientTest(unittest.TestCase):
         gradx = np.zeros_like(self.gradin)
         grady = np.zeros_like(self.gradin)
         gradz = np.zeros_like(self.gradin)
+        
+        tmp_in = self.gradin
+        tmp_in = tmp_in.reshape(self.gradin.shape[0], -1).T
+        tmp_in = np.require(tmp_in, requirements='C')
+        grad_rot = np.zeros_like(tmp_in)
+        for j in range(tmp_in.shape[0]):
+            grad_rot[j] = self.UTE[j]@tmp_in[j]
 
-        gradx[..., :-1] = np.diff(self.gradin, axis=-1)
-        grady[..., :-1, :] = np.diff(self.gradin, axis=-2)
-        gradz[:, :-1, ...] = np.diff(self.gradin, axis=-3)*self.dz
+        grad_rot = np.require(np.reshape((grad_rot.T),self.gradin.shape), requirements='C')
+
+        gradx[..., :-1] = np.diff(grad_rot, axis=-1)
+        grady[..., :-1, :] = np.diff(grad_rot, axis=-2)
+        gradz[:, :-1, ...] = np.diff(grad_rot, axis=-3)*self.dz
 
         grad = np.stack((gradx,
                          grady,
                          gradz), axis=-1)
         
-        grad *= self.weights[:, None, None, None, None]
+        # grad *= self.weights[:, None, None, None, None]
 
         inp = clarray.to_device(self.queue, self.gradin)
         outp = self.grad.fwdoop(inp)

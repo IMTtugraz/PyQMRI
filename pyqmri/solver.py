@@ -696,6 +696,8 @@ class PDBaseSolver:
         self.min_const = None
         self.max_const = None
         self.real_const = None
+        self.tmp_par_array = None
+        
         self._kernelsize = (par["par_slices"] + par["overlap"], par["dimY"],
                             par["dimX"])
         if self._DTYPE is np.complex64:
@@ -864,7 +866,7 @@ class PDBaseSolver:
                                   )
 
         elif reg_type == 'TGV':
-            L = 1#irgn_par["gamma"]*((0.5 * (18.0 + np.sqrt(33)))**2)
+            L = irgn_par["gamma"]*np.max(par["weights"])*((0.5 * (18.0 + np.sqrt(33)))**2)
             if streamed:
                 if SMS:
                     pdop = PDSolverStreamedTGVSMS(
@@ -943,7 +945,7 @@ class PDBaseSolver:
         # l_max += self.alpha*((0.5 * (18.0 + np.sqrt(33)))**2)
         # print("Estimated L: ", l_max)
         
-        tau = 1#/np.sqrt(np.sqrt(l_max))
+        tau = self.tau#1#/np.sqrt(np.sqrt(l_max))
         tau_new = self._DTYPE_real(0)
 
         theta_line = self.theta_line
@@ -1057,7 +1059,7 @@ class PDBaseSolver:
                         self.model.plot_unknowns(
                             np.swapaxes(primal_vars["x"], 0, 1))
                     else:
-                        self.model.plot_unknowns(primal_vars["x"].get())
+                        self.model.plot_unknowns(self.irgn.removePrecond(primal_vars["x"].get()))
         #     if np.abs(primal[-2] - primal[-1])/primal[1] <\
         #        self.rtol:
         #         print(
@@ -1128,7 +1130,7 @@ class PDBaseSolver:
                 print(
         "Terminated at iteration %d because the energy "
         "decrease in the PD-gap was %.3e which is below the "
-        "relative tolerance of %.3e" 
+        "absolute tolerance of %.3e" 
         % (i+1, np.abs(gap[-1] / gap[1]), self.atol))
                 return primal_vars
             sys.stdout.write(
@@ -1253,18 +1255,41 @@ class PDBaseSolver:
         """
         if wait_for is None:
             wait_for = []
-        return self._prg[idx].update_primal_LM(
-            self._queue[4*idx+idxq],
-            self._kernelsize, None,
-            outp.data, inp[0].data, inp[1].data, inp[2].data, inp[3].data,
-            self._DTYPE_real(par[0]),
-            self._DTYPE_real(par[0]/par[1]),
-            self.min_const[idx].data, self.max_const[idx].data,
-            self.real_const[idx].data, np.int32(self.unknowns),
-            self.ratio[idx].data,
-            wait_for=(outp.events +
-                      inp[0].events+inp[1].events +
-                      inp[2].events+inp[3].events + wait_for))
+            
+        if self.tmp_par_array is None:
+            self.tmp_par_array = clarray.zeros_like(outp)
+            
+        outp.add_event(self._prg[idx].update_primal_LM(
+                    self._queue[4*idx+idxq],
+                    self._kernelsize, None,
+                    outp.data, inp[0].data, inp[1].data, inp[2].data, inp[3].data,
+                    self._DTYPE_real(par[0]),
+                    self._DTYPE_real(par[0]/par[1]),
+                    self.min_const[idx].data, self.max_const[idx].data,
+                    self.real_const[idx].data, np.int32(self.unknowns),
+                    self.ratio[idx].data,
+                    wait_for=(outp.events +
+                              inp[0].events+inp[1].events +
+                              inp[2].events+inp[3].events + wait_for)))
+        
+        self.tmp_par_array.add_event(self._prg[idx].squarematvecmult(self._queue[4*idx+idxq], self._kernelsize, None,
+            self.tmp_par_array.data, self._grad_op.ratio.data, outp.data, 
+            np.int32(self.unknowns),
+            wait_for=self.tmp_par_array.events + outp.events + wait_for))
+        
+        self.tmp_par_array.add_event(self._prg[idx].update_box(
+                    self._queue[4*idx+idxq],
+                    self._kernelsize, None,
+                    self.tmp_par_array.data, self.tmp_par_array.data,
+                    self.min_const[idx].data, self.max_const[idx].data,
+                    self.real_const[idx].data, np.int32(self.unknowns),
+                    wait_for=(self.tmp_par_array.events 
+                              + wait_for)))
+            
+        return self._prg[idx].squarematvecmult(self._queue[4*idx+idxq], self._kernelsize, None,
+            outp.data, self.EU.data, self.tmp_par_array.data, 
+            np.int32(self.unknowns),
+            wait_for=self.tmp_par_array.events + outp.events + wait_for)
 
     def update_v(self, outp, inp, par=None, idx=0, idxq=0,
                  bound_cond=0, wait_for=None):
@@ -1661,17 +1686,22 @@ class PDSolverTV(PDBaseSolver):
     def _updateInitial(self,
                        out_fwd, out_adj,
                        in_primal, in_dual):
-        out_adj["Kyk1"].add_event(
-            self._op.adjKyk1(out_adj["Kyk1"],
-                             [in_dual["r"], in_dual["z1"],
-                              self._coils,
-                              self.modelgrad,
-                              self._grad_op.ratio]))
+        # out_adj["Kyk1"].add_event(
+        #     self._op.adjKyk1(out_adj["Kyk1"],
+        #                      [in_dual["r"], in_dual["z1"],
+        #                       self._coils,
+        #                       self.modelgrad,
+        #                       self._grad_op.ratioT]))
 
         out_fwd["Ax"].add_event(self._op.fwd(
             out_fwd["Ax"], [in_primal["x"], self._coils, self.modelgrad]))
         out_fwd["gradx"].add_event(
             self._grad_op.fwd(out_fwd["gradx"], in_primal["x"]))
+        
+        (self._op.adj(
+            out_adj["Kyk1"], [in_dual["r"], self._coils, self.modelgrad])).wait()
+        
+        out_adj["Kyk1"] = out_adj["Kyk1"] - self._grad_op.adjoop(in_dual["z1"])
 
     def _updatePrimal(self,
                       out_primal, out_fwd,
@@ -1730,13 +1760,17 @@ class PDSolverTV(PDBaseSolver):
                 )
             )
 
-        out_adj["Kyk1"].add_event(
-            self._op.adjKyk1(
-                out_adj["Kyk1"],
-                [out_dual["r"], out_dual["z1"],
-                 self._coils,
-                 self.modelgrad,
-                 self._grad_op.ratio]))
+        # out_adj["Kyk1"].add_event(
+        #     self._op.adjKyk1(
+        #         out_adj["Kyk1"],
+        #         [out_dual["r"], out_dual["z1"],
+        #          self._coils,
+        #          self.modelgrad,
+        #          self._grad_op.ratioT]))
+        
+        (self._op.adj(
+            out_adj["Kyk1"], [out_dual["r"], self._coils, self.modelgrad])).wait()
+        out_adj["Kyk1"] = out_adj["Kyk1"] - self._grad_op.adjoop(out_dual["z1"])
 
         ynorm = (
             (
@@ -1917,12 +1951,12 @@ class PDSolverTGV(PDBaseSolver):
     def _updateInitial(self,
                        out_fwd, out_adj,
                        in_primal, in_dual):
-        out_adj["Kyk1"].add_event(
-            self._op.adjKyk1(out_adj["Kyk1"],
-                             [in_dual["r"], in_dual["z1"],
-                              self._coils,
-                              self.modelgrad,
-                              self._grad_op.ratio]))
+        # out_adj["Kyk1"].add_event(
+        #     self._op.adjKyk1(out_adj["Kyk1"],
+        #                      [in_dual["r"], in_dual["z1"],
+        #                       self._coils,
+        #                       self.modelgrad,
+        #                       self._grad_op.ratioT]))
 
         out_adj["Kyk2"].add_event(
             self.update_Kyk2(
@@ -1936,6 +1970,10 @@ class PDSolverTGV(PDBaseSolver):
             self._grad_op.fwd(out_fwd["gradx"], in_primal["x"]))
         out_fwd["symgradx"].add_event(
             self._symgrad_op.fwd(out_fwd["symgradx"], in_primal["v"]))
+        
+        (self._op.adj(
+            out_adj["Kyk1"], [in_dual["r"], self._coils, self.modelgrad])).wait()
+        out_adj["Kyk1"] = out_adj["Kyk1"] - self._grad_op.adjoop(in_dual["z1"])
 
     def _updatePrimal(self,
                       out_primal, out_fwd,
@@ -2014,17 +2052,21 @@ class PDSolverTGV(PDBaseSolver):
                 )
             )
  
-        out_adj["Kyk1"].add_event(
-            self._op.adjKyk1(
-                out_adj["Kyk1"],
-                [out_dual["r"], out_dual["z1"],
-                 self._coils,
-                 self.modelgrad,
-                 self._grad_op.ratio]))
+        # out_adj["Kyk1"].add_event(
+        #     self._op.adjKyk1(
+        #         out_adj["Kyk1"],
+        #         [out_dual["r"], out_dual["z1"],
+        #          self._coils,
+        #          self.modelgrad,
+        #          self._grad_op.ratioT]))
         out_adj["Kyk2"].add_event(
             self.update_Kyk2(
                 outp=out_adj["Kyk2"],
                 inp=(out_dual["z2"], out_dual["z1"])))
+        
+        (self._op.adj(
+            out_adj["Kyk1"], [out_dual["r"], self._coils, self.modelgrad])).wait()
+        out_adj["Kyk1"] = out_adj["Kyk1"] - self._grad_op.adjoop(out_dual["z1"])
 
         ynorm = (
             self.normkrnldiff(out_dual["r"], in_dual["r"], 

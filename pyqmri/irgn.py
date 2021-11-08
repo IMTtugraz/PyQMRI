@@ -261,8 +261,8 @@ class IRGNOptimizer:
           data : numpy.array
             the data to perform optimization/fitting on.
         """
-        # self.irgn_par["lambd"] *= (
-        #                             (self.par["SNR_est"]))
+        self.const_save = self._model.constraints
+        
         self._gamma = self.irgn_par["gamma"]
         self._delta = self.irgn_par["delta"]
         self._omega = self.irgn_par["omega"]
@@ -284,7 +284,7 @@ class IRGNOptimizer:
                 self._step_val = np.require(
                     np.swapaxes(self._step_val, 0, 1), requirements='C')
                 
-        data_save = data
+        # data_save = data
 
         for ign in range(self.irgn_par["max_gn_it"]):
             start = time.time()
@@ -298,23 +298,29 @@ class IRGNOptimizer:
             # Precond only for image data!!!!
             if ign >= 0:
                 self._balanceModelGradients(result, ign)
-                data = self.applyPrecond(data_save)
-                self._step_val = self.applyPrecond(self._step_val)
-                self._data_shape = data.shape
-                self._MRI_operator._tmp_result = clarray.zeros(
-                    self._MRI_operator.queue, self._data_shape,
-                    self._MRI_operator.DTYPE, "C")
-                self._MRI_operator._out_shape_fwd = data.shape
-                self._MRI_operator.NScan = data.shape[0]
+                # import ipdb
+                # import matplotlib.pyplot as plt
+                # import pyqmri
+                # ipdb.set_trace()
+                result = self.applyPrecond(result)
+                self._pdop.irgn = self
+                # data = self.applyPrecond(data_save)
+                # self._step_val = self.applyPrecond(self._step_val)
+                # self._data_shape = data.shape
+                # self._MRI_operator._tmp_result = clarray.zeros(
+                #     self._MRI_operator.queue, self._data_shape,
+                #     self._MRI_operator.DTYPE, "C")
+                # self._MRI_operator._out_shape_fwd = data.shape
+                # self._MRI_operator.NScan = data.shape[0]
             else:
                 self._balanceModelGradientsNorm(result, ign)
             
             self._updateIRGNRegPar(ign)
-            self._pdop._grad_op.updateRatio(
-                self._model.uk_scale, result)
-            if self._reg_type == 'TGV':
-                self._pdop._symgrad_op.updateRatio(
-                    self._pdop._grad_op.ratio)
+            self._pdop._grad_op.updateRatio(np.require(self.UTE
+                                      ,requirements='C'))
+            # if self._reg_type == 'TGV':
+            #     self._pdop._symgrad_op.updateRatio(
+            #         self._pdop._grad_op.ratio)
 
             if self._streamed:
                 if self._SMS is False:
@@ -345,6 +351,13 @@ class IRGNOptimizer:
             self._pdop.updateRegPar(self.irgn_par)
 
             result = self._irgnSolve3D(result, iters, data, ign)
+            if ign >= 0:
+                result = self.removePrecond(result)
+                # import ipdb
+                # import matplotlib.pyplot as plt
+                # import pyqmri
+                # ipdb.set_trace()
+            
 
             iters = np.fmin(iters * inc, self.irgn_par["max_iters"])
 
@@ -366,7 +379,7 @@ class IRGNOptimizer:
                              self.irgn_par["rtol"]))
                     break
                     
-        self._calcResidual(result, data, ign+1)
+        self._calcResidual(self.applyPrecond(result), data, ign+1)
 
     def _updateIRGNRegPar(self, ign):
 
@@ -390,37 +403,54 @@ class IRGNOptimizer:
         self.U = np.zeros((jacobi.shape[-1],self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
         self.V = np.zeros((jacobi.shape[-1],self._modelgrad.shape[1], self.k), dtype=self.par["DTYPE"])
         self.E = np.zeros((jacobi.shape[-1],self.k), dtype=self.par["DTYPE"])
+        self.UTE = np.zeros((jacobi.shape[-1],self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
+        self.EU = np.zeros((jacobi.shape[-1],self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
         
         jacobi = np.require(jacobi.T, requirements='C')
         
-        cutoff =  1e2
-        maxval = 0
+        # cutoff =  5e2
+        cutoff = 1e3
 
+        maxval = 0
         for j in range(jacobi.shape[0]):
             self.V[j], self.E[j], self.U[j] = spl.svd(jacobi[j], full_matrices=False)
             einv = 1/self.E[j]
             einv[~np.isfinite(einv)] = cutoff*einv[0]
             einv[einv/einv[0] > cutoff] = cutoff*einv[0]
 
-            self.U[j] = np.diag(einv)@np.diag(self.E[j])@self.U[j]
-            maxval = np.maximum(maxval, np.max(np.abs(einv*self.E[j])))
+            self.V[j] = self.V[j]@np.diag(self.E[j])@np.diag(einv)
+            maxval = np.maximum(maxval, np.max((einv*self.E[j])))
             self.E[j] = einv
+            self.UTE[j] = (np.conj(self.U[j].T)@np.diag(einv))
+            self.EU[j] = np.diag(1/einv)@self.U[j]
             
-        # self.irgn_par["lambd"] = self.lambd/np.quantile(np.abs(self.E),0.6)**2
-        print("Maximum Eigenvalue: ", maxval)
+        print("Maximum Eigenvalue: ", maxval.real)
             
-        self.U = np.require(np.transpose(self.U, (2,1,0)), requirements='C')
-        self._modelgrad = self.U.reshape(*self.U.shape[:2],*self._modelgrad.shape[2:])
         
-        self.V = np.require(np.conj(self.V.transpose(0,2,1)), requirements='C')
+        self.V = np.require(np.transpose(self.V, (2,1,0)), requirements='C')
 
+        self._modelgrad = self.V.reshape(*self.V.shape[:2],*self._modelgrad.shape[2:])
         
+        self.U = np.require(self.U, requirements='C')
+        self.UTE = np.require(self.UTE.transpose(1,2,0), requirements='C')
+        self.EU = np.require(self.EU.transpose(1,2,0), requirements='C')
         
+        self._pdop.EU = clarray.to_device(self._pdop._queue[0], self.EU)
+
     def applyPrecond(self, inp):
         tmp_step_val = np.require(inp.reshape(inp.shape[0], -1).T, requirements='C')
         precond_stepval = np.zeros((np.prod(inp.shape[1:]), self.k), dtype=self.par["DTYPE"])
+        
         for j in range(tmp_step_val.shape[0]):
-            precond_stepval[j] = np.diag(self.E[j])@(self.V[j]@tmp_step_val[j])
+            precond_stepval[j] = np.diag(1/self.E[j])@(self.U[j]@tmp_step_val[j])
+                                                 
+        return np.require(precond_stepval.T.reshape(self.k, *inp.shape[1:]), requirements='C', dtype=self.par["DTYPE"])
+    
+    def removePrecond(self, inp):
+        tmp_step_val = np.require(inp.reshape(inp.shape[0], -1).T, requirements='C')
+        precond_stepval = np.zeros((np.prod(inp.shape[1:]), self.k), dtype=self.par["DTYPE"])
+        for j in range(tmp_step_val.shape[0]):
+            precond_stepval[j] = np.conj(self.U[j].T)@(np.diag(self.E[j])@tmp_step_val[j])
         return np.require(precond_stepval.T.reshape(self.k, *inp.shape[1:]), requirements='C', dtype=self.par["DTYPE"])
     
     def _balanceModelGradientsNorm(self, result, ign):
@@ -505,24 +535,23 @@ class IRGNOptimizer:
     def _calcResidual(self, x, data, GN_it):
         if self._streamed:
             b, grad, sym_grad = self._calcFwdGNPartStreamed(x)
-            grad_tv = grad[:, :self.par["unknowns_TGV"]]
-            grad_H1 = grad[:, self.par["unknowns_TGV"]:]
         else:
             b, grad, sym_grad = self._calcFwdGNPartLinear(x)
-            grad_tv = grad[:self.par["unknowns_TGV"]]
-            grad_H1 = grad[self.par["unknowns_TGV"]:]
+        grad_tv = grad[:, :self.par["unknowns_TGV"]]*self.par["weights"][:,None,None,None,None]
+        grad_H1 = grad[:, self.par["unknowns_TGV"]:]
+
         del grad
         self._datacost = self.irgn_par["lambd"] / 2 * np.linalg.norm(data - b)**2
 #        self._L2Cost = np.linalg.norm(x)/(2.0*self.irgn_par["delta"])
 
         if self._reg_type == 'TV':
             self._regcost = self.irgn_par["gamma"] * \
-                np.sum(np.abs(grad_tv))
+                np.sum(np.abs(np.linalg.norm(grad_tv, axis=0)))
         elif self._reg_type == 'TGV':
             self._regcost = self.irgn_par["gamma"] * np.sum(
-                  np.abs(grad_tv -
-                         self._v)) + self.irgn_par["gamma"] * 2 * np.sum(
-                             np.abs(sym_grad))
+                  np.abs(np.linalg.norm(grad_tv -
+                         self._v, axis=0))) + self.irgn_par["gamma"] * 2 * np.sum(
+                             np.abs(np.linalg.norm(sym_grad, axis=0)))
             del sym_grad
         else:
             self.regcost = self.irgn_par["gamma"]/2 * \
