@@ -7,7 +7,7 @@ Created on Tue Mar 30 17:22:09 2021
 """
 from pyqmri.models.template import BaseModel, constraints
 import numpy as np
-from sympy import symbols, diff, lambdify, exp
+from sympy import symbols, diff, lambdify
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
@@ -45,6 +45,22 @@ class Model(BaseModel):
         for j in range(par["unknowns"]):
             self.uk_scale.append(1)
             
+        par["weights"] = np.array([1e3/self.unknowns]*self.unknowns,dtype=par["DTYPE_real"])
+        # # par["weights"] = np.linspace(1, 1, self.amount_pools*3 + 1).astype(par["DTYPE_real"])
+        # # par["weights"][4:7] *= 4
+        # # par["weights"][5:7] /= 30
+        # par["weights"][4] *= 10
+        # par["weights"][5] /= 5
+        # # par["weights"][6] *= 2
+        # par["weights"][7:9] /= 1e2
+        # par["weights"][11] /= 1e2
+        # par["weights"][12] /= 10
+        # # par["weights"][-3:-1] *= 6
+        # par["weights"][-3] *= 10
+        # par["weights"][-2] /= 4
+        # par["weights"][-1] *= 10
+        
+        
     def rescale(self, x):
         """Rescale the unknowns with the scaling factors.
 
@@ -82,7 +98,7 @@ class Model(BaseModel):
         gradients = []
         for grad_fun in self.gradients:
             gradients.append(grad_fun(x, self.uk_scale, self.omega)*
-                             np.ones((1,self.NScan)+x.shape[1:]))    
+                             np.ones((self.NScan,)+x.shape[1:]))    
         gradients = np.array(gradients, dtype=self._DTYPE, order='C')
         
         return gradients*self.dscale
@@ -274,8 +290,8 @@ class Model(BaseModel):
 
         images = np.abs(self._execute_forward_3D(x) / self.dscale)
         
-        tmp_x[0] = np.abs(tmp_x[0])
-        tmp_x[2::3] = np.abs(tmp_x[2::3])
+        # tmp_x[0] = np.abs(tmp_x[0])
+        # tmp_x[2::3] = np.abs(tmp_x[2::3])
         tmp_x = np.real(tmp_x)
 
         if dim_2D:

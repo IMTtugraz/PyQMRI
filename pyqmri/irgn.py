@@ -488,12 +488,10 @@ class IRGNOptimizer:
     def _calcResidual(self, x, data, GN_it):
         if self._streamed:
             b, grad, sym_grad = self._calcFwdGNPartStreamed(x)
-            grad_tv = grad[:, :self.par["unknowns_TGV"]]
-            grad_H1 = grad[:, self.par["unknowns_TGV"]:]
         else:
             b, grad, sym_grad = self._calcFwdGNPartLinear(x)
-            grad_tv = grad[:self.par["unknowns_TGV"]]
-            grad_H1 = grad[self.par["unknowns_TGV"]:]
+        grad_tv = grad[:self.par["unknowns_TGV"]]*self.par["weights"][:,None,None,None,None]
+        grad_H1 = grad[self.par["unknowns_TGV"]:]
         del grad
 
         self._datacost = self.irgn_par["lambd"] / 2 * np.linalg.norm(data - b)**2
@@ -501,12 +499,12 @@ class IRGNOptimizer:
 
         if self._reg_type == 'TV':
             self._regcost = self.irgn_par["gamma"] * \
-                np.sum(np.abs(grad_tv))
+                np.sum(np.abs(np.linalg.norm(grad_tv,axis=0)))
         elif self._reg_type == 'TGV':
             self._regcost = self.irgn_par["gamma"] * np.sum(
-                  np.abs(grad_tv -
-                         self._v)) + self.irgn_par["gamma"] * 2 * np.sum(
-                             np.abs(sym_grad))
+                  np.abs(np.linalg.norm(grad_tv -
+                         self._v, axis=0))) + self.irgn_par["gamma"] * 2 * np.sum(
+                             np.abs(np.linalg.norm(sym_grad, axis=0)))
             del sym_grad
         else:
             self.regcost = self.irgn_par["gamma"]/2 * \

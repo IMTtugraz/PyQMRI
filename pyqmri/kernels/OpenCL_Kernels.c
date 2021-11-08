@@ -34,7 +34,8 @@ __kernel void update_z2(
                 const float sigma,
                 const float theta,
                 const float alphainv,
-                const int NUk
+                const int NUk,
+                __global float* ratio
                 )
 {
     size_t Nx = get_global_size(2), Ny = get_global_size(1);
@@ -92,7 +93,7 @@ __kernel void update_z2(
     i = k*Nx*Ny+Nx*y + x;
     for (int uk=0; uk<NUk; uk++)
     {
-        if (fac > 1.0f) z_new[i] /=fac;
+        if (fac/ratio[uk] > 1.0f) z_new[i] /= fac/ratio[uk];
         i += NSl*Nx*Ny;
     }
 }
@@ -110,7 +111,8 @@ __kernel void update_z1(
                 const float alphainv,
                 const int NUk_tgv,
                 const int NUk_H1,
-                const float h1inv
+                const float h1inv,
+                __global float* ratio
                 )
 {
     size_t Nx = get_global_size(2), Ny = get_global_size(1);
@@ -151,7 +153,7 @@ __kernel void update_z1(
     i = k*Nx*Ny+Nx*y + x;
     for (int uk=0; uk<NUk_tgv; uk++)
     {
-        if (fac > 1.0f) z_new[i] /= fac;
+        if (fac/ratio[uk] > 1.0f) z_new[i] /= fac/ratio[uk];
         i += NSl*Nx*Ny;
     }
     i = NSl*Nx*Ny*NUk_tgv+k*Nx*Ny+Nx*y + x;
@@ -169,7 +171,8 @@ __kernel void update_z1_tv(
                 __global float8 *gx,
                 __global float8 *gx_,
                 const float sigma, const float theta, const float alphainv,
-                const int NUk_tgv, const int NUk_H1, const float h1inv
+                const int NUk_tgv, const int NUk_H1, const float h1inv,
+                __global float* ratio
                 )
 {
     size_t Nx = get_global_size(2), Ny = get_global_size(1);
@@ -213,7 +216,7 @@ __kernel void update_z1_tv(
     i = k*Nx*Ny+Nx*y + x;
     for (int uk=0; uk<NUk_tgv; uk++)
     {
-        if (fac > 1.0f){z_new[i] /= fac;}
+        if (fac/ratio[uk] > 1.0f) z_new[i] /= fac/ratio[uk];
         i += NSl*Nx*Ny;
     }
     i = NSl*Nx*Ny*NUk_tgv+k*Nx*Ny+Nx*y + x;
@@ -361,7 +364,7 @@ __kernel void update_primal_LM(
 
     for (int uk=0; uk<NUk; uk++)
     {
-        u_new[i] = (u[i]-tau*Kyk[i]+ratio[uk]*tauinv*A[i]*u_k[i])/(1+ratio[uk]*tauinv*A[i]);
+        u_new[i] = (u[i]-tau*Kyk[i]+tauinv*A[i]*u_k[i])/(1+tauinv*A[i]);
 
         if(real[uk]>=1)
         {

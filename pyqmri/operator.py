@@ -108,6 +108,10 @@ class Operator(ABC):
                                self.dimY, 
                                self.dimX)
         self._overlap = 0
+        self.ratio = clarray.to_device(
+            self.queue[0],
+            (par["weights"]).astype(
+                     dtype=self.DTYPE_real))
 
     @abstractmethod
     def fwd(self, out, inp, **kwargs):
@@ -2114,7 +2118,7 @@ class OperatorFiniteGradient(Operator):
         super().__init__(par, prg, DTYPE, DTYPE_real)
         self.queue = self.queue[0]
         self.ctx = self.ctx[0]
-        self._weights = par["weights"]
+        self._weights = np.ones_like(par["weights"])
         # self._weights /= np.sum(self._weights)
         self.ratio = clarray.to_device(
             self.queue,
@@ -2257,7 +2261,7 @@ class OperatorFiniteGradient(Operator):
         return tmp_result
 
     def updateRatio(self, inp, x):
-        inp = np.array(inp)
+        # inp = np.array(inp)
         self.ratio = clarray.to_device(
             self.queue,
             np.array(inp).astype(
@@ -2294,42 +2298,42 @@ class OperatorFiniteGradient(Operator):
         #             self.dimY *
         #             self.dimX * 4))
         # print("Total Norm of grad x pre: ", np.sum(np.abs(grad)))
-        tmp = np.abs(x.reshape(self.unknowns,-1)*inp[:,None])
-        gradnorm = (np.quantile(tmp, 0.9, axis=-1))#-np.quantile(tmp, 0.1, axis=-1))
-        if np.allclose(gradnorm, 0, atol=1e-6):
-            gradnorm = (np.quantile(tmp, 0.9, axis=-1))
-        print("Norm of grad x pre: ", gradnorm)
-        # gradnorm /= np.sum(gradnorm)#/self.unknowns
-        # gradnorm[gradnorm<1e-2] = 1e-2
-        scale = 1e3/gradnorm
-        scale[~np.isfinite(scale)] = 1e3
-        # print("Scale: ", scale)
-        for j in range(x.shape[0])[:self.unknowns_TGV]:
-            self.ratio[j] *= scale[j] * self._weights[j]
-#        sum_scale = np.sqrt(np.sum(np.abs(
-#            scale[self.unknowns_TGV:])**2/(1000)))
-        for j in range(x.shape[0])[self.unknowns_TGV:]:
-            self.ratio[j] *= scale[j] * self._weights[j]
-        # print("Ratio: ", self.ratio)
-        # x = clarray.to_device(self.queue, x)
-        # grad = clarray.to_device(
-        #     self.queue, np.zeros(x.shape + (4,),
-        #                           dtype=self.DTYPE))
-        # grad.add_event(
-        #     self.fwd(
-        #         grad,
-        #         x,
-        #         wait_for=grad.events +
-        #         x.events))
-        # x = x.get()
-        # grad = grad.get()
-        # grad = np.reshape(
-        #     grad, (self.unknowns,
-        #             self.NSlice *
-        #             self.dimY *
-        #             self.dimX * 4))
-        gradnorm = (np.quantile(np.abs(x.reshape(self.unknowns,-1)*self.ratio.get()[:,None]), 0.9, axis=-1))
-        print("Norm of grad x post: ",  gradnorm)
+#         tmp = np.abs(x.reshape(self.unknowns,-1)*inp[:,None])
+#         gradnorm = (np.quantile(tmp, 0.9, axis=-1))#-np.quantile(tmp, 0.1, axis=-1))
+#         if np.allclose(gradnorm, 0, atol=1e-6):
+#             gradnorm = (np.quantile(tmp, 0.9, axis=-1))
+#         print("Norm of grad x pre: ", gradnorm)
+#         # gradnorm /= np.sum(gradnorm)#/self.unknowns
+#         # gradnorm[gradnorm<1e-2] = 1e-2
+#         scale = 1e3/gradnorm
+#         scale[~np.isfinite(scale)] = 1e3
+#         # print("Scale: ", scale)
+#         for j in range(x.shape[0])[:self.unknowns_TGV]:
+#             self.ratio[j] *= scale[j] * self._weights[j]
+# #        sum_scale = np.sqrt(np.sum(np.abs(
+# #            scale[self.unknowns_TGV:])**2/(1000)))
+#         for j in range(x.shape[0])[self.unknowns_TGV:]:
+#             self.ratio[j] *= scale[j] * self._weights[j]
+#         # print("Ratio: ", self.ratio)
+#         # x = clarray.to_device(self.queue, x)
+#         # grad = clarray.to_device(
+#         #     self.queue, np.zeros(x.shape + (4,),
+#         #                           dtype=self.DTYPE))
+#         # grad.add_event(
+#         #     self.fwd(
+#         #         grad,
+#         #         x,
+#         #         wait_for=grad.events +
+#         #         x.events))
+#         # x = x.get()
+#         # grad = grad.get()
+#         # grad = np.reshape(
+#         #     grad, (self.unknowns,
+#         #             self.NSlice *
+#         #             self.dimY *
+#         #             self.dimX * 4))
+#         gradnorm = (np.quantile(np.abs(x.reshape(self.unknowns,-1)*self.ratio.get()[:,None]), 0.9, axis=-1))
+#         print("Norm of grad x post: ",  gradnorm)
         # print("Total Norm of grad x post: ",  np.sum(np.abs(grad)))
 
 
