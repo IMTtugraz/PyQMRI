@@ -298,29 +298,14 @@ class IRGNOptimizer:
             # Precond only for image data!!!!
             if ign >= 0:
                 self._balanceModelGradients(result, ign)
-                # import ipdb
-                # import matplotlib.pyplot as plt
-                # import pyqmri
-                # ipdb.set_trace()
                 result = self.applyPrecond(result)
                 self._pdop.irgn = self
-                # data = self.applyPrecond(data_save)
-                # self._step_val = self.applyPrecond(self._step_val)
-                # self._data_shape = data.shape
-                # self._MRI_operator._tmp_result = clarray.zeros(
-                #     self._MRI_operator.queue, self._data_shape,
-                #     self._MRI_operator.DTYPE, "C")
-                # self._MRI_operator._out_shape_fwd = data.shape
-                # self._MRI_operator.NScan = data.shape[0]
             else:
                 self._balanceModelGradientsNorm(result, ign)
             
             self._updateIRGNRegPar(ign)
             self._pdop._grad_op.updateRatio(np.require(self.UTE
                                       ,requirements='C'))
-            # if self._reg_type == 'TGV':
-            #     self._pdop._symgrad_op.updateRatio(
-            #         self._pdop._grad_op.ratio)
 
             if self._streamed:
                 if self._SMS is False:
@@ -331,9 +316,6 @@ class IRGNOptimizer:
                     requirements='C')
                 self._pdop.model = self._model
                 self._pdop.modelgrad = self._modelgrad
-                self._pdop.jacobi = np.sum(
-                    np.abs(self._modelgrad)**2, 2).astype(self._DTYPE_real)
-                self._pdop.jacobi[self._pdop.jacobi == 0] = 1e-8
             else:
                 _jacobi = np.sum(
                     np.abs(
@@ -344,20 +326,12 @@ class IRGNOptimizer:
                     self._modelgrad)
                 self._pdop.model = self._model
                 self._pdop.modelgrad = self._modelgrad
-                self._pdop.jacobi = clarray.to_device(
-                    self._queue[0],
-                    _jacobi*0+1)
 
             self._pdop.updateRegPar(self.irgn_par)
 
             result = self._irgnSolve3D(result, iters, data, ign)
             if ign >= 0:
                 result = self.removePrecond(result)
-                # import ipdb
-                # import matplotlib.pyplot as plt
-                # import pyqmri
-                # ipdb.set_trace()
-            
 
             iters = np.fmin(iters * inc, self.irgn_par["max_iters"])
 
@@ -408,8 +382,8 @@ class IRGNOptimizer:
         
         jacobi = np.require(jacobi.T, requirements='C')
         
-        # cutoff =  5e2
-        cutoff = 1e3
+        cutoff =  5e2
+        # cutoff = np.inf
 
         maxval = 0
         for j in range(jacobi.shape[0]):

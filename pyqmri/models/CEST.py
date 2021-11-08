@@ -45,19 +45,20 @@ class Model(BaseModel):
         for j in range(par["unknowns"]):
             self.uk_scale.append(1)
             
-        par["weights"] = np.array([1e3/self.unknowns]*self.unknowns,dtype=par["DTYPE_real"])
+        par["weights"] = np.array([1]*self.unknowns,dtype=par["DTYPE_real"])
         # # par["weights"] = np.linspace(1, 1, self.amount_pools*3 + 1).astype(par["DTYPE_real"])
         # # par["weights"][4:7] *= 4
         # # par["weights"][5:7] /= 30
-        # par["weights"][4] *= 10
-        # par["weights"][5] /= 5
-        # # par["weights"][6] *= 2
+        # par["weights"][4] *= 5
+        par["weights"][5] /= 10
+        par["weights"][7] /= 10
+        par["weights"][8] /= 10
         # par["weights"][7:9] /= 1e2
-        par["weights"][11] /= 1e2
-        par["weights"][12] /= 10
+        par["weights"][11] /= 100
+        # par["weights"][12] /= 300
         # # par["weights"][-3:-1] *= 6
         # par["weights"][-3] *= 10
-        # par["weights"][-2] /= 4
+        # par["weights"][-2] /= 10
         # par["weights"][-1] *= 10
         
         

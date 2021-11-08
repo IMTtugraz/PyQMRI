@@ -3,13 +3,11 @@ inline float2 cmult(float2 a, float2 b)
     return (float2)(a.x*b.x-a.y*b.y, a.x*b.y+a.y*b.x);
 }
 
-inline float8 cmultvec(float8 a, float2 b)
+inline float2 cmult_conj(float2 a, float2 b)
 {
-    return (float8)(a.s0*b.x-a.s1*b.y, a.s0*b.y+a.s1*b.x,
-    a.s2*b.x-a.s3*b.y, a.s2*b.y+a.s3*b.x,
-    a.s4*b.x-a.s5*b.y, a.s4*b.y+a.s5*b.x,
-    0.0f, 0.0f);
+    return (float2)(a.x*b.x+a.y*b.y, -a.x*b.y+a.y*b.x);
 }
+
 
 __kernel void squarematvecmult(__global float2* outvec,
                          __global float2* mat,
@@ -35,6 +33,36 @@ __kernel void squarematvecmult(__global float2* outvec,
             outvec[ind_vec_out] += cmult(invec[ind_vec_in], mat[ind_mat]);
             ind_vec_in += NSl*Nx*Ny;
             ind_mat += NSl*Nx*Ny;
+        }
+        ind_vec_out += NSl*Nx*Ny;
+    }
+}
+
+__kernel void squarematvecmult_conj(__global float2* outvec,
+                         __global float2* mat,
+                         __global float2* invec,
+                         const int vecdim
+                         )
+{
+    size_t Nx = get_global_size(2), Ny = get_global_size(1);
+    size_t NSl = get_global_size(0);
+    size_t x = get_global_id(2), y = get_global_id(1);
+    size_t k = get_global_id(0);
+    
+    size_t ind_vec_out = k*Nx*Ny+Nx*y + x;
+    size_t ind_vec_in = k*Nx*Ny+Nx*y + x;
+    size_t ind_mat = k*Nx*Ny+Nx*y + x;
+    
+    for (int dim_x=0; dim_x<vecdim; dim_x++)
+    {
+        outvec[ind_vec_out] = 0.0f;
+        ind_vec_in = k*Nx*Ny+Nx*y + x;
+        ind_mat = ind_vec_out;
+        for (int dim_y=0; dim_y<vecdim; dim_y++)
+        {
+            outvec[ind_vec_out] += cmult_conj(invec[ind_vec_in], mat[ind_mat]);
+            ind_vec_in += NSl*Nx*Ny;
+            ind_mat += vecdim*NSl*Nx*Ny;
         }
         ind_vec_out += NSl*Nx*Ny;
     }
@@ -127,7 +155,7 @@ __kernel void update_z2(
                   z_new[i].sb
                   )
               )
-            )
+            )/ratio[uk]
           );
         i += NSl*Nx*Ny;
     }
@@ -135,7 +163,7 @@ __kernel void update_z2(
     i = k*Nx*Ny+Nx*y + x;
     for (int uk=0; uk<NUk; uk++)
     {
-        if (fac/ratio[uk] > 1.0f) z_new[i] /= fac/ratio[uk];
+        if (fac > 1.0f) z_new[i] /= fac;
         i += NSl*Nx*Ny;
     }
 }
@@ -187,7 +215,7 @@ __kernel void update_z1(
             z_new[i].s5
             )
           )
-        )
+        )/ratio[uk]
        );
        i += NSl*Nx*Ny;
     }
@@ -195,7 +223,7 @@ __kernel void update_z1(
     i = k*Nx*Ny+Nx*y + x;
     for (int uk=0; uk<NUk_tgv; uk++)
     {
-        if (fac/ratio[uk] > 1.0f) z_new[i] /= fac/ratio[uk];
+        if (fac > 1.0f) z_new[i] /= fac;
         i += NSl*Nx*Ny;
     }
     i = NSl*Nx*Ny*NUk_tgv+k*Nx*Ny+Nx*y + x;
@@ -249,7 +277,7 @@ __kernel void update_z1_tv(
               z_new[i].s5
               )
             )
-          )
+          )/ratio[uk]
         );
         i += NSl*Nx*Ny;
     }
@@ -258,7 +286,7 @@ __kernel void update_z1_tv(
     i = k*Nx*Ny+Nx*y + x;
     for (int uk=0; uk<NUk_tgv; uk++)
     {
-        if (fac/ratio[uk] > 1.0f){z_new[i] /= fac/ratio[uk];}
+        if (fac > 1.0f){z_new[i] /= fac;}
         i += NSl*Nx*Ny;
     }
     i = NSl*Nx*Ny*NUk_tgv+k*Nx*Ny+Nx*y + x;
@@ -277,7 +305,6 @@ __global float2 *Kyk,
 __global float2 *u_k,
 const float tau,
 const float tauinv,
-const float div,
 __global float* min,
 __global float* max,
 __global int* real, const int NUk
@@ -294,43 +321,42 @@ __global int* real, const int NUk
 
     for (int uk=0; uk<NUk; uk++)
     {
-        u_new[i] = (u[i]-tau*Kyk[i]+tauinv*u_k[i])*div;
-
-        if(real[uk]>=1)
-        {
-            u_new[i].s1 = 0.0f;
-            if (u_new[i].s0<min[uk])
-            {
-                u_new[i].s0 = min[uk];
-            }
-            if(u_new[i].s0>max[uk])
-            {
-                u_new[i].s0 = max[uk];
-            }
-        }
-        else
-        {
-            norm =  sqrt(
-              pow(
-                (float)(u_new[i].s0),(float)(2.0))
-              + pow((float)(u_new[i].s1),(float)(2.0)));
-            if (norm<min[uk])
-            {
-                u_new[i].s0 *= 1/norm*min[uk];
-                u_new[i].s1 *= 1/norm*min[uk];
-            }
-            if(norm>max[uk])
-            {
-                u_new[i].s0 *= 1/norm*max[uk];
-                u_new[i].s1 *= 1/norm*max[uk];
-            }
-        }
+        u_new[i] = (u[i]-tau*Kyk[i]+tauinv*u_k[i])/(1+tauinv);
+// 
+//         if(real[uk]>=1)
+//         {
+//             u_new[i].s1 = 0.0f;
+//             if (u_new[i].s0<min[uk])
+//             {
+//                 u_new[i].s0 = min[uk];
+//             }
+//             if(u_new[i].s0>max[uk])
+//             {
+//                 u_new[i].s0 = max[uk];
+//             }
+//         }
+//         else
+//         {
+//             norm =  sqrt(
+//               pow(
+//                 (float)(u_new[i].s0),(float)(2.0))
+//               + pow((float)(u_new[i].s1),(float)(2.0)));
+//             if (norm<min[uk])
+//             {
+//                 u_new[i].s0 *= 1/norm*min[uk];
+//                 u_new[i].s1 *= 1/norm*min[uk];
+//             }
+//             if(norm>max[uk])
+//             {
+//                 u_new[i].s0 *= 1/norm*max[uk];
+//                 u_new[i].s1 *= 1/norm*max[uk];
+//             }
+//         }
         i += NSl*Nx*Ny;
     }
 }
 
 __kernel void update_box(
-__global float2 *u_new,
 __global float2 *u,
 __global float* min,
 __global float* max,
@@ -346,35 +372,33 @@ __global int* real, const int NUk
 
     for (int uk=0; uk<NUk; uk++)
     {
-        u_new[i] = u[i];
-
         if(real[uk]>=1)
         {
-            u_new[i].s1 = 0.0f;
-            if (u_new[i].s0<min[uk])
+            u[i].s1 = 0.0f;
+            if (u[i].s0<min[uk])
             {
-                u_new[i].s0 = min[uk];
+                u[i].s0 = min[uk];
             }
-            if(u_new[i].s0>max[uk])
+            if(u[i].s0>max[uk])
             {
-                u_new[i].s0 = max[uk];
+                u[i].s0 = max[uk];
             }
         }
         else
         {
             norm =  sqrt(
               pow(
-                (float)(u_new[i].s0),(float)(2.0))
-              + pow((float)(u_new[i].s1),(float)(2.0)));
+                (float)(u[i].s0),(float)(2.0))
+              + pow((float)(u[i].s1),(float)(2.0)));
             if (norm<min[uk])
             {
-                u_new[i].s0 *= 1/norm*min[uk];
-                u_new[i].s1 *= 1/norm*min[uk];
+                u[i].s0 *= 1/norm*min[uk];
+                u[i].s1 *= 1/norm*min[uk];
             }
             if(norm>max[uk])
             {
-                u_new[i].s0 *= 1/norm*max[uk];
-                u_new[i].s1 *= 1/norm*max[uk];
+                u[i].s0 *= 1/norm*max[uk];
+                u[i].s1 *= 1/norm*max[uk];
             }
         }
         i += NSl*Nx*Ny;
@@ -445,7 +469,6 @@ __kernel void gradient(
                 __global float8 *grad,
                 __global float2 *u,
                 const int NUk,
-                __global float2* ratio,
                 const float dz
                 )
 {
@@ -495,7 +518,6 @@ __kernel void sym_grad(
                 __global float16 *sym,
                 __global float8 *w,
                 const int NUk,
-                __global float* ratio,
                 const float dz
                 )
 {
@@ -559,8 +581,6 @@ __kernel void sym_grad(
           0.5f*(val_real.s5 + val_real.s7*dz),
           0.5f*(val_imag.s5 + val_imag.s7*dz),
           0.0f,0.0f,0.0f,0.0f);
-        // scale gradients
-//         sym[i]*=ratio[uk];
         i += NSl*Nx*Ny;
     }
 }
@@ -570,7 +590,6 @@ __kernel void divergence(
                 __global float2 *div,
                 __global float8 *p,
                 const int NUk,
-                __global float2* ratio,
                 const float dz
                 )
 {
@@ -629,7 +648,6 @@ __kernel void divergence(
         }
         div[i] = val.s01+val.s23+val.s45*dz;
         // scale gradients
-//         div[i]*=ratio[ukn];
         i += NSl*Nx*Ny;
     }
 }
@@ -639,7 +657,6 @@ __kernel void sym_divergence(
                 __global float8 *w,
                 __global float16 *q,
                 const int NUk,
-                __global float* ratio,
                 const float dz
                 )
 {
@@ -710,8 +727,7 @@ __kernel void sym_divergence(
         w[i].s024 = val_real.s012 + val_real.s345 + val_real.s678*dz;
         //imag
         w[i].s135 = val_imag.s012 + val_imag.s345 + val_imag.s678*dz;
-        // scale gradients
-//         w[i]*=ratio[uk];
+
         i += NSl*Nx*Ny;
     }
 }
@@ -722,8 +738,6 @@ __kernel void update_Kyk2(
                 __global float16 *q,
                 __global float8 *z,
                 const int NUk,
-                __global float* gradratio,
-                __global float* symratio,
                 const int first,
                 const float dz
                 )
@@ -802,8 +816,6 @@ __kernel void update_Kyk2(
                     - val_imag.s345
                     - val_imag.s678*dz
                     -z[i].s135;
-        // scale gradients
-//         w[i]*=gradratio[uk];
                     
         i += NSl*Nx*Ny;
     }
