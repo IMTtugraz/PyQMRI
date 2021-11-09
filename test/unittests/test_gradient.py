@@ -74,8 +74,13 @@ class GradientTest(unittest.TestCase):
         
         
         self.UTE = (np.random.randn(par["unknowns"],par["unknowns"], par["NSlice"]*par["dimY"]*par["dimX"])
-                    +1j*np.random.randn(par["unknowns"],par["unknowns"], par["NSlice"]*par["dimY"]*par["dimX"])
-                    ).astype(DTYPE)
+                    +1j*np.random.randn(par["unknowns"],par["unknowns"], par["NSlice"]*par["dimY"]*par["dimX"]))
+        # E = np.random.randn(par["unknowns"],par["unknowns"], par["NSlice"]*par["dimY"]*par["dimX"])
+        # for j in range(self.UTE.shape[-1]):
+        #     self.UTE[..., j] = self.UTE[..., j]@np.diag(E[..., j])
+        self.UTE = self.UTE.astype(DTYPE)
+        
+                    
         
         self.grad.updateRatio(np.require(self.UTE
                                     ,requirements='C'))

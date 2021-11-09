@@ -612,11 +612,6 @@ class OperatorImagespace(Operator):
             wait_for = kwargs["wait_for"]
         else:
             wait_for = []
-        if self.tmp_grad_array is None:
-            self.tmp_grad_array = clarray.zeros_like(inp[0])
-        self.prg.squarematvecmult(self.queue, inp[0].shape[1:], None,
-            self.tmp_grad_array.data, self.ratio.data, inp[0].data, np.int32(self.unknowns),
-            wait_for=self.tmp_grad_array.events + inp[0].events + inp.events + wait_for)
         
         return self.prg.update_Kyk1_imagespace(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
@@ -2201,7 +2196,7 @@ class OperatorFiniteGradient(Operator):
             self.tmp_grad_array = clarray.zeros_like(inp)
         self.prg.squarematvecmult(self.queue, inp.shape[1:], None,
             self.tmp_grad_array.data, self.ratio.data, inp.data, np.int32(self.unknowns),
-            wait_for=self.tmp_grad_array.events + tmp_result.events + inp.events + wait_for)
+            wait_for=self.tmp_grad_array.events + inp.events + wait_for)
         
         self.prg.gradient(
             self.queue, inp.shape[1:], None, tmp_result.data, self.tmp_grad_array.data,
@@ -2291,8 +2286,6 @@ class OperatorFiniteGradient(Operator):
         return tmp_result
 
     def updateRatio(self, inp):
-        # pass
-        # inp = np.array(inp)
         self.ratio = clarray.to_device(
             self.queue,
             inp)
@@ -2469,9 +2462,6 @@ class OperatorFiniteSymGradient(Operator):
             self.DTYPE_real(self._dz),
             wait_for=tmp_result.events + inp.events + wait_for).wait()
         return tmp_result
-
-    def updateRatio(self, inp):
-        pass
 
 class OperatorFiniteGradientStreamed(Operator):
     """Streamed gradient operator.

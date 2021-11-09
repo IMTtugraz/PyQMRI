@@ -304,7 +304,7 @@ class IRGNOptimizer:
                 self._balanceModelGradientsNorm(result, ign)
             
             self._updateIRGNRegPar(ign)
-            self._pdop._grad_op.updateRatio(np.require(self.UTE
+            self._pdop._grad_op.updateRatio(np.require(self.UT
                                       ,requirements='C'))
 
             if self._streamed:
@@ -374,11 +374,12 @@ class IRGNOptimizer:
         
         self.k = np.minimum(*self._modelgrad.shape[:2])
         
-        self.U = np.zeros((jacobi.shape[-1],self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
-        self.V = np.zeros((jacobi.shape[-1],self._modelgrad.shape[1], self.k), dtype=self.par["DTYPE"])
-        self.E = np.zeros((jacobi.shape[-1],self.k), dtype=self.par["DTYPE"])
-        self.UTE = np.zeros((jacobi.shape[-1],self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
-        self.EU = np.zeros((jacobi.shape[-1],self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
+        self.U = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
+        self.V = np.zeros((jacobi.shape[-1], self._modelgrad.shape[1], self.k), dtype=self.par["DTYPE"])
+        self.E = np.zeros((jacobi.shape[-1], self.k), dtype=self.par["DTYPE"])
+        self.UTE = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
+        self.UT = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
+        self.EU = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
         
         jacobi = np.require(jacobi.T, requirements='C')
         
@@ -395,6 +396,7 @@ class IRGNOptimizer:
             self.V[j] = self.V[j]@np.diag(self.E[j])@np.diag(einv)
             maxval = np.maximum(maxval, np.max((einv*self.E[j])))
             self.E[j] = einv
+            self.UT[j] = np.eye(self.k, self.k).astype(self.par["DTYPE"])#np.conj(self.U[j].T)@np.diag(einv)
             self.UTE[j] = (np.conj(self.U[j].T)@np.diag(einv))
             self.EU[j] = np.diag(1/einv)@self.U[j]
             
@@ -407,9 +409,11 @@ class IRGNOptimizer:
         
         self.U = np.require(self.U, requirements='C')
         self.UTE = np.require(self.UTE.transpose(1,2,0), requirements='C')
+        self.UT = np.require(self.UT.transpose(1,2,0), requirements='C')
         self.EU = np.require(self.EU.transpose(1,2,0), requirements='C')
         
         self._pdop.EU = clarray.to_device(self._pdop._queue[0], self.EU)
+        self._pdop.UTE = clarray.to_device(self._pdop._queue[0], self.UTE)
 
     def applyPrecond(self, inp):
         tmp_step_val = np.require(inp.reshape(inp.shape[0], -1).T, requirements='C')

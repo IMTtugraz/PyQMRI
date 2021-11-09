@@ -46,20 +46,20 @@ class Model(BaseModel):
             self.uk_scale.append(1)
             
         par["weights"] = np.array([1]*self.unknowns,dtype=par["DTYPE_real"])
-        # # par["weights"] = np.linspace(1, 1, self.amount_pools*3 + 1).astype(par["DTYPE_real"])
-        # # par["weights"][4:7] *= 4
-        # # par["weights"][5:7] /= 30
-        # par["weights"][4] *= 5
-        par["weights"][5] /= 10
-        par["weights"][7] /= 10
-        par["weights"][8] /= 10
-        # par["weights"][7:9] /= 1e2
-        par["weights"][11] /= 100
-        # par["weights"][12] /= 300
-        # # par["weights"][-3:-1] *= 6
-        # par["weights"][-3] *= 10
-        # par["weights"][-2] /= 10
-        # par["weights"][-1] *= 10
+        # # # par["weights"] = np.linspace(1, 1, self.amount_pools*3 + 1).astype(par["DTYPE_real"])
+        # # # par["weights"][4:7] *= 4
+        # # # par["weights"][5:7] /= 30
+        # # par["weights"][4] *= 5
+        # par["weights"][5] /= 10
+        # par["weights"][7] /= 10
+        # par["weights"][8] /= 10
+        # # par["weights"][7:9] /= 1e2
+        # par["weights"][11] /= 100
+        # # par["weights"][12] /= 300
+        # # # par["weights"][-3:-1] *= 6
+        # # par["weights"][-3] *= 10
+        # # par["weights"][-2] /= 10
+        # # par["weights"][-1] *= 10
         
         
     def rescale(self, x):
@@ -234,7 +234,7 @@ class Model(BaseModel):
                 0.025,0.5,3.5, #APT
                 0.02,3,-3.5, #NOE #mittlerer Wert war 7
                 0.1,25,-4, #MT
-                0.01,1.0,2.2]
+                0.01,1.0,2.2] #APT
             # self.guess = self.popt 
         elif self.amount_pools==6:
             lb = [0,

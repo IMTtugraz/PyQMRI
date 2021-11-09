@@ -1060,26 +1060,6 @@ class PDBaseSolver:
                             np.swapaxes(primal_vars["x"], 0, 1))
                     else:
                         self.model.plot_unknowns(self.irgn.removePrecond(primal_vars["x"].get()))
-        #     if np.abs(primal[-2] - primal[-1])/primal[1] <\
-        #        self.rtol:
-        #         print(
-        # "Terminated at iteration %d because the energy "
-        # "decrease in the primal problem was %.3e which is below the "
-        # "relative tolerance of %.3e" %
-        # (i+1,
-        #  np.abs(primal[-2] - primal[-1])/primal[1],
-        #  self.rtol))
-        #         return primal_vars
-        #     if np.abs(np.abs(dual[-2] - dual[-1])/dual[1]) <\
-        #        self.rtol:
-        #         print(
-        # "Terminated at iteration %d because the energy "
-        # "decrease in the dual problem was %.3e which is below the "
-        # "relative tolerance of %.3e" %
-        # (i+1,
-        #  np.abs(np.abs(dual[-2] - dual[-1])/dual[1]),
-        #  self.rtol))
-        #         return primal_vars
             if (
                 len(gap)>40 and 
                 np.abs(np.mean(gap[-40:-20]) - np.mean(gap[-20:]))
@@ -1098,34 +1078,6 @@ class PDBaseSolver:
         "relative tolerance of %.3e" 
         % (i+1, np.abs((gap[-1] - gap[-2]) / gap[1]), self.rtol))
                 return primal_vars
-            # sys.stdout.write(
-            #     "Iteration: %04d ---- Primal: %2.2e, "
-            #     "Dual: %2.2e, Gap: %2.2e, Beta: %2.2e \r" %
-            #     (i+1, 1000*primal[-1] / gap[1],
-            #      1000*dual[-1] / gap[1],
-            #      1000*gap[-1] / gap[1],
-            #      beta_line))
-            # sys.stdout.flush()
-        #     if np.abs(primal[-1])/primal[1] <\
-        #         self.atol:
-        #         print(
-        # "Terminated at iteration %d because the energy "
-        # "decrease in the primal problem was %.3e which is below the "
-        # "relative tolerance of %.3e" %
-        # (i+1,
-        #   np.abs(primal[-1])/primal[1],
-        #   self.atol))
-        #         return primal_vars
-        #     if np.abs(np.abs(dual[-1])/dual[1]) <\
-        #         self.atol:
-        #         print(
-        # "Terminated at iteration %d because the energy "
-        # "decrease in the dual problem was %.3e which is below the "
-        # "relative tolerance of %.3e" %
-        # (i+1,
-        #   np.abs(np.abs(dual[-1])/dual[1]),
-        #   self.atol))
-        #         return primal_vars
             if np.abs((gap[-1]) / gap[1]) < self.atol:
                 print(
         "Terminated at iteration %d because the energy "
@@ -1133,6 +1085,8 @@ class PDBaseSolver:
         "absolute tolerance of %.3e" 
         % (i+1, np.abs(gap[-1] / gap[1]), self.atol))
                 return primal_vars
+            
+            
             sys.stdout.write(
                 "Iteration: %04d ---- Primal: %2.2e, "
                 "Dual: %2.2e, Gap: %2.2e, Beta: %2.2e \r" %
@@ -1272,7 +1226,7 @@ class PDBaseSolver:
                               inp[2].events+ wait_for)))
         
         self.tmp_par_array.add_event(self._prg[idx].squarematvecmult(self._queue[4*idx+idxq], self._kernelsize, None,
-            self.tmp_par_array.data, self._grad_op.ratio.data, outp.data, 
+            self.tmp_par_array.data, self.UTE.data, outp.data, 
             np.int32(self.unknowns),
             wait_for=self.tmp_par_array.events + outp.events + wait_for))
         
@@ -1798,7 +1752,7 @@ class PDSolverTV(PDBaseSolver):
             ).real
 
         dual = (
-            -self.delta / 2 * self.normkrnldiff(in_precomp_adj["Kyk1"])
+            -self.delta / 2 * self.normkrnl(in_precomp_adj["Kyk1"])
             - clarray.vdot(
                 in_primal["xk"],
                 - in_precomp_adj["Kyk1"]
