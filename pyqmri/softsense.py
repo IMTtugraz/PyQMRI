@@ -16,6 +16,7 @@ from pyqmri.pdsose import SoftSenseOptimizer
 
 # from pyqmri._helper_fun import _utils as utils
 
+
 # def _check_data_shape(myargs, data):
 #     gpyfft_primes = [2, 3, 5, 7, 11, 13]
 #     z, y, x = np.shape(data)[-3:]
@@ -27,6 +28,7 @@ from pyqmri.pdsose import SoftSenseOptimizer
 #             break
 #         else:
 #             reco_slices -= 1
+#
 #
 #     if myargs.reco_slices != reco_slices:
 #         print("Required to reduce number of slices. Reducing slices to %i" %reco_slices)
@@ -66,6 +68,7 @@ def _preprocess_data(myargs, par, kspace, cmaps):
 
     if myargs.type == '3D':
         kspace = np.fft.ifft(kspace, axis=-1, norm='ortho')
+
         kspace = np.require(
             np.swapaxes(kspace, -1, -3),
             dtype=par["DTYPE"], requirements='C')
@@ -275,7 +278,6 @@ def _start_recon(myargs):
 
 def run(recon_type='3D',
         reg_type='TGV',
-        adapt_stepsize=True,
         reco_slices=-1,
         streamed=False,
         par_slices=-1,
@@ -284,7 +286,7 @@ def run(recon_type='3D',
         weights=-1,
         data='',
         cmaps='',
-        config='default',
+        config='default_soft_sense',
         outdir='',
         double_precision=False):
     """
@@ -305,9 +307,6 @@ def run(recon_type='3D',
         sampled dimension.
       reg_type : str, TGV
         TGV or TV, defaults to TGV
-      adapt_stepsize : bool, True
-        Primal dual algorithm with adaptive stepsize is used for reconstruction.
-        If false, step sizes are estimated using power method.
       reco_slices : int, -1
         The number of slices to reconsturct. Slices are picked symmetrically
         from the volume center. Pass -1 to select all slices available.
@@ -335,7 +334,7 @@ def run(recon_type='3D',
         The path to the .h5 file containing the estimated coil sensitivities.
         If left empty, a GUI will open and asks for data file selection. This
         is also the default behaviour.
-      config : str, default
+      config : str, default_soft_sense
         The path to the config file used for the Soft SENSE PD reconstruction. If
         not specified the default config file will be used. If no default
         config file is present in the current working directory one will be
@@ -345,7 +344,6 @@ def run(recon_type='3D',
     """
     params = [('--recon_type', str(recon_type)),
               ('--reg_type', str(reg_type)),
-              ('--adapt_stepsize', str(adapt_stepsize)),
               ('--reco_slices', str(reco_slices)),
               ('--streamed', str(streamed)),
               ('--devices', str(devices)),
@@ -386,9 +384,6 @@ def _parse_arguments(args):
       '--reg_type', default='NoReg', dest='reg_type',
       help="Choose regularization type "
            "options are: 'TGV', 'TV'")
-    argpar.add_argument(
-        '--adapt_stepsize', default='0', dest='adapt_stepsize', type=_str2bool,
-        help='Enable accelerated optimization by adaptive step size computation.')
     argpar.add_argument(
         '--streamed', default='0', dest='streamed', type=_str2bool,
         help='Enable streaming of large data arrays (e.g. >10 slices).')

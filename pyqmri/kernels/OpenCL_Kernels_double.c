@@ -2,7 +2,7 @@ __kernel void extrapolate_x(
                 __global double2 *xn1_,
                 __global double2 *xn1,
                 __global double2 *xn,
-                const float theta)
+                const double theta)
 {
     size_t i = get_global_id(0);
     xn1_[i] = xn1[i] * (1 + theta) - theta * xn[i];
@@ -12,7 +12,7 @@ __kernel void extrapolate_v(
                 __global double8 *vn1_,
                 __global double8 *vn1,
                 __global double8 *vn,
-                const float theta)
+                const double theta)
 {
     size_t i = get_global_id(0);
     vn1_[i] = vn1[i] * (1 + theta) - theta * vn[i];
