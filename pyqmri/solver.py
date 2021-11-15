@@ -172,7 +172,7 @@ class CGSolver:
                 return np.squeeze(x.get())
             beta = (clarray.vdot(res_new, res_new) /
                     clarray.vdot(res, res)).real.get()
-            p = res_new + beta * p
+            p = res_new+beta*p
             (res, res_new) = (res_new, res)
         del Ax, b, res, p, data, res_new
         return np.squeeze(x.get())
@@ -1150,11 +1150,11 @@ class PDBaseSolver:
         self.real_const = []
         for j in range(self.num_dev):
             self.min_const.append(
-                clarray.to_device(self._queue[4 * j], min_const))
+                clarray.to_device(self._queue[4*j], min_const))
             self.max_const.append(
-                clarray.to_device(self._queue[4 * j], max_const))
+                clarray.to_device(self._queue[4*j], max_const))
             self.real_const.append(
-                clarray.to_device(self._queue[4 * j], real_const))
+                clarray.to_device(self._queue[4*j], real_const))
 
     def updateRegPar(self, irgn_par):
         """Update the regularization parameters.
@@ -1202,16 +1202,16 @@ class PDBaseSolver:
         if wait_for is None:
             wait_for = []
         return self._prg[idx].update_primal_LM(
-            self._queue[4 * idx + idxq],
+            self._queue[4*idx+idxq],
             self._kernelsize, None,
             outp.data, inp[0].data, inp[1].data, inp[2].data, inp[3].data,
             self._DTYPE_real(par[0]),
-            self._DTYPE_real(par[0] / par[1]),
+            self._DTYPE_real(par[0]/par[1]),
             self.min_const[idx].data, self.max_const[idx].data,
             self.real_const[idx].data, np.int32(self.unknowns),
             wait_for=(outp.events +
                       inp[0].events+inp[1].events +
-                      inp[2].events+inp[3].events + wait_for))
+                      inp[2].events+wait_for))
 
     def update_v(self, outp, inp, par=None, idx=0, idxq=0,
                  bound_cond=0, wait_for=None):
@@ -1553,7 +1553,7 @@ class PDSolverTV(PDBaseSolver):
         dual_vars_new["r"] = clarray.zeros_like(dual_vars["r"])
 
         dual_vars["z1"] = clarray.zeros(self._queue[0],
-                                        primal_vars["x"].shape + (4,),
+                                        primal_vars["x"].shape+(4,),
                                         dtype=self._DTYPE)
         dual_vars_new["z1"] = clarray.zeros_like(dual_vars["z1"])
 
