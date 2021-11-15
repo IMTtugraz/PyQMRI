@@ -103,9 +103,9 @@ class Operator(ABC):
         self.DTYPE = DTYPE
         self.DTYPE_real = DTYPE_real
         self.par_slices = self.NSlice
-        self._unknown_shape = (self.unknowns,
-                               self.NSlice,
-                               self.dimY,
+        self._unknown_shape = (self.unknowns, 
+                               self.NSlice, 
+                               self.dimY, 
                                self.dimX)
         self._overlap = 0
 
@@ -381,26 +381,6 @@ class Operator(ABC):
                                            DTYPE,
                                            DTYPE_real)
         return op
-
-    @staticmethod
-    def SoftSenseOperatorFactory(par,
-                                prg,
-                                DTYPE,
-                                DTYPE_real,
-                                streamed=False):
-        """Sense forward/adjoint operator factory method."""
-        if streamed:
-            op = OperatorSoftSenseStreamed(par,
-                                           prg,
-                                           DTYPE,
-                                           DTYPE_real)
-
-        else:
-            op = OperatorSoftSense(par,
-                                   prg[0],
-                                   DTYPE,
-                                   DTYPE_real)
-        return op, op.NUFFT
 
     def _defineoperator(self,
                         functions,
@@ -735,8 +715,8 @@ class OperatorKspace(Operator):
                 np.int32(self.NScan),
                 np.int32(self.unknowns),
                 wait_for=(self._tmp_result.events + inp[0].events
-                          + wait_for)))
-
+                          + wait_for)))        
+               
         return self.NUFFT.FFT(
             out,
             self._tmp_result,
@@ -783,7 +763,7 @@ class OperatorKspace(Operator):
             self.queue,
             self._out_shape_fwd,
             self.DTYPE, "C")
-        self.NUFFT.FFT(tmp_sino, self._tmp_result,
+        self.NUFFT.FFT(tmp_sino, self._tmp_result, 
                        wait_for=tmp_sino.events).wait()
         return tmp_sino
 
@@ -816,7 +796,7 @@ class OperatorKspace(Operator):
             self.NUFFT.FFTH(
                 self._tmp_result, inp[0], wait_for=(wait_for
                                                     + inp[0].events)))
-
+        
         return self.prg.operator_ad(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data, self._tmp_result.data, inp[1].data,
@@ -894,7 +874,7 @@ class OperatorKspace(Operator):
             self.NUFFT.FFTH(
                 self._tmp_result, inp[0], wait_for=(wait_for
                                                     + inp[0].events)))
-
+        
         return self.prg.update_Kyk1(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data, self._tmp_result.data, inp[2].data,
@@ -954,7 +934,7 @@ class OperatorKspaceSMS(Operator):
             self.queue, (self.NScan, self.NC,
                          self.NSlice, self.dimY, self.dimX),
             self.DTYPE, "C")
-        self._out_shape_fwd = (self.NScan, self.NC,
+        self._out_shape_fwd = (self.NScan, self.NC, 
                                self.packs, self.Nproj, self.N)
 
         self.Nproj = self.dimY
@@ -1053,7 +1033,7 @@ class OperatorKspaceSMS(Operator):
             self.queue,
             (self.NScan, self.NC, self.packs, self.Nproj, self.N),
             self.DTYPE, "C")
-
+        
         self.NUFFT.FFT(tmp_sino, self._tmp_result).wait()
         return tmp_sino
 
@@ -1224,9 +1204,9 @@ class OperatorImagespaceStreamed(Operator):
         par["overlap"] = 1
         self._overlap = par["overlap"]
         self.par_slices = par["par_slices"]
-        self._unknown_shape = (self.unknowns,
-                       self.par_slices+self._overlap,
-                       self.dimY,
+        self._unknown_shape = (self.unknowns, 
+                       self.par_slices+self._overlap, 
+                       self.dimY, 
                        self.dimX)
         self.unknown_shape = (self.NSlice, self.unknowns, self.dimY, self.dimX)
         coil_shape = []
@@ -1469,9 +1449,9 @@ class OperatorKspaceStreamed(Operator):
         super().__init__(par, prg, DTYPE, DTYPE_real)
         self._overlap = par["overlap"]
         self.par_slices = par["par_slices"]
-        self._unknown_shape = (self.unknowns,
-                       self.par_slices+self._overlap,
-                       self.dimY,
+        self._unknown_shape = (self.unknowns, 
+                       self.par_slices+self._overlap, 
+                       self.dimY, 
                        self.dimX)
         if not trafo:
             self.Nproj = self.dimY
@@ -1769,9 +1749,9 @@ class OperatorKspaceSMSStreamed(Operator):
         self._overlap = par["overlap"]
         self.par_slices = par["par_slices"]
         self.packs = par["packs"]*par["numofpacks"]
-        self._unknown_shape = (self.unknowns,
-                       self.par_slices+self._overlap,
-                       self.dimY,
+        self._unknown_shape = (self.unknowns, 
+                       self.par_slices+self._overlap, 
+                       self.dimY, 
                        self.dimX)
         self.Nproj = self.dimY
         self.N = self.dimX
@@ -2569,9 +2549,9 @@ class OperatorFiniteGradientStreamed(Operator):
         par["overlap"] = 1
         self._overlap = par["overlap"]
         self.par_slices = par["par_slices"]
-        self._unknown_shape = (self.unknowns,
-               self.par_slices+self._overlap,
-               self.dimY,
+        self._unknown_shape = (self.unknowns, 
+               self.par_slices+self._overlap, 
+               self.dimY, 
                self.dimX)
 
         self.ratio = []
@@ -2726,7 +2706,7 @@ class OperatorFiniteGradientStreamed(Operator):
               A PyQMRI streaming object for the gradient computation.
         """
         return self._stream_grad
-
+    
     def updateRatio(self, inp):
         for j in range(self.num_dev):
             self.ratio = clarray.to_device(
@@ -2820,9 +2800,9 @@ class OperatorFiniteSymGradientStreamed(Operator):
         par["overlap"] = 1
         self._overlap = par["overlap"]
         self.par_slices = par["par_slices"]
-        self._unknown_shape = (self.unknowns,
-                       self.par_slices+self._overlap,
-                       self.dimY,
+        self._unknown_shape = (self.unknowns, 
+                       self.par_slices+self._overlap, 
+                       self.dimY, 
                        self.dimX)
 
         unknown_shape = (self.NSlice, self.unknowns, self.dimY, self.dimX)
