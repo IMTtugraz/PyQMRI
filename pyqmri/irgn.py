@@ -304,7 +304,7 @@ class IRGNOptimizer:
                 self._balanceModelGradientsNorm(result, ign)
             
             self._updateIRGNRegPar(ign)
-            self._pdop._grad_op.updateRatio(np.require(self.UT
+            self._pdop._grad_op.updateRatio(np.require(self.UTE
                                       ,requirements='C'))
 
             if self._streamed:
@@ -357,10 +357,17 @@ class IRGNOptimizer:
 
     def _updateIRGNRegPar(self, ign):
 
-        self.irgn_par["delta"] = np.maximum(
-            self._delta
-            * self.irgn_par["delta_dec"]**ign,
-            self.irgn_par["delta_min"])*self.irgn_par["lambd"]
+        try:
+            self.irgn_par["delta"] = np.minimum(
+                self._delta
+                * self.irgn_par["delta_inc"]**ign,
+                self.irgn_par["delta_max"])*self.irgn_par["lambd"]
+        except OverflowError:
+            self.irgn_par["delta"] = np.minimum(
+                np.finfo(self._delta).max,
+                self.irgn_par["delta_max"])
+
+        
         self.irgn_par["gamma"] = np.maximum(
             self._gamma * self.irgn_par["gamma_dec"]**ign,
             self.irgn_par["gamma_min"])/self.irgn_par["lambd"]
@@ -374,42 +381,37 @@ class IRGNOptimizer:
         
         self.k = np.minimum(*self._modelgrad.shape[:2])
         
-        self.U = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
-        self.V = np.zeros((jacobi.shape[-1], self._modelgrad.shape[1], self.k), dtype=self.par["DTYPE"])
-        self.E = np.zeros((jacobi.shape[-1], self.k), dtype=self.par["DTYPE"])
+        U = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
+        V = np.zeros((jacobi.shape[-1], self._modelgrad.shape[1], self.k), dtype=self.par["DTYPE"])
+        E = np.zeros((jacobi.shape[-1], self.k), dtype=self.par["DTYPE"])
         self.UTE = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
-        self.UT = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
         self.EU = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
         
         jacobi = np.require(jacobi.T, requirements='C')
         
-        cutoff =  5e2
-        # cutoff = np.inf
-
+        cutoff = 5e2
         maxval = 0
+        
         for j in range(jacobi.shape[0]):
-            self.V[j], self.E[j], self.U[j] = spl.svd(jacobi[j], full_matrices=False)
-            einv = 1/self.E[j]
+            V[j], E[j], U[j] = spl.svd(jacobi[j], full_matrices=False)
+            einv = 1/E[j]
             einv[~np.isfinite(einv)] = cutoff*einv[0]
             einv[einv/einv[0] > cutoff] = cutoff*einv[0]
 
-            self.V[j] = self.V[j]@np.diag(self.E[j])@np.diag(einv)
-            maxval = np.maximum(maxval, np.max((einv*self.E[j])))
-            self.E[j] = einv
-            self.UT[j] = np.eye(self.k, self.k).astype(self.par["DTYPE"])#np.conj(self.U[j].T)@np.diag(einv)
-            self.UTE[j] = (np.conj(self.U[j].T)@np.diag(einv))
-            self.EU[j] = np.diag(1/einv)@self.U[j]
+            V[j] = V[j]@np.diag(E[j])@np.diag(einv)
+            maxval = np.maximum(maxval, np.max((einv*E[j])))
+            E[j] = einv
+            self.UTE[j] = (np.conj(U[j].T)@np.diag(einv))
+            self.EU[j] = np.diag(1/einv)@U[j]
             
         print("Maximum Eigenvalue: ", maxval.real)
             
         
-        self.V = np.require(np.transpose(self.V, (2,1,0)), requirements='C')
+        V = np.require(np.transpose(V, (2,1,0)), requirements='C')
 
-        self._modelgrad = self.V.reshape(*self.V.shape[:2],*self._modelgrad.shape[2:])
+        self._modelgrad = V.reshape(*V.shape[:2],*self._modelgrad.shape[2:])
         
-        self.U = np.require(self.U, requirements='C')
         self.UTE = np.require(self.UTE.transpose(1,2,0), requirements='C')
-        self.UT = np.require(self.UT.transpose(1,2,0), requirements='C')
         self.EU = np.require(self.EU.transpose(1,2,0), requirements='C')
         
         self._pdop.EU = clarray.to_device(self._pdop._queue[0], self.EU)
@@ -420,7 +422,7 @@ class IRGNOptimizer:
         precond_stepval = np.zeros((np.prod(inp.shape[1:]), self.k), dtype=self.par["DTYPE"])
         
         for j in range(tmp_step_val.shape[0]):
-            precond_stepval[j] = np.diag(1/self.E[j])@(self.U[j]@tmp_step_val[j])
+            precond_stepval[j] = self.EU[...,j ]@tmp_step_val[j]
                                                  
         return np.require(precond_stepval.T.reshape(self.k, *inp.shape[1:]), requirements='C', dtype=self.par["DTYPE"])
     
@@ -428,7 +430,7 @@ class IRGNOptimizer:
         tmp_step_val = np.require(inp.reshape(inp.shape[0], -1).T, requirements='C')
         precond_stepval = np.zeros((np.prod(inp.shape[1:]), self.k), dtype=self.par["DTYPE"])
         for j in range(tmp_step_val.shape[0]):
-            precond_stepval[j] = np.conj(self.U[j].T)@(np.diag(self.E[j])@tmp_step_val[j])
+            precond_stepval[j] = self.UTE[..., j]@tmp_step_val[j]
         return np.require(precond_stepval.T.reshape(self.k, *inp.shape[1:]), requirements='C', dtype=self.par["DTYPE"])
     
     def _balanceModelGradientsNorm(self, result, ign):

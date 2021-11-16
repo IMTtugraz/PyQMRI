@@ -61,6 +61,20 @@ class Model(BaseModel):
         # # par["weights"][-2] /= 10
         # # par["weights"][-1] *= 10
         
+        # # par["weights"][2] /= 10
+        # # par["weights"][5] /= 5e0
+        # par["weights"][6] /= 1e1
+        # par["weights"][8] /= 1e2
+        # par["weights"][9] /= 5e1
+        # par["weights"][11] /= 1e50
+        # # par["weights"][12] /= 5e1
+        # par["weights"][13] *= 1e3
+        # par["weights"][15] *= 1e3
+        
+        # par["weights"] /= np.sum(par["weights"])/self.unknowns
+        
+        # print(np.sum(par["weights"]))
+        
         
     def rescale(self, x):
         """Rescale the unknowns with the scaling factors.
@@ -216,8 +230,8 @@ class Model(BaseModel):
                   0.02,0.3,-1,
                   0.0,0.4,+3,
                   0.0,0.5,-4,
-                  0.0,10,-5,
-                  0.0,1,1.7]
+                  0.0,10,-8,
+                  0.0,1e-3,1.7]
             ub = [1e5,
                   1,10,+1,
                   0.2,4,+4,
