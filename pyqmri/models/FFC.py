@@ -48,7 +48,7 @@ class Model(BaseModel):
             self.constraints.append(
                 constraints(0.01,
                             1.1,
-                            False))
+                            True))
         for j in range(self.numT1Scale):
             self.constraints.append(
                 constraints(t1min,
@@ -60,9 +60,9 @@ class Model(BaseModel):
         for j in range(len(self.b)):
             self._labels.append(
                 "Field "+str(np.round(self.b[j]*1e3, 2))+" mT")
-        par["weights"] = np.array([1]*self.numC+self.numAlpha*[3]+self.numT1Scale*[1],dtype=par["DTYPE_real"])
-        # par["weights"] /= np.sum(par["weights"])
+        par["weights"] = 1e3*np.array([1]*self.numC+self.numAlpha*[1]+self.numT1Scale*[1],dtype=par["DTYPE_real"])
 
+        # par["weights"][]
     def rescale(self, x):
         tmp_x = np.copy(x)
         ukname = []
@@ -321,7 +321,7 @@ class Model(BaseModel):
         
         test_M0 = []
         for j in range(self.numC):
-            test_M0.append(1e1*np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)*
+            test_M0.append(1*np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)*
                 np.exp(1j*np.angle(kwargs['images'][0])))
             self.constraints[j].update(1/kwargs['dscale'])
         test_Xi = []

@@ -300,11 +300,6 @@ class IRGNOptimizer:
             self._balanceModelGradients(result, ign)
             
             self._updateIRGNRegPar(ign)
-            self._pdop._grad_op.updateRatio(
-                self._model.uk_scale, result)
-            if self._reg_type == 'TGV':
-                self._pdop._symgrad_op.updateRatio(
-                    self._pdop._grad_op.ratio)
 
             if self._streamed:
                 if self._SMS is False:
@@ -372,19 +367,43 @@ class IRGNOptimizer:
             self.irgn_par["omega_min"])/self.irgn_par["lambd"]
 
     def _balanceModelGradients(self, result, ign):
-        # scale = self._modelgrad.reshape(self.par["unknowns"], -1)
-        # tmp = scale@scale.T
-        # eig = np.abs(spl.eigvals(tmp))
-        # scale = np.abs(np.diag(tmp))
+        scale = self._modelgrad.reshape(self.par["unknowns"], -1)
+        tmp = scale@scale.T
+        import ipdb
+        ipdb.set_trace()
+        eigvals, U = spl.eig(tmp)
+        scale = np.abs(np.diag(tmp))
         # print("Initial Norm: ", np.linalg.norm(eig))
-        # print("Initial Ratio: ", eig)
-        # # if ign == 0:
-        # # scale /= 1/np.sqrt(self.par["unknowns"])
-        # # else:
-        #     # scale /= np.linalg.norm(scale)/np.sqrt(self.par["unknowns"])
-        # scale = 1e3/np.sqrt(scale)
-        # # scale[:] = scale[0]
-        # scale[~np.isfinite(scale)] = 1
+        print("Initial Ratio: ", eig)
+        # if ign == 0:
+        # scale /= 1/np.sqrt(self.par["unknowns"])
+        # else:
+            # scale /= np.linalg.norm(scale)/np.sqrt(self.par["unknowns"])
+        scale = 1e3/np.sqrt(scale)
+        # scale[:] = scale[0]
+        scale[~np.isfinite(scale)] = 1
+        for uk in range(self.par["unknowns"]):
+            self._model.constraints[uk].update(scale[uk])
+            result[uk, ...] *= self._model.uk_scale[uk]
+            self._modelgrad[uk] /= self._model.uk_scale[uk]
+            self._model.uk_scale[uk] *= scale[uk]
+            result[uk, ...] /= self._model.uk_scale[uk]
+            self._modelgrad[uk] *= self._model.uk_scale[uk]
+        scale = self._modelgrad.reshape(self.par["unknowns"], -1)
+        # tmp = tmp*scale[:,None]
+        # scale = np.linalg.norm(scale, axis=-1)
+        scale = spl.eigvals(scale@scale.T)
+        print("Norm after rescale: ", np.linalg.norm(scale))
+        print("Ratio after rescale: ", np.abs(scale))
+        
+        
+        # scale = self._modelgrad.reshape(self.par["unknowns"], -1)
+        # scale = np.linalg.norm(scale, axis=-1)
+        # print("Initial Norm: ", np.linalg.norm(scale))
+        # print("Initial Ratio: ", scale)
+        # scale /= 1e2#/np.sqrt(self.par["unknowns"])
+        # scale = 1/scale
+        # scale[~np.isfinite(scale)] = 1#e2/np.sqrt(self.par["unknowns"])
         # for uk in range(self.par["unknowns"]):
         #     self._model.constraints[uk].update(scale[uk])
         #     result[uk, ...] *= self._model.uk_scale[uk]
@@ -393,38 +412,9 @@ class IRGNOptimizer:
         #     result[uk, ...] /= self._model.uk_scale[uk]
         #     self._modelgrad[uk] *= self._model.uk_scale[uk]
         # scale = self._modelgrad.reshape(self.par["unknowns"], -1)
-        # # tmp = tmp*scale[:,None]
-        # # scale = np.linalg.norm(scale, axis=-1)
-        # scale = spl.eigvals(scale@scale.T)
+        # scale = np.linalg.norm(scale, axis=-1)
         # print("Norm after rescale: ", np.linalg.norm(scale))
         # print("Ratio after rescale: ", np.abs(scale))
-        scale = self._modelgrad.reshape(self.par["unknowns"], -1)
-        scale = np.linalg.norm(scale, axis=-1)
-        print("Initial Norm: ", np.linalg.norm(scale))
-        print("Initial Ratio: ", scale)
-        # if ign == 0:
-        scale /= 1e2/np.sqrt(self.par["unknowns"])
-        # else:
-            # scale /= np.linalg.norm(scale)/np.sqrt(self.par["unknowns"])
-        scale = 1/scale
-        # scale[:] = scale[0]
-        scale[~np.isfinite(scale)] = 1e2/np.sqrt(self.par["unknowns"])
-        for uk in range(self.par["unknowns"]):
-            self._model.constraints[uk].update(scale[uk])
-            result[uk, ...] *= self._model.uk_scale[uk]
-            self._modelgrad[uk] /= self._model.uk_scale[uk]
-            self._model.uk_scale[uk] *= scale[uk]
-            result[uk, ...] /= self._model.uk_scale[uk]
-            self._modelgrad[uk] *= self._model.uk_scale[uk]
-        # import ipdb
-        # ipdb.set_trace()
-        scale = self._modelgrad.reshape(self.par["unknowns"], -1)
-        # tmp = tmp*scale[:,None]
-        # scale = np.linalg.norm(scale, axis=-1)
-        scale = np.linalg.norm(scale, axis=-1)
-        print("Norm after rescale: ", np.linalg.norm(scale))
-        print("Ratio after rescale: ", np.abs(scale))
-        # print("Ratio after rescale: ", np.abs(self._model.uk_scale))
 
 
 ###############################################################################
@@ -490,7 +480,7 @@ class IRGNOptimizer:
             b, grad, sym_grad = self._calcFwdGNPartStreamed(x)
         else:
             b, grad, sym_grad = self._calcFwdGNPartLinear(x)
-        grad_tv = grad[:self.par["unknowns_TGV"]]*self.par["weights"][:,None,None,None,None]
+        grad_tv = grad[:self.par["unknowns_TGV"]]*np.array(self._model.uk_scale)[:,None,None,None,None]*self.par["weights"][:,None,None,None,None]
         grad_H1 = grad[self.par["unknowns_TGV"]:]
         del grad
 

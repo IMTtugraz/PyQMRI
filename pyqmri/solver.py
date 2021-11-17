@@ -672,7 +672,7 @@ class PDBaseSolver:
         self._DTYPE_real = DTYPE_real
         self.delta = irgn_par["delta"]
         self.omega = irgn_par["omega"]
-        self.lambd = 1#irgn_par["lambd"]
+        self.lambd = 1
         self.rtol = irgn_par["rtol"]
         self.atol = irgn_par["atol"]
         self.stag = irgn_par["stag"]
@@ -696,6 +696,7 @@ class PDBaseSolver:
         self.min_const = None
         self.max_const = None
         self.real_const = None
+        self._weights = par["weights"]
         self._kernelsize = (par["par_slices"] + par["overlap"], par["dimY"],
                             par["dimX"])
         if self._DTYPE is np.complex64:
@@ -939,8 +940,8 @@ class PDBaseSolver:
         """
         self._updateConstraints()
         
-        l_max = self.power_iteration(inp[0], data.shape)
-        l_max += 1/self.tau**2
+        l_max = np.sqrt(self.power_iteration(inp[0], data.shape))
+        l_max += 1/self.tau
         print("Estimated L: ", l_max)
         
         tau = 1/np.sqrt(l_max)
@@ -961,8 +962,6 @@ class PDBaseSolver:
             self._op.queue,
             np.array(self.model.uk_scale).astype(
                       dtype=self._DTYPE_real))
-        
-
 
         (primal_vars,
          primal_vars_new,
@@ -1058,26 +1057,6 @@ class PDBaseSolver:
                             np.swapaxes(primal_vars["x"], 0, 1))
                     else:
                         self.model.plot_unknowns(primal_vars["x"].get())
-        #     if np.abs(primal[-2] - primal[-1])/primal[1] <\
-        #        self.rtol:
-        #         print(
-        # "Terminated at iteration %d because the energy "
-        # "decrease in the primal problem was %.3e which is below the "
-        # "relative tolerance of %.3e" %
-        # (i+1,
-        #  np.abs(primal[-2] - primal[-1])/primal[1],
-        #  self.rtol))
-        #         return primal_vars
-        #     if np.abs(np.abs(dual[-2] - dual[-1])/dual[1]) <\
-        #        self.rtol:
-        #         print(
-        # "Terminated at iteration %d because the energy "
-        # "decrease in the dual problem was %.3e which is below the "
-        # "relative tolerance of %.3e" %
-        # (i+1,
-        #  np.abs(np.abs(dual[-2] - dual[-1])/dual[1]),
-        #  self.rtol))
-        #         return primal_vars
             if (
                 len(gap)>40 and 
                 np.abs(np.mean(gap[-40:-20]) - np.mean(gap[-20:]))
@@ -1096,39 +1075,11 @@ class PDBaseSolver:
         "relative tolerance of %.3e" 
         % (i+1, np.abs((gap[-1] - gap[-2]) / gap[1]), self.rtol))
                 return primal_vars
-            # sys.stdout.write(
-            #     "Iteration: %04d ---- Primal: %2.2e, "
-            #     "Dual: %2.2e, Gap: %2.2e, Beta: %2.2e \r" %
-            #     (i+1, 1000*primal[-1] / gap[1],
-            #      1000*dual[-1] / gap[1],
-            #      1000*gap[-1] / gap[1],
-            #      beta_line))
-            # sys.stdout.flush()
-        #     if np.abs(primal[-1])/primal[1] <\
-        #         self.atol:
-        #         print(
-        # "Terminated at iteration %d because the energy "
-        # "decrease in the primal problem was %.3e which is below the "
-        # "relative tolerance of %.3e" %
-        # (i+1,
-        #   np.abs(primal[-1])/primal[1],
-        #   self.atol))
-        #         return primal_vars
-        #     if np.abs(np.abs(dual[-1])/dual[1]) <\
-        #         self.atol:
-        #         print(
-        # "Terminated at iteration %d because the energy "
-        # "decrease in the dual problem was %.3e which is below the "
-        # "relative tolerance of %.3e" %
-        # (i+1,
-        #   np.abs(np.abs(dual[-1])/dual[1]),
-        #   self.atol))
-        #         return primal_vars
             if np.abs((gap[-1]) / gap[1]) < self.atol:
                 print(
         "Terminated at iteration %d because the energy "
         "decrease in the PD-gap was %.3e which is below the "
-        "relative tolerance of %.3e" 
+        "absolute tolerance of %.3e" 
         % (i+1, np.abs(gap[-1] / gap[1]), self.atol))
                 return primal_vars
             sys.stdout.write(
@@ -1222,7 +1173,7 @@ class PDBaseSolver:
         self.beta = irgn_par["gamma"] * 2
         self.delta = irgn_par["delta"]
         self.omega = irgn_par["omega"]
-        self.lambd = 1#irgn_par["lambd"]
+        self.lambd = 1
         self.mu = 1/self.delta
 
     def update_primal(self, outp, inp, par, idx=0, idxq=0,
@@ -1261,7 +1212,6 @@ class PDBaseSolver:
             self._DTYPE_real(par[0]/par[1]),
             self.min_const[idx].data, self.max_const[idx].data,
             self.real_const[idx].data, np.int32(self.unknowns),
-            self.ratio[idx].data,
             wait_for=(outp.events +
                       inp[0].events+inp[1].events +
                       inp[2].events+inp[3].events + wait_for))
@@ -1337,7 +1287,7 @@ class PDBaseSolver:
             self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
             np.int32(self.unknowns_H1),
             self._DTYPE_real(1 / (1 + par[0] / par[3])),
-            par[4].data,
+            self.ratio[idx].data,
             wait_for=(outp.events+inp[0].events+inp[1].events +
                       inp[2].events+inp[3].events+inp[4].events+wait_for))
 
@@ -1378,7 +1328,7 @@ class PDBaseSolver:
             self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
             np.int32(self.unknowns_H1),
             self._DTYPE_real(1 / (1 + par[0] / par[3])),
-            par[4].data,
+            self.ratio[idx].data,
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
 
@@ -1417,7 +1367,7 @@ class PDBaseSolver:
             self._DTYPE_real(par[0]),
             self._DTYPE_real(par[1]),
             self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
-            par[3].data,
+            self.ratio[idx].data,
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
 
@@ -1461,8 +1411,6 @@ class PDBaseSolver:
             self._kernelsize, None,
             outp.data, inp[0].data, inp[1].data,
             np.int32(self.unknowns_TGV),
-            self._grad_op.ratio[idx].data,
-            self._symgrad_op.ratio[idx].data,
             np.int32(bound_cond),
             self._DTYPE_real(self.dz),
             wait_for=outp.events + inp[0].events + inp[1].events+wait_for)
