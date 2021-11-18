@@ -394,6 +394,8 @@ class IRGNOptimizer:
         
         for j in range(jacobi.shape[0]):
             V[j], E[j], U[j] = spl.svd(jacobi[j], full_matrices=False)
+            if np.any(E[j].imag!=0):
+                print("Non-zero complex eigenvalue")
             einv = 1/E[j]
             einv[~np.isfinite(einv)] = cutoff*einv[0]
             einv[einv/einv[0] > cutoff] = cutoff*einv[0]
@@ -404,7 +406,7 @@ class IRGNOptimizer:
             self.UTE[j] = (np.conj(U[j].T)@np.diag(einv))
             self.EU[j] = np.diag(1/einv)@U[j]
             
-        print("Maximum Eigenvalue: ", maxval.real)
+        print("Maximum Eigenvalue: ", maxval)
             
         
         V = np.require(np.transpose(V, (2,1,0)), requirements='C')
