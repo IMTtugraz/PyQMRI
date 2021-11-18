@@ -960,7 +960,7 @@ class PDBaseSolver:
         
         self.ratio = clarray.to_device(
             self._op.queue,
-            np.array(self.model.uk_scale).astype(
+            (np.array(self.model.uk_scale)*self._weights).astype(
                       dtype=self._DTYPE_real))
 
         (primal_vars,
