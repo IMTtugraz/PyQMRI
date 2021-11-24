@@ -521,8 +521,10 @@ def _read_data_from_file(par, myargs):
         par["traj"] = None
         par["dcf"] = None
     
-    if np.max(utils.prime_factors(data.shape[-1])) > 13 or \
-        np.max(utils.prime_factors(data.shape[-2])) > 13:
+    if (myargs.trafo and np.max(utils.prime_factors(data.shape[-1])) > 13) or \
+        (not myargs.trafo and \
+        (np.max(utils.prime_factors(data.shape[-2])) > 13 or /
+        np.max(utils.prime_factors(data.shape[-2])) > 13)):
         if myargs.trafo:
             print("Samples along the spoke need to have their largest prime factor"
                   " to be 13 or lower. Finding next smaller grid.")
