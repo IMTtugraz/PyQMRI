@@ -17,7 +17,7 @@ from pyqmri._helper_fun import _goldcomp as goldcomp
 from pyqmri._helper_fun import _utils as utils
 
 
-def est_coils(data, par, file, args, off):
+def est_coils(data, par, file, args, off, dimreduction):
     """Estimate coil sensitivity profiles.
 
     This function estimates coil sensitivity profiles based on the
@@ -40,6 +40,9 @@ def est_coils(data, par, file, args, off):
         Commandline arguments passed to the script.
       off : int
         A possible offset of the zero slice.
+      dimreduction : numpy.array 
+        A possible dimension reduction to ensure the largest prime factor of 
+        the grid is 13. Only needed for precomputed coil sensitivities.
 
     Returns
     -------
@@ -76,6 +79,13 @@ def est_coils(data, par, file, args, off):
                 int(slices_coils / 2) + int(np.ceil(par["NSlice"] / 2)) + off,
                 ...] 
             par["C"] = par["C"].astype(par["DTYPE"])
+        if np.max(dimreduction) > 0:
+            #Apply dimreduction in k-space 
+            par["C"] = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(par["C"])))
+            par["C"] = par["C"][..., 
+                int(dimreduction[1]/2):par["C"].shape[-2]-int(dimreduction[1]/2),
+                int(dimreduction[0]/2):par["C"].shape[-1]-int(dimreduction[0]/2)]
+            par["C"] = np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(par["C"])))
         
     elif not args.sms and "Coils" in list(file.keys()):
         if args.trafo and not file['Coils'].shape[1] >= par["NSlice"]:
