@@ -389,7 +389,9 @@ class IRGNOptimizer:
         
         jacobi = np.require(jacobi.T, requirements='C')
         
-        cutoff = 5e2
+        cutoff = 1e3#5e2
+        # if ign > 5:
+        #     cutoff = np.inf
         maxval = 0
         
         for j in range(jacobi.shape[0]):

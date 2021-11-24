@@ -61,19 +61,25 @@ class Model(BaseModel):
         # # par["weights"][-2] /= 10
         # # par["weights"][-1] *= 10
         
+        # # par["weights"][0] /= 1e3
+        # # par["weights"][1] /= 10
         # # par["weights"][2] /= 10
-        # # par["weights"][5] /= 5e0
-        # par["weights"][6] /= 1e1
-        # par["weights"][8] /= 1e2
-        # par["weights"][9] /= 5e1
-        # par["weights"][11] /= 1e50
-        # # par["weights"][12] /= 5e1
-        # par["weights"][13] *= 1e3
-        # par["weights"][15] *= 1e3
+        # # par["weights"][3] /= 10
         
-        # par["weights"] /= np.sum(par["weights"])/self.unknowns
+        par["weights"][4] *= 5e1
+        # par["weights"][5] /= 1e1
+        # par["weights"][6] /= 5e0
+        # par["weights"][7] *= 5e0
         
-        # print(np.sum(par["weights"]))
+        par["weights"][8] /= 5e0
+        # par["weights"][9] /= 1e1
+        # # par["weights"][10] /= 5e1
+        par["weights"][11] /= 5e0
+        
+        # par["weights"][12] /= 5e0
+        par["weights"][13] *= 1e2
+        par["weights"][14] /= 2e0
+        par["weights"][15] *= 5e0
         
         
     def rescale(self, x):
