@@ -1,14 +1,18 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Module handling the start up of Soft-SENSE reconstruction."""
 import argparse
-import h5py
 import math
-import numpy as np
 import os
 import sys
 import time
 
-from scipy.io import loadmat
 from tkinter import filedialog
 from tkinter import Tk
+from scipy.io import loadmat
+
+import numpy as np
+import h5py
 
 from pyqmri.pyqmri import _str2bool
 from pyqmri.pyqmri import _setupOCL
@@ -39,7 +43,7 @@ from pyqmri.pdsose import SoftSenseOptimizer
 def _fft_shift_data(ksp, recon_type='3D'):
     shape = np.shape(ksp)
     fft_shift_dim = (-2, -1)
-    nc, z, y, x = shape[-4:]
+    nc = shape[-4]
     check = np.ones_like(ksp)
     check[..., 1::2] = -1
     check[..., ::2, :] *= -1
@@ -389,7 +393,8 @@ def _parse_arguments(args):
         help='Enable streaming of large data arrays (e.g. >10 slices).')
     argpar.add_argument(
         '--reco_slices', default='-1', dest='reco_slices', type=int,
-        help='Number of slices taken around center for reconstruction (Default to -1, i.e. all slices)')
+        help='Number of slices taken around center for reconstruction '
+             '(Default to -1, i.e. all slices)')
     argpar.add_argument(
       '--par_slices', dest='par_slices', type=int,
       help='number of slices per package. Volume devided by GPU\'s and'

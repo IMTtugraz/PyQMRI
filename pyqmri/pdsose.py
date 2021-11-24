@@ -2,11 +2,12 @@
 # -*- coding: utf-8 -*-
 """Module holding the classes for Soft Sense Optimization."""
 from __future__ import division
-import h5py
-import numpy as np
 import os
 import time
-import imageio
+import h5py
+import numpy as np
+
+from matplotlib.image import imsave
 
 from pkg_resources import resource_filename
 import pyopencl.array as clarray
@@ -194,7 +195,10 @@ class SoftSenseOptimizer:
                 v = np.require(np.swapaxes(v, 0, 1), requirements='C')
         return grad_op, symgrad_op, v
 
-    def root_sum_squared(self, x):
+    @staticmethod
+    def root_sum_squared(x):
+        """Root sum squared along first dimension of images
+        """
         return np.sqrt(np.sum(np.abs(x) ** 2, axis=0)) if x.ndim > 2 else np.abs(x)
 
     def save_imgs(self, fname='', max_val=None, min_val=None):
@@ -216,14 +220,14 @@ class SoftSenseOptimizer:
         if not os.path.exists(path):
             os.makedirs(path)
 
-        x_ = self.root_sum_squared(x)[int(np.shape(x)[-3]/2), ...]
+        x_ = SoftSenseOptimizer.root_sum_squared(x)[int(np.shape(x)[-3]/2), ...]
 
         img_max = max_val if max_val else np.max(np.abs(x))
         img_min = min_val if min_val else np.min(np.abs(x))
-        img_rescaled = (255.0 / img_max * (x_ - img_min)).astype(np.uint8)
+        img_rescaled = (255.0 / img_max * (x_ - img_min))
 
         name = path + os.sep + filename + '.png'
-        imageio.imwrite(name, img_rescaled)
+        imsave(name, img_rescaled, cmap='gray')
 
     def save_data(self, fname=''):
         """Save data in h5 file format once results are computed.
@@ -275,7 +279,7 @@ class SoftSenseOptimizer:
                 y = op.adjoop(op.fwdoop(x)).get()
 
         l1 = []
-        for i in range(iters):
+        for _ in range(iters):
             y_norm = np.linalg.norm(y)
             x = y / y_norm if y_norm != 0 else y
             if self._streamed:
@@ -313,11 +317,15 @@ class SoftSenseOptimizer:
 
         if self._reg_type == 'TGV':
             if self._streamed:
-                x_symgrad = np.random.randn(self.par["NSlice"], 1, self.par["dimY"], self.par["dimX"], 4) + \
-                            1j * np.random.randn(self.par["NSlice"], 1, self.par["dimY"], self.par["dimX"], 4)
+                x_symgrad = np.random.randn(
+                    self.par["NSlice"], 1, self.par["dimY"], self.par["dimX"], 4) + \
+                    1j * np.random.randn(
+                        self.par["NSlice"], 1, self.par["dimY"], self.par["dimX"], 4)
             else:
-                x_symgrad = np.random.randn(1, self.par["NSlice"], self.par["dimY"], self.par["dimX"], 4) + \
-                            1j * np.random.randn(1, self.par["NSlice"], self.par["dimY"], self.par["dimX"], 4)
+                x_symgrad = np.random.randn(
+                    1, self.par["NSlice"], self.par["dimY"], self.par["dimX"], 4) + \
+                    1j * np.random.randn(
+                        1, self.par["NSlice"], self.par["dimY"], self.par["dimX"], 4)
 
             opnorm_symgrad = self._power_iterations(x_symgrad, [], self._symgrad_op)
 
@@ -335,7 +343,7 @@ class SoftSenseOptimizer:
             tau = 1 / np.sqrt(np.vdot(K_ssense_tgv, K_ssense_tgv))
 
         if tau < 0.1 or tau > 1.0:
-            raise
+            raise ValueError
         sigma = tau
         self._pdop.set_tau(tau)
         self._pdop.set_sigma(sigma)
@@ -430,8 +438,9 @@ class SoftSenseOptimizer:
         if not self.pdsose_par["adaptive_stepsize"]:
             try:
                 self._calc_step_size()
-            except Exception:
-                print("Calculating step size with power iterations failed. Falling back to default.")
+            except ValueError:
+                print("Calculating step size with power iterations failed. "
+                      "Falling back to default.")
                 self._pdop.tau = self._DTYPE_real(1 / np.sqrt(12))
                 self._pdop.sigma = self._DTYPE_real(1 / np.sqrt(12))
         else:
