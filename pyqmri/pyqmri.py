@@ -521,7 +521,7 @@ def _read_data_from_file(par, myargs):
         par["dcf"] = None
 
     if (myargs.trafo and np.max(utils.prime_factors(data.shape[-1])) > 13) or \
-        (not myargs.trafo and \ 
+        (not myargs.trafo and \
         (np.max(utils.prime_factors(data.shape[-1])) > 13 or \
         np.max(utils.prime_factors(data.shape[-2])) > 13)):
         if myargs.trafo:
