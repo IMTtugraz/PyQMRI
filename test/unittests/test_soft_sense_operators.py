@@ -3,14 +3,12 @@ try:
 except ImportError:
     import unittest
 import numpy as np
-import h5py
 import pyopencl.array as cla
 import pyqmri.operator as pyqmirop
 
 from pyqmri.pyqmri import _setupOCL
 from pkg_resources import resource_filename
 from pyqmri._helper_fun import CLProgram as Program
-from pathlib import Path
 
 
 DTYPE = np.complex64
@@ -24,8 +22,8 @@ class Args:
 def _setup_par(par):
     par["dimX"] = 160
     par["dimY"] = 160
-    par["NSlice"] = 128
-    par["NC"] = 32
+    par["NSlice"] = 64
+    par["NC"] = 8
     par["NScan"] = 1
     par["NMaps"] = 2
 
@@ -37,12 +35,14 @@ def _setup_par(par):
     par["dz"] = 1
 
     par["overlap"] = 1
-    par["par_slices"] = 16
+    par["par_slices"] = 8
     par["DTYPE_real"] = DTYPE_real
     par["DTYPE"] = DTYPE
 
     par["fft_dim"] = (-2, -1)
     par["mask"] = np.ones((par["dimY"], par["dimX"]), dtype=DTYPE_real)
+
+    par["is3D"] = False
 
 
 class OperatorSoftSenseTest(unittest.TestCase):
@@ -72,14 +72,20 @@ class OperatorSoftSenseTest(unittest.TestCase):
 
         self.op = pyqmirop.OperatorSoftSense(par, prg)
 
-        self.opinfwd = np.random.randn(par["NMaps"], par["NSlice"], par["dimY"], par["dimX"]) +\
-            1j * np.random.randn(par["NMaps"], par["NSlice"],  par["dimY"], par["dimX"])
+        self.opinfwd = np.random.randn(par["NMaps"], par["NSlice"],
+                                       par["dimY"], par["dimX"]) +\
+            1j * np.random.randn(par["NMaps"], par["NSlice"],
+                                 par["dimY"], par["dimX"])
 
-        self.opinadj = np.random.randn(par["NScan"], par["NC"], par["NSlice"], par["dimY"], par["dimX"]) +\
-            1j * np.random.randn(par["NScan"], par["NC"], par["NSlice"], par["dimY"], par["dimX"])
+        self.opinadj = np.random.randn(par["NScan"], par["NC"],
+                                       par["NSlice"], par["dimY"], par["dimX"]) +\
+            1j * np.random.randn(par["NScan"], par["NC"],
+                                 par["NSlice"], par["dimY"], par["dimX"])
 
-        self.C = np.random.randn(par["NMaps"], par["NC"], par["NSlice"], par["dimY"], par["dimX"]) + \
-            1j * np.random.randn(par["NMaps"], par["NC"], par["NSlice"], par["dimY"], par["dimX"])
+        self.C = np.random.randn(par["NMaps"], par["NC"],
+                                 par["NSlice"], par["dimY"], par["dimX"]) + \
+            1j * np.random.randn(par["NMaps"], par["NC"],
+                                 par["NSlice"], par["dimY"], par["dimX"])
 
         self.C = self.C.astype(DTYPE)
         self.opinfwd = self.opinfwd.astype(DTYPE)

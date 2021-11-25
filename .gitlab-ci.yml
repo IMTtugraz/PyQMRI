@@ -80,6 +80,8 @@ test-single-on-nvidia-gpu:
         - coverage xml -o coverage_unittests_symgrad.xml
         - pytest --junitxml test_Linear3DDataOperator.xml --cov=pyqmri test/unittests/test_Linear3DDataOperator.py
         - coverage xml -o coverage_unittests_Linear3DDataOperator.xml
+        - pytest --junitxml test_unittests_softsense_op.xml --cov=pyqmri test/unittests/test_soft_sense_operators.py
+        - coverage xml -o coverage_unittests_softsense_op.xml
     artifacts:
         reports:
             junit: results_unittests_*.xml

@@ -334,7 +334,7 @@ class Operator(ABC):
                                         prg[0],
                                         DTYPE,
                                         DTYPE_real)
-        return op, None
+        return op
 
     @staticmethod
     def SymGradientOperatorFactory(par,

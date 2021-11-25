@@ -172,7 +172,7 @@ class SoftSenseOptimizer:
         )
 
     def _setup_linear_ops(self, DTYPE, DTYPE_real):
-        grad_op, _ = operator.Operator.GradientOperatorFactory(
+        grad_op = operator.Operator.GradientOperatorFactory(
             self.par,
             self._prg,
             DTYPE,

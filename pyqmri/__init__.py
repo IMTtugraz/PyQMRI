@@ -18,7 +18,6 @@ from pyqmri import solver
 from pyqmri import transforms
 from pyqmri import models
 from pyqmri.pyqmri import run
-from pyqmri.softsense import run
 
 from pyqmri._helper_fun.multislice_viewer import imshow as msv
 from pyqmri._helper_fun._utils import gen_default_config as gen_config
