@@ -9,7 +9,6 @@ import time
 
 from tkinter import filedialog
 from tkinter import Tk
-from scipy.io import loadmat
 
 import numpy as np
 import h5py
@@ -169,7 +168,8 @@ def _read_input(file, myargs, par, set_outdir=False):
             root.destroy()
             if file_fd and \
                not file_fd.endswith((('.h5'), ('.hdf5'), ('.mat'))):
-                print("Please specify a h5 or mat file. Press cancel to exit.")
+                print("Please specify a h5 or mat (-v7.3) file. "
+                      "Press cancel to exit.")
             elif not file_fd:
                 print("Exiting...")
                 sys.exit()
@@ -178,7 +178,7 @@ def _read_input(file, myargs, par, set_outdir=False):
                 file = file_fd
     else:
         if not file.endswith((('.h5'), ('.hdf5'), ('.mat'))):
-            print("Please specify a h5 or mat file. ")
+            print("Please specify a h5 or mat (-v7.3) file. ")
             sys.exit()
 
     fname = os.path.normpath(file)
@@ -188,16 +188,23 @@ def _read_input(file, myargs, par, set_outdir=False):
     if set_outdir:
         _set_output_dir(myargs, par, fname)
 
-    if file.endswith((('.h5'), ('.hdf5'))):
+    try:
         datafile = h5py.File(file, 'a')
-    else:
-        try:
-            datafile = loadmat(file)
-        except NotImplementedError:
-            datafile = h5py.File(file, 'a')
-        except:
-            ValueError("File {} not readable...".format(file))
-            sys.exit()
+    except:
+        ValueError("File {} not readable...".format(file))
+        sys.exit()
+
+    # loadmat requires scipy, currently implemented...
+    # if file.endswith((('.h5'), ('.hdf5'))):
+    #     datafile = h5py.File(file, 'a')
+    # else:
+    #     try:
+    #         datafile = loadmat(file)
+    #     except NotImplementedError:
+    #         datafile = h5py.File(file, 'a')
+    #     except:
+    #         ValueError("File {} not readable...".format(file))
+    #         sys.exit()
 
     return datafile
 
