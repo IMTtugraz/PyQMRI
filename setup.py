@@ -35,7 +35,8 @@ setup(name='pyqmri',
         'sympy>=1.6.2',
         'inputimeout'],
       entry_points={
-        'console_scripts': ['pyqmri = pyqmri.pyqmri:run'],
+        'console_scripts': ['pyqmri = pyqmri.pyqmri:run',
+                            'softsense = pyqmri.softsense:run'],
         },
       zip_safe=False,
       classifiers=[
