@@ -736,6 +736,7 @@ def _start_recon(myargs):
                                 myargs.par_slices,
                                 myargs.trafo, 
                                 myargs.dz)
+    
     if not myargs.trafo:
         tmpmask = np.ones(data.shape[2:])
         tmpmask[np.abs(data[0, 0, ...]) == 0] = 0
@@ -786,6 +787,13 @@ def _start_recon(myargs):
         par["modelfile"] = myargs.modelfile
         par["modelname"] = myargs.modelname
     model = sig_model.Model(par)
+    
+    if np.allclose(myargs.weights, -1):
+        if "weights" not in par.keys():
+            par["weights"] = np.ones(
+                (par["unknowns"]), dtype=par["DTYPE_real"])
+    else:
+        par["weights"] = np.array(myargs.weights, dtype=par["DTYPE_real"])
 ###############################################################################
 # Reconstruct images using CG-SENSE  ##########################################
 ###############################################################################
@@ -795,12 +803,6 @@ def _start_recon(myargs):
 # Scale data norm  ############################################################
 ###############################################################################
     data, images = _estScaleNorm(myargs, par, images, data)    
-    if np.allclose(myargs.weights, -1):
-        if "weights" not in par.keys():
-            par["weights"] = np.ones(
-                (par["unknowns"]), dtype=par["DTYPE_real"])
-    else:
-        par["weights"] = np.array(myargs.weights, dtype=par["DTYPE_real"])
 ###############################################################################
 # Compute initial guess #######################################################
 ###############################################################################
