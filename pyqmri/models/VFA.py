@@ -119,7 +119,7 @@ class Model(BaseModel):
             (-E1 * self._cos_phi + 1)
         S[~np.isfinite(S)] = 1e-20
         S = np.array(S, dtype=self._DTYPE)
-        return S
+        return S*self.dscale
 
     def _execute_gradient_3D(self, x):
         E1 = x[1, ...] * self.uk_scale[1]
@@ -133,7 +133,7 @@ class Model(BaseModel):
             (-E1 * self._cos_phi + 1)
         grad = np.array([grad_M0, grad_T1], dtype=self._DTYPE)
         grad[~np.isfinite(grad)] = 1e-20
-        return grad
+        return grad*self.dscale
 
     def computeInitialGuess(self, **kwargs):
         """Initialize unknown array for the fitting.
@@ -146,11 +146,12 @@ class Model(BaseModel):
             Serves as universal interface. No objects need to be passed
             here.
         """
+        self.dscale = kwargs["dscale"]
         if np.allclose(kwargs['initial_guess'],-1):
             #default setting 
             test_T1 = 1500 * np.ones(
                 kwargs['images'].shape[-3:], dtype=self._DTYPE)
-            test_M0 = 0.1*np.ones(
+            test_M0 = 1e-3*np.ones(
                 kwargs['images'].shape[-3:], dtype=self._DTYPE)
         else:
             #custom initial guess

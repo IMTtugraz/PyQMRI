@@ -297,15 +297,23 @@ class IRGNOptimizer:
                 
             # Precond only for image data!!!!
             if ign >= 0:
+                self.precond = True
+                self._pdop.precond = True
+                self._pdop._grad_op.precond = True
+                if self._reg_type == 'TGV':
+                    self._pdop._symgrad_op.precond = True
+                    
                 self._balanceModelGradients(result, ign)
                 result = self.applyPrecond(result)
                 self._pdop.irgn = self
             else:
+                self.precond = False
                 self._balanceModelGradientsNorm(result, ign)
             
             self._updateIRGNRegPar(ign)
-            self._pdop._grad_op.updateRatio(np.require(self.UTE
-                                      ,requirements='C'))
+            if self.precond:
+                self._pdop._grad_op.updateRatio(np.require(self.UT
+                                          ,requirements='C'))
 
             if self._streamed:
                 if self._SMS is False:
@@ -321,16 +329,15 @@ class IRGNOptimizer:
                     np.abs(
                         self._modelgrad)**2, 1).astype(self._DTYPE_real)
                 _jacobi[_jacobi == 0] = 1e-8
-                self._modelgrad = clarray.to_device(
+                self._pdop.model = self._model
+                self._pdop.modelgrad = clarray.to_device(
                     self._queue[0],
                     self._modelgrad)
-                self._pdop.model = self._model
-                self._pdop.modelgrad = self._modelgrad
 
             self._pdop.updateRegPar(self.irgn_par)
 
             result = self._irgnSolve3D(result, iters, data, ign)
-            if ign >= 0:
+            if self.precond:
                 result = self.removePrecond(result)
 
             iters = np.fmin(iters * inc, self.irgn_par["max_iters"])
@@ -352,9 +359,11 @@ class IRGNOptimizer:
             % (ign, np.abs(self.gn_res[-1]-self.gn_res[-2])/self.gn_res[0], 
                              self.irgn_par["rtol"]))
                     break
-                    
-        self._calcResidual(self.applyPrecond(result), data, ign+1)
-
+        if self.precond:            
+            self._calcResidual(self.applyPrecond(result), data, ign+1)
+        else:
+            self._calcResidual((result), data, ign+1)
+            
     def _updateIRGNRegPar(self, ign):
 
         try:
@@ -386,13 +395,15 @@ class IRGNOptimizer:
         E = np.zeros((jacobi.shape[-1], self.k), dtype=self.par["DTYPE"])
         self.UTE = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
         self.EU = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
+        self.UT = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
         
         jacobi = np.require(jacobi.T, requirements='C')
         
-        cutoff = 1e3#5e2
+        cutoff = 5e0#5e2
         # if ign > 5:
         #     cutoff = np.inf
         maxval = 0
+        minval = 1e30
         
         for j in range(jacobi.shape[0]):
             V[j], E[j], U[j] = spl.svd(jacobi[j], full_matrices=False)
@@ -403,12 +414,16 @@ class IRGNOptimizer:
             einv[einv/einv[0] > cutoff] = cutoff*einv[0]
 
             V[j] = V[j]@np.diag(E[j])@np.diag(einv)
-            maxval = np.maximum(maxval, np.max((einv*E[j])))
-            E[j] = einv
+            maxval = np.maximum(maxval, np.max((E[j])))
+            minval = np.minimum(minval, np.min((E[j])))
+  
             self.UTE[j] = (np.conj(U[j].T)@np.diag(einv))
+            self.UT[j] = np.conj(U[j].T)@np.diag(einv)
             self.EU[j] = np.diag(1/einv)@U[j]
             
         print("Maximum Eigenvalue: ", maxval)
+        print("Minimum Eigenvalue: ", minval)
+        print("Condition number: ", maxval/minval)
             
         
         V = np.require(np.transpose(V, (2,1,0)), requirements='C')
@@ -416,6 +431,7 @@ class IRGNOptimizer:
         self._modelgrad = V.reshape(*V.shape[:2],*self._modelgrad.shape[2:])
         
         self.UTE = np.require(self.UTE.transpose(1,2,0), requirements='C')
+        self.UT = np.require(self.UT.transpose(1,2,0), requirements='C')
         self.EU = np.require(self.EU.transpose(1,2,0), requirements='C')
         
         self._pdop.EU = clarray.to_device(self._pdop._queue[0], self.EU)
@@ -492,11 +508,11 @@ class IRGNOptimizer:
         if self._streamed:
             x = np.require(np.swapaxes(x, 0, 1), requirements='C')
             res = data - b + self._MRI_operator.fwdoop(
-                [[x, self._coils, self._modelgrad]])
+                [[x, self._coils, self._pdop.modelgrad]])
         else:
             tmpx = clarray.to_device(self._queue[0], x)
             res = data - b + self._MRI_operator.fwdoop(
-                [tmpx, self._coils, self._modelgrad]).get()
+                [tmpx, self._coils, self._pdop.modelgrad]).get()
             del tmpx   
         
         tmpres = self._pdop.run((x, self._v), res, iters)
