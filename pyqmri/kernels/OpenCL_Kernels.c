@@ -9,10 +9,10 @@ inline float2 cmult_conj(float2 a, float2 b)
 }
 
 __kernel void squarematvecmult(__global float2* outvec,
-                         __global float2* mat,
-                         __global float2* invec,
-                         const int vecdim
-                         )
+                          __global float2* mat,
+                          __global float2* invec,
+                          const int vecdim
+                          )
 {
     size_t Nx = get_global_size(2), Ny = get_global_size(1);
     size_t NSl = get_global_size(0);
@@ -38,10 +38,10 @@ __kernel void squarematvecmult(__global float2* outvec,
 }
 
 __kernel void squarematvecmult_conj(__global float2* outvec,
-                         __global float2* mat,
-                         __global float2* invec,
-                         const int vecdim
-                         )
+                          __global float2* mat,
+                          __global float2* invec,
+                          const int vecdim
+                          )
 {
     size_t Nx = get_global_size(2), Ny = get_global_size(1);
     size_t NSl = get_global_size(0);
@@ -140,9 +140,9 @@ __kernel void update_z_tv(
 
   for (int uk=0; uk<NUk; uk++)
   {
-     zn1[i] = zn[i] + sigma * gx[i];
+      zn1[i] = zn[i] + sigma * gx[i];
 
-     abs_val = hypot(abs_val,hypot(
+      abs_val = hypot(abs_val,hypot(
         hypot(
           zn1[i].s0,
           zn1[i].s1
@@ -158,13 +158,13 @@ __kernel void update_z_tv(
             )
           )
         ));
-     i += NSl*Nx*Ny;
+      i += NSl*Nx*Ny;
   }
   i = k*Nx*Ny+Nx*y + x;
   for (int uk=0; uk<NUk; uk++)
   {
-     if (abs_val > 1.0f) zn1[i] /=abs_val;
-     i += NSl*Nx*Ny;
+      if (abs_val > 1.0f) zn1[i] /=abs_val;
+      i += NSl*Nx*Ny;
   }
 }
 
@@ -199,7 +199,7 @@ __kernel void update_z1_tgv(
 
   for (int uk=0; uk<NUk; uk++)
   {
-     z_new[i] = z[i] + sigma * (gx[i] - v[i]);
+      z_new[i] = z[i] + sigma * (gx[i] - v[i]);
 
         fac = hypot(fac,
           hypot(
@@ -219,15 +219,15 @@ __kernel void update_z1_tgv(
               )
             )
           );
-     i += NSl*Nx*Ny;
+      i += NSl*Nx*Ny;
   }
   fac *= alphainv;
   //printf("fac: %2.2f\n", fac);
   i = k*Nx*Ny+Nx*y + x;
   for (int uk=0; uk<NUk; uk++)
   {
-     if (fac > 1.0f) z_new[i] /=fac;
-     i += NSl*Nx*Ny;
+      if (fac > 1.0f) z_new[i] /=fac;
+      i += NSl*Nx*Ny;
   }
 }
 
@@ -249,51 +249,51 @@ __kernel void update_z2_tgv(
 
   for (int uk=0; uk<NUk; uk++)
   {
-     z_new[i] = z[i] + sigma * symgv[i];
+      z_new[i] = z[i] + sigma * symgv[i];
 
-       fac = hypot(fac,hypot(
-           hypot(
-             hypot(
-               hypot(
-                 z_new[i].s0,
-                 z_new[i].s1
-                 ),
-             hypot(
-               z_new[i].s2,
-               z_new[i].s3
-               )
-             ),
-           hypot(
-             z_new[i].s4,
-             z_new[i].s5
-             )
-           ),
-         hypot(
-           hypot(
-             2.0f*hypot(
-               z_new[i].s6,
-               z_new[i].s7
-               ),
-             2.0f*hypot(
-               z_new[i].s8,
-               z_new[i].s9
-               )
-             ),
-           2.0f*hypot(
-             z_new[i].sa,
-             z_new[i].sb
-             )
-           )
-         )
-       );
-       i+=NSl*Nx*Ny;
+        fac = hypot(fac,hypot(
+            hypot(
+              hypot(
+                hypot(
+                  z_new[i].s0,
+                  z_new[i].s1
+                  ),
+              hypot(
+                z_new[i].s2,
+                z_new[i].s3
+                )
+              ),
+            hypot(
+              z_new[i].s4,
+              z_new[i].s5
+              )
+            ),
+          hypot(
+            hypot(
+              2.0f*hypot(
+                z_new[i].s6,
+                z_new[i].s7
+                ),
+              2.0f*hypot(
+                z_new[i].s8,
+                z_new[i].s9
+                )
+              ),
+            2.0f*hypot(
+              z_new[i].sa,
+              z_new[i].sb
+              )
+            )
+          )
+        );
+        i+=NSl*Nx*Ny;
   }
   fac *= alphainv;
   i = k*Nx*Ny+Nx*y + x;
   for (int uk=0; uk<NUk; uk++)
   {
-     if (fac > 1.0f) z_new[i] /=fac;
-     i += NSl*Nx*Ny;
+      if (fac > 1.0f) z_new[i] /=fac;
+      i += NSl*Nx*Ny;
   }
 }
 
@@ -503,46 +503,45 @@ __kernel void update_z2(
         z_new[i] = z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]);
 
         // reproject
-       square = powr(z_new[i], 2);
-       fac += sqrt(square.s0+square.s1+square.s2+square.s3+square.s4+square.s5
-                   +4.0f*(square.s6+square.s7+square.s8+square.s9+square.sa+square.sb));
-        
-//         fac += hypot(fac,
-//         hypot(
-//           hypot(
-//             hypot(
-//               hypot(
-//                 z_new[i].s0,
-//                 z_new[i].s1
-//                 ),
-//                 hypot(
-//                   z_new[i].s2,
-//                   z_new[i].s3
-//                   )
-//               ),
-//               hypot(
-//                 z_new[i].s4
-//                 ,z_new[i].s5
-//                 )
-//             ),
-//             hypot(
-//               hypot(
-//                 2.0f*hypot(
-//                   z_new[i].s6,
-//                   z_new[i].s7
-//                   ),
-//                 2.0f*hypot(
-//                   z_new[i].s8,
-//                   z_new[i].s9
-//                   )
-//                 ),
-//                 2.0f*hypot(
-//                   z_new[i].sa,
-//                   z_new[i].sb
-//                   )
-//               )
-//             )
-//           );
+//         square = powr(z_new[i], 2);
+//         fac += sqrt(square.s0+square.s1+square.s2+square.s3+square.s4+square.s5
+//                     +4.0f*(square.s6+square.s7+square.s8+square.s9+square.sa+square.sb));
+        fac = hypot(fac,hypot(
+            hypot(
+              hypot(
+                hypot(
+                  z_new[i].s0,
+                  z_new[i].s1
+                  ),
+              hypot(
+                z_new[i].s2,
+                z_new[i].s3
+                )
+              ),
+            hypot(
+              z_new[i].s4,
+              z_new[i].s5
+              )
+            ),
+          hypot(
+            hypot(
+              2.0f*hypot(
+                z_new[i].s6,
+                z_new[i].s7
+                ),
+              2.0f*hypot(
+                z_new[i].s8,
+                z_new[i].s9
+                )
+              ),
+            2.0f*hypot(
+              z_new[i].sa,
+              z_new[i].sb
+              )
+            )
+          )
+        );
+
         i += NSl*Nx*Ny;
     }
     fac *= alphainv;
@@ -582,13 +581,30 @@ __kernel void update_z1(
 
     for (int uk=0; uk<NUk_tgv; uk++)
     {
-//        fac = 0.0f;
-       z_new[i] = z[i] + sigma*(
-           (1+theta)*gx[i]-theta*gx_[i]-((1+theta)*vx[i]-theta*vx_[i]));
+        z_new[i] = z[i] + sigma*(
+            (1+theta)*gx[i]-theta*gx_[i]-((1+theta)*vx[i]-theta*vx_[i]));
 
-       // reproject
-       square = powr(z_new[i], 2);
-       fac += sqrt(square.s0+square.s1+square.s2+square.s3+square.s4+square.s5);
+        // reproject
+//         square = powr(z_new[i], 2);
+//         fac += sqrt(square.s0+square.s1+square.s2+square.s3+square.s4+square.s5);
+        fac = hypot(fac,
+          hypot(
+            hypot(
+              z_new[i].s0,
+              z_new[i].s1
+              ),
+            hypot(
+              hypot(
+                z_new[i].s2,
+                z_new[i].s3
+                ),
+              hypot(
+                z_new[i].s4,
+                z_new[i].s5
+                )
+              )
+            )
+          );
         i += NSl*Nx*Ny;
     }
     fac *= alphainv;
@@ -605,7 +621,6 @@ __kernel void update_z1(
         i += NSl*Nx*Ny;
     }
 }
-
 
 __kernel void update_z1_tv(
                 __global float8 *z_new,
@@ -628,47 +643,45 @@ __kernel void update_z1_tv(
 
     for (int uk=0; uk<NUk_tgv; uk++)
     {
-//         fac = 0.0f;
         z_new[i] = z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]);
 
         // reproject
-        square = powr(z_new[i], 2);
-        fac += sqrt(square.s0+square.s1+square.s2+square.s3+square.s4+square.s5);///ratio[uk];
-//         fac = sqrt(fac)/ratio[uk];
-//         fac = hypot(fac,
-//         hypot(
-//           hypot(
-//             z_new[i].s0,
-//             z_new[i].s1
-//             ),
-//           hypot(
-//             hypot(
-//               z_new[i].s2,
-//               z_new[i].s3
-//               ),
-//             hypot(
-//               z_new[i].s4,
-//               z_new[i].s5
-//               )
-//             )
-//           )
-//         )/ratio[uk];
+//         square = powr(z_new[i], 2);
+//         fac += sqrt(square.s0+square.s1+square.s2+square.s3+square.s4+square.s5);///ratio[uk];
+        fac = hypot(fac,
+          hypot(
+            hypot(
+              z_new[i].s0,
+              z_new[i].s1
+              ),
+            hypot(
+              hypot(
+                z_new[i].s2,
+                z_new[i].s3
+                ),
+              hypot(
+                z_new[i].s4,
+                z_new[i].s5
+                )
+              )
+            )
+          );
+
         i += NSl*Nx*Ny;
     }
     fac *= alphainv;
-    //printf("fac: %2.2f\n", fac);
     i = k*Nx*Ny+Nx*y + x;
     for (int uk=0; uk<NUk_tgv; uk++)
     {
         if (fac/ratio[uk] > 1.0f){z_new[i] /= fac/ratio[uk];}
         i += NSl*Nx*Ny;
     }
-//     i = NSl*Nx*Ny*NUk_tgv+k*Nx*Ny+Nx*y + x;
-//     for (int uk=NUk_tgv; uk<(NUk_tgv+NUk_H1); uk++)
-//     {
-//         z_new[i] = (z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]))*h1inv;
-//         i += NSl*Nx*Ny;
-//     }
+    i = NSl*Nx*Ny*NUk_tgv+k*Nx*Ny+Nx*y + x;
+    for (int uk=NUk_tgv; uk<(NUk_tgv+NUk_H1); uk++)
+    {
+        z_new[i] = (z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]))*h1inv;
+        i += NSl*Nx*Ny;
+    }
 }
 
 
@@ -834,34 +847,6 @@ __kernel void update_primal_LM(
     {
         u_new[i] = (u[i]-tau*Kyk[i]+tauinv*A[i]*u_k[i])/(1+tauinv*A[i]);
 
-//         if(real[uk]>=1)
-//         {
-//             u_new[i].s1 = 0.0f;
-//             if (u_new[i].s0<min[uk])
-//             {
-//                 u_new[i].s0 = min[uk];
-//             }
-//             if(u_new[i].s0>max[uk])
-//             {
-//                 u_new[i].s0 = max[uk];
-//             }
-//         }
-//         else
-//         {
-//             norm =  sqrt(
-//                       pow((float)(u_new[i].s0),(float)(2.0))
-//                       + pow((float)(u_new[i].s1),(float)(2.0)));
-//             if (norm<min[uk])
-//             {
-//                 u_new[i].s0 *= 1/norm*min[uk];
-//                 u_new[i].s1 *= 1/norm*min[uk];
-//             }
-//             if(norm>max[uk])
-//             {
-//                 u_new[i].s0 *= 1/norm*max[uk];
-//                 u_new[i].s1 *= 1/norm*max[uk];
-//             }
-//         }
         i += NSl*Nx*Ny;
     }
 }
