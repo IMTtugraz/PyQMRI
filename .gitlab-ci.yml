@@ -9,8 +9,8 @@ build-job:
     image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
     tags: [cpu]
     script:
-        - python3.7 -m pip install -r requirements.txt
-        - python3.7 -m pip install .
+        - python3 -m pip install -r requirements.txt
+        - python3 -m pip install .
 
 lint-job:
     stage: linting
@@ -27,8 +27,8 @@ test-dsingle-on-cpu:
     image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
     tags: [cpu]
     before_script:
-        - python3.7 -m pip install -r requirements.txt --no-cache-dir
-        - python3.7 -m pip install -e . --no-cache-dir
+        - python3 -m pip install -r requirements.txt --no-cache-dir
+        - python3 -m pip install -e . --no-cache-dir
     script:
         - pytest --junitxml results_unittests_LinOp_CPU.xml --cov=pyqmri test/unittests/test_LinearDataOperator_CPU.py
         - coverage xml -o coverage_unittests_LinOp_CPU.xml
@@ -46,8 +46,8 @@ test-single-on-amd-gpu:
     image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
     tags: [gpu]
     before_script:
-        - python3.7 -m pip install -r requirements.txt --no-cache-dir
-        - python3.7 -m pip install -e . --no-cache-dir
+        - python3 -m pip install -r requirements.txt --no-cache-dir
+        - python3 -m pip install -e . --no-cache-dir
     script:
         - pytest --junitxml results_unittests_LinOp.xml --cov=pyqmri test/unittests/test_LinearDataOperator.py
         - coverage xml -o coverage_unittests_LinOp.xml
@@ -67,8 +67,8 @@ test-single-on-nvidia-gpu:
     image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private
     tags: [nvidia_gpu]
     before_script:
-        - python3.7 -m pip install -r requirements.txt --no-cache-dir
-        - python3.7 -m pip install -e . --no-cache-dir
+        - python3 -m pip install -r requirements.txt --no-cache-dir
+        - python3 -m pip install -e . --no-cache-dir
     script:
         - pytest --junitxml results_unittests_LinOp.xml --cov=pyqmri test/unittests/test_LinearDataOperator.py
         - coverage xml -o coverage_unittests_LinOp.xml
@@ -90,8 +90,8 @@ test-double-on-cpu:
     image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
     tags: [cpu]
     before_script:
-        - python3.7 -m pip install -r requirements.txt --no-cache-dir
-        - python3.7 -m pip install -e . --no-cache-dir
+        - python3 -m pip install -r requirements.txt --no-cache-dir
+        - python3 -m pip install -e . --no-cache-dir
     script:       
         - pytest --junitxml results_unittests_LinOp_CPU_double.xml --cov=pyqmri test/unittests/test_LinearDataOperator_CPU_double.py
         - coverage xml -o coverage_unittests_LinOp_CPU_double.xml
@@ -109,8 +109,8 @@ test-double-on-amd-gpu:
     image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
     tags: [gpu]
     before_script:
-        - python3.7 -m pip install -r requirements.txt --no-cache-dir
-        - python3.7 -m pip install -e . --no-cache-dir
+        - python3 -m pip install -r requirements.txt --no-cache-dir
+        - python3 -m pip install -e . --no-cache-dir
     script:
         - pytest --junitxml results_unittests_LinOp_double.xml --cov=pyqmri test/unittests/test_LinearDataOperator_double.py
         - coverage xml -o coverage_unittests_LinOp_double.xml
@@ -128,8 +128,8 @@ test-double-on-nvidia-gpu:
     image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private
     tags: [nvidia_gpu]
     before_script:
-        - python3.7 -m pip install -r requirements.txt --no-cache-dir
-        - python3.7 -m pip install -e . --no-cache-dir
+        - python3 -m pip install -r requirements.txt --no-cache-dir
+        - python3 -m pip install -e . --no-cache-dir
     script:
         - pytest --junitxml results_unittests_LinOp_double.xml --cov=pyqmri test/unittests/test_LinearDataOperator_double.py
         - coverage xml -o coverage_unittests_LinOp_double.xml
@@ -147,8 +147,8 @@ integration-job-cpu:
     image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
     tags: [cpu]
     before_script:
-        - python3.7 -m pip install -r requirements.txt --no-cache-dir
-        - python3.7 -m pip install -e . --no-cache-dir
+        - python3 -m pip install -r requirements.txt --no-cache-dir
+        - python3 -m pip install -e . --no-cache-dir
     script:
         - ipcluster start&
         - pytest --junitxml results_integrationtests_single_slice.xml --cov=pyqmri --integration-cover test/integrationtests/test_integration_test_single_slice_CPU.py
@@ -166,8 +166,8 @@ integration-job-gpu:
     image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
     tags: [gpu]
     before_script:
-        - python3.7 -m pip install -r requirements.txt --no-cache-dir
-        - python3.7 -m pip install -e . --no-cache-dir
+        - python3 -m pip install -r requirements.txt --no-cache-dir
+        - python3 -m pip install -e . --no-cache-dir
     script:
         - ipcluster start&
         - pytest --junitxml results_integrationtests_single_slice.xml --cov=pyqmri --integration-cover test/integrationtests/test_integration_test_single_slice.py
@@ -185,8 +185,8 @@ integration-job-nvidia-gpu:
     image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private
     tags: [nvidia_gpu]
     before_script:
-        - python3.7 -m pip install -r requirements.txt --no-cache-dir
-        - python3.7 -m pip install -e . --no-cache-dir
+        - python3 -m pip install -r requirements.txt --no-cache-dir
+        - python3 -m pip install -e . --no-cache-dir
     script:
         - ipcluster start&
         - pytest --junitxml results_integrationtests_single_slice.xml --cov=pyqmri --integration-cover test/integrationtests/test_integration_test_single_slice.py
