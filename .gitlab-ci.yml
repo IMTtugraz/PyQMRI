@@ -30,8 +30,8 @@ test-single-on-cpu:
         - python3.8 -m pip install -r requirements.txt --no-cache-dir
         - python3.8 -m pip install -e . --no-cache-dir
     script:
-        #- pytest --junitxml results_unittests_LinOp_CPU.xml --cov=pyqmri test/unittests/test_LinearDataOperator_CPU.py
-        #- coverage xml -o coverage_unittests_LinOp_CPU.xml
+        - pytest --junitxml results_unittests_LinOp_CPU.xml --cov=pyqmri test/unittests/test_LinearDataOperator_CPU.py
+        - coverage xml -o coverage_unittests_LinOp_CPU.xml
         - pytest --junitxml results_unittests_grad_CPU.xml --cov=pyqmri test/unittests/test_gradient_CPU.py
         - coverage xml -o coverage_unittests_grad_CPU.xml
         - pytest --junitxml results_unittests_symgrad_CPU.xml --cov=pyqmri test/unittests/test_symmetrized_gradient_CPU.py
