@@ -103,9 +103,9 @@ class Operator(ABC):
         self.DTYPE = DTYPE
         self.DTYPE_real = DTYPE_real
         self.par_slices = self.NSlice
-        self._unknown_shape = (self.unknowns, 
-                               self.NSlice, 
-                               self.dimY, 
+        self._unknown_shape = (self.unknowns,
+                               self.NSlice,
+                               self.dimY,
                                self.dimX)
         self._overlap = 0
         self.ratio = []
@@ -388,6 +388,26 @@ class Operator(ABC):
                                            DTYPE,
                                            DTYPE_real)
         return op
+
+    @staticmethod
+    def SoftSenseOperatorFactory(par,
+                                prg,
+                                DTYPE,
+                                DTYPE_real,
+                                streamed=False):
+        """Sense forward/adjoint operator factory method."""
+        if streamed:
+            op = OperatorSoftSenseStreamed(par,
+                                           prg,
+                                           DTYPE,
+                                           DTYPE_real)
+
+        else:
+            op = OperatorSoftSense(par,
+                                   prg[0],
+                                   DTYPE,
+                                   DTYPE_real)
+        return op, op.NUFFT
 
     def _defineoperator(self,
                         functions,
@@ -722,8 +742,8 @@ class OperatorKspace(Operator):
                 np.int32(self.NScan),
                 np.int32(self.unknowns),
                 wait_for=(self._tmp_result.events + inp[0].events
-                          + wait_for)))        
-               
+                          + wait_for)))
+
         return self.NUFFT.FFT(
             out,
             self._tmp_result,
@@ -770,7 +790,7 @@ class OperatorKspace(Operator):
             self.queue,
             self._out_shape_fwd,
             self.DTYPE, "C")
-        self.NUFFT.FFT(tmp_sino, self._tmp_result, 
+        self.NUFFT.FFT(tmp_sino, self._tmp_result,
                        wait_for=tmp_sino.events).wait()
         return tmp_sino
 
@@ -803,7 +823,7 @@ class OperatorKspace(Operator):
             self.NUFFT.FFTH(
                 self._tmp_result, inp[0], wait_for=(wait_for
                                                     + inp[0].events)))
-        
+
         return self.prg.operator_ad(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data, self._tmp_result.data, inp[1].data,
@@ -881,7 +901,7 @@ class OperatorKspace(Operator):
             self.NUFFT.FFTH(
                 self._tmp_result, inp[0], wait_for=(wait_for
                                                     + inp[0].events)))
-        
+
         return self.prg.update_Kyk1(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data, self._tmp_result.data, inp[2].data,
@@ -940,7 +960,7 @@ class OperatorKspaceSMS(Operator):
             self.queue, (self.NScan, self.NC,
                          self.NSlice, self.dimY, self.dimX),
             self.DTYPE, "C")
-        self._out_shape_fwd = (self.NScan, self.NC, 
+        self._out_shape_fwd = (self.NScan, self.NC,
                                self.packs, self.Nproj, self.N)
 
         self.Nproj = self.dimY
@@ -1039,7 +1059,7 @@ class OperatorKspaceSMS(Operator):
             self.queue,
             (self.NScan, self.NC, self.packs, self.Nproj, self.N),
             self.DTYPE, "C")
-        
+
         self.NUFFT.FFT(tmp_sino, self._tmp_result).wait()
         return tmp_sino
 
@@ -1209,9 +1229,9 @@ class OperatorImagespaceStreamed(Operator):
         par["overlap"] = 1
         self._overlap = par["overlap"]
         self.par_slices = par["par_slices"]
-        self._unknown_shape = (self.unknowns, 
-                       self.par_slices+self._overlap, 
-                       self.dimY, 
+        self._unknown_shape = (self.unknowns,
+                       self.par_slices+self._overlap,
+                       self.dimY,
                        self.dimX)
         self.unknown_shape = (self.NSlice, self.unknowns, self.dimY, self.dimX)
         coil_shape = []
@@ -1454,9 +1474,9 @@ class OperatorKspaceStreamed(Operator):
         super().__init__(par, prg, DTYPE, DTYPE_real)
         self._overlap = par["overlap"]
         self.par_slices = par["par_slices"]
-        self._unknown_shape = (self.unknowns, 
-                       self.par_slices+self._overlap, 
-                       self.dimY, 
+        self._unknown_shape = (self.unknowns,
+                       self.par_slices+self._overlap,
+                       self.dimY,
                        self.dimX)
         if not trafo:
             self.Nproj = self.dimY
@@ -1754,9 +1774,9 @@ class OperatorKspaceSMSStreamed(Operator):
         self._overlap = par["overlap"]
         self.par_slices = par["par_slices"]
         self.packs = par["packs"]*par["numofpacks"]
-        self._unknown_shape = (self.unknowns, 
-                       self.par_slices+self._overlap, 
-                       self.dimY, 
+        self._unknown_shape = (self.unknowns,
+                       self.par_slices+self._overlap,
+                       self.dimY,
                        self.dimX)
         self.Nproj = self.dimY
         self.N = self.dimX
@@ -2536,9 +2556,9 @@ class OperatorFiniteGradientStreamed(Operator):
         par["overlap"] = 1
         self._overlap = par["overlap"]
         self.par_slices = par["par_slices"]
-        self._unknown_shape = (self.unknowns, 
-               self.par_slices+self._overlap, 
-               self.dimY, 
+        self._unknown_shape = (self.unknowns,
+               self.par_slices+self._overlap,
+               self.dimY,
                self.dimX)
 
         self.unknown_shape = (self.NSlice, self.unknowns, self.dimY, self.dimX)
@@ -2685,7 +2705,7 @@ class OperatorFiniteGradientStreamed(Operator):
               A PyQMRI streaming object for the gradient computation.
         """
         return self._stream_grad
-    
+
     def updateRatio(self, inp):
         for j in range(self.num_dev):
             self.ratio = clarray.to_device(
@@ -2779,9 +2799,9 @@ class OperatorFiniteSymGradientStreamed(Operator):
         par["overlap"] = 1
         self._overlap = par["overlap"]
         self.par_slices = par["par_slices"]
-        self._unknown_shape = (self.unknowns, 
-                       self.par_slices+self._overlap, 
-                       self.dimY, 
+        self._unknown_shape = (self.unknowns,
+                       self.par_slices+self._overlap,
+                       self.dimY,
                        self.dimX)
 
         unknown_shape = (self.NSlice, self.unknowns, self.dimY, self.dimX)
@@ -2937,3 +2957,629 @@ class OperatorFiniteSymGradientStreamed(Operator):
                 self.queue[4*j],
                 (self._weights*inp).astype(
                          dtype=self.DTYPE_real))
+
+
+class OperatorSoftSense(Operator):
+    """Soft-SENSE Operator.
+
+    Parameters
+    ----------
+      par : dict A python dict containing the necessary information to
+        setup the object. Needs to contain the number of slices (NSlice),
+        number of scans (NScan), image dimensions (dimX, dimY), number of
+        coils (NC), sampling points (N) and read outs (NProj)
+        a PyOpenCL queue (queue) and the complex coil
+        sensitivities (C).
+      prg : PyOpenCL.Program
+        The PyOpenCL.Program object containing the necessary kernels to
+        execute the linear Operator.
+      DTYPE : numpy.dtype, numpy.complex64
+        Complex working precission.
+      DTYPE_real : numpy.dtype, numpy.float32
+        Real working precission.
+      trafo : bool, true
+        Switch between cartesian (false) and non-cartesian FFT (True, default).
+
+    Attributes
+    ----------
+    ctx : PyOpenCL.Context
+      The context for the PyOpenCL computations.
+    queue : PyOpenCL.Queue
+      The computation Queue for the PyOpenCL kernels.
+    NUFFT : PyQMRI.PyOpenCLnuFFT
+      The (nu) FFT used for fitting.
+    """
+
+    def __init__(self, par, prg, DTYPE=np.complex64,
+                 DTYPE_real=np.float32, trafo=False):
+        super().__init__(par, prg, DTYPE, DTYPE_real)
+        self.queue = self.queue[0]
+        self.ctx = self.ctx[0]
+
+        self.NMaps = par["NMaps"]
+
+        self._tmp_result = clarray.zeros(
+            self.queue, (self.NScan, self.NC,
+                         self.NSlice, self.dimY, self.dimX),
+            self.DTYPE, "C")
+        if not trafo:
+            self.Nproj = self.dimY
+            self.N = self.dimX
+
+        self._out_shape_fwd = (self.NScan, self.NC,
+                               self.NSlice, self.Nproj, self.N)
+
+        # in case of 3D mask include in operator and mask fft with ones
+        self.mask = np.array([])
+        self._mask_tmp = par["mask"].copy()
+
+        if self._mask_tmp.ndim > 2:
+            self.mask = clarray.to_device(self.queue, par["mask"])
+            par["mask"] = np.require(
+                np.ones((par["dimY"], par["dimX"]), dtype=par["DTYPE_real"]),
+                requirements='C')
+
+        self.NUFFT = CLnuFFT.create(self.ctx,
+                                    self.queue,
+                                    par,
+                                    radial=trafo,
+                                    DTYPE=DTYPE,
+                                    DTYPE_real=DTYPE_real)
+
+        par["mask"] = self._mask_tmp.copy()
+        del self._mask_tmp
+
+    def fwd(self, out, inp, **kwargs):
+        """Forward operator application in-place.
+
+        Apply the linear Soft-SENSE operator from image space to kspace
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+
+        Parameters
+        ----------
+          out : PyOpenCL.Array
+            The complex image data which is the result of the
+            computation.
+          inp : PyOpenCL.Array
+            The complex kspace data which is used as input.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+          PyOpenCL.Event
+            A PyOpenCL event to wait for.
+        """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
+        self._tmp_result.add_event(
+            self.prg.operator_fwd_ssense(
+                self.queue,
+                (self.NSlice, self.dimY, self.dimX),
+                None,
+                self._tmp_result.data,
+                inp[0].data,
+                inp[1].data,
+                np.int32(self.NC),
+                np.int32(self.NMaps),
+                wait_for=(self._tmp_result.events + inp[0].events + wait_for)))
+        if self.mask.size != 0:
+            out.add_event(
+                self.NUFFT.FFT(
+                    out,
+                    self._tmp_result,
+                    wait_for=wait_for + self._tmp_result.events))
+
+            return self.NUFFT.prg.masking(
+                self.NUFFT.queue,
+                (self._tmp_result.size,),
+                None,
+                out.data,
+                self.mask.data,
+                wait_for=(wait_for+out.events+self._tmp_result.events))
+
+        return self.NUFFT.FFT(
+                    out,
+                    self._tmp_result,
+                    wait_for=wait_for + self._tmp_result.events)
+
+    def fwdoop(self, inp, **kwargs):
+        """Forward operator application out-of-place.
+
+        Apply the linear Soft-SENSE operator from image space to kspace
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+        This method needs to generate a temporary array and will return it as
+        the result.
+
+        Parameters
+        ----------
+          inp : PyOpenCL.Array
+            The complex image data which is used as input.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+          PyOpenCL.Array: A PyOpenCL array containing the result of the
+          computation.
+        """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
+        self._tmp_result.add_event(
+            self.prg.operator_fwd_ssense(
+                self.queue,
+                (self.NSlice, self.dimY, self.dimX),
+                None,
+                self._tmp_result.data,
+                inp[0].data,
+                inp[1].data,
+                np.int32(self.NC),
+                np.int32(self.NMaps),
+                wait_for=(self._tmp_result.events + inp[0].events
+                          + wait_for)))
+        tmp_sino = clarray.zeros(
+            self.queue,
+            self._out_shape_fwd,
+            self.DTYPE, "C")
+        self.NUFFT.FFT(tmp_sino, self._tmp_result,
+                       wait_for=tmp_sino.events).wait()
+        if self.mask.size != 0:
+            tmp_sino.add_event(
+                self.NUFFT.prg.masking(
+                    self.NUFFT.queue,
+                    (tmp_sino.size,),
+                    None,
+                    tmp_sino.data,
+                    self.mask.data,
+                    wait_for=(wait_for+tmp_sino.events)
+                )
+            )
+        return tmp_sino
+
+    def adj(self, out, inp, **kwargs):
+        """Adjoint operator application in-place.
+
+        Apply the linear Soft-SENSE operator from kspace to image space
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+
+        Parameters
+        ----------
+          out : PyOpenCL.Array
+            The complex image data which is the result of the
+            computation.
+          inp : PyOpenCL.Array
+            The complex kspace data which is used as input.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+          PyOpenCL.Event
+            A PyOpenCL event to wait for.
+        """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
+        if self.mask.size != 0:
+            inp[0].add_event(
+                self.NUFFT.prg.masking(
+                    self.NUFFT.queue,
+                    (inp[0].size,),
+                    None,
+                    inp[0].data,
+                    self.mask.data,
+                    wait_for=(wait_for+inp[0].events)
+                )
+            )
+        self._tmp_result.add_event(
+            self.NUFFT.FFTH(
+                self._tmp_result,
+                inp[0],
+                wait_for=(wait_for + inp[0].events)))
+        return self.prg.operator_ad_ssense(
+            self.queue,
+            (self.NSlice, self.dimY, self.dimX),
+            None,
+            out.data,
+            self._tmp_result.data,
+            inp[1].data,
+            np.int32(self.NC),
+            np.int32(self.NMaps),
+            wait_for=self._tmp_result.events + out.events)
+
+    def adjoop(self, inp, **kwargs):
+        """Adjoint operator application out-of-place.
+
+        Apply the linear Soft-SENSE operator from kspace to image space
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+        This method needs to generate a temporary array and will return it as
+        the result.
+
+        Parameters
+        ----------
+          inp : PyOpenCL.Array
+            The complex kspace data which is used as input.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+          PyOpenCL.Array: A PyOpenCL array containing the result of the
+          computation.
+        """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
+        if self.mask.size != 0:
+            inp[0].add_event(
+                self.NUFFT.prg.masking(
+                    self.NUFFT.queue,
+                    (inp[0].size,),
+                    None,
+                    inp[0].data,
+                    self.mask.data,
+                    wait_for=(wait_for+inp[0].events)
+                )
+            )
+        self._tmp_result.add_event(
+            self.NUFFT.FFTH(
+                self._tmp_result,
+                inp[0],
+                wait_for=(wait_for + inp[0].events)))
+        out = clarray.empty(
+            self.queue,
+            (self.NMaps, self.NSlice, self.dimY, self.dimX),
+            dtype=self.DTYPE)
+        self.prg.operator_ad_ssense(
+            out.queue,
+            (self.NSlice, self.dimY, self.dimX),
+            None,
+            out.data,
+            self._tmp_result.data,
+            inp[1].data,
+            np.int32(self.NC),
+            np.int32(self.NMaps),
+            wait_for=(self._tmp_result.events + out.events)).wait()
+        return out
+
+    def adjKyk1(self, out, inp, **kwargs):
+        """Apply the linear operator from kspace to image space.
+
+        This method fully implements the combined linear operator
+        consisting of the data part as well as the TGV regularization part.
+
+        Parameters
+        ----------
+          out : PyOpenCL.Array
+            The complex parameter space data which is used as input.
+          inp : PyOpenCL.Array
+            The complex parameter space data which is used as input.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+          PyOpenCL.Event: A PyOpenCL event to wait for.
+        """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
+        if self.mask.size != 0:
+            inp[0].add_event(
+                self.NUFFT.prg.masking(
+                    self.NUFFT.queue,
+                    (inp[0].size,),
+                    None,
+                    inp[0].data,
+                    self.mask.data,
+                    wait_for=(wait_for+inp[0].events)
+                )
+            )
+        self._tmp_result.add_event(
+            self.NUFFT.FFTH(
+                self._tmp_result,
+                inp[0],
+                wait_for=(wait_for + inp[0].events)))
+        return self.prg.update_Kyk1_ssense(
+            self.queue, (self.NSlice, self.dimY, self.dimX), None,
+            out.data,
+            self._tmp_result.data,
+            inp[1].data,
+            inp[2].data,
+            np.int32(self.NC),
+            np.int32(self.NMaps),
+            inp[3].data,
+            self.DTYPE_real(self._dz),
+            wait_for=(self._tmp_result.events +
+                      out.events + inp[2].events + inp[3].events))
+
+
+class OperatorSoftSenseStreamed(Operator):
+    """ The streamed version of the Soft-SENSE Operator
+
+    Attributes:
+      overlap : int
+        Number of slices that overlap between adjacent blocks.
+      par_slices : int
+        Number of slices per streamed block
+      fwdstr : PyQMRI.Stream
+        The streaming object to perform the forward evaluation
+      adjstr : PyQMRI.Stream
+        The streaming object to perform the adjoint evaluation
+      adjstrKyk1 : PyQMRI.Stream
+        The streaming object to perform the adjoint evaluation including z1
+        of the algorithm.
+      NUFFT : list of PyQMRI.transforms.PyOpenCLnuFFT
+        A list of NUFFT objects. One for each context.
+      FTstr : PyQMRI.Stream
+        A streamed version of the used (non-uniform) FFT, applied forward.
+      unknown_shape : tuple of int
+        Size of the reconstructed images
+      data_shape : tuple of int
+        Size of the data
+    """
+
+    def __init__(self,
+                 par,
+                 prg,
+                 DTYPE=np.complex64,
+                 DTYPE_real=np.float32,
+                 trafo=False):
+        super().__init__(par,
+                         prg,
+                         DTYPE,
+                         DTYPE_real)
+        self._overlap = par["overlap"]
+        self.par_slices = par["par_slices"]
+        self.NMaps = par["NMaps"]
+
+        if not trafo:
+            self.Nproj = self.dimY
+            self.N = self.dimX
+        for j in range(self.num_dev):
+            for i in range(2):
+                self._tmp_result.append(
+                    clarray.empty(
+                        self.queue[4*j+i],
+                        (self.par_slices+self._overlap, self.NScan,
+                         self.NC, self.dimY, self.dimX),
+                        self.DTYPE, "C"))
+                self.NUFFT.append(
+                    CLnuFFT.create(self.ctx[j],
+                                   self.queue[4*j+i], par,
+                                   radial=trafo,
+                                   streamed=True,
+                                   DTYPE=DTYPE,
+                                   DTYPE_real=DTYPE_real))
+
+        self.unknown_shape = (self.NSlice, self.NMaps, self.dimY, self.dimX)
+        coil_shape = (self.NSlice, self.NMaps, self.NC, self.dimY, self.dimX)
+        self.data_shape = (self.NSlice, self.NScan, self.NC, self.Nproj,
+                           self.N)
+        trans_shape = (self.NSlice, self.NScan,
+                       self.NC, self.dimY, self.dimX)
+        grad_shape = self.unknown_shape + (4,)
+
+        self.fwdstr = self._defineoperator(
+            [self._fwdstreamed],
+            [self.data_shape],
+            [[self.unknown_shape,
+              coil_shape]])
+
+        self.adjstrKyk1 = self._defineoperator(
+            [self._adjstreamedKyk1],
+            [self.unknown_shape],
+            [[self.data_shape,
+              coil_shape,
+              grad_shape]])
+
+        self.adjstr = self._defineoperator(
+            [self._adjstreamed],
+            [self.unknown_shape],
+            [[self.data_shape,
+              coil_shape]])
+
+        self.FTstr = self._defineoperator(
+            [self.FT],
+            [self.data_shape],
+            [[trans_shape]])
+
+    def fwd(self, out, inp, **kwargs):
+        """Forward operator application in-place.
+
+        Apply the linear Soft-SENSE operator from image space to kspace
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+
+        Parameters
+        ----------
+          out : PyOpenCL.Array
+            The complex image data which is the result of the
+            computation.
+          inp : PyOpenCL.Array
+            The complex kspace data which is used as input.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+          PyOpenCL.Event
+            A PyOpenCL event to wait for.
+        """
+        self.fwdstr.eval(out, inp)
+
+    def fwdoop(self, inp, **kwargs):
+        """Forward operator application out-of-place.
+
+        Apply the linear Soft-SENSE operator from image space to kspace
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+        This method needs to generate a temporary array and will return it as
+        the result.
+
+        Parameters
+        ----------
+          inp : PyOpenCL.Array
+            The complex image data which is used as input.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+          PyOpenCL.Array: A PyOpenCL array containing the result of the
+          computation.
+        """
+        tmp_result = np.zeros(self.data_shape, dtype=self.DTYPE)
+        self.fwdstr.eval([tmp_result], inp)
+        return tmp_result
+
+    def adj(self, out, inp, **kwargs):
+        """Adjoint operator application in-place.
+
+        Apply the linear Soft-SENSE operator from kspace to image space
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+
+        Parameters
+        ----------
+          out : PyOpenCL.Array
+            The complex image data which is the result of the
+            computation.
+          inp : PyOpenCL.Array
+            The complex kspace data which is used as input.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+          PyOpenCL.Event
+            A PyOpenCL event to wait for.
+        """
+        self.adjstr.eval(out, inp)
+
+    def adjoop(self, inp, **kwargs):
+        """Adjoint operator application out-of-place.
+
+        Apply the linear Soft-SENSE operator from kspace to image space
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+        This method needs to generate a temporary array and will return it as
+        the result.
+
+        Parameters
+        ----------
+          inp : PyOpenCL.Array
+            The complex kspace data which is used as input.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+          PyOpenCL.Array: A PyOpenCL array containing the result of the
+          computation.
+        """
+        tmp_result = np.zeros(self.unknown_shape, dtype=self.DTYPE)
+        self.adjstr.eval([tmp_result], inp)
+        return tmp_result
+
+    def adjKyk1(self, out, inp):
+        """Apply the linear operator from kspace to image space.
+
+        This method fully implements the combined linear operator
+        consisting of the data part as well as the TGV regularization part.
+
+        Parameters
+        ----------
+          out : PyOpenCL.Array
+            The complex parameter space data which is used as input.
+          inp : PyOpenCL.Array
+            The complex parameter space data which is used as input.
+        """
+        self.adjstrKyk1.eval(out, inp)
+
+    def _fwdstreamed(self, out, inp, par=None, idx=0, idxq=0,
+                     bound_cond=0, wait_for=None):
+        if wait_for is None:
+            wait_for = []
+        self._tmp_result[2*idx+idxq].add_event(
+            self.prg[idx].operator_fwd_ssense(
+                self.queue[4*idx+idxq],
+                (self.par_slices+self._overlap, self.dimY, self.dimX), None,
+                self._tmp_result[2*idx+idxq].data,
+                inp[0].data,
+                inp[1].data,
+                np.int32(self.NC),
+                np.int32(self.NMaps),
+                wait_for=(self._tmp_result[2*idx+idxq].events +
+                          inp[0].events+wait_for)))
+
+        return self.NUFFT[2*idx+idxq].FFT(
+                out,
+                self._tmp_result[2*idx+idxq],
+                wait_for=out.events+wait_for+self._tmp_result[2*idx+idxq].events)
+
+    def _adjstreamed(self, outp, inp, par=None, idx=0, idxq=0,
+                     bound_cond=0, wait_for=None):
+        if wait_for is None:
+            wait_for = []
+
+        self._tmp_result[2*idx+idxq].add_event(
+            self.NUFFT[2*idx+idxq].FFTH(
+                self._tmp_result[2*idx+idxq], inp[0],
+                wait_for=(wait_for+inp[0].events +
+                          self._tmp_result[2*idx+idxq].events)))
+
+        return self.prg[idx].operator_ad_ssense(
+            self.queue[4*idx+idxq],
+            (self.par_slices+self._overlap, self.dimY, self.dimX),
+            None,
+            outp.data,
+            self._tmp_result[2*idx+idxq].data,
+            inp[1].data,
+            np.int32(self.NC),
+            np.int32(self.NMaps),
+            wait_for=(self._tmp_result[2*idx+idxq].events + inp[1].events+wait_for))
+
+    def _adjstreamedKyk1(self, outp, inp, par=None, idx=0, idxq=0,
+                         bound_cond=0, wait_for=None):
+        if wait_for is None:
+            wait_for = []
+
+        self._tmp_result[2*idx+idxq].add_event(
+            self.NUFFT[2*idx+idxq].FFTH(
+                self._tmp_result[2*idx+idxq], inp[0],
+                wait_for=(wait_for+inp[0].events +
+                          self._tmp_result[2*idx+idxq].events)))
+
+        return self.prg[idx].update_Kyk1_ssense(
+            self.queue[4*idx+idxq],
+            (self.par_slices+self._overlap, self.dimY, self.dimX), None,
+            outp.data, self._tmp_result[2*idx+idxq].data,
+            inp[1].data,
+            inp[2].data,
+            np.int32(self.NC),
+            np.int32(self.NMaps),
+            par[0][idx].data,
+            np.int32(bound_cond),
+            self.DTYPE_real(self._dz),
+            wait_for=(
+                self._tmp_result[2*idx+idxq].events +
+                outp.events+inp[1].events +
+                inp[2].events + wait_for))
+
+    def FT(self, outp, inp, par=None, idx=0, idxq=0,
+           bound_cond=0, wait_for=None):
+        if wait_for is None:
+            wait_for = []
+        return self.NUFFT[2*idx+idxq].FFT(outp, inp[0])

@@ -55,6 +55,32 @@ def NUFFT(par, trafo=True, SMS=False):
     return FFT
 
 
+def gen_soft_sense_default_config():
+    """Generate soft sense default config file."""
+    config = configparser.ConfigParser()
+
+    config['TGV'] = {}
+    config['TGV']["max_iters"] = '1000'
+    config['TGV']["lambd"] = '1e-1'
+    config['TGV']["display_iterations"] = '0'
+    config['TGV']["tol"] = '1e-8'
+    config['TGV']["stag"] = '1e10'
+    config['TGV']["alpha0"] = '1732e-3'
+    config['TGV']["alpha1"] = '1e0'
+    config['TGV']["adaptive_stepsize"] = '1'
+
+    config['TV'] = {}
+    config['TV']["max_iters"] = '1000'
+    config['TV']["lambd"] = '1e-1'
+    config['TV']["display_iterations"] = '0'
+    config['TV']["tol"] = '1e-8'
+    config['TV']["stag"] = '1e10'
+    config['TV']["adaptive_stepsize"] = '1'
+
+    with open('default_soft_sense.ini', 'w') as configfile:
+        config.write(configfile)
+
+
 def gen_default_config():
     """Generate default config file."""
     config = configparser.ConfigParser()
@@ -101,7 +127,7 @@ def gen_default_config():
         config.write(configfile)
 
 
-def read_config(conf_file, reg_type="TGV"):
+def read_config(conf_file, optimizer="IRGN", reg_type="TGV"):
     """Config file reader.
 
     Parameters
@@ -121,7 +147,10 @@ def read_config(conf_file, reg_type="TGV"):
     except BaseException:
         print("Config file not readable or not found. "
               "Falling back to default.")
-        gen_default_config()
+        if optimizer == "IRGN":
+            gen_default_config()
+        else:
+            gen_soft_sense_default_config()
         with open('default.ini', 'r') as f:
             config.read_file(f)
     finally:
@@ -129,7 +158,7 @@ def read_config(conf_file, reg_type="TGV"):
         for key in config[reg_type]:
             if key in {'max_gn_it', 'max_iters', 'start_iters'}:
                 params[key] = int(config[reg_type][key])
-            elif key == 'display_iterations':
+            elif key in {'display_iterations', 'adaptive_stepsize'}:
                 params[key] = config[reg_type].getboolean(key)
             else:
                 params[key] = float(config[reg_type][key])
