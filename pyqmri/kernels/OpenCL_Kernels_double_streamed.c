@@ -19,9 +19,9 @@ __kernel void extrapolate_v(
 }
 
 __kernel void update_x(
-                __global double2 *xn1, 
-                __global double2 *xn, 
-                __global double2 *Kay, 
+                __global double2 *xn1,
+                __global double2 *xn,
+                __global double2 *Kay,
                 const double tau,
                 const double theta)
 {
@@ -30,11 +30,11 @@ __kernel void update_x(
 }
 
 __kernel void update_x_explicit(
-                __global double2 *xn1, 
-                __global double2 *xn, 
+                __global double2 *xn1,
+                __global double2 *xn,
                 __global double2 *Kay,
-                __global double2 *divz, 
-                const double tau, 
+                __global double2 *divz,
+                const double tau,
                 const double theta)
 {
     size_t i = get_global_id(0);
@@ -42,23 +42,23 @@ __kernel void update_x_explicit(
 }
 
 __kernel void update_y(
-                __global double2 *yn1, 
-                __global double2 *yn, 
-                __global double2 *Kx, 
+                __global double2 *yn1,
+                __global double2 *yn,
+                __global double2 *Kx,
                 __global double2 *dx,
-                const double sigma, 
-                const double lambdainv)
+                const double sigma,
+                const double prox)
 {
     size_t i = get_global_id(0);
-    double prox = 1.0 / (1.0 + sigma * lambdainv);
+    // double prox = 1.0 / (1.0 + sigma * lambdainv);
     yn1[i] = prox * (yn[i] + sigma * (Kx[i] - dx[i]));
 }
 
 __kernel void update_z_tv(
-        __global double8 *zn1, 
-        __global double8 *zn, 
+        __global double8 *zn1,
+        __global double8 *zn,
         __global double8 *gx,
-        const double sigma, 
+        const double sigma,
         const int NUk)
 {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
@@ -95,64 +95,17 @@ __kernel void update_z_tv(
   i = k*NUk*Nx*Ny + Nx*y + x;
   for (int uk=0; uk<NUk; uk++)
   {
-     if (abs_val > 1.0f) zn1[i] /=abs_val;
-     i += Nx*Ny;
-  }
-}
-
-__kernel void update_z_tv_line(
-                    __global double8 *zn1,
-                    __global double8 *zn,
-                    __global double8 *gx,
-                    __global double8 *gx_,
-                    const double sigma,
-                    const double theta,
-                    const int NUk)
-{
-  size_t Nx = get_global_size(2), Ny = get_global_size(1);
-  size_t NSl = get_global_size(0);
-  size_t x = get_global_id(2), y = get_global_id(1);
-  size_t k = get_global_id(0);
-  size_t i = k*NUk*Nx*Ny+Nx*y + x;
-
-  double abs_val = 0.0f;
-
-  for (int uk=0; uk<NUk; uk++)
-  {
-     zn1[i] = zn[i] + sigma * (gx[i] * (1 + theta) - theta * gx_[i]);
-
-     abs_val = hypot(abs_val,hypot(
-        hypot(
-          zn1[i].s0,
-          zn1[i].s1
-          ),
-        hypot(
-          hypot(
-            zn1[i].s2,
-            zn1[i].s3
-            ),
-          hypot(
-            zn1[i].s4,
-            zn1[i].s5
-            )
-          )
-        ));
-     i += Nx*Ny;
-  }
-  i = k*NUk*Nx*Ny + Nx*y + x;
-  for (int uk=0; uk<NUk; uk++)
-  {
-     if (abs_val > 1.0f) zn1[i] /=abs_val;
+     if (abs_val > 1.0f) {zn1[i] /=abs_val;}
      i += Nx*Ny;
   }
 }
 
 __kernel void update_v_explicit(
-                __global double8 *v_new, 
-                __global double8 *v, 
+                __global double8 *v_new,
+                __global double8 *v,
                 __global double8 *z1,
-                __global double8 *ez2, 
-                const double tau, 
+                __global double8 *ez2,
+                const double tau,
                 const double theta)
 {
     size_t i = get_global_id(0);
@@ -160,12 +113,12 @@ __kernel void update_v_explicit(
 }
 
 __kernel void update_z1_tgv(
-                __global double8 *z_new, 
-                __global double8 *z, 
-                __global double8 *gx, 
+                __global double8 *z_new,
+                __global double8 *z,
+                __global double8 *gx,
                 __global double8 *v,
-                const double sigma, 
-                const double alphainv, 
+                const double sigma,
+                const double alphainv,
                 const int NUk)
 {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
@@ -196,25 +149,24 @@ __kernel void update_z1_tgv(
                 z_new[i].s5
                 )
               )
-            )*alphainv
-          );
+            )*alphainv);
         i+=Nx*Ny;
   }
   i = k*NUk*Nx*Ny + Nx*y + x;
   for (int uk=0; uk<NUk; uk++)
   {
-     if (fac > 1.0f) z_new[i] /=fac;
+     if (fac > 1.0f) {z_new[i] /=fac;}
      i += Nx*Ny;
   }
 }
 
 __kernel void update_z2_tgv(
-                    __global double16 *z_new, 
-                    __global double16 *z, 
+                    __global double16 *z_new,
+                    __global double16 *z,
                     __global double16 *symgv,
-                    const double sigma, 
-                    const double alphainv, 
-                    const int NUk) 
+                    const double sigma,
+                    const double alphainv,
+                    const int NUk)
 {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
@@ -261,22 +213,21 @@ __kernel void update_z2_tgv(
              z_new[i].sb
              )
            )
-         )*alphainv
-       );
+         )*alphainv);
        i+=Nx*Ny;
   }
   i = k*NUk*Nx*Ny + Nx*y + x;
   for (int uk=0; uk<NUk; uk++)
   {
-     if (fac > 1.0f) z_new[i] /=fac;
+     if (fac > 1.0f) {z_new[i] /=fac;}
      i += Nx*Ny;
   }
 }
 
 __kernel void operator_fwd_ssense(
-                    __global double2 *out, 
+                    __global double2 *out,
                     __global double2 *in,
-                    __global double2 *coils, 
+                    __global double2 *coils,
                     const int NCo,
                     const int Nmaps)
 {
@@ -306,9 +257,9 @@ __kernel void operator_fwd_ssense(
 }
 
 __kernel void operator_ad_ssense(
-                    __global double2 *out, 
+                    __global double2 *out,
                     __global double2 *in,
-                    __global double2 *coils, 
+                    __global double2 *coils,
                     const int NCo,
                     const int Nmaps)
 {
@@ -340,14 +291,14 @@ __kernel void operator_ad_ssense(
 }
 
 __kernel void update_Kyk1_ssense(
-                    __global double2 *out, 
+                    __global double2 *out,
                     __global double2 *in,
-                    __global double2 *coils, 
-                    __global double8 *p, 
+                    __global double2 *coils,
+                    __global double8 *p,
                     const int NCo,
-                    const int Nmaps, 
-                    __global double* ratio, 
-                    const int last, 
+                    const int Nmaps,
+                    __global double* ratio,
+                    const int last,
                     const double dz)
 {
   size_t X = get_global_size(2);
@@ -423,7 +374,7 @@ __kernel void update_Kyk1_ssense(
     }
 
     // scale gradients
-    {val*=ratio[map];}
+    val*=ratio[map];
 
     out[i] = f_sum - (val.s01+val.s23+val.s45/dz);
     i += X*Y;
@@ -466,7 +417,8 @@ __kernel void update_z2(
                 const double sigma,
                 const double theta,
                 const double alphainv,
-                const int NUk
+                const int NUk,
+                __global double* ratio
                 )
 {
     size_t Nx = get_global_size(2), Ny = get_global_size(1);
@@ -476,52 +428,22 @@ __kernel void update_z2(
     size_t i = k*Nx*Ny*NUk+Nx*y + x;
 
     double fac = 0.0f;
-
+    double16 square = 0.0f;
+    
     for (int uk=0; uk<NUk; uk++)
     {
        z_new[i] = z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]);
 
-       // reproject
-       fac = hypot(fac,hypot(
-           hypot(
-             hypot(
-               hypot(
-                 z_new[i].s0,
-                 z_new[i].s1
-                 ),
-             hypot(
-               z_new[i].s2,
-               z_new[i].s3
-               )
-             ),
-           hypot(
-             z_new[i].s4,
-             z_new[i].s5
-             )
-           ),
-         hypot(
-           hypot(
-             2.0f*hypot(
-               z_new[i].s6,
-               z_new[i].s7
-               ),
-             2.0f*hypot(
-               z_new[i].s8,
-               z_new[i].s9
-               )
-             ),
-           2.0f*hypot(
-             z_new[i].sa,
-             z_new[i].sb
-             )
-           )
-         )*alphainv);
+        // reproject
+       square = powr(z_new[i], 2);
+       fac += sqrt(square.s0+square.s1+square.s2+square.s3+square.s4+square.s5
+                   +4.0f*(square.s6+square.s7+square.s8+square.s9+square.sa+square.sb));
        i+=Nx*Ny;
     }
     i = k*Nx*Ny*NUk+Nx*y + x;
     for (int uk=0; uk<NUk; uk++)
     {
-        if (fac > 1.0f) {z_new[i] /=fac;}
+        if (fac/ratio[uk] > 1.0f) {z_new[i] /=fac/ratio[uk];}
         i+=Nx*Ny;
     }
 }
@@ -539,7 +461,8 @@ __kernel void update_z1(
                 const double alphainv,
                 const int NUk_tgv,
                 const int NUk_H1,
-                const double h1inv
+                const double h1inv,
+                __global double* ratio
                 )
 {
     size_t Nx = get_global_size(2), Ny = get_global_size(1);
@@ -549,36 +472,22 @@ __kernel void update_z1(
     size_t i = k*Nx*Ny*NUk_tgv+Nx*y + x;
 
     double fac = 0.0f;
-
+    double8 square = 0.0f;
+    
     for (int uk=0; uk<NUk_tgv; uk++)
     {
         z_new[i] = z[i] + sigma*(
             (1+theta)*gx[i]-theta*gx_[i]-((1+theta)*vx[i]-theta*vx_[i]));
 
-        // reproject
-        fac = hypot(fac,
-          hypot(
-            hypot(
-              z_new[i].s0,
-              z_new[i].s1
-              ),
-            hypot(
-              hypot(
-                z_new[i].s2,
-                z_new[i].s3
-                ),
-              hypot(
-                z_new[i].s4,
-                z_new[i].s5
-                )
-              )
-            )*alphainv);
+       // reproject
+       square = powr(z_new[i], 2);
+       fac += sqrt(square.s0+square.s1+square.s2+square.s3+square.s4+square.s5);
         i+=Nx*Ny;
     }
     i = k*Nx*Ny*NUk_tgv+Nx*y + x;
     for (int uk=0; uk<NUk_tgv; uk++)
     {
-        if (fac > 1.0f) {z_new[i] /=fac;}
+        if (fac/ratio[uk] > 1.0f) {z_new[i] /=fac/ratio[uk];}
         i+=Nx*Ny;
     }
     i = k*Nx*Ny*NUk_tgv + Nx*Ny*NUk_tgv + Nx*y + x;
@@ -600,7 +509,8 @@ __kernel void update_z1_tv(
                 const double alphainv,
                 const int NUk_tgv,
                 const int NUk_H1,
-                const double h1inv
+                const double h1inv,
+                __global double* ratio
                 )
 {
     size_t Nx = get_global_size(2), Ny = get_global_size(1);
@@ -610,34 +520,21 @@ __kernel void update_z1_tv(
     size_t i = k*Nx*Ny*NUk_tgv+Nx*y + x;
 
     double fac = 0.0f;
-
+    double8 square = 0.0f;
+    
     for (int uk=0; uk<NUk_tgv; uk++)
     {
     z_new[i] = z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]);
 
-    // reproject
-    fac = hypot(fac,hypot(
-      hypot(
-        z_new[i].s0,
-        z_new[i].s1
-        ),
-      hypot(
-        hypot(
-          z_new[i].s2,
-          z_new[i].s3
-          ),
-        hypot(
-          z_new[i].s4,
-          z_new[i].s5
-          )
-        )
-      )*alphainv);
+       // reproject
+       square = powr(z_new[i], 2);
+       fac += sqrt(square.s0+square.s1+square.s2+square.s3+square.s4+square.s5);
     i+=Nx*Ny;
     }
     i = k*Nx*Ny*NUk_tgv+Nx*y + x;
     for (int uk=0; uk<NUk_tgv; uk++)
     {
-        if (fac > 1.0f) z_new[i] /=fac;
+        if (fac/ratio[uk] > 1.0f) z_new[i] /=fac/ratio[uk];
         i+=Nx*Ny;
     }
     i = k*Nx*Ny*NUk_tgv + Nx*Ny*NUk_tgv + Nx*y + x;
@@ -656,7 +553,6 @@ __kernel void update_primal(
                 __global double2 *u_k,
                 const double tau,
                 const double tauinv,
-                double div,
                 __global double* min,
                 __global double* max,
                 __global int* real,
@@ -672,7 +568,7 @@ __kernel void update_primal(
 
     for (int uk=0; uk<NUk; uk++)
     {
-        u_new[i] = (u[i]-tau*Kyk[i]+tauinv*u_k[i])*div;
+        u_new[i] = (u[i]-tau*Kyk[i]+tauinv*u_k[i])/(1+tauinv);
 
         if(real[uk]>0)
         {

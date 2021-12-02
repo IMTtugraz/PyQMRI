@@ -280,11 +280,6 @@ class IRGNOptimizer:
             data = np.require(
                 np.transpose(data, self._data_trans_axes),
                 requirements='C')
-            if self._SMS is False:
-                self._step_val = np.require(
-                    np.swapaxes(self._step_val, 0, 1), requirements='C')
-                
-        # data_save = data
 
         for ign in range(self.irgn_par["max_gn_it"]):
             start = time.time()
@@ -587,25 +582,26 @@ class IRGNOptimizer:
     def _calcResidual(self, x, data, GN_it):
         if self._streamed:
             b, grad, sym_grad = self._calcFwdGNPartStreamed(x)
+            norm_axis = 1
+            grad_tv = grad[:,:self.par["unknowns_TGV"]]
+            grad_H1 = grad[:,self.par["unknowns_TGV"]:]
         else:
             b, grad, sym_grad = self._calcFwdGNPartLinear(x)
-        grad_tv = grad[:self.par["unknowns_TGV"]]*self.par["weights"][:,None,None,None,None]
-        if sym_grad is not None:
-            sym_grad *= self.par["weights"][:,None,None,None,None]
-        grad_H1 = grad[self.par["unknowns_TGV"]:]
+            norm_axis = 0
+            grad_tv = grad[:self.par["unknowns_TGV"]]
+            grad_H1 = grad[self.par["unknowns_TGV"]:]
 
         del grad
         self._datacost = self.irgn_par["lambd"] / 2 * np.linalg.norm(data - b)**2
 #        self._L2Cost = np.linalg.norm(x)/(2.0*self.irgn_par["delta"])
-
         if self._reg_type == 'TV':
             self._regcost = self.irgn_par["gamma"] * \
-                np.sum(np.abs(np.linalg.norm(grad_tv, axis=0)))
+                np.sum(np.abs(np.linalg.norm(grad_tv, axis=norm_axis)))
         elif self._reg_type == 'TGV':
             self._regcost = self.irgn_par["gamma"] * np.sum(
                   np.abs(np.linalg.norm(grad_tv -
-                         self._v, axis=0))) + self.irgn_par["gamma"] * 2 * np.sum(
-                             np.abs(np.linalg.norm(sym_grad, axis=0)))
+                         self._v, axis=norm_axis))) + self.irgn_par["gamma"] * 2 * np.sum(
+                             np.abs(np.linalg.norm(sym_grad, axis=norm_axis)))
             del sym_grad
         else:
             self.regcost = self.irgn_par["gamma"]/2 * \
@@ -658,6 +654,7 @@ class IRGNOptimizer:
             x.events).wait()
         x = x.get()
         grad = grad.get()
+        grad *= self.par["weights"][:,None,None,None,None]
         sym_grad = None
         if self._reg_type == 'TGV':
             v = clarray.to_device(self._queue[0], self._v)
@@ -671,6 +668,7 @@ class IRGNOptimizer:
                 wait_for=sym_grad.events +
                 v.events).wait()
             sym_grad = sym_grad.get()
+            sym_grad *= self.par["weights"][:,None,None,None,None]
 
         return b, grad, sym_grad
 
@@ -697,10 +695,12 @@ class IRGNOptimizer:
             b = self._step_val
         grad = np.zeros(x.shape+(4,), dtype=self._DTYPE)
         self._pdop._grad_op.fwd([grad], [[x]])
+        grad *= self.par["weights"][None,:,None,None,None]
 
         sym_grad = None
         if self._reg_type == 'TGV':
             sym_grad = np.zeros(x.shape+(8,), dtype=self._DTYPE)
             self._pdop._symgrad_op.fwd([sym_grad], [[self._v]])
+            sym_grad *= self.par["weights"][None,:,None,None,None]
 
         return b, grad, sym_grad

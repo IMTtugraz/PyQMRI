@@ -942,7 +942,7 @@ class PDBaseSolver:
 
         self._updateConstraints()
         
-        l_max = np.sqrt(self.power_iteration(inp[0], data.shape))
+        l_max = 1#np.sqrt(self.power_iteration(inp[0], data.shape))
         l_max += self.alpha*((0.5 * (18.0 + np.sqrt(33)))**2)
         print("Estimated L: ", l_max)
         print()
@@ -1335,7 +1335,7 @@ class PDBaseSolver:
             self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
             np.int32(self.unknowns_H1),
             self._DTYPE_real(1 / (1 + par[0] / par[3])),
-            par[4][4*idx+idxq].data,
+            par[4][4*idx].data,
             wait_for=(outp.events+inp[0].events+inp[1].events +
                       inp[2].events+inp[3].events+inp[4].events+wait_for))
 
@@ -1368,7 +1368,6 @@ class PDBaseSolver:
         if wait_for is None:
             wait_for = []
             
-            
         return self._prg[idx].update_z1_tv(
             self._queue[4*idx+idxq],
             self._kernelsize, None,
@@ -1378,7 +1377,7 @@ class PDBaseSolver:
             self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
             np.int32(self.unknowns_H1),
             self._DTYPE_real(1 / (1 + par[0] / par[3])),
-            par[4][4*idx+idxq].data,
+            par[4][4*idx].data,
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
 
@@ -1417,7 +1416,7 @@ class PDBaseSolver:
             self._DTYPE_real(par[0]),
             self._DTYPE_real(par[1]),
             self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
-            par[3][4*idx+idxq].data,
+            par[3][4*idx].data,
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
 
@@ -2541,15 +2540,14 @@ class PDSolverStreamedTGV(PDSolverStreamed):
                 [in_dual["r"], in_dual["z1"],
                  self._coils, self.modelgrad, []],
                 [in_primal["v"]]],
-            [[],
-             []])
+            [[],[],[]])
 
         self.stream_initial_2.eval(
             [out_fwd["gradx"],
              out_adj["Kyk2"]],
             [[in_primal["x"]],
              [in_dual["z2"], in_dual["z1"], []]],
-            [[]])
+            [[],[]])
 
     def _updatePrimal(self,
                       out_primal, out_fwd,
@@ -2599,8 +2597,9 @@ class PDSolverStreamedTGV(PDSolverStreamed):
               in_precomp_fwd["Ax"], data],
              [[], [], self._coils, self.modelgrad, in_precomp_adj["Kyk1"]]],
             [
-                [beta*tau, theta, self.alpha, self.omega],
-                [beta * tau, theta, self.lambd]
+                [beta*tau, theta, self.alpha, self.omega, self._op.ratio],
+                [beta * tau, theta, self.lambd],
+                []
             ])
         (lhs2, ynorm2) = self.update_dual_2.evalwithnorm(
             [out_dual["z2"],
@@ -2608,7 +2607,7 @@ class PDSolverStreamedTGV(PDSolverStreamed):
             [[in_dual["z2"], in_precomp_fwd_new["symgradx"],
               in_precomp_fwd["symgradx"]],
              [[], out_dual["z1"], in_precomp_adj["Kyk2"]]],
-            [[beta*tau, theta, self.beta]])
+            [[beta*tau, theta, self.beta, self._op.ratio], []])
 
         ynorm = np.abs(ynorm1 + ynorm2)**(1/2)
         lhs = np.sqrt(beta) * tau * np.abs(lhs1 + lhs2)**(1/2)
@@ -2763,7 +2762,7 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
              out_adj["Kyk1"]],
             [[in_primal["x"]],
              [in_dual["z2"], in_dual["z1"], []]],
-            [[]])
+            [[], []])
 
     def _updatePrimal(self,
                       out_primal, out_fwd,
@@ -2809,7 +2808,7 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
               in_precomp_fwd["gradx"],
               in_primal_new["v"], in_primal["v"]]],
             [[beta*tau, theta,
-              self.alpha, self.omega]])
+              self.alpha, self.omega, self._op.ratio]])
         (lhs2, ynorm2) = self.stream_update_r.evalwithnorm(
             [out_dual["r"]],
             [[in_dual["r"], in_precomp_fwd_new["Ax"],
@@ -2828,7 +2827,7 @@ class PDSolverStreamedTGVSMS(PDSolverStreamedTGV):
             [[in_dual["z2"], in_precomp_fwd_new["symgradx"],
               in_precomp_fwd["symgradx"]],
              [[], out_dual["z1"], in_precomp_adj["Kyk2"]]],
-            [[beta*tau, theta, self.beta]])
+            [[beta*tau, theta, self.beta, self._op.ratio]])
 
         ynorm = np.abs(ynorm1+ynorm2+ynorm3+ynorm4)**(1/2)
         lhs = np.sqrt(beta)*tau*np.abs(lhs1+lhs2+lhs3+lhs4)**(1/2)
@@ -2958,7 +2957,7 @@ class PDSolverStreamedTV(PDSolverStreamed):
                 [in_primal["x"], self._coils, self.modelgrad],
                 [in_dual["r"], in_dual["z1"],
                  self._coils, self.modelgrad, []]],
-            [[]])
+            [[], []])
 
     def _updatePrimal(self,
                       out_primal, out_fwd,
@@ -3000,8 +2999,9 @@ class PDSolverStreamedTV(PDSolverStreamed):
               in_precomp_fwd["Ax"], data],
              [[], [], self._coils, self.modelgrad, in_precomp_adj["Kyk1"]]],
             [
-                [beta*tau, theta, self.alpha, self.omega],
-                [beta * tau, theta, self.lambd]
+                [beta*tau, theta, self.alpha, self.omega, self._op.ratio],
+                [beta * tau, theta, self.lambd],
+                []
             ])
 
         ynorm = np.abs(ynorm1)**(1/2)
@@ -3177,7 +3177,7 @@ class PDSolverStreamedTVSMS(PDSolverStreamedTV):
               in_precomp_fwd_new["gradx"],
               in_precomp_fwd["gradx"]]],
             [[beta*tau, theta,
-              self.alpha, self.omega]])
+              self.alpha, self.omega, self._op.ratio]])
         (lhs2, ynorm2) = self.stream_update_r.evalwithnorm(
             [out_dual["r"]],
             [[in_dual["r"], in_precomp_fwd_new["Ax"],

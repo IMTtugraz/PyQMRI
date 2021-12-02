@@ -75,16 +75,6 @@ class Model(BaseModel):
                         np.exp(-self.TR / (5500)),
                         True))
         
-        self.constraints.append(
-            constraints(-np.inf,
-                        np.inf,
-                        False))
-        
-        self.constraints.append(
-            constraints(-np.inf,
-                        np.inf,
-                        False))
-        
         self.guess = None
 
         self._ax = None
