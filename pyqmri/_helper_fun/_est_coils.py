@@ -40,9 +40,9 @@ def est_coils(data, par, file, args, off, dimreduction):
         Commandline arguments passed to the script.
       off : int
         A possible offset of the zero slice.
-      dimreduction : numpy.array
+      dimreduction : numpy.array 
         A possible dimension reduction to ensure the largest prime factor of 
-        the grid is 13. Only needed for precomputed coi sensitivities. 
+        the grid is 13. Only needed for precomputed coil sensitivities.
 
     Returns
     -------
@@ -55,7 +55,7 @@ def est_coils(data, par, file, args, off, dimreduction):
     c = ipp.Client()
     nlinvNewtonSteps = 6
     nlinvRealConstr = False
-    
+
     if args.sms or "Coils_real" in list(file.keys()):
         print("Using precomputed coil sensitivities")
         
@@ -80,13 +80,11 @@ def est_coils(data, par, file, args, off, dimreduction):
                 ...] 
             par["C"] = par["C"].astype(par["DTYPE"])
         if np.max(dimreduction) > 0:
-            #Apply dimreduction in k-space
+            #Apply dimreduction in k-space 
             par["C"] = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(par["C"])))
-            par["C"] = par["C"][...,
-                                int(dimreduction[1]/2):
-                                       par["C"].shape[-2]-int(dimreduction[1]/2),
-                                       int(dimreduction[0]/2):
-                                           par["C"].shape[-1]-int(dimreduction[0]/2)]
+            par["C"] = par["C"][..., 
+                int(dimreduction[1]/2):par["C"].shape[-2]-int(dimreduction[1]/2),
+                int(dimreduction[0]/2):par["C"].shape[-1]-int(dimreduction[0]/2)]
             par["C"] = np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(par["C"])))
         
     elif not args.sms and "Coils" in list(file.keys()):

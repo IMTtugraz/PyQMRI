@@ -527,7 +527,7 @@ def _read_data_from_file(par, myargs):
         np.max(utils.prime_factors(data.shape[-2])) > 13)):
         if myargs.trafo:
             print("Samples along the spoke need to have their largest prime factor"
-                  " to be 13 or lower. Finding next smaller grid.")
+                " to be 13 or lower. Finding next smaller grid.")
             dimreduction = 2
             while np.max(utils.prime_factors(data.shape[-1]-dimreduction)) > 13:
                 dimreduction += 2
@@ -535,19 +535,19 @@ def _read_data_from_file(par, myargs):
             dimX -= dimreduction
             dimY -= dimreduction
             data = np.require(data[..., int(dimreduction/2):
-                                   data.shape[-1]-int(dimreduction/2)],
-                              requirements='C')
+                                data.shape[-1]-int(dimreduction/2)],
+                            requirements='C')
             par["traj"] = np.require(par["traj"][
                 ..., int(dimreduction/2):
-                    par["traj"].shape[-1]-int(dimreduction/2)], requirements='C')
+            par["traj"].shape[-1]-int(dimreduction/2)], requirements='C')
             par["dcf"] = np.sqrt(goldcomp.cmp(par["traj"]))
             par["dcf"] = np.require(np.abs(par["dcf"]),
                                     par["DTYPE_real"], requirements='C')
             dimreduction = np.array([dimreduction, dimreduction])
             
-        else:
+        else: 
             print("Samples need to have their largest prime factor"
-                  " to be 13 or lower. Finding next smaller grid.")
+                " to be 13 or lower. Finding next smaller grid.")
             dimredX = 0
             dimredY = 0
             while np.max(utils.prime_factors(data.shape[-1]-dimredX)) > 13:
@@ -555,19 +555,17 @@ def _read_data_from_file(par, myargs):
             while np.max(utils.prime_factors(data.shape[-2]-dimredY)) > 13:
                 dimredY += 2
             dimreduction = np.array([dimredX, dimredY])
-            print('Decrease grid size by %i' %dimreduction)
-            dimX -= dimreduction[0] 
-            dimY -= dimreduction[1] 
-            
+            print('Decrease grid size by %i' % dimreduction)
+            dimX -= dimreduction[0]
+            dimY -= dimreduction[1]
+
             data = np.fft.fftshift(data)
             data = np.require(data[..., 
-                                   int(dimreduction[1]/2):
-                                       data.shape[-2]-int(dimreduction[1]/2),
-                                       int(dimreduction[0]/2):
-                                           data.shape[-1]-int(dimreduction[0]/2)],
-                              requirements='C')
+                int(dimreduction[1]/2):data.shape[-2]-int(dimreduction[1]/2),
+                int(dimreduction[0]/2):data.shape[-1]-int(dimreduction[0]/2)],
+                requirements='C')
             data = np.fft.ifftshift(data)
-        
+    
     return data, dimX, dimY, NSlice, reco_Slices, dimreduction, off
     
 
@@ -800,6 +798,12 @@ def _start_recon(myargs):
         par["modelfile"] = myargs.modelfile
         par["modelname"] = myargs.modelname
     model = sig_model.Model(par)
+    if np.allclose(myargs.weights, -1):
+        if "weights" not in par.keys():
+          par["weights"] = np.ones(
+              (par["unknowns"]), dtype=par["DTYPE_real"])
+    else:
+        par["weights"] = np.array(myargs.weights, dtype=par["DTYPE_real"])    
 ###############################################################################
 # Reconstruct images using CG-SENSE  ##########################################
 ###############################################################################
@@ -811,12 +815,6 @@ def _start_recon(myargs):
 # Scale data norm  ############################################################
 ###############################################################################
     data, images = _estScaleNorm(myargs, par, images, data)    
-    if np.allclose(myargs.weights, -1):
-        if "weights" not in par.keys():
-            par["weights"] = np.ones(
-                (par["unknowns"]), dtype=par["DTYPE_real"])
-    else:
-        par["weights"] = np.array(myargs.weights, dtype=par["DTYPE_real"])
 ###############################################################################
 # Compute initial guess #######################################################
 ###############################################################################
