@@ -73,7 +73,7 @@ class Model(BaseModel):
         self.constraints.append(
             constraints(
                 0 / self.uk_scale[0],
-                1e10 / self.uk_scale[0],
+                1e5 / self.uk_scale[0],
                 False))
         self.constraints.append(
             constraints(
@@ -82,12 +82,12 @@ class Model(BaseModel):
                 True))
         self.constraints.append(
             constraints(
-                (0.001 / self.uk_scale[2]), 
+                (0 / self.uk_scale[2]), 
                 (1 / self.uk_scale[2]),
                 True))
         self.constraints.append(
             constraints(
-                ( 5.001 / self.uk_scale[3]),  
+                ( 5+1e-5 / self.uk_scale[3]),  
                 (300 / self.uk_scale[3]),
                 True))
         
@@ -191,7 +191,7 @@ class Model(BaseModel):
         if self.b0 is not None:
             test_M0 = self.b0
         else:
-            test_M0 = kwargs['images'][0]
+            test_M0 = kwargs['images'][0]/self.dscale
             
 
         if np.allclose(kwargs['initial_guess'],-1):  
@@ -212,7 +212,7 @@ class Model(BaseModel):
 
         x = np.array(
                 [
-                    test_M0 / self.dscale,
+                    test_M0 / self.uk_scale[0],
                     ADC,
                     f,
                     ADC_ivim],

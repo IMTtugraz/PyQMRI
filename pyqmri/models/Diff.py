@@ -11,11 +11,11 @@ class Model(BaseModel):
         super().__init__(par)
         self.b = np.ones((self.NScan, 1, 1, 1))
         try:
-            self.NScan = par["T2PREP"].size
+            # self.NScan = par["T2PREP"].size
             for i in range(self.NScan):
                 self.b[i, ...] = par["T2PREP"][i] * np.ones((1, 1, 1))
         except BaseException:
-            self.NScan = par["b_value"].size
+            # self.NScan = par["b_value"].size
             for i in range(self.NScan):
                 self.b[i, ...] = par["b_value"][i] * np.ones((1, 1, 1))
         if np.max(self.b) > 100:

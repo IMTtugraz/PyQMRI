@@ -296,23 +296,30 @@ class IRGNOptimizer:
                 self._model.execute_forward(result))
                 
             # Precond only for image data!!!!
-            if ign >= 0:
+            if ign < 0:
                 self.precond = True
                 self._pdop.precond = True
                 self._pdop._grad_op.precond = True
                 if self._reg_type == 'TGV':
                     self._pdop._symgrad_op.precond = True
-                    
-                self._balanceModelGradients(result, ign)
+                if False:
+                    self._balanceModelGradientsAverage(result, ign)
+                else:
+                    self._balanceModelGradients(result, ign)
                 result = self.applyPrecond(result)
                 self._pdop.irgn = self
             else:
                 self.precond = False
+                self._pdop.precond = False
+                self._pdop._grad_op.precond = False
+                if self._reg_type == 'TGV':
+                    self._pdop._symgrad_op.precond = False
                 self._balanceModelGradientsNorm(result, ign)
             
             self._updateIRGNRegPar(ign)
             if self.precond:
-                self._pdop._grad_op.updateRatio(np.require(self.UT
+                # self.irgn_par["gamma"] *= 1e-20
+                self._pdop._grad_op.updateRatio(np.require(self.UTE#np.repeat(np.diag(np.ones(self.k,))[..., None], self.UTE.shape[-1],axis=-1)
                                           ,requirements='C'))
 
             if self._streamed:
@@ -399,9 +406,8 @@ class IRGNOptimizer:
         
         jacobi = np.require(jacobi.T, requirements='C')
         
-        cutoff = 5e0#5e2
-        # if ign > 5:
-        #     cutoff = np.inf
+        cutoff = np.inf
+
         maxval = 0
         minval = 1e30
         
@@ -424,6 +430,8 @@ class IRGNOptimizer:
         print("Maximum Eigenvalue: ", maxval)
         print("Minimum Eigenvalue: ", minval)
         print("Condition number: ", maxval/minval)
+        
+        print("Mean Eigenvalues: ", np.mean(E, axis=0).real)
             
         
         V = np.require(np.transpose(V, (2,1,0)), requirements='C')
@@ -436,6 +444,50 @@ class IRGNOptimizer:
         
         self._pdop.EU = clarray.to_device(self._pdop._queue[0], self.EU)
         self._pdop.UTE = clarray.to_device(self._pdop._queue[0], self.UTE)
+        
+    def _balanceModelGradientsAverage(self, result, ign):
+        
+        
+        scale = self._modelgrad.reshape(self.par["unknowns"], self.par["NScan"], -1)
+
+        tmp = np.quantile(scale, 0.85, axis=-1)
+        V, eigvals, U = spl.svd(tmp.T)
+        
+        jacobi = self._modelgrad.reshape(*self._modelgrad.shape[:2], -1)
+        
+        self.k = np.minimum(*self._modelgrad.shape[:2])
+        
+        self.UTE = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
+        self.EU = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
+        
+        jacobi = np.require(jacobi.T, requirements='C')
+        
+        cutoff = np.inf
+        
+        einv = 1/(eigvals)
+        einv[~np.isfinite(einv)] = cutoff*einv[0]
+        einv[einv/einv[0] > cutoff] = cutoff*einv[0]
+        
+        for j in range(jacobi.shape[0]):
+
+            
+            jacobi[j] = jacobi[j]@np.conj(U.T)@np.conj(np.diag(einv))
+            
+            self.UTE[j] = (np.conj(U.T)@np.conj(np.diag(einv)))
+            self.EU[j] = np.diag(1/einv)@U
+            
+            
+        print("Average Eigenvalues: ", eigvals)
+
+
+        self._modelgrad = np.require(jacobi.T.reshape(*self._modelgrad.shape), requirements='C')
+        
+        self.UTE = np.require(self.UTE.transpose(1,2,0), requirements='C')
+        self.EU = np.require(self.EU.transpose(1,2,0), requirements='C')
+        
+        self._pdop.EU = clarray.to_device(self._pdop._queue[0], self.EU)
+        self._pdop.UTE = clarray.to_device(self._pdop._queue[0], self.UTE)
+
 
     def applyPrecond(self, inp):
         tmp_step_val = np.require(inp.reshape(inp.shape[0], -1).T, requirements='C')
@@ -537,8 +589,10 @@ class IRGNOptimizer:
             b, grad, sym_grad = self._calcFwdGNPartStreamed(x)
         else:
             b, grad, sym_grad = self._calcFwdGNPartLinear(x)
-        grad_tv = grad[:, :self.par["unknowns_TGV"]]*self.par["weights"][:,None,None,None,None]
-        grad_H1 = grad[:, self.par["unknowns_TGV"]:]
+        grad_tv = grad[:self.par["unknowns_TGV"]]*self.par["weights"][:,None,None,None,None]
+        if sym_grad is not None:
+            sym_grad *= self.par["weights"][:,None,None,None,None]
+        grad_H1 = grad[self.par["unknowns_TGV"]:]
 
         del grad
         self._datacost = self.irgn_par["lambd"] / 2 * np.linalg.norm(data - b)**2

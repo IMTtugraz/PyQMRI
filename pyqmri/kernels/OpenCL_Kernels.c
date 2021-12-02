@@ -115,56 +115,61 @@ __kernel void update_z2(
     size_t i = k*Nx*Ny+Nx*y + x;
 
     float fac = 0.0f;
+    float16 square = 0.0f;
 
     for (int uk=0; uk<NUk; uk++)
     {
-        fac = 0.0f;
+//         fac = 0.0f;
         z_new[i] = z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]);
 
         // reproject
-        fac = hypot(fac,
-        hypot(
-          hypot(
-            hypot(
-              hypot(
-                z_new[i].s0,
-                z_new[i].s1
-                ),
-                hypot(
-                  z_new[i].s2,
-                  z_new[i].s3
-                  )
-              ),
-              hypot(
-                z_new[i].s4
-                ,z_new[i].s5
-                )
-            ),
-            hypot(
-              hypot(
-                2.0f*hypot(
-                  z_new[i].s6,
-                  z_new[i].s7
-                  ),
-                2.0f*hypot(
-                  z_new[i].s8,
-                  z_new[i].s9
-                  )
-                ),
-                2.0f*hypot(
-                  z_new[i].sa,
-                  z_new[i].sb
-                  )
-              )
-            )
-          )/ratio[uk];
-//         i += NSl*Nx*Ny;
-//     }
+       square = powr(z_new[i], 2);
+       fac += sqrt(square.s0+square.s1+square.s2+square.s3+square.s4+square.s5
+                   +4.0f*(square.s6+square.s7+square.s8+square.s9+square.sa+square.sb));
+        
+//         fac += hypot(fac,
+//         hypot(
+//           hypot(
+//             hypot(
+//               hypot(
+//                 z_new[i].s0,
+//                 z_new[i].s1
+//                 ),
+//                 hypot(
+//                   z_new[i].s2,
+//                   z_new[i].s3
+//                   )
+//               ),
+//               hypot(
+//                 z_new[i].s4
+//                 ,z_new[i].s5
+//                 )
+//             ),
+//             hypot(
+//               hypot(
+//                 2.0f*hypot(
+//                   z_new[i].s6,
+//                   z_new[i].s7
+//                   ),
+//                 2.0f*hypot(
+//                   z_new[i].s8,
+//                   z_new[i].s9
+//                   )
+//                 ),
+//                 2.0f*hypot(
+//                   z_new[i].sa,
+//                   z_new[i].sb
+//                   )
+//               )
+//             )
+//           );
+        i += NSl*Nx*Ny;
+    }
     fac *= alphainv;
-//     i = k*Nx*Ny+Nx*y + x;
-//     for (int uk=0; uk<NUk; uk++)
-//     {
-        if (fac > 1.0f) z_new[i] /= fac;
+    i = k*Nx*Ny+Nx*y + x;
+    for (int uk=0; uk<NUk; uk++)
+    {
+        if (fac/ratio[uk] > 1.0f) z_new[i] /= fac/ratio[uk];
         i += NSl*Nx*Ny;
     }
 }
@@ -193,39 +198,24 @@ __kernel void update_z1(
     size_t i = k*Nx*Ny+Nx*y + x;
 
     float fac = 0.0f;
+    float8 square = 0.0f;
 
     for (int uk=0; uk<NUk_tgv; uk++)
     {
-       fac = 0.0f;
+//        fac = 0.0f;
        z_new[i] = z[i] + sigma*(
            (1+theta)*gx[i]-theta*gx_[i]-((1+theta)*vx[i]-theta*vx_[i]));
 
        // reproject
-       fac = hypot(fac,
-       hypot(
-         hypot(
-           z_new[i].s0,
-           z_new[i].s1
-           ),
-         hypot(
-           hypot(
-             z_new[i].s2,
-             z_new[i].s3
-             ),
-          hypot(
-            z_new[i].s4,
-            z_new[i].s5
-            )
-          )
-        )
-       )/ratio[uk];
-//        i += NSl*Nx*Ny;
-//     }
+       square = powr(z_new[i], 2);
+       fac += sqrt(square.s0+square.s1+square.s2+square.s3+square.s4+square.s5);
+        i += NSl*Nx*Ny;
+    }
     fac *= alphainv;
-//     i = k*Nx*Ny+Nx*y + x;
-//     for (int uk=0; uk<NUk_tgv; uk++)
-//     {
-        if (fac > 1.0f) z_new[i] /= fac;
+    i = k*Nx*Ny+Nx*y + x;
+    for (int uk=0; uk<NUk_tgv; uk++)
+    {
+        if (fac/ratio[uk] > 1.0f) z_new[i] /= fac/ratio[uk];
         i += NSl*Nx*Ny;
     }
     i = NSl*Nx*Ny*NUk_tgv+k*Nx*Ny+Nx*y + x;
@@ -242,7 +232,7 @@ __kernel void update_z1_tv(
                 __global float8 *z,
                 __global float8 *gx,
                 __global float8 *gx_,
-                const float sigma, const float theta, const float alpha,
+                const float sigma, const float theta, const float alphainv,
                 const int NUk_tgv, const int NUk_H1, const float h1inv,
                 __global float* ratio
                 )
@@ -258,13 +248,13 @@ __kernel void update_z1_tv(
 
     for (int uk=0; uk<NUk_tgv; uk++)
     {
-        fac = 0.0f;
+//         fac = 0.0f;
         z_new[i] = z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]);
 
         // reproject
         square = powr(z_new[i], 2);
-        fac = square.s0+square.s1+square.s2+square.s3+square.s4+square.s5;
-        fac = sqrt(fac)/ratio[uk];
+        fac += sqrt(square.s0+square.s1+square.s2+square.s3+square.s4+square.s5);///ratio[uk];
+//         fac = sqrt(fac)/ratio[uk];
 //         fac = hypot(fac,
 //         hypot(
 //           hypot(
@@ -283,14 +273,14 @@ __kernel void update_z1_tv(
 //             )
 //           )
 //         )/ratio[uk];
-//         i += NSl*Nx*Ny;
-//     }
-//     fac *= alphainv;
+        i += NSl*Nx*Ny;
+    }
+    fac *= alphainv;
     //printf("fac: %2.2f\n", fac);
-//     i = k*Nx*Ny+Nx*y + x;
-//     for (int uk=0; uk<NUk_tgv; uk++)
-//     {
-        if (fac > alpha){z_new[i] /= fac/alpha;}
+    i = k*Nx*Ny+Nx*y + x;
+    for (int uk=0; uk<NUk_tgv; uk++)
+    {
+        if (fac/ratio[uk] > 1.0f){z_new[i] /= fac/ratio[uk];}
         i += NSl*Nx*Ny;
     }
 //     i = NSl*Nx*Ny*NUk_tgv+k*Nx*Ny+Nx*y + x;

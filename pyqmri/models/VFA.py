@@ -74,6 +74,17 @@ class Model(BaseModel):
             constraints(np.exp(-self.TR / (50)),
                         np.exp(-self.TR / (5500)),
                         True))
+        
+        self.constraints.append(
+            constraints(-np.inf,
+                        np.inf,
+                        False))
+        
+        self.constraints.append(
+            constraints(-np.inf,
+                        np.inf,
+                        False))
+        
         self.guess = None
 
         self._ax = None
@@ -110,7 +121,7 @@ class Model(BaseModel):
         for constrained in self.constraints:
             const.append(constrained.real)
         return {"data": tmp_x,
-                "unknown_name": ["M0", "T1"],
+                "unknown_name": ["M0", "T1", "EW1", "EW2"],
                 "real_valued": const}
 
     def _execute_forward_3D(self, x):

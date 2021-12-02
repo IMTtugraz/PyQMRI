@@ -37,7 +37,7 @@ def setupPar(par):
     par["unknowns_H1"] = 0
     par["unknowns"] = 2
     par["dz"] = 1
-    par["weights"] = np.array([1, 0.1])
+    par["weights"] = np.array([1, 1])
 
 
 class GradientTest(unittest.TestCase):

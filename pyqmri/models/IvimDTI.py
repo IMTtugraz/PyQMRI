@@ -73,7 +73,7 @@ class Model(BaseModel):
         self.constraints.append(
             constraints(
                 0 / self.uk_scale[0],
-                1e5 / self.uk_scale[0],
+                10 / self.uk_scale[0],
                 False))
         self.constraints.append(
             constraints(
@@ -193,7 +193,7 @@ class Model(BaseModel):
 
         S *= self.phase
         S[~np.isfinite(S)] = 0
-        return S*self.dscale
+        return S
 
     def _execute_gradient_3D(self, x):
         ADC = x[1, ...]**2 * self.uk_scale[1]**2 * self.dir[..., 0]**2 + \
@@ -275,11 +275,10 @@ class Model(BaseModel):
              grad_ADC_ivim], dtype=self._DTYPE)
         grad[~np.isfinite(grad)] = 0
         grad *= self.phase
-        return grad*self.dscale
+        return grad
 
     def computeInitialGuess(self, **kwargs):
         self.phase = np.exp(1j*(np.angle(kwargs['images'])-np.angle(kwargs['images'][0])))
-        self.dscale = kwargs["dscale"]
         if self.b0 is not None:
             test_M0 = self.b0
         else:
@@ -303,7 +302,7 @@ class Model(BaseModel):
 
         x = np.array(
                 [
-                    test_M0 / self.dscale,
+                    test_M0 / self.uk_scale[0],
                     ADC,
                     0 * ADC,
                     ADC,

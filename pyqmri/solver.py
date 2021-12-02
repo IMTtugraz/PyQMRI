@@ -939,21 +939,22 @@ class PDBaseSolver:
             streaming is used, the two entries are opf class PyOpenCL.Array,
             otherwise Numpy.Array.
         """
-        print()
+
         self._updateConstraints()
         
-        # l_max = self.power_iteration(inp[0], data.shape)
-        # l_max += self.alpha*((0.5 * (18.0 + np.sqrt(33)))**2)
-        # print("Estimated L: ", l_max)
+        l_max = np.sqrt(self.power_iteration(inp[0], data.shape))
+        l_max += self.alpha*((0.5 * (18.0 + np.sqrt(33)))**2)
+        print("Estimated L: ", l_max)
+        print()
         
-        tau = self.tau#1#/np.sqrt(np.sqrt(l_max))
+        tau = 1/np.sqrt(l_max)
         tau_new = self._DTYPE_real(0)
 
         theta_line = self.theta_line
         beta_line = self.beta_line
         beta_new = self._DTYPE_real(0)
         mu_line = self._DTYPE_real(0.75)
-        delta_line = self._DTYPE_real(0.5)
+        delta_line = self._DTYPE_real(0.95)
         ynorm = self._DTYPE_real(0.0)
         lhs = self._DTYPE_real(0.0)
         primal = [0]
@@ -1059,6 +1060,7 @@ class PDBaseSolver:
                             np.swapaxes(primal_vars["x"], 0, 1))
                     else:
                         if self.precond:
+                            # self.model.plot_unknowns(np.concatenate((self.irgn.removePrecond(primal_vars["x"].get()),primal_vars["x"].get()), axis=0))
                             self.model.plot_unknowns(self.irgn.removePrecond(primal_vars["x"].get()))
                         else:
                             self.model.plot_unknowns(primal_vars["x"].get())
@@ -1373,7 +1375,7 @@ class PDBaseSolver:
             outp.data, inp[0].data, inp[1].data, inp[2].data,
             self._DTYPE_real(par[0]),
             self._DTYPE_real(par[1]),
-            self._DTYPE_real(par[2]), np.int32(self.unknowns_TGV),
+            self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
             np.int32(self.unknowns_H1),
             self._DTYPE_real(1 / (1 + par[0] / par[3])),
             par[4][4*idx+idxq].data,
@@ -1663,18 +1665,17 @@ class PDSolverTV(PDBaseSolver):
             out_fwd["Ax"], [in_primal["x"], self._coils, self.modelgrad]))
         out_fwd["gradx"].add_event(
             self._grad_op.fwd(out_fwd["gradx"], in_primal["x"]))
-        if self.precond:
-            (self._op.adj(
-                out_adj["Kyk1"], [in_dual["r"], self._coils, self.modelgrad])).wait()
-            
-            out_adj["Kyk1"] = out_adj["Kyk1"] - self._grad_op.adjoop(in_dual["z1"])
-        else:
+        if not self.precond:
             out_adj["Kyk1"].add_event(
                 self._op.adjKyk1(out_adj["Kyk1"],
                                   [in_dual["r"], in_dual["z1"],
                                   self._coils,
                                   self.modelgrad]))
-
+        else:
+            (self._op.adj(
+                out_adj["Kyk1"], [in_dual["r"], self._coils, self.modelgrad])).wait()
+            
+            out_adj["Kyk1"] = out_adj["Kyk1"] - self._grad_op.adjoop(in_dual["z1"])
 
     def _updatePrimal(self,
                       out_primal, out_fwd,
@@ -1732,7 +1733,7 @@ class PDSolverTV(PDBaseSolver):
                 par=(beta*tau, theta, self.lambd)
                 )
             )
-        if self.precond:
+        if not self.precond:
             out_adj["Kyk1"].add_event(
                 self._op.adjKyk1(
                     out_adj["Kyk1"],
@@ -1935,16 +1936,16 @@ class PDSolverTGV(PDBaseSolver):
         out_fwd["symgradx"].add_event(
             self._symgrad_op.fwd(out_fwd["symgradx"], in_primal["v"]))
         
-        if self.precond:
-            (self._op.adj(
-                out_adj["Kyk1"], [in_dual["r"], self._coils, self.modelgrad])).wait()
-            out_adj["Kyk1"] = out_adj["Kyk1"] - self._grad_op.adjoop(in_dual["z1"])
-        else:
+        if not self.precond:
             out_adj["Kyk1"].add_event(
                 self._op.adjKyk1(out_adj["Kyk1"],
                                   [in_dual["r"], in_dual["z1"],
                                   self._coils,
                                   self.modelgrad]))
+        else:
+            (self._op.adj(
+                out_adj["Kyk1"], [in_dual["r"], self._coils, self.modelgrad])).wait()
+            out_adj["Kyk1"] = out_adj["Kyk1"] - self._grad_op.adjoop(in_dual["z1"])
         
     def _updatePrimal(self,
                       out_primal, out_fwd,
@@ -2022,7 +2023,7 @@ class PDSolverTGV(PDBaseSolver):
                 par=(beta*tau, theta, self.lambd)
                 )
             )
-        if self.precond:
+        if not self.precond:
             out_adj["Kyk1"].add_event(
                 self._op.adjKyk1(
                     out_adj["Kyk1"],
