@@ -235,7 +235,7 @@ __kernel void invgrid_lut(
                 tmp_dat += (double2)(kern,kern)*sg[
                                         indx+indy*gridsize
                                         + (gridsize*gridsize)*n
-                                        + (gridsize*gridsize)*NDim*scan];
+                                        + (gridsize*gridsize)*NDim*slice];
             }
         }
     }
