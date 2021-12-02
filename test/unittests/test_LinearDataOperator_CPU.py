@@ -67,7 +67,7 @@ def setupPar(par):
     par["traj"] *= par["ogf"]
 
     par["dcf"] = np.sqrt(np.array(goldcomp.cmp(
-                     par["traj"]), dtype=DTYPE_real)).astype(DTYPE_real)
+                      par["traj"]), dtype=DTYPE_real)).astype(DTYPE_real)
     par["dcf"] = np.require(np.abs(par["dcf"]),
                             DTYPE_real, requirements='C')
     par["fft_dim"] = [-2, -1]
@@ -109,24 +109,24 @@ class OperatorKspaceRadial(unittest.TestCase):
             DTYPE_real=DTYPE_real)
 
         self.opinfwd = np.random.randn(par["unknowns"], par["NSlice"],
-                                       par["dimY"], par["dimX"]) +\
+                                        par["dimY"], par["dimX"]) +\
             1j * np.random.randn(par["unknowns"], par["NSlice"],
-                                 par["dimY"], par["dimX"])
+                                  par["dimY"], par["dimX"])
         self.opinadj = np.random.randn(par["NScan"], par["NC"], par["NSlice"],
-                                       par["Nproj"], par["N"]) +\
+                                        par["Nproj"], par["N"]) +\
             1j * np.random.randn(par["NScan"], par["NC"], par["NSlice"],
-                                 par["Nproj"], par["N"])
+                                  par["Nproj"], par["N"])
         self.model_gradient = np.random.randn(par["unknowns"], par["NScan"],
                                               par["NSlice"],
                                               par["dimY"], par["dimX"]) + \
             1j * np.random.randn(par["unknowns"], par["NScan"],
-                                 par["NSlice"],
-                                 par["dimY"], par["dimX"])
+                                  par["NSlice"],
+                                  par["dimY"], par["dimX"])
 
         self.C = np.random.randn(par["NC"], par["NSlice"],
-                                 par["dimY"], par["dimX"]) + \
+                                  par["dimY"], par["dimX"]) + \
             1j * np.random.randn(par["NC"], par["NSlice"],
-                                 par["dimY"], par["dimX"])
+                                  par["dimY"], par["dimX"])
 
         self.model_gradient = self.model_gradient.astype(DTYPE)
         self.C = self.C.astype(DTYPE)
@@ -205,13 +205,19 @@ class OperatorKspaceRadial(unittest.TestCase):
     # def test_CPU_vs_GPU_fwd(self):
     #     inpfwd_CPU = clarray.to_device(self.queue, self.opinfwd)
     #     outfwd_CPU = clarray.zeros(self.queue, self.opinadj.shape, dtype=DTYPE)
+    #     cl.enqueue_barrier(self.queue)
     #     outfwd_CPU.add_event(self.op.fwd(outfwd_CPU, [inpfwd_CPU, self.coil_buf, self.grad_buf]))
+    #     cl.enqueue_barrier(self.queue)
     #     outfwd_CPU = outfwd_CPU.map_to_host(wait_for=outfwd_CPU.events)
+    #     cl.enqueue_barrier(self.queue)
         
     #     inpfwd_GPU = clarray.to_device(self.queue_GPU, self.opinfwd)
     #     outfwd_GPU = clarray.zeros(self.queue_GPU, self.opinadj.shape, dtype=DTYPE)
+    #     cl.enqueue_barrier(self.queue_GPU)
     #     outfwd_GPU.add_event(self.op_GPU.fwd(outfwd_GPU, [inpfwd_GPU, self.coil_buf_GPU, self.grad_buf_GPU]))
+    #     cl.enqueue_barrier(self.queue_GPU)
     #     outfwd_GPU = outfwd_GPU.map_to_host(wait_for=outfwd_GPU.events)
+    #     cl.enqueue_barrier(self.queue_GPU)
         
     #     np.testing.assert_allclose(outfwd_CPU, outfwd_GPU, rtol=RTOL, atol=ATOL)
 
