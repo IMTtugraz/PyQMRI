@@ -152,7 +152,7 @@ __kernel void grid_lut(
     &(
       sg[
         2*(
-          indx*gridsize+indy+(gridsize*gridsize)*n
+          indx+indy*gridsize+(gridsize*gridsize)*n
           + (gridsize*gridsize)*NDim*slice)]
       ),
     (kern * kdat.s0));
@@ -160,7 +160,7 @@ __kernel void grid_lut(
     &(
       sg[
         2*(
-          indx*gridsize+indy+(gridsize*gridsize)*n
+          indx+indy*gridsize+(gridsize*gridsize)*n
           + (gridsize*gridsize)*NDim*slice)+1]
       ),
     (kern * kdat.s1));
@@ -233,7 +233,7 @@ __kernel void invgrid_lut(
                 if (gcount2 < 0) {indy+=gridsize;indx=gridsize-indx;}
                 if (gcount2 >= gridsize) {indy-=gridsize;indx=gridsize-indx;}
                 tmp_dat += (double2)(kern,kern)*sg[
-                                        indx*gridsize+indy
+                                        indx+indy*gridsize
                                         + (gridsize*gridsize)*n
                                         + (gridsize*gridsize)*NDim*slice];
             }

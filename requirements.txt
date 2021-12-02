@@ -11,3 +11,4 @@ numexpr
 sympy>=1.6.2
 nbsphinx
 inputimeout
+scipy

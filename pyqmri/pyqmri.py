@@ -11,6 +11,7 @@ import numpy as np
 from tkinter import filedialog
 from tkinter import Tk
 from inputimeout import inputimeout, TimeoutOccurred
+import faulthandler; faulthandler.enable()
 
 import matplotlib.pyplot as plt
 
@@ -47,6 +48,7 @@ def _choosePlatform(myargs, par):
                          str(platform.get_info(cl.platform_info.VERSION))))
                 use_GPU = True
                 dev_ind.append(j)
+                inp = 0
         if len(dev_ind) > 1:
             while True:
                 try:
@@ -70,10 +72,8 @@ def _choosePlatform(myargs, par):
                               +str(len(dev_ind)-1))
                         continue
                 break
-        if inp:
+        if inp is not None:
             par["Platform_Indx"] = dev_ind[inp]
-        else:
-            par["Platform_Indx"] = dev_ind[0]
      
     if not use_GPU:
         if myargs.use_GPU:
@@ -112,10 +112,10 @@ def _precoompFFT(data, par):
                      np.all(np.abs(data[0, 0, 1, 0, :])) or
                      np.all(np.abs(data[0, 0, 1, 1, :])))
 
-        full_dimZ = (np.all(np.abs(data[0, 0, :, 0, 0:])) or
-                     np.all(np.abs(data[0, 0, :, 1, 1])) or
-                     np.all(np.abs(data[0, 0, :, 0, 1])) or
-                     np.all(np.abs(data[0, 0, :, 1, 0])))
+        full_dimZ = False#(np.all(np.abs(data[0, 0, :, 0, 0:])) or
+                     # np.all(np.abs(data[0, 0, :, 1, 1])) or
+                     # np.all(np.abs(data[0, 0, :, 0, 1])) or
+                     # np.all(np.abs(data[0, 0, :, 1, 0])))
     else:
         full_dimY = (np.all(np.abs(data[0, 0, 0, :, 0])) or
                      np.all(np.abs(data[0, 0, 0, :, 1])))
@@ -411,7 +411,8 @@ def _estScaleNorm(myargs, par, images, data):
     # SNR_est = (np.abs(sig/noise))
     # par["SNR_est"] = SNR_est
     # print("Estimated SNR from kspace", SNR_est)
-    dscale = par["DTYPE_real"](1 / np.linalg.norm(np.abs(data)))
+    dscale = par["DTYPE_real"](np.sqrt(2*1e3*par["NSlice"]) / np.linalg.norm(np.abs(data)))
+    # dscale = 1/np.quantile(np.abs(images), 0.9)
     print("Data scale: ", dscale)
     par["dscale"] = dscale
     images = images*dscale
@@ -527,7 +528,7 @@ def _read_data_from_file(par, myargs):
         np.max(utils.prime_factors(data.shape[-2])) > 13)):
         if myargs.trafo:
             print("Samples along the spoke need to have their largest prime factor"
-                  " to be 13 or lower. Finding next smaller grid.")
+                " to be 13 or lower. Finding next smaller grid.")
             dimreduction = 2
             while np.max(utils.prime_factors(data.shape[-1]-dimreduction)) > 13:
                 dimreduction += 2
@@ -535,19 +536,19 @@ def _read_data_from_file(par, myargs):
             dimX -= dimreduction
             dimY -= dimreduction
             data = np.require(data[..., int(dimreduction/2):
-                                   data.shape[-1]-int(dimreduction/2)],
-                              requirements='C')
+                                data.shape[-1]-int(dimreduction/2)],
+                            requirements='C')
             par["traj"] = np.require(par["traj"][
                 ..., int(dimreduction/2):
-                    par["traj"].shape[-1]-int(dimreduction/2)], requirements='C')
+            par["traj"].shape[-1]-int(dimreduction/2)], requirements='C')
             par["dcf"] = np.sqrt(goldcomp.cmp(par["traj"]))
             par["dcf"] = np.require(np.abs(par["dcf"]),
                                     par["DTYPE_real"], requirements='C')
             dimreduction = np.array([dimreduction, dimreduction])
             
-        else:
+        else: 
             print("Samples need to have their largest prime factor"
-                  " to be 13 or lower. Finding next smaller grid.")
+                " to be 13 or lower. Finding next smaller grid.")
             dimredX = 0
             dimredY = 0
             while np.max(utils.prime_factors(data.shape[-1]-dimredX)) > 13:
@@ -555,19 +556,17 @@ def _read_data_from_file(par, myargs):
             while np.max(utils.prime_factors(data.shape[-2]-dimredY)) > 13:
                 dimredY += 2
             dimreduction = np.array([dimredX, dimredY])
-            print('Decrease grid size by %i' %dimreduction)
-            dimX -= dimreduction[0] 
-            dimY -= dimreduction[1] 
-            
+            print('Decrease grid size by %i' % dimreduction)
+            dimX -= dimreduction[0]
+            dimY -= dimreduction[1]
+
             data = np.fft.fftshift(data)
             data = np.require(data[..., 
-                                   int(dimreduction[1]/2):
-                                       data.shape[-2]-int(dimreduction[1]/2),
-                                       int(dimreduction[0]/2):
-                                           data.shape[-1]-int(dimreduction[0]/2)],
-                              requirements='C')
+                int(dimreduction[1]/2):data.shape[-2]-int(dimreduction[1]/2),
+                int(dimreduction[0]/2):data.shape[-1]-int(dimreduction[0]/2)],
+                requirements='C')
             data = np.fft.ifftshift(data)
-        
+    
     return data, dimX, dimY, NSlice, reco_Slices, dimreduction, off
     
 
@@ -768,6 +767,7 @@ def _start_recon(myargs):
 ###############################################################################
     _setupOCL(myargs, par)
 ###############################################################################
+###############################################################################
 # Standardize data ############################################################
 ###############################################################################
     [NScan, NC] = data.shape[:2]
@@ -796,27 +796,28 @@ def _start_recon(myargs):
 ###############################################################################
 # Init forward model and initial guess ########################################
 ###############################################################################
+    if myargs.trafo is False:
+        data = _precoompFFT(data, par)
+        
     if myargs.sig_model == "GeneralModel":
         par["modelfile"] = myargs.modelfile
         par["modelname"] = myargs.modelname
     model = sig_model.Model(par)
-###############################################################################
-# Reconstruct images using CG-SENSE  ##########################################
-###############################################################################
-    if myargs.trafo is False:
-        data = _precoompFFT(data, par)
-    # del par["file"]["images"]
-    images = _genImages(myargs, par, data, off)
-###############################################################################
-# Scale data norm  ############################################################
-###############################################################################
-    data, images = _estScaleNorm(myargs, par, images, data)    
     if np.allclose(myargs.weights, -1):
         if "weights" not in par.keys():
             par["weights"] = np.ones(
                 (par["unknowns"]), dtype=par["DTYPE_real"])
     else:
         par["weights"] = np.array(myargs.weights, dtype=par["DTYPE_real"])
+###############################################################################
+# Reconstruct images using CG-SENSE  ##########################################
+###############################################################################
+    # del par["file"]["images"]
+    images = _genImages(myargs, par, data, off)
+###############################################################################
+# Scale data norm  ############################################################
+###############################################################################
+    data, images = _estScaleNorm(myargs, par, images, data)    
 ###############################################################################
 # Compute initial guess #######################################################
 ###############################################################################
@@ -840,7 +841,6 @@ def _start_recon(myargs):
                         DTYPE_real=par["DTYPE_real"])
     f = h5py.File(par["outdir"]+"output_" + par["fname"]+".h5", "a")
     f.create_dataset("images_ifft", data=images)
-    f.attrs['data_norm'] = par["dscale"]
     f.close()
     par["file"].close()
 ###############################################################################

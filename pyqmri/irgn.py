@@ -13,6 +13,8 @@ import pyqmri.operator as operator
 import pyqmri.solver as optimizer
 from pyqmri._helper_fun import CLProgram as Program
 from pyqmri._helper_fun import _utils as utils
+from scipy import linalg as spl
+import faulthandler; faulthandler.enable()
 
 
 class IRGNOptimizer:
@@ -86,10 +88,6 @@ class IRGNOptimizer:
         self._model = model
         self._reg_type = reg_type
         self._prg = []
-        
-        self._datacost = 0
-        self._regcost = 0
-        self._L2Cost = 0
 
         self._DTYPE = DTYPE
         self._DTYPE_real = DTYPE_real
@@ -189,7 +187,7 @@ class IRGNOptimizer:
             streamed
             )
 
-        self._grad_op, self._symgrad_op, self._v = self._setupLinearOps(
+        grad_op, symgrad_op, self._v = self._setupLinearOps(
             DTYPE,
             DTYPE_real)
 
@@ -201,7 +199,7 @@ class IRGNOptimizer:
                 self.irgn_par,
                 self._fval_init,
                 self._coils,
-                linops=(self._MRI_operator, self._grad_op, self._symgrad_op),
+                linops=(self._MRI_operator, grad_op, symgrad_op),
                 model=model,
                 reg_type=self._reg_type,
                 SMS=self._SMS,
@@ -217,7 +215,7 @@ class IRGNOptimizer:
                 self.par,
                 self.irgn_par,
                 self._coils,
-                linops=(self._MRI_operator, self._grad_op)
+                linops=(self._MRI_operator, grad_op)
                 )
 
         self._gamma = None
@@ -263,11 +261,12 @@ class IRGNOptimizer:
           data : numpy.array
             the data to perform optimization/fitting on.
         """
-        # self.irgn_par["lambd"] *= (
-        #                             (self.par["SNR_est"]))
+        self.const_save = self._model.constraints
+        
         self._gamma = self.irgn_par["gamma"]
         self._delta = self.irgn_par["delta"]
         self._omega = self.irgn_par["omega"]
+        self.lambd = self.irgn_par["lambd"]
 
         iters = self.irgn_par["start_iters"]
         result = np.copy(self._model.guess)
@@ -282,27 +281,41 @@ class IRGNOptimizer:
                 np.transpose(data, self._data_trans_axes),
                 requirements='C')
 
-        self._step_val = np.nan_to_num(self._model.execute_forward(result))
-
-        if self._streamed:
-            if self._SMS is False:
-                self._step_val = np.require(
-                    np.swapaxes(self._step_val, 0, 1), requirements='C')
-
         for ign in range(self.irgn_par["max_gn_it"]):
             start = time.time()
+
+
             self._modelgrad = np.nan_to_num(
                 self._model.execute_gradient(result))
-
-            self._balanceModelGradients(result, ign)
+            self._step_val = np.nan_to_num(
+                self._model.execute_forward(result))
+                
+            # Precond only for image data!!!!
+            if ign < 0:
+                self.precond = True
+                self._pdop.precond = True
+                self._pdop._grad_op.precond = True
+                if self._reg_type == 'TGV':
+                    self._pdop._symgrad_op.precond = True
+                if False:
+                    self._balanceModelGradientsAverage(result, ign)
+                else:
+                    self._balanceModelGradients(result, ign)
+                result = self.applyPrecond(result)
+                self._pdop.irgn = self
+            else:
+                self.precond = False
+                self._pdop.precond = False
+                self._pdop._grad_op.precond = False
+                if self._reg_type == 'TGV':
+                    self._pdop._symgrad_op.precond = False
+                self._balanceModelGradientsNorm(result, ign)
+            
             self._updateIRGNRegPar(ign)
-            # self._pdop._grad_op.updateRatio(
-            #     self.irgn_par["gamma"])
-            # if self._reg_type == 'TGV':
-            #     self._pdop._symgrad_op.updateRatio(
-            #         2*self.irgn_par["gamma"])
-
-            self._step_val = np.nan_to_num(self._model.execute_forward(result))
+            if self.precond:
+                # self.irgn_par["gamma"] *= 1e-20
+                self._pdop._grad_op.updateRatio(np.require(self.UTE#np.repeat(np.diag(np.ones(self.k,))[..., None], self.UTE.shape[-1],axis=-1)
+                                          ,requirements='C'))
 
             if self._streamed:
                 if self._SMS is False:
@@ -313,26 +326,21 @@ class IRGNOptimizer:
                     requirements='C')
                 self._pdop.model = self._model
                 self._pdop.modelgrad = self._modelgrad
-                self._pdop.jacobi = np.sum(
-                    np.abs(self._modelgrad)**2, 2).astype(self._DTYPE_real)
-                self._pdop.jacobi[self._pdop.jacobi == 0] = 1e-8
             else:
                 _jacobi = np.sum(
                     np.abs(
                         self._modelgrad)**2, 1).astype(self._DTYPE_real)
                 _jacobi[_jacobi == 0] = 1e-8
-                self._modelgrad = clarray.to_device(
+                self._pdop.model = self._model
+                self._pdop.modelgrad = clarray.to_device(
                     self._queue[0],
                     self._modelgrad)
-                self._pdop.model = self._model
-                self._pdop.modelgrad = self._modelgrad
-                self._pdop.jacobi = clarray.to_device(
-                    self._queue[0],
-                    _jacobi)
 
             self._pdop.updateRegPar(self.irgn_par)
 
             result = self._irgnSolve3D(result, iters, data, ign)
+            if self.precond:
+                result = self.removePrecond(result)
 
             iters = np.fmin(iters * inc, self.irgn_par["max_iters"])
 
@@ -343,9 +351,23 @@ class IRGNOptimizer:
             print("-" * 75)
             self._fval_old = self._fval
             self._saveToFile(ign, self._model.rescale(result)["data"])
-        self._calcResidual(result, data, ign+1)
-
+            if ign > 1:
+                if (np.abs(self.gn_res[-1]-self.gn_res[-2])/self.gn_res[0]
+                    < self.irgn_par["rtol"]):
+                    print(
+            "Terminated after GN iteration %d because the energy "
+            "decrease in the GN-problem was %.3e which is below the "
+            "relative tolerance of %.3e" 
+            % (ign, np.abs(self.gn_res[-1]-self.gn_res[-2])/self.gn_res[0], 
+                             self.irgn_par["rtol"]))
+                    break
+        if self.precond:            
+            self._calcResidual(self.applyPrecond(result), data, ign+1)
+        else:
+            self._calcResidual((result), data, ign+1)
+            
     def _updateIRGNRegPar(self, ign):
+
         try:
             self.irgn_par["delta"] = np.minimum(
                 self._delta
@@ -355,6 +377,8 @@ class IRGNOptimizer:
             self.irgn_par["delta"] = np.minimum(
                 np.finfo(self._delta).max,
                 self.irgn_par["delta_max"])
+
+        
         self.irgn_par["gamma"] = np.maximum(
             self._gamma * self.irgn_par["gamma_dec"]**ign,
             self.irgn_par["gamma_min"])/self.irgn_par["lambd"]
@@ -363,20 +387,127 @@ class IRGNOptimizer:
             self.irgn_par["omega_min"])/self.irgn_par["lambd"]
 
     def _balanceModelGradients(self, result, ign):
-        scale = np.reshape(
-            self._modelgrad,
-            (self.par["unknowns"],
-             self.par["NScan"] * self.par["NSlice"] *
-             self.par["dimY"] * self.par["dimX"]))
+        
+        jacobi = self._modelgrad.reshape(*self._modelgrad.shape[:2], -1)
+        
+        self.k = np.minimum(*self._modelgrad.shape[:2])
+        
+        U = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
+        V = np.zeros((jacobi.shape[-1], self._modelgrad.shape[1], self.k), dtype=self.par["DTYPE"])
+        E = np.zeros((jacobi.shape[-1], self.k), dtype=self.par["DTYPE"])
+        self.UTE = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
+        self.EU = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
+        self.UT = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
+        
+        jacobi = np.require(jacobi.T, requirements='C')
+        
+        cutoff = np.inf
+
+        maxval = 0
+        minval = 1e30
+        
+        for j in range(jacobi.shape[0]):
+            V[j], E[j], U[j] = spl.svd(jacobi[j], full_matrices=False)
+            if np.any(E[j].imag!=0):
+                print("Non-zero complex eigenvalue")
+            einv = 1/E[j]
+            einv[~np.isfinite(einv)] = cutoff*einv[0]
+            einv[einv/einv[0] > cutoff] = cutoff*einv[0]
+
+            V[j] = V[j]@np.diag(E[j])@np.diag(einv)
+            maxval = np.maximum(maxval, np.max((E[j])))
+            minval = np.minimum(minval, np.min((E[j])))
+  
+            self.UTE[j] = (np.conj(U[j].T)@np.diag(einv))
+            self.UT[j] = np.conj(U[j].T)@np.diag(einv)
+            self.EU[j] = np.diag(1/einv)@U[j]
+            
+        print("Maximum Eigenvalue: ", maxval)
+        print("Minimum Eigenvalue: ", minval)
+        print("Condition number: ", maxval/minval)
+        
+        print("Mean Eigenvalues: ", np.mean(E, axis=0).real)
+            
+        
+        V = np.require(np.transpose(V, (2,1,0)), requirements='C')
+
+        self._modelgrad = V.reshape(*V.shape[:2],*self._modelgrad.shape[2:])
+        
+        self.UTE = np.require(self.UTE.transpose(1,2,0), requirements='C')
+        self.UT = np.require(self.UT.transpose(1,2,0), requirements='C')
+        self.EU = np.require(self.EU.transpose(1,2,0), requirements='C')
+        
+        self._pdop.EU = clarray.to_device(self._pdop._queue[0], self.EU)
+        self._pdop.UTE = clarray.to_device(self._pdop._queue[0], self.UTE)
+        
+    def _balanceModelGradientsAverage(self, result, ign):
+        
+        
+        scale = self._modelgrad.reshape(self.par["unknowns"], self.par["NScan"], -1)
+
+        tmp = np.quantile(scale, 0.85, axis=-1)
+        V, eigvals, U = spl.svd(tmp.T)
+        
+        jacobi = self._modelgrad.reshape(*self._modelgrad.shape[:2], -1)
+        
+        self.k = np.minimum(*self._modelgrad.shape[:2])
+        
+        self.UTE = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
+        self.EU = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
+        
+        jacobi = np.require(jacobi.T, requirements='C')
+        
+        cutoff = np.inf
+        
+        einv = 1/(eigvals)
+        einv[~np.isfinite(einv)] = cutoff*einv[0]
+        einv[einv/einv[0] > cutoff] = cutoff*einv[0]
+        
+        for j in range(jacobi.shape[0]):
+
+            
+            jacobi[j] = jacobi[j]@np.conj(U.T)@np.conj(np.diag(einv))
+            
+            self.UTE[j] = (np.conj(U.T)@np.conj(np.diag(einv)))
+            self.EU[j] = np.diag(1/einv)@U
+            
+            
+        print("Average Eigenvalues: ", eigvals)
+
+
+        self._modelgrad = np.require(jacobi.T.reshape(*self._modelgrad.shape), requirements='C')
+        
+        self.UTE = np.require(self.UTE.transpose(1,2,0), requirements='C')
+        self.EU = np.require(self.EU.transpose(1,2,0), requirements='C')
+        
+        self._pdop.EU = clarray.to_device(self._pdop._queue[0], self.EU)
+        self._pdop.UTE = clarray.to_device(self._pdop._queue[0], self.UTE)
+
+
+    def applyPrecond(self, inp):
+        tmp_step_val = np.require(inp.reshape(inp.shape[0], -1).T, requirements='C')
+        precond_stepval = np.zeros((np.prod(inp.shape[1:]), self.k), dtype=self.par["DTYPE"])
+        
+        for j in range(tmp_step_val.shape[0]):
+            precond_stepval[j] = self.EU[...,j ]@tmp_step_val[j]
+                                                 
+        return np.require(precond_stepval.T.reshape(self.k, *inp.shape[1:]), requirements='C', dtype=self.par["DTYPE"])
+    
+    def removePrecond(self, inp):
+        tmp_step_val = np.require(inp.reshape(inp.shape[0], -1).T, requirements='C')
+        precond_stepval = np.zeros((np.prod(inp.shape[1:]), self.k), dtype=self.par["DTYPE"])
+        for j in range(tmp_step_val.shape[0]):
+            precond_stepval[j] = self.UTE[..., j]@tmp_step_val[j]
+        return np.require(precond_stepval.T.reshape(self.k, *inp.shape[1:]), requirements='C', dtype=self.par["DTYPE"])
+    
+    def _balanceModelGradientsNorm(self, result, ign):
+        scale = self._modelgrad.reshape(self.par["unknowns"], -1)
         scale = np.linalg.norm(scale, axis=-1)
         print("Initial Norm: ", np.linalg.norm(scale))
         print("Initial Ratio: ", scale)
-        if ign == 0:
-            scale /= 100/np.sqrt(self.par["unknowns"])
-        else:
-            scale /= np.linalg.norm(scale)/np.sqrt(self.par["unknowns"])
-        scale = 1 / scale
-        scale[~np.isfinite(scale)] = 1
+        scale /= 1e2/np.sqrt(self.par["unknowns"])
+        scale = 1/scale
+        scale[~np.isfinite(scale)] = 1e2/np.sqrt(self.par["unknowns"])
         for uk in range(self.par["unknowns"]):
             self._model.constraints[uk].update(scale[uk])
             result[uk, ...] *= self._model.uk_scale[uk]
@@ -384,14 +515,11 @@ class IRGNOptimizer:
             self._model.uk_scale[uk] *= scale[uk]
             result[uk, ...] /= self._model.uk_scale[uk]
             self._modelgrad[uk] *= self._model.uk_scale[uk]
-        scale = np.reshape(
-            self._modelgrad,
-            (self.par["unknowns"],
-             self.par["NScan"] * self.par["NSlice"] *
-             self.par["dimY"] * self.par["dimX"]))
+        scale = self._modelgrad.reshape(self.par["unknowns"], -1)
         scale = np.linalg.norm(scale, axis=-1)
         print("Norm after rescale: ", np.linalg.norm(scale))
-        print("Ratio after rescale: ", scale)
+        print("Ratio after rescale: ", np.abs(scale))
+
 
 ###############################################################################
 # New .hdf5 save files ########################################################
@@ -409,7 +537,8 @@ class IRGNOptimizer:
             f.attrs['res_tv_iter_'+str(myit)] = self._fval
         f.attrs['datacost_iter_'+str(myit)] = self._datacost
         f.attrs['regcost_iter_'+str(myit)] = self._regcost 
-        f.attrs['L2Cost_iter_'+str(myit)] = self._L2Cost 
+        f.attrs['data_norm'] = self.par["dscale"]
+        # f.attrs['L2Cost_iter_'+str(myit)] = self._L2Cost 
         f.close()
 
 ###############################################################################
@@ -426,13 +555,13 @@ class IRGNOptimizer:
         if self._streamed:
             x = np.require(np.swapaxes(x, 0, 1), requirements='C')
             res = data - b + self._MRI_operator.fwdoop(
-                [[x, self._coils, self._modelgrad]])
+                [[x, self._coils, self._pdop.modelgrad]])
         else:
             tmpx = clarray.to_device(self._queue[0], x)
             res = data - b + self._MRI_operator.fwdoop(
-                [tmpx, self._coils, self._modelgrad]).get()
-            del tmpx
-
+                [tmpx, self._coils, self._pdop.modelgrad]).get()
+            del tmpx   
+        
         tmpres = self._pdop.run((x, self._v), res, iters)
         for key in tmpres:
             if key == 'x':
@@ -453,28 +582,29 @@ class IRGNOptimizer:
     def _calcResidual(self, x, data, GN_it):
         if self._streamed:
             b, grad, sym_grad = self._calcFwdGNPartStreamed(x)
-            grad_tv = grad[:, :self.par["unknowns_TGV"]]
-            grad_H1 = grad[:, self.par["unknowns_TGV"]:]
+            norm_axis = 1
+            grad_tv = grad[:,:self.par["unknowns_TGV"]]
+            grad_H1 = grad[:,self.par["unknowns_TGV"]:]
         else:
             b, grad, sym_grad = self._calcFwdGNPartLinear(x)
+            norm_axis = 0
             grad_tv = grad[:self.par["unknowns_TGV"]]
             grad_H1 = grad[self.par["unknowns_TGV"]:]
-        del grad
 
+        del grad
         self._datacost = self.irgn_par["lambd"] / 2 * np.linalg.norm(data - b)**2
 #        self._L2Cost = np.linalg.norm(x)/(2.0*self.irgn_par["delta"])
-
         if self._reg_type == 'TV':
             self._regcost = self.irgn_par["gamma"] * \
-                np.sum(np.abs(grad_tv))
+                np.sum(np.abs(np.linalg.norm(grad_tv, axis=norm_axis)))
         elif self._reg_type == 'TGV':
             self._regcost = self.irgn_par["gamma"] * np.sum(
-                  np.abs(grad_tv -
-                         self._v)) + self.irgn_par["gamma"] * 2 * np.sum(
-                             np.abs(sym_grad))
+                  np.abs(np.linalg.norm(grad_tv -
+                         self._v, axis=norm_axis))) + self.irgn_par["gamma"] * 2 * np.sum(
+                             np.abs(np.linalg.norm(sym_grad, axis=norm_axis)))
             del sym_grad
         else:
-            regcost = self.irgn_par["gamma"]/2 * \
+            self.regcost = self.irgn_par["gamma"]/2 * \
                 np.linalg.norm(grad_tv)**2
 
         self._fval = (self._datacost +
@@ -487,17 +617,19 @@ class IRGNOptimizer:
         if GN_it == 0:
             self._fval_init = self._fval
             self._pdop.setFvalInit(self._fval)
-
-        print("-" * 75)
-        print("Initial Cost: %f" % (self._fval_init))
-        print("Costs of Data: %f" % (1e3*self._datacost / self._fval_init))
-        print("Costs of T(G)V: %f" % (1e3*self._regcost / self._fval_init))
-#        print("Costs of L2 Term: %f" % (1e3*self._L2Cost / self._fval_init))
-        print("-" * 75)
-        print("Function value at GN-Step %i: %f" %
-              (GN_it, 1e3*self._fval / self._fval_init))
-        print("-" * 75)
-        return b
+        
+        if GN_it >= 0:
+            print("-" * 75)
+            print("Initial Cost: %f" % (self._fval_init))
+            print("Costs of Data: %f" % (1e3*self._datacost / self._fval_init))
+            print("Costs of T(G)V: %f" % (1e3*self._regcost / self._fval_init))
+    #        print("Costs of L2 Term: %f" % (1e3*self._L2Cost / self._fval_init))
+            print("-" * 75)
+            print("Function value at GN-Step %i: %f" %
+                  (GN_it, 1e3*self._fval / self._fval_init))
+            print("-" * 75)
+            return b
+        return None
 
     def _calcFwdGNPartLinear(self, x):
         if self._imagespace is False:
@@ -515,13 +647,14 @@ class IRGNOptimizer:
         x = clarray.to_device(self._queue[0], np.require(x, requirements="C"))
         grad = clarray.to_device(self._queue[0],
                                  np.zeros(x.shape+(4,), dtype=self._DTYPE))
-        self._grad_op.fwd(
+        self._pdop._grad_op.fwd(
             grad,
             x,
             wait_for=grad.events +
             x.events).wait()
         x = x.get()
         grad = grad.get()
+        grad *= self.par["weights"][:,None,None,None,None]
         sym_grad = None
         if self._reg_type == 'TGV':
             v = clarray.to_device(self._queue[0], self._v)
@@ -529,12 +662,13 @@ class IRGNOptimizer:
                                          np.zeros(x.shape+(8,),
                                                   dtype=self._DTYPE))
 
-            self._symgrad_op.fwd(
+            self._pdop._symgrad_op.fwd(
                 sym_grad,
                 v,
                 wait_for=sym_grad.events +
                 v.events).wait()
             sym_grad = sym_grad.get()
+            sym_grad *= self.par["weights"][:,None,None,None,None]
 
         return b, grad, sym_grad
 
@@ -560,11 +694,13 @@ class IRGNOptimizer:
         else:
             b = self._step_val
         grad = np.zeros(x.shape+(4,), dtype=self._DTYPE)
-        self._grad_op.fwd([grad], [[x]])
+        self._pdop._grad_op.fwd([grad], [[x]])
+        grad *= self.par["weights"][None,:,None,None,None]
 
         sym_grad = None
         if self._reg_type == 'TGV':
             sym_grad = np.zeros(x.shape+(8,), dtype=self._DTYPE)
-            self._symgrad_op.fwd([sym_grad], [[self._v]])
+            self._pdop._symgrad_op.fwd([sym_grad], [[self._v]])
+            sym_grad *= self.par["weights"][None,:,None,None,None]
 
         return b, grad, sym_grad

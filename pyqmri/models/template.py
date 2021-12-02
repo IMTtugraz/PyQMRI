@@ -273,13 +273,14 @@ class BaseModel(ABC):
         plt.pause(1e-10)
 
     def _rescaleInitGuess(self):
-        self.uk_scale = np.max(
-          np.abs(
-            self.guess).reshape(self.guess.shape[0], -1), axis=-1)
-        self.uk_scale[self.uk_scale==0] = 1
-        self.guess = self.guess/self.uk_scale[:,None,None,None]
-        for uk in range(self.guess.shape[0]):
-            self.constraints[uk].update(self.uk_scale[uk])
+        pass
+        # self.uk_scale = np.max(
+        #   np.abs(
+        #     self.guess).reshape(self.guess.shape[0], -1), axis=-1)
+        # self.uk_scale[self.uk_scale==0] = 1
+        # self.guess = self.guess/self.uk_scale[:,None,None,None]
+        # for uk in range(self.guess.shape[0]):
+        #     self.constraints[uk].update(self.uk_scale[uk])
 
     def setInitalGuess(self, **kwargs):
       self.computeInitialGuess(**kwargs)

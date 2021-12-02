@@ -34,19 +34,19 @@ class Model(BaseModel):
 
         self.unknowns = par["unknowns"]
         
-        t1min = 1 #np.min(self.t)/3
+        t1min = 10 #np.min(self.t)/3
 
         for j in range(par["unknowns"]):
             self.uk_scale.append(1)
             
         for j in range(self.numC):
             self.constraints.append(
-                constraints(0,
+                constraints(1e-5,
                             1e10,
                             False))
         for j in range(self.numAlpha):
             self.constraints.append(
-                constraints(0,
+                constraints(0.1,
                             1.2,
                             False))
         for j in range(self.numT1Scale):
@@ -60,8 +60,8 @@ class Model(BaseModel):
         for j in range(len(self.b)):
             self._labels.append(
                 "Field "+str(np.round(self.b[j]*1e3, 2))+" mT")
-        par["weights"] = 1*np.array([1]*self.numC+self.numAlpha*[2e1]+self.numT1Scale*[3],dtype=par["DTYPE_real"])
-        par["weights"][-self.numT1Scale:] *= np.abs(np.log(self.b[0])/np.log(self.b)).squeeze()
+        par["weights"] = 1e3*np.array([1]*self.numC+self.numAlpha*[1]+self.numT1Scale*[1],dtype=par["DTYPE_real"])
+        # par["weights"] *= 1/np.sum(par["weights"])
 
     def rescale(self, x):
         tmp_x = np.copy(x)
@@ -327,14 +327,14 @@ class Model(BaseModel):
         test_Xi = []
         for j in range(self.numAlpha):
             test_Xi.append(
-                1 *
+                0.1 *
                 np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE))
  
         test_R1 = []
         # self.b *= args[1]
         for j in range(self.numT1Scale):
             test_R1.append(
-                150 * np.abs(np.log(self.b[0])/np.log(self.b[j])).squeeze() *
+                50 *
                 np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE))
             
             

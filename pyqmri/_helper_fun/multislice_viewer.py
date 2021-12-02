@@ -68,10 +68,10 @@ def _process_scroll(event):
     for i, axes in enumerate(ax):
         if axes.index is not None:
             volume = axes.volume
-            if (int((axes.index - event.step) >= volume.shape[0]) or
-                    int((axes.index - event.step) < 0)):
+            if (int((axes.index - np.sign(event.step)) >= volume.shape[0]) or
+                    int((axes.index - np.sign(event.step)) < 0)):
                 pass
             else:
-                ax[i].index = int((axes.index - event.step) % volume.shape[0])
+                ax[i].index = int((axes.index - np.sign(event.step)) % volume.shape[0])
                 ax[i].images[0].set_array(volume[ax[i].index])
                 fig.canvas.draw()

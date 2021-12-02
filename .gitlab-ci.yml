@@ -22,7 +22,7 @@ lint-job:
         paths: 
             - pylint.log
 
-test-single-on-cpu:
+test-dsingle-on-cpu:
     stage: unittests
     image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
     tags: [cpu]
@@ -36,10 +36,8 @@ test-single-on-cpu:
         - coverage xml -o coverage_unittests_grad_CPU.xml
         - pytest --junitxml results_unittests_symgrad_CPU.xml --cov=pyqmri test/unittests/test_symmetrized_gradient_CPU.py
         - coverage xml -o coverage_unittests_symgrad_CPU.xml
-        - pytest --junitxml test_Linear3DDataOperator_CPU.xml --cov=pyqmri test/unittests/test_Linear3DDataOperator_CPU.py
-        - coverage xml -o coverage_unittests_Linear3DDataOperator_CPU.xml
-    artifacts: 
-        reports:    
+    artifacts:
+        reports:
             junit: results_unittests_*.xml
             cobertura: coverage_unittests_*.xml
 

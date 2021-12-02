@@ -108,7 +108,14 @@ class Operator(ABC):
                                self.dimY,
                                self.dimX)
         self._overlap = 0
-
+        self.ratio = []
+        for j in range(self.num_dev):
+            self.ratio.append(
+                clarray.to_device(
+                    self.queue[4*j],
+                    (par["weights"]).astype(
+                        dtype=self.DTYPE_real)))
+            
     @abstractmethod
     def fwd(self, out, inp, **kwargs):
         """Forward operator application in-place.
@@ -625,11 +632,11 @@ class OperatorImagespace(Operator):
             wait_for = kwargs["wait_for"]
         else:
             wait_for = []
+        
         return self.prg.update_Kyk1_imagespace(
             self.queue, (self.NSlice, self.dimY, self.dimX), None,
             out.data, inp[0].data, inp[3].data, inp[1].data,
             np.int32(self.NScan),
-            inp[4].data,
             np.int32(self.unknowns),
             self.DTYPE_real(self._dz),
             wait_for=(inp[0].events + out.events
@@ -900,7 +907,6 @@ class OperatorKspace(Operator):
             out.data, self._tmp_result.data, inp[2].data,
             inp[3].data, inp[1].data, np.int32(self.NC),
             np.int32(self.NScan),
-            inp[4].data,
             np.int32(self.unknowns), self.DTYPE_real(self._dz),
             wait_for=(self._tmp_result.events +
                       out.events + inp[1].events))
@@ -1167,7 +1173,6 @@ class OperatorKspaceSMS(Operator):
             out.data, self._tmp_result.data, inp[2].data,
             inp[3].data, inp[1].data, np.int32(self.NC),
             np.int32(self.NScan),
-            inp[4].data,
             np.int32(self.unknowns), self.DTYPE_real(self._dz),
             wait_for=(self._tmp_result.events +
                       out.events + inp[1].events))
@@ -1393,7 +1398,7 @@ class OperatorImagespaceStreamed(Operator):
             inp[3].data,
             inp[1].data,
             np.int32(self.NScan),
-            par[0][idx].data, np.int32(self.unknowns),
+            np.int32(self.unknowns),
             np.int32(bound_cond), self.DTYPE_real(self._dz),
             wait_for=(outp.events+inp[0].events+inp[1].events +
                       inp[3].events+wait_for))
@@ -1676,7 +1681,7 @@ class OperatorKspaceStreamed(Operator):
             inp[2].data,
             inp[3].data,
             inp[1].data, np.int32(self.NC), np.int32(self.NScan),
-            par[0][idx].data, np.int32(self.unknowns),
+            np.int32(self.unknowns),
             np.int32(bound_cond), self.DTYPE_real(self._dz),
             wait_for=(
                 self._tmp_result[2*idx+idxq].events +
@@ -2071,7 +2076,7 @@ class OperatorKspaceSMSStreamed(Operator):
             (self.par_slices+self._overlap, self.dimY, self.dimX), None,
             outp.data, inp[0].data,
             inp[1].data,
-            par[0][idx].data, np.int32(self.unknowns),
+            np.int32(self.unknowns),
             np.int32(bound_cond), self.DTYPE_real(self._dz),
             wait_for=(
                 inp[0].events +
@@ -2134,11 +2139,9 @@ class OperatorFiniteGradient(Operator):
         super().__init__(par, prg, DTYPE, DTYPE_real)
         self.queue = self.queue[0]
         self.ctx = self.ctx[0]
-        self.ratio = clarray.to_device(
-            self.queue,
-            (par["weights"]).astype(
-                     dtype=self.DTYPE_real))
-        self._weights = par["weights"]
+        self.ratio = None
+        self.tmp_grad_array = None
+        self.precond = False
 
     def fwd(self, out, inp, **kwargs):
         """Forward operator application in-place.
@@ -2166,11 +2169,26 @@ class OperatorFiniteGradient(Operator):
             wait_for = kwargs["wait_for"]
         else:
             wait_for = []
-        return self.prg.gradient(
+            
+        if not self.precond:
+            return self.prg.gradient(
             self.queue, inp.shape[1:], None, out.data, inp.data,
             np.int32(self.unknowns),
-            self.ratio.data, self.DTYPE_real(self._dz),
+            self.DTYPE_real(self._dz),
             wait_for=out.events + inp.events + wait_for)
+            
+        if self.tmp_grad_array is None:
+            self.tmp_grad_array = clarray.zeros_like(inp)
+            
+        self.prg.squarematvecmult(self.queue, inp.shape[1:], None,
+            self.tmp_grad_array.data, self.precondmat.data, inp.data, np.int32(self.unknowns),
+            wait_for=self.tmp_grad_array.events + inp.events + wait_for)
+            
+        return self.prg.gradient(
+            self.queue, inp.shape[1:], None, out.data, self.tmp_grad_array.data,
+            np.int32(self.unknowns),
+            self.DTYPE_real(self._dz),
+            wait_for=out.events + self.tmp_grad_array.events + wait_for)
 
     def fwdoop(self, inp, **kwargs):
         """Forward operator application out-of-place.
@@ -2201,11 +2219,26 @@ class OperatorFiniteGradient(Operator):
             self.queue, (self.unknowns,
                          self.NSlice, self.dimY, self.dimX, 4),
             self.DTYPE, "C")
+        
+        if not self.precond:
+            self.prg.gradient(
+                self.queue, inp.shape[1:], None, tmp_result.data, inp.data,
+                np.int32(self.unknowns),
+                self.DTYPE_real(self._dz),
+                wait_for=tmp_result.events + inp.events + wait_for).wait()
+            return tmp_result
+            
+        if self.tmp_grad_array is None:
+            self.tmp_grad_array = clarray.zeros_like(inp)
+        self.prg.squarematvecmult(self.queue, inp.shape[1:], None,
+            self.tmp_grad_array.data, self.precondmat.data, inp.data, np.int32(self.unknowns),
+            wait_for=self.tmp_grad_array.events + inp.events + wait_for)
+        
         self.prg.gradient(
-            self.queue, inp.shape[1:], None, tmp_result.data, inp.data,
+            self.queue, inp.shape[1:], None, tmp_result.data, self.tmp_grad_array.data,
             np.int32(self.unknowns),
-            self.ratio.data, self.DTYPE_real(self._dz),
-            wait_for=tmp_result.events + inp.events + wait_for).wait()
+            self.DTYPE_real(self._dz),
+            wait_for=tmp_result.events + self.tmp_grad_array.events + wait_for).wait()
         return tmp_result
 
     def adj(self, out, inp, **kwargs):
@@ -2233,11 +2266,25 @@ class OperatorFiniteGradient(Operator):
             wait_for = kwargs["wait_for"]
         else:
             wait_for = []
-        return self.prg.divergence(
-            self.queue, inp.shape[1:-1], None, out.data, inp.data,
-            np.int32(self.unknowns), self.ratio.data,
-            self.DTYPE_real(self._dz),
-            wait_for=out.events + inp.events + wait_for)
+            
+        if not self.precond:
+            return self.prg.divergence(
+                    self.queue, inp.shape[1:-1], None, out.data, inp.data,
+                    np.int32(self.unknowns),
+                    self.DTYPE_real(self._dz),
+                    wait_for=out.events + inp.events + wait_for)
+            
+        if self.tmp_grad_array is None:
+            self.tmp_grad_array = clarray.zeros_like(out)
+        self.prg.divergence(
+                    self.queue, inp.shape[1:-1], None, self.tmp_grad_array.data, inp.data,
+                    np.int32(self.unknowns),
+                    self.DTYPE_real(self._dz),
+                    wait_for=self.tmp_grad_array.events + inp.events + wait_for)
+            
+        return self.prg.squarematvecmult_conj(self.queue, inp.shape[1:-1], None,
+            out.data, self.precondmat.data, self.tmp_grad_array.data, np.int32(self.unknowns),
+            wait_for=self.tmp_grad_array.events + out.events + wait_for)
 
     def adjoop(self, inp, **kwargs):
         """Adjoint operator application out-of-place.
@@ -2267,78 +2314,33 @@ class OperatorFiniteGradient(Operator):
         tmp_result = clarray.zeros(
             self.queue, (self.unknowns, self.NSlice, self.dimY, self.dimX),
             self.DTYPE, "C")
+        
+        if not self.precond:
+            self.prg.divergence(
+                        self.queue, inp.shape[1:-1], None, tmp_result.data, inp.data,
+                        np.int32(self.unknowns),
+                        self.DTYPE_real(self._dz),
+                        wait_for=tmp_result.events + inp.events + wait_for).wait()
+            return tmp_result
+        
+        if self.tmp_grad_array is None:
+            self.tmp_grad_array = clarray.zeros_like(tmp_result)
+            
         self.prg.divergence(
-            self.queue, tmp_result.shape[1:], None, tmp_result.data, inp.data,
-            np.int32(self.unknowns),
-            self.ratio.data,
-            self.DTYPE_real(self._dz),
-            wait_for=tmp_result.events + inp.events + wait_for).wait()
+                    self.queue, inp.shape[1:-1], None, self.tmp_grad_array.data, inp.data,
+                    np.int32(self.unknowns),
+                    self.DTYPE_real(self._dz),
+                    wait_for=self.tmp_grad_array.events + inp.events + wait_for).wait()
+            
+        self.prg.squarematvecmult_conj(self.queue, inp.shape[1:-1], None,
+            tmp_result.data, self.precondmat.data, self.tmp_grad_array.data, np.int32(self.unknowns),
+            wait_for=self.tmp_grad_array.events + tmp_result.events + wait_for).wait()
         return tmp_result
 
     def updateRatio(self, inp):
-        self.ratio = clarray.to_device(
+        self.precondmat = clarray.to_device(
             self.queue,
-            (self._weights*inp).astype(
-                     dtype=self.DTYPE_real))
-#         x = clarray.to_device(self.queue, inp)
-#         grad = clarray.to_device(
-#             self.queue, np.zeros(x.shape + (4,),
-#                                  dtype=self.DTYPE))
-#         self.ratio = clarray.to_device(
-#             self.queue,
-#             (self._weights *
-#              np.ones(
-#                  self.unknowns)).astype(
-#                      self.DTYPE_real))
-#         grad.add_event(
-#             self.fwd(
-#                 grad,
-#                 x,
-#                 wait_for=grad.events +
-#                 x.events))
-#         x = x.get()
-#         grad = grad.get()
-#         scale = np.reshape(
-#             x, (self.unknowns,
-#                 self.NSlice * self.dimY * self.dimX))
-#         grad = np.reshape(
-#             grad, (self.unknowns,
-#                    self.NSlice *
-#                    self.dimY *
-#                    self.dimX * 4))
-#         print("Total Norm of grad x pre: ", np.sum(np.abs(grad)))
-#         gradnorm = np.sum(np.abs(grad), axis=-1)
-#         print("Norm of grad x pre: ", gradnorm)
-#         gradnorm /= np.sum(gradnorm)/self.unknowns
-#         scale = 1/gradnorm
-#         scale[~np.isfinite(scale)] = 1
-#         # print("Scale: ", scale)
-#         for j in range(x.shape[0])[:self.unknowns_TGV]:
-#             self.ratio[j] = scale[j] * self._weights[j]
-# #        sum_scale = np.sqrt(np.sum(np.abs(
-# #            scale[self.unknowns_TGV:])**2/(1000)))
-#         for j in range(x.shape[0])[self.unknowns_TGV:]:
-#             self.ratio[j] = scale[j] * self._weights[j]
-#         # print("Ratio: ", self.ratio)
-#         x = clarray.to_device(self.queue, x)
-#         grad = clarray.to_device(
-#             self.queue, np.zeros(x.shape + (4,),
-#                                  dtype=self.DTYPE))
-#         grad.add_event(
-#             self.fwd(
-#                 grad,
-#                 x,
-#                 wait_for=grad.events +
-#                 x.events))
-#         x = x.get()
-#         grad = grad.get()
-#         grad = np.reshape(
-#             grad, (self.unknowns,
-#                    self.NSlice *
-#                    self.dimY *
-#                    self.dimX * 4))
-#         print("Norm of grad x post: ",  np.sum(np.abs(grad), axis=-1))
-#         print("Total Norm of grad x post: ",  np.sum(np.abs(grad)))
+            inp)
 
 
 class OperatorFiniteSymGradient(Operator):
@@ -2377,11 +2379,6 @@ class OperatorFiniteSymGradient(Operator):
         super().__init__(par, prg, DTYPE, DTYPE_real)
         self.queue = self.queue[0]
         self.ctx = self.ctx[0]
-        self.ratio = clarray.to_device(
-            self.queue,
-            np.ones_like(par["weights"]).astype(
-                     dtype=self.DTYPE_real))
-        self._weights = par["weights"]
 
     def fwd(self, out, inp, **kwargs):
         """Forward operator application in-place.
@@ -2412,7 +2409,6 @@ class OperatorFiniteSymGradient(Operator):
         return self.prg.sym_grad(
             self.queue, inp.shape[1:-1], None, out.data, inp.data,
             np.int32(self.unknowns_TGV),
-            self.ratio.data,
             self.DTYPE_real(self._dz),
             wait_for=out.events + inp.events + wait_for)
 
@@ -2448,7 +2444,6 @@ class OperatorFiniteSymGradient(Operator):
         self.prg.sym_grad(
             self.queue, inp.shape[1:-1], None, tmp_result.data, inp.data,
             np.int32(self.unknowns_TGV),
-            self.ratio.data,
             self.DTYPE_real(self._dz),
             wait_for=tmp_result.events + inp.events + wait_for).wait()
         return tmp_result
@@ -2481,7 +2476,6 @@ class OperatorFiniteSymGradient(Operator):
         return self.prg.sym_divergence(
             self.queue, inp.shape[1:-1], None, out.data, inp.data,
             np.int32(self.unknowns_TGV),
-            self.ratio.data,
             self.DTYPE_real(self._dz),
             wait_for=out.events + inp.events + wait_for)
 
@@ -2517,16 +2511,9 @@ class OperatorFiniteSymGradient(Operator):
         self.prg.sym_divergence(
             self.queue, inp.shape[1:-1], None, tmp_result.data, inp.data,
             np.int32(self.unknowns_TGV),
-            self.ratio.data,
             self.DTYPE_real(self._dz),
             wait_for=tmp_result.events + inp.events + wait_for).wait()
         return tmp_result
-
-    def updateRatio(self, inp):
-        self.ratio = clarray.to_device(
-            self.queue,
-            (self._weights*inp).astype(
-                     dtype=self.DTYPE_real))
 
 class OperatorFiniteGradientStreamed(Operator):
     """Streamed gradient operator.
@@ -2573,14 +2560,6 @@ class OperatorFiniteGradientStreamed(Operator):
                self.par_slices+self._overlap,
                self.dimY,
                self.dimX)
-
-        self.ratio = []
-        for j in range(self.num_dev):
-            self.ratio.append(
-                clarray.to_device(
-                    self.queue[4*j],
-                    (par["weights"]).astype(
-                        dtype=self.DTYPE_real)))
 
         self.unknown_shape = (self.NSlice, self.unknowns, self.dimY, self.dimX)
         self._grad_shape = self.unknown_shape + (4,)
@@ -2702,7 +2681,7 @@ class OperatorFiniteGradientStreamed(Operator):
             (self._overlap+self.par_slices, self.dimY, self.dimX),
             None, outp.data, inp[0].data,
             np.int32(self.unknowns),
-            self.ratio[idx].data, self.DTYPE_real(self._dz),
+            self.DTYPE_real(self._dz),
             wait_for=outp.events + inp[0].events + wait_for)
 
     def _div(self, outp, inp, par=None, idx=0, idxq=0,
@@ -2713,7 +2692,7 @@ class OperatorFiniteGradientStreamed(Operator):
             self.queue[4*idx+idxq],
             (self._overlap+self.par_slices, self.dimY, self.dimX), None,
             outp.data, inp[0].data, np.int32(self.unknowns),
-            self.ratio[idx].data, np.int32(bound_cond),
+            np.int32(bound_cond),
             self.DTYPE_real(self._dz),
             wait_for=outp.events + inp[0].events + wait_for)
 
@@ -2828,14 +2807,6 @@ class OperatorFiniteSymGradientStreamed(Operator):
         unknown_shape = (self.NSlice, self.unknowns, self.dimY, self.dimX)
         self._grad_shape = unknown_shape + (4,)
         self._symgrad_shape = unknown_shape + (8,)
-
-        self.ratio = []
-        for j in range(self.num_dev):
-            self.ratio.append(
-                clarray.to_device(
-                    self.queue[4*j],
-                    (par["weights"]).astype(
-                        dtype=self.DTYPE_real)))
 
         self._stream_symgrad = self._defineoperator(
             [self._symgrad],
@@ -2953,7 +2924,6 @@ class OperatorFiniteSymGradientStreamed(Operator):
             self.queue[4*idx+idxq],
             (self._overlap+self.par_slices, self.dimY, self.dimX), None,
             outp.data, inp[0].data, np.int32(self.unknowns),
-            self.ratio[idx].data,
             self.DTYPE_real(self._dz),
             wait_for=outp.events + inp[0].events + wait_for)
 
@@ -2966,7 +2936,6 @@ class OperatorFiniteSymGradientStreamed(Operator):
             (self._overlap+self.par_slices, self.dimY, self.dimX), None,
             outp.data, inp[0].data,
             np.int32(self.unknowns),
-            self.ratio[idx].data,
             np.int32(bound_cond),
             self.DTYPE_real(self._dz),
             wait_for=outp.events + inp[0].events + wait_for)

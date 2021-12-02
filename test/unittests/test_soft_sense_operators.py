@@ -43,6 +43,7 @@ def _setup_par(par):
     par["mask"] = np.ones((par["dimY"], par["dimX"]), dtype=DTYPE_real)
 
     par["is3D"] = False
+    par["weights"] = np.array(1)
 
 
 class OperatorSoftSenseTest(unittest.TestCase):
