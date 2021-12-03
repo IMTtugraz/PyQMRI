@@ -77,7 +77,7 @@ class IRGNOptimizer:
                  DTYPE=np.complex64, DTYPE_real=np.float32):
         self.par = par
         self.gn_res = []
-        self.irgn_par = utils.read_config(config, reg_type)
+        self.irgn_par = utils.read_config(config, 'IRGN', reg_type)
         utils.save_config(self.irgn_par, par["outdir"], reg_type)
         num_dev = len(par["num_dev"])
         self._fval_old = 0
