@@ -909,7 +909,7 @@ class PDBaseSolver:
                     model,
                     DTYPE=DTYPE,
                     DTYPE_real=DTYPE_real)
-        if reg_type == 'ICTV':
+        elif reg_type == 'ICTV':
             if streamed:
               raise NotImplementedError
             if SMS:
