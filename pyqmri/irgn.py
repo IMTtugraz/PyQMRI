@@ -703,6 +703,7 @@ class IRGNOptimizer:
             x = x.get()
             grad = grad.get()
             grad *= self.par["weights"][:,None,None,None,None]
+            grad = [grad]
         sym_grad = None
         if self._reg_type == 'TGV':
             v = clarray.to_device(self._queue[0], self._v)
