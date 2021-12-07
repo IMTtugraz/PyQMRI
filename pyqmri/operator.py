@@ -4,8 +4,10 @@
 from abc import ABC, abstractmethod
 import pyopencl.array as clarray
 import numpy as np
+import scipy.special as sps
 from pyqmri.transforms import PyOpenCLnuFFT as CLnuFFT
 import pyqmri.streaming as streaming
+
 
 
 class Operator(ABC):
@@ -347,7 +349,8 @@ class Operator(ABC):
                                                   DTYPE,
                                                   DTYPE_real,
                                                   kwargs["mu_1"],
-                                                  kwargs["mu_2"])
+                                                  kwargs["dt"],
+                                                  kwargs["tsweight"])
             else:
               op = OperatorFiniteGradient(par,
                                           prg[0],
@@ -3630,15 +3633,23 @@ class OperatorFiniteSpaceTimeGradient(Operator):
         Ratio between the different unknowns
     """
 
-    def __init__(self, par, prg, DTYPE=np.complex64, DTYPE_real=np.float32, mu1=1, mu2=1):
+    def __init__(self, par, prg, DTYPE=np.complex64, DTYPE_real=np.float32, mu1=1, dt=1, tsweight=1):
         super().__init__(par, prg, DTYPE, DTYPE_real)
         self.queue = self.queue[0]
         self.ctx = self.ctx[0]
         self.ratio = None
         self.tmp_grad_array = None
         self.precond = False
+        self.timeSpaceWeight = tsweight
+        
         self.mu1 = mu1
-        self.mu2 = mu2
+        self.dt = dt
+        
+        self.mu1, self.dt = self.computeTimeSpaceWeight(self.mu1, self.dt, tsweight)
+        
+        self.dt = self.dt.astype(DTYPE_real)
+        self.dt = clarray.to_device(self.queue, self.dt)
+        
 
     def fwd(self, out, inp, **kwargs):
         """Forward operator application in-place.
@@ -3672,7 +3683,7 @@ class OperatorFiniteSpaceTimeGradient(Operator):
         np.int32(self.unknowns),
         self.DTYPE_real(self._dz),
         self.DTYPE_real(self.mu1),
-        self.DTYPE_real(self.mu2),
+        self.dt.data,
         wait_for=out.events + inp.events + wait_for)
             
 
@@ -3711,7 +3722,7 @@ class OperatorFiniteSpaceTimeGradient(Operator):
             np.int32(self.unknowns),
             self.DTYPE_real(self._dz),
             self.DTYPE_real(self.mu1),
-            self.DTYPE_real(self.mu2),
+            self.dt.data,
             wait_for=tmp_result.events + inp.events + wait_for).wait()
         return tmp_result
 
@@ -3746,7 +3757,7 @@ class OperatorFiniteSpaceTimeGradient(Operator):
                 np.int32(self.unknowns),
                 self.DTYPE_real(self._dz),
                 self.DTYPE_real(self.mu1),
-                self.DTYPE_real(self.mu2),
+                self.dt.data,
                 wait_for=out.events + inp.events + wait_for)
 
     def adjoop(self, inp, **kwargs):
@@ -3783,7 +3794,7 @@ class OperatorFiniteSpaceTimeGradient(Operator):
                     np.int32(self.unknowns),
                     self.DTYPE_real(self._dz),
                     self.DTYPE_real(self.mu1),
-                    self.DTYPE_real(self.mu2),
+                    self.dt.data,
                     wait_for=tmp_result.events + inp.events + wait_for).wait()
         return tmp_result
 
@@ -3792,3 +3803,21 @@ class OperatorFiniteSpaceTimeGradient(Operator):
         self.precondmat = clarray.to_device(
             self.queue,
             inp)
+        
+    def computeTimeSpaceWeight(self, ds, dt, t):
+        timeSpaceRatio = 1/t
+        
+        if timeSpaceRatio > 0 and timeSpaceRatio <= 1:
+            tmp = sps.ellipk(1 - timeSpaceRatio**2)
+            mu2 = np.pi / (2*tmp)
+            mu1 = timeSpaceRatio *  mu2
+        elif timeSpaceRatio > 1:
+            timeSpaceRatio = 1/timeSpaceRatio
+            tmp = sps.ellipk(1 - timeSpaceRatio**2)
+            mu1 = np.pi / (2*tmp)
+            mu2 = timeSpaceRatio * mu1
+        else:
+            raise ValueError("Invalid value for time/space weighting")
+            
+        return ds/mu1, dt/mu2
+        

@@ -1718,7 +1718,7 @@ __kernel void gradient_w_time(
                 const int NUk,
                 const float dz,
                 const float mu_1,
-                const float mu_2
+                __global float* dt
                 )
 {
     size_t Nx = get_global_size(2), Ny = get_global_size(1);
@@ -1732,7 +1732,7 @@ __kernel void gradient_w_time(
     for (int uk=0; uk<NUk; uk++)
     {
         // gradient
-        grad[i] = (float8)(-u[i]*mu_1,-u[i]*mu_1,-u[i]*dz*mu_1,-u[i]*mu_2);
+        grad[i] = (float8)(-u[i]*mu_1,-u[i]*mu_1,-u[i]*dz*mu_1,-u[i]);
         if (x < Nx-1)
         {
             grad[i].s01 += u[i+1]*mu_1;
@@ -1760,8 +1760,9 @@ __kernel void gradient_w_time(
         }
         if (uk < NUk-1)
         {
-            grad[i].s67 += u[i+NSl*Nx*Ny]*mu_2;
-                }
+            grad[i].s67 += u[i+NSl*Nx*Ny];
+            grad[i].s67 *= dt[uk];
+        }
         else
         {
             grad[i].s67 = 0.0f;
@@ -1778,7 +1779,7 @@ __kernel void divergence_w_time(
                 const int NUk,
                 const float dz,
                 const float mu_1,
-                const float mu_2
+                __global float* dt
                 )
 {
     size_t Nx = get_global_size(2), Ny = get_global_size(1);
@@ -1823,9 +1824,14 @@ __kernel void divergence_w_time(
         if (uk > 0)
         {
             val.s67 -= p[i-NSl*Nx*Ny].s67;
+            val.s67 *= dt[uk];
+        }
+        else
+        {
+            val.s67 *= dt[uk];
         }
 
-        div[i] = (val.s01+val.s23+val.s45*dz)*mu_1 + val.s67*mu_2;
+        div[i] = (val.s01+val.s23+val.s45*dz)*mu_1 + val.s67;
         // scale gradients
         i += NSl*Nx*Ny;
     }

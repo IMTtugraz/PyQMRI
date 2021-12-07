@@ -226,6 +226,11 @@ class IRGNOptimizer:
 
     def _setupLinearOps(self, DTYPE, DTYPE_real):
         if self._reg_type == 'ICTV':
+            if hasattr(self._model, "dt"):
+                dt=self._model.dt
+            else:
+                dt = self.irgn_par["dt"]*np.ones(self.par["NScan"]-1)
+            
             grad_op_1 = operator.Operator.GradientOperatorFactory(
             self.par,
             self._prg,
@@ -234,7 +239,8 @@ class IRGNOptimizer:
             self._streamed,
             self._reg_type,
             mu_1=self.irgn_par["mu1_1"],
-            mu_2=self.irgn_par["mu1_2"])
+            dt=dt,
+            tsweight=self.irgn_par["t1"])
 
             grad_op_2 = operator.Operator.GradientOperatorFactory(
             self.par,
@@ -244,7 +250,8 @@ class IRGNOptimizer:
             self._streamed,
             self._reg_type,
             mu_1=self.irgn_par["mu2_1"],
-            mu_2=self.irgn_par["mu2_2"])
+            dt=dt,
+            tsweight=self.irgn_par["t2"])
             grad_op = [grad_op_1, grad_op_2]
 
         else:
