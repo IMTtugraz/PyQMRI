@@ -1850,7 +1850,7 @@ __kernel void update_z2_ictv(
     float fac = 0.0f;
     float8 square = 0.0f;
 
-    for (int uk=0; uk<NUk_tgv; uk++)
+    for (int uk=0; uk<NUk; uk++)
     {
         z_new[i] = z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]);
 
@@ -1904,7 +1904,7 @@ __kernel void update_z1_ictv(
     float fac = 0.0f;
     float8 square = 0.0f;
 
-    for (int uk=0; uk<NUk_tgv; uk++)
+    for (int uk=0; uk<NUk; uk++)
     {
         z_new[i] = z[i] + sigma*((1+theta)*gx1[i]-theta*gx1_[i]-((1+theta)*gx2[i]-theta*gx2_[i]));
 

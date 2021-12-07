@@ -233,27 +233,27 @@ class IRGNOptimizer:
             DTYPE_real,
             self._streamed,
             self._reg_type,
-            mu_1=par["mu1_1"],
-            mu_2=par["mu1_2"])
+            mu_1=self.irgn_par["mu1_1"],
+            mu_2=self.irgn_par["mu1_2"])
 
-            grad_op_1 = operator.Operator.GradientOperatorFactory(
+            grad_op_2 = operator.Operator.GradientOperatorFactory(
             self.par,
             self._prg,
             DTYPE,
             DTYPE_real,
             self._streamed,
             self._reg_type,
-            mu_1=par["mu2_1"],
-            mu_2=par["mu2_2"])
+            mu_1=self.irgn_par["mu2_1"],
+            mu_2=self.irgn_par["mu2_2"])
             grad_op = [grad_op_1, grad_op_2]
 
-
-        grad_op = [operator.Operator.GradientOperatorFactory(
-            self.par,
-            self._prg,
-            DTYPE,
-            DTYPE_real,
-            self._streamed)]
+        else:
+            grad_op = [operator.Operator.GradientOperatorFactory(
+                self.par,
+                self._prg,
+                DTYPE,
+                DTYPE_real,
+                self._streamed)]
         symgrad_op = None
         v = None
         if self._reg_type == 'TGV':
@@ -328,16 +328,16 @@ class IRGNOptimizer:
                 self._pdop.irgn = self
             else:
                 self.precond = False
-                self._pdop.precond = False
-                self._pdop._grad_op.precond = False
-                if self._reg_type == 'TGV':
-                    self._pdop._symgrad_op.precond = False
+                if "IC" not in self._reg_type:
+                    self._pdop.precond = False
+                    self._pdop._grad_op.precond = False
+                    if self._reg_type == 'TGV':
+                        self._pdop._symgrad_op.precond = False
                 self._balanceModelGradientsNorm(result, ign)
             
             self._updateIRGNRegPar(ign)
             if self.precond:
-                # self.irgn_par["gamma"] *= 1e-20
-                self._pdop._grad_op.updateRatio(np.require(self.UTE#np.repeat(np.diag(np.ones(self.k,))[..., None], self.UTE.shape[-1],axis=-1)
+                self._pdop._grad_op.updateRatio(np.require(self.UTE
                                           ,requirements='C'))
 
             if self._streamed:
@@ -611,21 +611,29 @@ class IRGNOptimizer:
         else:
             b, grad, sym_grad = self._calcFwdGNPartLinear(x)
             norm_axis = 0
-            grad_tv = grad[:self.par["unknowns_TGV"]]
-            grad_H1 = grad[self.par["unknowns_TGV"]:]
+            grad_tv = []
+            grad_H1 = []
+            for g in grad:
+                grad_tv.append(g[:self.par["unknowns_TGV"]])
+                grad_H1.append(g[self.par["unknowns_TGV"]:])
 
         del grad
         self._datacost = self.irgn_par["lambd"] / 2 * np.linalg.norm(data - b)**2
 #        self._L2Cost = np.linalg.norm(x)/(2.0*self.irgn_par["delta"])
+        self._regcost = 0
         if self._reg_type == 'TV':
             self._regcost = self.irgn_par["gamma"] * \
-                np.sum(np.abs(np.linalg.norm(grad_tv, axis=norm_axis)))
+                np.sum(np.abs(np.linalg.norm(grad_tv[0], axis=norm_axis)))
         elif self._reg_type == 'TGV':
             self._regcost = self.irgn_par["gamma"] * np.sum(
-                  np.abs(np.linalg.norm(grad_tv -
+                  np.abs(np.linalg.norm(grad_tv[0] -
                          self._v, axis=norm_axis))) + self.irgn_par["gamma"] * 2 * np.sum(
                              np.abs(np.linalg.norm(sym_grad, axis=norm_axis)))
             del sym_grad
+        elif self._reg_type == "ICTV":
+            for g in grad_tv:
+                self._regcost += self.irgn_par["gamma"] * \
+                np.sum(np.abs(g))
         else:
             self.regcost = self.irgn_par["gamma"]/2 * \
                 np.linalg.norm(grad_tv)**2
@@ -634,7 +642,7 @@ class IRGNOptimizer:
                       self._regcost +
 #                      self._L2Cost +
                       self.irgn_par["omega"] / 2 *
-                      np.linalg.norm(grad_H1.flatten())**2)
+                      np.linalg.norm(grad_H1[0].flatten())**2)
         del grad_tv, grad_H1
 
         if GN_it == 0:
@@ -670,14 +678,31 @@ class IRGNOptimizer:
         x = clarray.to_device(self._queue[0], np.require(x, requirements="C"))
         grad = clarray.to_device(self._queue[0],
                                  np.zeros(x.shape+(4,), dtype=self._DTYPE))
-        self._pdop._grad_op.fwd(
-            grad,
-            x,
-            wait_for=grad.events +
-            x.events).wait()
-        x = x.get()
-        grad = grad.get()
-        grad *= self.par["weights"][:,None,None,None,None]
+        if "IC" in self._reg_type:
+            self._pdop._grad_op_1.fwd(
+                grad,
+                x,
+                wait_for=grad.events +
+                x.events).wait()
+            grad2 = clarray.to_device(self._queue[0],
+                                     np.zeros(x.shape+(4,), dtype=self._DTYPE))
+            self._pdop._grad_op_2.fwd(
+                grad2,
+                x,
+                wait_for=grad.events +
+                x.events).wait()
+            grad = grad.get()*self.par["weights"][:,None,None,None,None]
+            grad2 = grad2.get()*self.par["weights"][:,None,None,None,None]
+            grad = [grad, grad2]
+        else:
+            self._pdop._grad_op.fwd(
+                grad,
+                x,
+                wait_for=grad.events +
+                x.events).wait()
+            x = x.get()
+            grad = grad.get()
+            grad *= self.par["weights"][:,None,None,None,None]
         sym_grad = None
         if self._reg_type == 'TGV':
             v = clarray.to_device(self._queue[0], self._v)

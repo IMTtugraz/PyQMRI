@@ -5639,6 +5639,19 @@ class PDSolverICTV(PDBaseSolver):
             model,
             **kwargs)
         self.alpha = irgn_par["gamma"]
+        
+        s = irgn_par["s"]
+        if s == 0:
+            self.gamma_1 = 1
+            self.gamma_2 = 1e10
+        elif s == 1:
+            self.gamma_1 = 1e10
+            self.gamma_2 = 1
+        else:
+            self.gamma_1 = s/np.minimum(s, 1-s)
+            self.gamma_2 = (1-s)/np.minimum(s, 1-s)
+        
+        
         self._op = linop[0]
         self._grad_op_1 = linop[1]
         self._grad_op_2 = linop[2]
@@ -5656,7 +5669,7 @@ class PDSolverICTV(PDBaseSolver):
         primal_vars["xk"] = primal_vars["x"].copy()
         primal_vars_new["x"] = clarray.zeros_like(primal_vars["x"])
 
-        primal_vars["v"] = clarray.zeros_like(primal_vars["v"])
+        primal_vars["v"] = clarray.zeros_like(primal_vars["x"])
         primal_vars_new["v"] = clarray.zeros_like(primal_vars["v"])
 
         tmp_results_adjoint["Kyk1"] = clarray.zeros_like(primal_vars["x"])
@@ -5750,7 +5763,7 @@ class PDSolverICTV(PDBaseSolver):
         out_primal["v"].add_event(self.update_v(
             outp=out_primal["v"],
             inp=(in_primal["v"], in_precomp_adj["Kyk2"]),
-            par=(tau)))
+            par=(tau,)))
 
         out_fwd["gradx1"].add_event(
             self._grad_op_1.fwd(
@@ -5792,7 +5805,18 @@ class PDSolverICTV(PDBaseSolver):
                         in_precomp_fwd_new["gradx2"],
                         in_precomp_fwd["gradx2"]
                     ),
-                par=(beta*tau, theta, self.alpha, self.omega, self._op.ratio)
+                par=(beta*tau, theta, self.alpha*self.gamma_1)
+                )
+            )
+        out_dual["z2"].add_event(
+            self.update_z2_ictv(
+                outp=out_dual["z2"],
+                inp=(
+                        in_dual["z2"],
+                        in_precomp_fwd_new["gradx3"],
+                        in_precomp_fwd["gradx3"]
+                    ),
+                par=(beta*tau, theta, self.alpha*self.gamma_2)
                 )
             )
 
@@ -5809,11 +5833,11 @@ class PDSolverICTV(PDBaseSolver):
                 )
             )
 
-            (self._op.adj(
-                out_adj["Kyk1"], [out_dual["r"], self._coils, self.modelgrad])).wait()
-            out_adj["Kyk1"] = out_adj["Kyk1"] - self._grad_op_1.adjoop(out_dual["z1"])
-
-            out_adj["Kyk2"] = self._grad_op_1.adjoop(out_dual["z1"]) - self._grad_op_2.adjoop(out_dual["z2"])
+        (self._op.adj(
+            out_adj["Kyk1"], [out_dual["r"], self._coils, self.modelgrad])).wait()
+        out_adj["Kyk1"] = out_adj["Kyk1"] - self._grad_op_1.adjoop(out_dual["z1"])
+    
+        out_adj["Kyk2"] = self._grad_op_1.adjoop(out_dual["z1"]) - self._grad_op_2.adjoop(out_dual["z2"])
 
         ynorm = (
             (
@@ -5839,8 +5863,8 @@ class PDSolverICTV(PDBaseSolver):
         primal_new = (
             self.lambd / 2 *
             self.normkrnldiff(in_precomp_fwd["Ax"], data)
-            + self.alpha * self.abskrnldiff(in_precomp_fwd["gradx1"],in_precomp_fwd["gradx2"])
-            + self.alpha * self.abskrnl(in_precomp_fwd["gradx3"])
+            + self.alpha * self.gamma_1 * self.abskrnldiff(in_precomp_fwd["gradx1"],in_precomp_fwd["gradx2"])
+            + self.alpha * self.gamma_2 * self.abskrnl(in_precomp_fwd["gradx3"])
             + 1 / (2 * self.delta) *
                 self.normkrnldiff(in_primal["x"],
                                       in_primal["xk"])
@@ -5942,7 +5966,7 @@ class PDSolverICTV(PDBaseSolver):
         if wait_for is None:
             wait_for = []
             
-        return self._prg[idx].update_z1_tv(
+        return self._prg[idx].update_z1_ictv(
             self._queue[4*idx+idxq],
             self._kernelsize, None,
             outp.data, 

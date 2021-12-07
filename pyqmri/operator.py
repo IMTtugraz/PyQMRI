@@ -303,7 +303,7 @@ class Operator(ABC):
                                 DTYPE,
                                 DTYPE_real,
                                 streamed=False,
-                                spacetimederivatives=False,
+                                spacetimederivatives="",
                                 **kwargs):
         """Gradient forward/adjoint operator factory method.
 
