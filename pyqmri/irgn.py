@@ -199,7 +199,7 @@ class IRGNOptimizer:
                 self.irgn_par,
                 self._fval_init,
                 self._coils,
-                linops=(self._MRI_operator, grad_op, symgrad_op),
+                linops=(self._MRI_operator, *grad_op, symgrad_op),
                 model=model,
                 reg_type=self._reg_type,
                 SMS=self._SMS,
@@ -215,7 +215,7 @@ class IRGNOptimizer:
                 self.par,
                 self.irgn_par,
                 self._coils,
-                linops=(self._MRI_operator, grad_op)
+                linops=(self._MRI_operator, *grad_op)
                 )
 
         self._gamma = None
@@ -225,12 +225,35 @@ class IRGNOptimizer:
         self._modelgrad = None
 
     def _setupLinearOps(self, DTYPE, DTYPE_real):
-        grad_op = operator.Operator.GradientOperatorFactory(
+        if self._reg_type == 'ICTV':
+            grad_op_1 = operator.Operator.GradientOperatorFactory(
             self.par,
             self._prg,
             DTYPE,
             DTYPE_real,
-            self._streamed)
+            self._streamed,
+            self._reg_type,
+            mu_1=par["mu1_1"],
+            mu_2=par["mu1_2"])
+
+            grad_op_1 = operator.Operator.GradientOperatorFactory(
+            self.par,
+            self._prg,
+            DTYPE,
+            DTYPE_real,
+            self._streamed,
+            self._reg_type,
+            mu_1=par["mu2_1"],
+            mu_2=par["mu2_2"])
+            grad_op = [grad_op_1, grad_op_2]
+
+
+        grad_op = [operator.Operator.GradientOperatorFactory(
+            self.par,
+            self._prg,
+            DTYPE,
+            DTYPE_real,
+            self._streamed)]
         symgrad_op = None
         v = None
         if self._reg_type == 'TGV':

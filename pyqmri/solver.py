@@ -909,6 +909,22 @@ class PDBaseSolver:
                     model,
                     DTYPE=DTYPE,
                     DTYPE_real=DTYPE_real)
+        if reg_type == 'ICTV':
+            if streamed:
+              raise NotImplementedError
+            if SMS:
+              raise NotImplementedError
+            pdop = PDSolverICTV(par,
+                              irgn_par,
+                              queue,
+                              DTYPE_real(1 / np.sqrt(8)),
+                              init_fval, prg,
+                              linops,
+                              coils,
+                              model,
+                              DTYPE=DTYPE,
+                              DTYPE_real=DTYPE_real
+                              )
         else:
             raise NotImplementedError
         return pdop
@@ -5556,3 +5572,387 @@ class PDSoftSenseSolverStreamedTGV(PDSoftSenseBaseSolverStreamed):
 
         gap = np.abs(primal - dual)
         return primal, dual, gap
+
+
+
+class PDSolverICTV(PDBaseSolver):
+    """Primal Dual splitting optimization for IC-TV.
+
+    This Class performs a primal-dual variable splitting based reconstruction
+    on single precission complex input data.
+
+    Parameters
+    ----------
+        par : dict
+          A python dict containing the necessary information to
+          setup the object. Needs to contain the number of slices (NSlice),
+          number of scans (NScan), image dimensions (dimX, dimY), number of
+          coils (NC), sampling points (N) and read outs (NProj)
+          a PyOpenCL queue (queue) and the complex coil
+          sensitivities (C).
+        irgn_par : dict
+          A python dict containing the regularization
+          parameters for a given gauss newton step.
+        queue : list of PyOpenCL.Queues
+          A list of PyOpenCL queues to perform the optimization.
+        tau : float
+          Estimated step size based on operator norm of regularization.
+        fval : float
+          Estimate of the initial cost function value to
+          scale the displayed values.
+        prg : PyOpenCL.Program
+          A PyOpenCL Program containing the
+          kernels for optimization.
+        linops : list of PyQMRI Operator
+          The linear operators used for fitting.
+        coils : PyOpenCL Buffer or empty list
+          The coils used for reconstruction.
+        model : PyQMRI.Model
+          The model which should be fitted
+
+    Attributes
+    ----------
+      alpha : float
+        TV regularization weight
+    """
+
+    def __init__(self,
+                 par,
+                 irgn_par,
+                 queue,
+                 tau,
+                 fval,
+                 prg,
+                 linop,
+                 coils,
+                 model,
+                 **kwargs
+                 ):
+        super().__init__(
+            par,
+            irgn_par,
+            queue,
+            tau,
+            fval,
+            prg,
+            coils,
+            model,
+            **kwargs)
+        self.alpha = irgn_par["gamma"]
+        self._op = linop[0]
+        self._grad_op_1 = linop[1]
+        self._grad_op_2 = linop[2]
+
+    def _setupVariables(self, inp, data):
+
+        data = clarray.to_device(self._queue[0], data.astype(self._DTYPE))
+
+        primal_vars = {}
+        primal_vars_new = {}
+        tmp_results_adjoint = {}
+        tmp_results_adjoint_new = {}
+
+        primal_vars["x"] = clarray.to_device(self._queue[0], inp[0])
+        primal_vars["xk"] = primal_vars["x"].copy()
+        primal_vars_new["x"] = clarray.zeros_like(primal_vars["x"])
+
+        primal_vars["v"] = clarray.zeros_like(primal_vars["v"])
+        primal_vars_new["v"] = clarray.zeros_like(primal_vars["v"])
+
+        tmp_results_adjoint["Kyk1"] = clarray.zeros_like(primal_vars["x"])
+        tmp_results_adjoint_new["Kyk1"] = clarray.zeros_like(primal_vars["x"])
+
+        tmp_results_adjoint["Kyk2"] = np.zeros(
+                                        primal_vars["x"].shape+(4,),
+                                        dtype=self._DTYPE)
+        tmp_results_adjoint_new["Kyk2"] = np.zeros(
+                                        primal_vars["x"].shape+(4,),
+                                        dtype=self._DTYPE)
+
+        dual_vars = {}
+        dual_vars_new = {}
+        tmp_results_forward = {}
+        tmp_results_forward_new = {}
+        dual_vars["r"] = clarray.zeros(
+            self._queue[0],
+            data.shape,
+            dtype=self._DTYPE)
+        dual_vars_new["r"] = clarray.zeros_like(dual_vars["r"])
+
+        dual_vars["z1"] = clarray.zeros(self._queue[0],
+                                        primal_vars["x"].shape + (4,),
+                                        dtype=self._DTYPE)
+        dual_vars_new["z1"] = clarray.zeros_like(dual_vars["z1"])
+
+        dual_vars["z2"] = clarray.zeros(self._queue[0],
+                                        primal_vars["x"].shape + (4,),
+                                        dtype=self._DTYPE)
+        dual_vars_new["z2"] = clarray.zeros_like(dual_vars["z2"])
+
+        tmp_results_forward["gradx1"] = clarray.zeros_like(
+            dual_vars["z1"])
+        tmp_results_forward_new["gradx1"] = clarray.zeros_like(
+            dual_vars["z1"])
+        tmp_results_forward["gradx2"] = clarray.zeros_like(
+            dual_vars["z1"])
+        tmp_results_forward_new["gradx2"] = clarray.zeros_like(
+            dual_vars["z1"])
+        tmp_results_forward["gradx3"] = clarray.zeros_like(
+            dual_vars["z1"])
+        tmp_results_forward_new["gradx3"] = clarray.zeros_like(
+            dual_vars["z1"])
+
+        tmp_results_forward["Ax"] = clarray.zeros_like(data)
+        tmp_results_forward_new["Ax"] = clarray.zeros_like(data)
+
+        return (primal_vars,
+                primal_vars_new,
+                tmp_results_forward,
+                tmp_results_forward_new,
+                dual_vars,
+                dual_vars_new,
+                tmp_results_adjoint,
+                tmp_results_adjoint_new,
+                data)
+
+    def _updateInitial(self,
+                       out_fwd, out_adj,
+                       in_primal, in_dual):
+
+
+        out_fwd["Ax"].add_event(self._op.fwd(
+            out_fwd["Ax"], [in_primal["x"], self._coils, self.modelgrad]))
+
+
+        out_fwd["gradx1"].add_event(
+            self._grad_op_1.fwd(out_fwd["gradx1"], in_primal["x"]))
+        out_fwd["gradx2"].add_event(
+            self._grad_op_1.fwd(out_fwd["gradx2"], in_primal["v"]))
+        out_fwd["gradx3"].add_event(
+            self._grad_op_2.fwd(out_fwd["gradx3"], in_primal["v"]))
+
+        (self._op.adj(
+            out_adj["Kyk1"], [in_dual["r"], self._coils, self.modelgrad])).wait()
+        out_adj["Kyk1"] = out_adj["Kyk1"] - self._grad_op_1.adjoop(in_dual["z1"])
+
+        out_adj["Kyk2"] = self._grad_op_1.adjoop(in_dual["z1"]) - self._grad_op_2.adjoop(in_dual["z2"])
+
+    def _updatePrimal(self,
+                      out_primal, out_fwd,
+                      in_primal, in_precomp_adj,
+                      tau):
+        out_primal["x"].add_event(self.update_primal(
+            outp=out_primal["x"],
+            inp=(in_primal["x"], in_precomp_adj["Kyk1"],
+                 in_primal["xk"]),
+            par=(tau, self.delta)))
+
+        out_primal["v"].add_event(self.update_v(
+            outp=out_primal["v"],
+            inp=(in_primal["v"], in_precomp_adj["Kyk2"]),
+            par=(tau)))
+
+        out_fwd["gradx1"].add_event(
+            self._grad_op_1.fwd(
+                out_fwd["gradx1"], out_primal["x"]))
+        out_fwd["gradx2"].add_event(
+            self._grad_op_1.fwd(
+                out_fwd["gradx2"], out_primal["v"]))
+
+        out_fwd["gradx3"].add_event(
+            self._grad_op_2.fwd(
+                out_fwd["gradx3"], out_primal["v"]))
+
+
+        out_fwd["Ax"].add_event(
+            self._op.fwd(out_fwd["Ax"],
+                         [out_primal["x"],
+                          self._coils,
+                          self.modelgrad]))
+
+    def _updateDual(self,
+                    out_dual, out_adj,
+                    in_primal,
+                    in_primal_new,
+                    in_dual,
+                    in_precomp_fwd,
+                    in_precomp_fwd_new,
+                    in_precomp_adj,
+                    data,
+                    beta,
+                    tau,
+                    theta):
+        out_dual["z1"].add_event(
+            self.update_z1_ictv(
+                outp=out_dual["z1"],
+                inp=(
+                        in_dual["z1"],
+                        in_precomp_fwd_new["gradx1"],
+                        in_precomp_fwd["gradx1"],
+                        in_precomp_fwd_new["gradx2"],
+                        in_precomp_fwd["gradx2"]
+                    ),
+                par=(beta*tau, theta, self.alpha, self.omega, self._op.ratio)
+                )
+            )
+
+        out_dual["r"].add_event(
+            self.update_r(
+                outp=out_dual["r"],
+                inp=(
+                        in_dual["r"],
+                        in_precomp_fwd_new["Ax"],
+                        in_precomp_fwd["Ax"],
+                        data
+                     ),
+                par=(beta*tau, theta, self.lambd)
+                )
+            )
+
+            (self._op.adj(
+                out_adj["Kyk1"], [out_dual["r"], self._coils, self.modelgrad])).wait()
+            out_adj["Kyk1"] = out_adj["Kyk1"] - self._grad_op_1.adjoop(out_dual["z1"])
+
+            out_adj["Kyk2"] = self._grad_op_1.adjoop(out_dual["z1"]) - self._grad_op_2.adjoop(out_dual["z2"])
+
+        ynorm = (
+            (
+                self.normkrnldiff(out_dual["r"], in_dual["r"])
+                + self.normkrnldiff(out_dual["z1"], in_dual["z1"])
+                + self.normkrnldiff(out_dual["z1"], in_dual["z1"])
+            )**(1 / 2))
+        lhs = np.sqrt(beta) * tau * (
+            (
+                self.normkrnldiff(out_adj["Kyk1"], in_precomp_adj["Kyk1"])
+                + self.normkrnldiff(out_adj["Kyk2"], in_precomp_adj["Kyk2"])
+            )**(1 / 2))
+        return lhs.get(), ynorm.get()
+
+    def _calcResidual(
+            self,
+            in_primal,
+            in_dual,
+            in_precomp_fwd,
+            in_precomp_adj,
+            data):
+
+        primal_new = (
+            self.lambd / 2 *
+            self.normkrnldiff(in_precomp_fwd["Ax"], data)
+            + self.alpha * self.abskrnldiff(in_precomp_fwd["gradx1"],in_precomp_fwd["gradx2"])
+            + self.alpha * self.abskrnl(in_precomp_fwd["gradx3"])
+            + 1 / (2 * self.delta) *
+                self.normkrnldiff(in_primal["x"],
+                                      in_primal["xk"])
+            ).real
+
+        dual = (
+            -self.delta / 2 * self.normkrnl(in_precomp_adj["Kyk1"])
+            - clarray.vdot(
+                in_primal["xk"],
+                - in_precomp_adj["Kyk1"]
+                )
+            - clarray.sum(in_precomp_adj["Kyk2"])
+            - 1 / (2 * self.lambd) * self.normkrnl(in_dual["r"])
+            - clarray.vdot(data, in_dual["r"])
+            ).real
+
+        if self.unknowns_H1 > 0:
+            primal_new += (
+                 self.omega / 2 * self.normkrnl(
+                     in_precomp_fwd["gradx"][self.unknowns_TGV:]
+                     )
+                 ).real
+
+            dual += (
+                - 1 / (2 * self.omega) * self.normkrnl(
+                    in_dual["z1"][self.unknowns_TGV:]
+                    )
+                ).real
+        gap = np.abs(primal_new - dual)
+        return primal_new.get(), dual.get(), gap.get()
+
+    def update_z2_ictv(self, outp, inp, par=None, idx=0, idxq=0,
+                     bound_cond=0, wait_for=None):
+        """Dual update of the z1 variable in Primal-Dual Algorithm for TV.
+
+        Parameters
+        ----------
+          outp : PyOpenCL.Array
+            The result of the update step
+          inp : PyOpenCL.Array
+            The previous values of x
+          par : list
+            List of necessary parameters for the update
+          idx : int
+            Index of the device to use
+          idxq : int
+            Index of the queue to use
+          bound_cond : int
+            Apply boundary condition (1) or not (0).
+          wait_for : list of PyOpenCL.Events, None
+            A optional list for PyOpenCL.Events to wait for
+
+        Returns
+        -------
+            PyOpenCL.Event:
+                A PyOpenCL.Event to wait for.
+        """
+        if wait_for is None:
+            wait_for = []
+            
+        return self._prg[idx].update_z2_ictv(
+            self._queue[4*idx+idxq],
+            self._kernelsize, None,
+            outp.data, inp[0].data, 
+            inp[1].data, 
+            inp[2].data,
+            self._DTYPE_real(par[0]),
+            self._DTYPE_real(par[1]),
+            self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
+            wait_for=(outp.events+inp[0].events +
+                      inp[1].events+inp[2].events+wait_for))
+
+    def update_z1_ictv(self, outp, inp, par=None, idx=0, idxq=0,
+                     bound_cond=0, wait_for=None):
+        """Dual update of the z1 variable in Primal-Dual Algorithm for TV.
+
+        Parameters
+        ----------
+          outp : PyOpenCL.Array
+            The result of the update step
+          inp : PyOpenCL.Array
+            The previous values of x
+          par : list
+            List of necessary parameters for the update
+          idx : int
+            Index of the device to use
+          idxq : int
+            Index of the queue to use
+          bound_cond : int
+            Apply boundary condition (1) or not (0).
+          wait_for : list of PyOpenCL.Events, None
+            A optional list for PyOpenCL.Events to wait for
+
+        Returns
+        -------
+            PyOpenCL.Event:
+                A PyOpenCL.Event to wait for.
+        """
+        if wait_for is None:
+            wait_for = []
+            
+        return self._prg[idx].update_z1_tv(
+            self._queue[4*idx+idxq],
+            self._kernelsize, None,
+            outp.data, 
+            inp[0].data, 
+            inp[1].data, 
+            inp[2].data,
+            inp[3].data, 
+            inp[4].data,
+            self._DTYPE_real(par[0]),
+            self._DTYPE_real(par[1]),
+            self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
+            wait_for=(outp.events+inp[0].events +
+                      inp[1].events+inp[2].events+wait_for))

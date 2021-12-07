@@ -1709,3 +1709,231 @@ __kernel void operator_ad_cg(
         out[scan*NSl*X*Y+k*X*Y+y*X+x] = sum;
     }
 }
+
+
+
+__kernel void gradient_w_time(
+                __global float8 *grad,
+                __global float2 *u,
+                const int NUk,
+                const float dz,
+                const float mu_1,
+                const float mu_2
+                )
+{
+    size_t Nx = get_global_size(2), Ny = get_global_size(1);
+    size_t NSl = get_global_size(0);
+    size_t x = get_global_id(2), y = get_global_id(1);
+    size_t k = get_global_id(0);
+    size_t i = k*Nx*Ny+Nx*y + x;
+    
+    float2 tmp_u = 0.0f;
+    
+    for (int uk=0; uk<NUk; uk++)
+    {
+        // gradient
+        grad[i] = (float8)(-u[i]*mu_1,-u[i]*mu_1,-u[i]*dz*mu_1,-u[i]*mu_2);
+        if (x < Nx-1)
+        {
+            grad[i].s01 += u[i+1]*mu_1;
+        }
+        else
+        {
+            grad[i].s01 = 0.0f;
+        }
+
+        if (y < Ny-1)
+        {
+            grad[i].s23 += u[i+Nx]*mu_1;
+        }
+        else
+        {
+            grad[i].s23 = 0.0f;
+        }
+        if (k < NSl-1)
+        {
+            grad[i].s45 += u[i+Nx*Ny]*dz*mu_1;
+                }
+        else
+        {
+            grad[i].s45 = 0.0f;
+        }
+        if (uk < NUk-1)
+        {
+            grad[i].s67 += u[i+NSl*Nx*Ny]*mu_2;
+                }
+        else
+        {
+            grad[i].s67 = 0.0f;
+        }
+        
+        i += NSl*Nx*Ny;
+    }
+}
+
+
+__kernel void divergence_w_time(
+                __global float2 *div,
+                __global float8 *p,
+                const int NUk,
+                const float dz,
+                const float mu_1,
+                const float mu_2
+                )
+{
+    size_t Nx = get_global_size(2), Ny = get_global_size(1);
+    size_t NSl = get_global_size(0);
+    size_t x = get_global_id(2), y = get_global_id(1);
+    size_t k = get_global_id(0);
+    size_t i = k*Nx*Ny+Nx*y + x;
+    
+
+    for (int uk=0; uk<NUk; uk++)
+    {
+        // divergence
+        float8 val = p[i];
+        if (x == Nx-1)
+        {
+            val.s01 = 0.0f;
+        }
+        if (x > 0)
+        {   
+            val.s01 -= p[i-1].s01;
+        }
+        if (y == Ny-1)
+        {
+            val.s23 = 0.0f;
+        }
+        if (y > 0)
+        {
+            val.s23 -= p[i-Nx].s23;
+        }
+        if (k == NSl-1)
+        {
+            val.s45 = 0.0f;
+        }
+        if (k > 0)
+        {
+            val.s45 -= p[i-NSl*Nx*Ny].s45;
+        }
+        if (uk == NUk-1)
+        {
+            val.s67 = 0.0f;
+        }
+        if (uk > 0)
+        {
+            val.s67 -= p[i-NSl*Nx*Ny].s67;
+        }
+
+        div[i] = (val.s01+val.s23+val.s45*dz)*mu_1 + val.s67*mu_2;
+        // scale gradients
+        i += NSl*Nx*Ny;
+    }
+}
+
+
+__kernel void update_z2_ictv(
+                __global float8 *z_new,
+                __global float8 *z,
+                __global float8 *gx,
+                __global float8 *gx_,
+                const float sigma, const float theta, const float alphainv,
+                const int NUk
+                )
+{
+    size_t Nx = get_global_size(2), Ny = get_global_size(1);
+    size_t NSl = get_global_size(0);
+    size_t x = get_global_id(2), y = get_global_id(1);
+    size_t k = get_global_id(0);
+    size_t i = k*Nx*Ny+Nx*y + x;
+
+    float fac = 0.0f;
+    float8 square = 0.0f;
+
+    for (int uk=0; uk<NUk_tgv; uk++)
+    {
+        z_new[i] = z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]);
+
+        // reproject
+        fac = hypot(
+                hypot(
+                z_new[i].s0,
+                z_new[i].s1
+                ),
+                hypot(
+                hypot(
+                    z_new[i].s2,
+                    z_new[i].s3
+                    ),
+                hypot(
+                    hypot(
+                    z_new[i].s4,
+                    z_new[i].s5
+                    ),
+                    hypot(
+                    z_new[i].s6,
+                    z_new[i].s7
+                    )
+                    
+                )
+                )
+                );
+        fac *= alphainv;
+        if (fac > 1.0f){z_new[i] /= fac;}
+        i += NSl*Nx*Ny;
+    }
+}
+
+__kernel void update_z1_ictv(
+                __global float8 *z_new,
+                __global float8 *z,
+                __global float8 *gx1,
+                __global float8 *gx1_,
+                __global float8 *gx2,
+                __global float8 *gx2_,
+                const float sigma, const float theta, const float alphainv,
+                const int NUk
+                )
+{
+    size_t Nx = get_global_size(2), Ny = get_global_size(1);
+    size_t NSl = get_global_size(0);
+    size_t x = get_global_id(2), y = get_global_id(1);
+    size_t k = get_global_id(0);
+    size_t i = k*Nx*Ny+Nx*y + x;
+
+    float fac = 0.0f;
+    float8 square = 0.0f;
+
+    for (int uk=0; uk<NUk_tgv; uk++)
+    {
+        z_new[i] = z[i] + sigma*((1+theta)*gx1[i]-theta*gx1_[i]-((1+theta)*gx2[i]-theta*gx2_[i]));
+
+        // reproject
+        fac = hypot(
+                hypot(
+                z_new[i].s0,
+                z_new[i].s1
+                ),
+                hypot(
+                hypot(
+                    z_new[i].s2,
+                    z_new[i].s3
+                    ),
+                hypot(
+                    hypot(
+                    z_new[i].s4,
+                    z_new[i].s5
+                    ),
+                    hypot(
+                    z_new[i].s6,
+                    z_new[i].s7
+                    )
+                    
+                )
+                )
+                );
+        fac *= alphainv;
+        if (fac > 1.0f){z_new[i] /= fac;}
+        i += NSl*Nx*Ny;
+    }
+}
