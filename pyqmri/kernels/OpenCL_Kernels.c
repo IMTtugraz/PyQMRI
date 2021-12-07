@@ -1814,7 +1814,7 @@ __kernel void divergence_w_time(
         }
         if (k > 0)
         {
-            val.s45 -= p[i-NSl*Nx*Ny].s45;
+            val.s45 -= p[i-Nx*Ny].s45;
         }
         if (uk == NUk-1)
         {
