@@ -606,8 +606,8 @@ class IRGNOptimizer:
         if self._streamed:
             b, grad, sym_grad = self._calcFwdGNPartStreamed(x)
             norm_axis = 1
-            grad_tv = grad[:,:self.par["unknowns_TGV"]]
-            grad_H1 = grad[:,self.par["unknowns_TGV"]:]
+            grad_tv = [grad[:,:self.par["unknowns_TGV"]]]
+            grad_H1 = [grad[:,self.par["unknowns_TGV"]:]]
         else:
             b, grad, sym_grad = self._calcFwdGNPartLinear(x)
             norm_axis = 0
