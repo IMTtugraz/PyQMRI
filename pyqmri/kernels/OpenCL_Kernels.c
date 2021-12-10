@@ -1824,11 +1824,7 @@ __kernel void divergence_w_time(
         if (uk > 0)
         {
             val.s67 -= p[i-NSl*Nx*Ny].s67;
-            val.s67 *= dt[uk];
-        }
-        else
-        {
-            val.s67 *= dt[uk];
+            val.s67 *= dt[uk-1];
         }
 
         div[i] = (val.s01+val.s23+val.s45*dz)*mu_1 + val.s67;
@@ -1940,6 +1936,215 @@ __kernel void update_z1_ictv(
                 );
         fac *= alphainv;
         if (fac > 1.0f){z_new[i] /= fac;}
+        i += NSl*Nx*Ny;
+    }
+}
+
+__kernel void sym_grad_w_time(
+                __global float8 *sym_diag,
+                __global float16 *sym_offdiag,
+                __global float8 *w,
+                const int NUk,
+                const float dz,
+                const float mu_1,
+                __global float* dt
+                )
+{
+    size_t Nx = get_global_size(2), Ny = get_global_size(1);
+    size_t NSl = get_global_size(0);
+    size_t x = get_global_id(2), y = get_global_id(1);
+    size_t k = get_global_id(0);
+    size_t i = k*Nx*Ny+Nx*y + x;
+
+
+    for (int uk=0; uk<NUk; uk++)
+    {
+        // symmetrized gradient
+        float16 val_real = (float16)(
+            w[i].s0246, w[i].s0246, w[i].s0246, w[i].s0246);
+        float16 val_imag = (float16)(
+            w[i].s1357, w[i].s1357, w[i].s1357, w[i].s1357);
+        if (x > 0)
+        {
+            val_real.s0123 -= w[i-1].s0246;
+            val_imag.s0123 -= w[i-1].s1357;
+        }
+        else
+        {
+            val_real.s0123 = (float4) 0.0f;
+            val_imag.s0123 = (float4) 0.0f;
+        }
+
+        if (y > 0)
+        {
+            val_real.s4567 -= w[i-Nx].s0246;
+            val_imag.s4567 -= w[i-Nx].s1357;
+        }
+        else
+        {
+            val_real.s4567 = (float4) 0.0f;
+            val_imag.s4567 = (float4) 0.0f;
+        }
+
+        if (k > 0)
+        {
+            val_real.s89ab -= w[i-Nx*Ny].s0246;
+            val_imag.s89ab -= w[i-Nx*Ny].s1357;
+        }
+        else
+        {
+            val_real.s89ab = (float4) 0.0f;
+            val_imag.s89ab = (float4) 0.0f;
+        }
+        
+        if (uk > 0)
+        {
+            val_real.scdef -= w[i-Nx*Ny*NSl].s0246;
+            val_imag.scdef -= w[i-Nx*Ny*NSl].s1357;
+            val_real.scdef *= dt[uk-1];
+            val_imag.scdef *= dt[uk-1];  
+            
+        }
+        else
+        {
+            val_real.scdef = (float4) 0.0f;
+            val_imag.scdef = (float4) 0.0f;
+        }
+        
+
+        sym_diag[i] = (float8)(
+          val_real.s0*mu_1, val_imag.s0*mu_1,
+          val_real.s5*mu_1, val_imag.s5*mu_1,
+          val_real.sa*dz*mu_1, val_imag.sa*dz*mu_1,
+          val_real.sf, val_imag.sf);
+          
+        sym_offdiag[i] = (float16)(
+          
+          0.5f*(val_real.s1 + val_real.s4)*mu_1,
+          0.5f*(val_imag.s1 + val_imag.s4)*mu_1,
+          
+          0.5f*(val_real.s2 + val_real.s8*dz)*mu_1,
+          0.5f*(val_imag.s2 + val_imag.s8*dz)*mu_1,
+          
+          0.5f*(val_real.s3*mu_1 + val_real.sc),
+          0.5f*(val_imag.s3*mu_1 + val_imag.sc),
+          
+          0.5f*(val_real.s6 + val_real.s9*dz)*mu_1,
+          0.5f*(val_imag.s6 + val_imag.s9*dz)*mu_1,
+          
+          0.5f*(val_real.s7*mu_1 + val_real.sd),
+          0.5f*(val_imag.s7*mu_1 + val_imag.sd),
+          
+          0.5f*(val_real.sb*dz*mu_1 + val_real.se),
+          0.5f*(val_imag.sb*dz*mu_1 + val_imag.se),
+          
+          0.0f, 0.0f, 0.0f, 0.0f
+          );
+        i += NSl*Nx*Ny;
+    }
+}
+
+
+__kernel void sym_divergence_w_time(
+                __global float8 *w,
+                __global float8 *q_diag,
+                __global float16 *q_offdiag,
+                const int NUk,
+                const float dz,
+                const float mu_1,
+                __global float* dt
+                )
+{
+    size_t Nx = get_global_size(2), Ny = get_global_size(1);
+    size_t NSl = get_global_size(0);
+    size_t x = get_global_id(2), y = get_global_id(1);
+    size_t k = get_global_id(0);
+    size_t i = k*Nx*Ny+Nx*y + x;
+
+    for (int uk=0; uk<NUk; uk++)
+    {
+        // divergence
+        float8 val_diag = -q_diag[i];
+        float16 val_offdiag = -q_offdiag[i];
+        
+        float16 val_real = (float16)(
+            val_diag.s0, val_offdiag.s0, val_offdiag.s2, val_offdiag.s4,
+            val_offdiag.s0, val_diag.s2, val_offdiag.s6, val_offdiag.s8,
+            val_offdiag.s2, val_offdiag.s6, val_diag.s4, val_offdiag.sa,
+            val_offdiag.s4, val_offdiag.s8, val_offdiag.sa, val_diag.s6);
+            
+            
+        float16 val_imag = (float16)(
+            val_diag.s1, val_offdiag.s1, val_offdiag.s3, val_offdiag.s5,
+            val_offdiag.s1, val_diag.s3, val_offdiag.s7, val_offdiag.s9,
+            val_offdiag.s3, val_offdiag.s7, val_diag.s5, val_offdiag.sb,
+            val_offdiag.s5, val_offdiag.s9, val_offdiag.sb, val_diag.s7);
+            
+        if (x == 0)
+        {
+            //real
+            val_real.s0123 = 0.0f;
+            //imag
+            val_imag.s0123 = 0.0f;
+        }
+        if (x < Nx-1)
+        {
+            //real
+            val_real.s0123 += (float4)(q_diag[i+1].s0, q_offdiag[i+1].s024);
+            //imag
+            val_imag.s0123 += (float4)(q_diag[i+1].s1, q_offdiag[i+1].s135);
+        }
+        if (y == 0)
+        {
+            //real
+            val_real.s4567 = 0.0f;
+            //imag
+            val_imag.s4567 = 0.0f;
+        }
+        if (y < Ny-1)
+        {
+            //real
+            val_real.s4567 += (float4)(q_offdiag[i+Nx].s2, q_diag[i+Nx].s2, q_offdiag[i+Nx].s68);
+            //imag
+            val_imag.s4567 += (float4)(q_offdiag[i+Nx].s3, q_diag[i+Nx].s3, q_offdiag[i+Nx].s79);
+        }
+        if (k == 0)
+        {
+        //real
+            val_real.s89ab = 0.0f;
+            //imag
+            val_imag.s89ab = 0.0f;
+        }
+        if (k < NSl-1)
+        {
+            //real
+            val_real.s89ab += (float4)(q_offdiag[i+Nx*Ny].s26, q_diag[i+Nx*Ny].s4, q_offdiag[i+Nx*Ny].sa);
+            //imag
+            val_imag.s89ab += (float4)(q_offdiag[i+Nx*Ny].s37, q_diag[i+Nx*Ny].s5, q_offdiag[i+Nx*Ny].sb);
+        }
+        if (uk == 0)
+        {
+            //real
+            val_real.scdef = 0.0f;
+            //imag
+            val_imag.scdef = 0.0f;
+        }
+        if (uk < NUk-1)
+        {
+            //real
+            val_real.scdef += (float4)(q_offdiag[i+Nx*Ny].s48a, q_diag[i+Nx*Ny].s6);
+            val_real.scdef *= dt[uk];
+            //imag
+            val_imag.scdef += (float4)(q_offdiag[i+Nx*Ny].s59b, q_diag[i+Nx*Ny].s7);
+            val_imag.scdef *= dt[uk]; 
+        }
+        
+        // linear step
+        //real
+        w[i].s0246 = val_real.s0123*mu_1 + val_real.s4567*mu_1 + val_real.s89ab*dz*mu_1 + val_real.scdef;
+        //imag
+        w[i].s1357 = val_imag.s0123*mu_1 + val_imag.s4567*mu_1 + val_imag.s89ab*dz*mu_1 + val_imag.scdef;
+
         i += NSl*Nx*Ny;
     }
 }
