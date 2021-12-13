@@ -102,10 +102,10 @@ def _precoompFFT(data, par):
     trans_z = False
 
     if par["is3D"]:
-        full_dimY = (np.all(np.abs(data[0, 0, 0, :, 0])) or
-                     np.all(np.abs(data[0, 0, 0, :, 1])) or
-                     np.all(np.abs(data[0, 0, 1, :, 0])) or
-                     np.all(np.abs(data[0, 0, 1, :, 1])))
+        full_dimY = False#(np.all(np.abs(data[0, 0, 0, :, 0])) or
+#                     np.all(np.abs(data[0, 0, 0, :, 1])) or
+#                     np.all(np.abs(data[0, 0, 1, :, 0])) or
+#                     np.all(np.abs(data[0, 0, 1, :, 1])))
 
         full_dimX = (np.all(np.abs(data[0, 0, 0, 0, :])) or
                      np.all(np.abs(data[0, 0, 0, 1, :])) or
@@ -113,9 +113,9 @@ def _precoompFFT(data, par):
                      np.all(np.abs(data[0, 0, 1, 1, :])))
 
         full_dimZ = False#(np.all(np.abs(data[0, 0, :, 0, 0:])) or
-                     # np.all(np.abs(data[0, 0, :, 1, 1])) or
-                     # np.all(np.abs(data[0, 0, :, 0, 1])) or
-                     # np.all(np.abs(data[0, 0, :, 1, 0])))
+#                     np.all(np.abs(data[0, 0, :, 1, 1])) or
+#                     np.all(np.abs(data[0, 0, :, 0, 1])) or
+#                     np.all(np.abs(data[0, 0, :, 1, 0])))
     else:
         full_dimY = (np.all(np.abs(data[0, 0, 0, :, 0])) or
                      np.all(np.abs(data[0, 0, 0, :, 1])))
@@ -161,7 +161,7 @@ def _precoompFFT(data, par):
             par["NSlice"] = dimX
             par["par_slices"] = dimX
             par["N"] = NSlice
-            par["transpXY"] = True
+            par["transpXYZ"] = True
             par["fft_dim"] = [-2, -1]
         elif not trans_z and trans_y:
             data = np.require(
@@ -179,7 +179,7 @@ def _precoompFFT(data, par):
             par["NSlice"] = dimX
             par["par_slices"] = dimX
             par["N"] = NSlice
-            par["transpXY"] = True
+            par["transpXYZ"] = True
             par["fft_dim"] = [-1]
         else:
             data = np.require(
@@ -220,7 +220,7 @@ def _precoompFFT(data, par):
             par["NSlice"] = dimY
             par["par_slices"] = dimY
             par["Nproj"] = NSlice
-            par["transpXY"] = True
+            par["transpYZ"] = True
             par["fft_dim"] = [-2, -1]
         else:
             par["fft_dim"] = [-2, -1]
@@ -812,7 +812,6 @@ def _start_recon(myargs):
 ###############################################################################
 # Reconstruct images using CG-SENSE  ##########################################
 ###############################################################################
-    # del par["file"]["images"]
     images = _genImages(myargs, par, data, off)
 ###############################################################################
 # Scale data norm  ############################################################
@@ -882,7 +881,7 @@ def run(reg_type='TGV',
         modelfile="models.ini",
         modelname="VFA-E1",
         double_precision=False,
-        coils3D=False,
+        estCoils3D=False,
         is3Ddata=False,
         initial_guess=-1):
     """
@@ -975,7 +974,7 @@ def run(reg_type='TGV',
               ('--initial_guess', str(initial_guess)),
               ('--out', str(out)),
               ('--double_precision', str(double_precision)),
-              ('--estCoils3D', str(coils3D)),
+              ('--estCoils3D', str(estCoils3D)),
               ('--is3Ddata', str(is3Ddata))
               ]
 
