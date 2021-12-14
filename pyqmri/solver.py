@@ -1033,31 +1033,15 @@ class PDBaseSolver:
                     break
                 tau_new = tau_new * mu_line
 
-            tau = tau_new
-            for j, k in zip(primal_vars_new,
-                            tmp_results_adjoint_new):
-                (primal_vars[j],
-                 primal_vars_new[j],
-                 tmp_results_adjoint[k],
-                 tmp_results_adjoint_new[k]) = (
-                         primal_vars_new[j],
-                         primal_vars[j],
-                         tmp_results_adjoint_new[k],
-                         tmp_results_adjoint[k],
-                         )
-
-            for j, k in zip(dual_vars_new,
-                            tmp_results_forward_new):
-                (dual_vars[j],
-                 dual_vars_new[j],
-                 tmp_results_forward[k],
-                 tmp_results_forward_new[k]) = (
-                         dual_vars_new[j],
-                         dual_vars[j],
-                         tmp_results_forward_new[k],
-                         tmp_results_forward[k]
-                         )
-
+            tau = tau_new 
+            
+            (primal_vars, primal_vars_new, dual_vars, dual_vars_new,
+             tmp_results_adjoint, tmp_results_adjoint_new,
+             tmp_results_forward, tmp_results_forward_new) = (
+             primal_vars_new, primal_vars, dual_vars_new, dual_vars,
+             tmp_results_adjoint_new, tmp_results_adjoint,
+             tmp_results_forward_new, tmp_results_forward)
+                     
             primal_val, dual_val, gap_val = self._calcResidual(
                 in_primal=primal_vars,
                 in_dual=dual_vars,
@@ -1070,7 +1054,7 @@ class PDBaseSolver:
 
             # self.tau = tau
             
-            if not np.mod(i+1, 10):
+            if not np.mod(i+1, 100):
                 if self.display_iterations:
                     if isinstance(primal_vars["x"], np.ndarray):
                         self.model.plot_unknowns(
@@ -1636,6 +1620,7 @@ class PDSolverTV(PDBaseSolver):
         primal_vars["x"] = clarray.to_device(self._queue[0], inp[0])
         primal_vars["xk"] = primal_vars["x"].copy()
         primal_vars_new["x"] = clarray.zeros_like(primal_vars["x"])
+        primal_vars_new["xk"] = primal_vars["x"].copy()
 
         tmp_results_adjoint["Kyk1"] = clarray.zeros_like(primal_vars["x"])
         tmp_results_adjoint_new["Kyk1"] = clarray.zeros_like(primal_vars["x"])
@@ -1889,6 +1874,7 @@ class PDSolverTGV(PDBaseSolver):
         primal_vars_new["x"] = clarray.zeros_like(primal_vars["x"])
         primal_vars["v"] = clarray.to_device(self._queue[0], inp[1])
         primal_vars_new["v"] = clarray.zeros_like(primal_vars["v"])
+        primal_vars_new["xk"] = primal_vars["x"].copy()
 
         tmp_results_adjoint["Kyk1"] = clarray.zeros_like(primal_vars["x"])
         tmp_results_adjoint_new["Kyk1"] = clarray.zeros_like(primal_vars["x"])
@@ -2499,6 +2485,7 @@ class PDSolverStreamedTGV(PDSolverStreamed):
                                         primal_vars["x"].shape+(4,),
                                         dtype=self._DTYPE)
         primal_vars_new["v"] = np.zeros_like(primal_vars["v"])
+        primal_vars_new["xk"] = primal_vars["x"].copy()
 
         tmp_results_adjoint["Kyk1"] = np.zeros_like(primal_vars["x"])
         tmp_results_adjoint_new["Kyk1"] = np.zeros_like(primal_vars["x"])
@@ -2929,6 +2916,7 @@ class PDSolverStreamedTV(PDSolverStreamed):
         primal_vars["x"] = inp[0]
         primal_vars["xk"] = primal_vars["x"].copy()
         primal_vars_new["x"] = np.zeros_like(primal_vars["x"])
+        primal_vars_new["xk"] = primal_vars["x"].copy()
 
         tmp_results_adjoint["Kyk1"] = np.zeros_like(primal_vars["x"])
         tmp_results_adjoint_new["Kyk1"] = np.zeros_like(primal_vars["x"])
@@ -5667,11 +5655,9 @@ class PDSolverICTV(PDBaseSolver):
         tmp_results_adjoint_new = {}
 
         primal_vars["x"] = clarray.to_device(self._queue[0], inp[0])
-        primal_vars["xk"] = primal_vars["x"].copy()
         primal_vars_new["x"] = clarray.zeros_like(primal_vars["x"])
-
         primal_vars["v"] = clarray.zeros_like(primal_vars["x"])
-        primal_vars_new["v"] = clarray.zeros_like(primal_vars["v"])
+        primal_vars_new["v"] = clarray.zeros_like(primal_vars["x"])
 
         tmp_results_adjoint["Kyk1"] = clarray.zeros_like(primal_vars["x"])
         tmp_results_adjoint_new["Kyk1"] = clarray.zeros_like(primal_vars["x"])
@@ -5733,7 +5719,6 @@ class PDSolverICTV(PDBaseSolver):
                        out_fwd, out_adj,
                        in_primal, in_dual):
 
-
         out_fwd["Ax"].add_event(self._op.fwd(
             out_fwd["Ax"], [in_primal["x"], self._coils, self.modelgrad]))
 
@@ -5757,8 +5742,7 @@ class PDSolverICTV(PDBaseSolver):
                       tau):
         out_primal["x"].add_event(self.update_primal(
             outp=out_primal["x"],
-            inp=(in_primal["x"], in_precomp_adj["Kyk1"],
-                 in_primal["xk"]),
+            inp=(in_primal["x"], in_precomp_adj["Kyk1"]),
             par=(tau, self.delta)))
 
         out_primal["v"].add_event(self.update_v(
@@ -5860,23 +5844,16 @@ class PDSolverICTV(PDBaseSolver):
             in_precomp_fwd,
             in_precomp_adj,
             data):
-
+        
         primal_new = (
             self.lambd / 2 *
             self.normkrnldiff(in_precomp_fwd["Ax"], data)
             + self.alpha * self.gamma_1 * self.abskrnldiff(in_precomp_fwd["gradx1"],in_precomp_fwd["gradx2"])
             + self.alpha * self.gamma_2 * self.abskrnl(in_precomp_fwd["gradx3"])
-            + 1 / (2 * self.delta) *
-                self.normkrnldiff(in_primal["x"],
-                                      in_primal["xk"])
             ).real
 
         dual = (
-            -self.delta / 2 * self.normkrnl(in_precomp_adj["Kyk1"])
-            - clarray.vdot(
-                in_primal["xk"],
-                - in_precomp_adj["Kyk1"]
-                )
+            - clarray.sum(in_precomp_adj["Kyk1"])
             - clarray.sum(in_precomp_adj["Kyk2"])
             - 1 / (2 * self.lambd) * self.normkrnl(in_dual["r"])
             - clarray.vdot(data, in_dual["r"])
@@ -5984,3 +5961,43 @@ class PDSolverICTV(PDBaseSolver):
 
         
 
+    def update_primal(self, outp, inp, par, idx=0, idxq=0,
+                      bound_cond=0, wait_for=None):
+        """Primal update of the x variable in the Primal-Dual Algorithm.
+
+        Parameters
+        ----------
+          outp : PyOpenCL.Array
+            The result of the update step
+          inp : PyOpenCL.Array
+            The previous values of x
+          par : list
+            List of necessary parameters for the update
+          idx : int
+            Index of the device to use
+          idxq : int
+            Index of the queue to use
+          bound_cond : int
+            Apply boundary condition (1) or not (0).
+          wait_for : list of PyOpenCL.Events, None
+            A optional list for PyOpenCL.Events to wait for
+
+        Returns
+        -------
+            PyOpenCL.Event:
+                A PyOpenCL.Event to wait for.
+        """
+        if wait_for is None:
+            wait_for = []
+            
+        if not self.precond:
+            return self._prg[idx].update_primal_imagerecon(
+            self._queue[4 * idx + idxq],
+                self._kernelsize, None,
+                outp.data, inp[0].data, inp[1].data,
+                self._DTYPE_real(par[0]),
+                self.min_const[idx].data, self.max_const[idx].data,
+                self.real_const[idx].data, np.int32(self.unknowns),
+                wait_for=(outp.events +
+                          inp[0].events+inp[1].events +
+                          wait_for))

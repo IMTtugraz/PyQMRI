@@ -2154,3 +2154,138 @@ __kernel void sym_divergence_w_time(
         i += NSl*Nx*Ny;
     }
 }
+
+
+__kernel void operator_fwd_imagerecon(
+                __global float2 *out,
+                __global float2 *in,
+                __global float2 *coils,
+                const int NCo,
+                const int NScan
+                )
+{
+    size_t X = get_global_size(2);
+    size_t Y = get_global_size(1);
+    size_t NSl = get_global_size(0);
+
+    size_t x = get_global_id(2);
+    size_t y = get_global_id(1);
+    size_t k = get_global_id(0);
+
+    float2 tmp_in = 0.0f;
+    float2 tmp_coil = 0.0f;
+
+
+    for (int scan=0; scan<NScan; scan++)
+    {
+        for (int coil=0; coil < NCo; coil++)
+        {
+            tmp_coil = coils[coil*NSl*X*Y + k*X*Y + y*X + x];
+            tmp_in = in[scan*NSl*X*Y+k*X*Y+ y*X + x];
+
+            out[scan*NCo*NSl*X*Y+coil*NSl*X*Y+k*X*Y + y*X + x] = (float2)(
+                        tmp_in.x*tmp_coil.x-tmp_in.y*tmp_coil.y,
+                        tmp_in.x*tmp_coil.y+tmp_in.y*tmp_coil.x);
+        }
+    }
+}
+
+
+__kernel void operator_ad_imagerecon(
+                __global float2 *out,
+                __global float2 *in,
+                __global float2 *coils,
+                const int NCo,
+                const int NScan
+                )
+{
+    size_t X = get_global_size(2);
+    size_t Y = get_global_size(1);
+    size_t NSl = get_global_size(0);
+
+    size_t x = get_global_id(2);
+    size_t y = get_global_id(1);
+    size_t k = get_global_id(0);
+
+
+    float2 tmp_in = 0.0f;
+    float2 conj_coils = 0.0f;
+
+
+    
+    for (int scan=0; scan<NScan; scan++)
+    {
+        float2 sum = (float2) 0.0f;
+        for (int coil=0; coil < NCo; coil++)
+        {
+            conj_coils = (float2)(
+                    coils[coil*NSl*X*Y + k*X*Y + y*X + x].x,
+                    -coils[coil*NSl*X*Y + k*X*Y + y*X + x].y);
+
+            tmp_in = in[scan*NCo*NSl*X*Y+coil*NSl*X*Y + k*X*Y+ y*X + x];
+
+
+            sum += (float2)(
+                    tmp_in.x*conj_coils.x-tmp_in.y*conj_coils.y,
+                    tmp_in.x*conj_coils.y+tmp_in.y*conj_coils.x);
+        }
+    
+        out[scan*NSl*X*Y+k*X*Y+y*X+x] = sum;
+    }
+}
+
+__kernel void update_primal_imagerecon(
+__global float2 *u_new,
+__global float2 *u,
+__global float2 *Kyk,
+const float tau,
+__global float* min,
+__global float* max,
+__global int* real, const int NUk
+)
+{
+    size_t Nx = get_global_size(2), Ny = get_global_size(1);
+    size_t NSl = get_global_size(0);
+    size_t x = get_global_id(2), y = get_global_id(1);
+    size_t k = get_global_id(0);
+    size_t i = k*Nx*Ny+Nx*y + x;
+    float norm = 0;
+    int idx, idx2, idx3, idx4, idx5;
+    float2 tmp;
+
+    for (int uk=0; uk<NUk; uk++)
+    {
+        u_new[i] = u[i]-tau*Kyk[i];
+
+        if(real[uk]>=1)
+        {
+            u_new[i].s1 = 0.0f;
+            if (u_new[i].s0<min[uk])
+            {
+                u_new[i].s0 = min[uk];
+            }
+            if(u_new[i].s0>max[uk])
+            {
+                u_new[i].s0 = max[uk];
+            }
+        }
+        else
+        {
+            norm =  sqrt(
+              pow(
+                (float)(u_new[i].s0),(float)(2.0))
+              + pow((float)(u_new[i].s1),(float)(2.0)));
+            if (norm<min[uk])
+            {
+                u_new[i].s0 *= 1/norm*min[uk];
+                u_new[i].s1 *= 1/norm*min[uk];
+            }
+            if(norm>max[uk])
+            {
+                u_new[i].s0 *= 1/norm*max[uk];
+                u_new[i].s1 *= 1/norm*max[uk];
+            }
+        }
+        i += NSl*Nx*Ny;
+    }
+}

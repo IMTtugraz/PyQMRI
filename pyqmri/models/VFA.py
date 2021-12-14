@@ -152,7 +152,7 @@ class Model(BaseModel):
             #default setting 
             test_T1 = 1500 * np.ones(
                 kwargs['images'].shape[-3:], dtype=self._DTYPE)
-            test_M0 = 1e-3*np.ones(
+            test_M0 = 1*np.ones(
                 kwargs['images'].shape[-3:], dtype=self._DTYPE)
         else:
             #custom initial guess

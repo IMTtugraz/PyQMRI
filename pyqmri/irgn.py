@@ -431,7 +431,7 @@ class IRGNOptimizer:
         
         jacobi = np.require(jacobi.T, requirements='C')
         
-        cutoff = np.inf
+        cutoff = 5e2#np.inf
 
         maxval = 0
         minval = 1e30
@@ -760,3 +760,290 @@ class IRGNOptimizer:
             sym_grad *= self.par["weights"][None,:,None,None,None]
 
         return b, grad, sym_grad
+
+
+
+class ICOptimizer:
+    """Main IC Optimization class.
+
+    This Class performs IC Optimization either with TGV or TV regularization.
+
+    Parameters
+    ----------
+      par : dict
+        A python dict containing the necessary information to
+        setup the object. Needs to contain the number of slices (NSlice),
+        number of scans (NScan), image dimensions (dimX, dimY), number of
+        coils (NC), sampling points (N) and read outs (NProj)
+        a PyOpenCL queue (queue) and the complex coil
+        sensitivities (C).
+      model : pyqmri.model
+        Which model should be used for fitting.
+        Expects a pyqmri.model instance.
+      trafo : int, 1
+        Select radial (1, default) or cartesian (0) sampling for the fft.
+      imagespace : bool, false
+        Perform the fitting from k-space data (false, default) or from the
+        image series (true)
+      SMS : int, 0
+        Select if simultaneous multi-slice acquisition was used (1) or
+        standard slice-by-slice acquisition was done (0, default).
+      reg_type : str, "TGV"
+        Select between "TGV" (default) or "TV" regularization.
+      config : str, ''
+        Name of config file. If empty, default config file will be generated.
+      streamed : bool, false
+        Select between standard reconstruction (false)
+        or streamed reconstruction (true) for large volumetric data which
+        does not fit on the GPU memory at once.
+      DTYPE : numpy.dtype, numpy.complex64
+        Complex working precission.
+      DTYPE_real : numpy.dtype, numpy.float32
+        Real working precission.
+
+    Attributes
+    ----------
+      par : dict
+        A python dict containing the necessary information to
+        setup the object. Needs to contain the number of slices (NSlice),
+        number of scans (NScan), image dimensions (dimX, dimY), number of
+        coils (NC), sampling points (N) and read outs (NProj)
+        a PyOpenCL queue (queue) and the complex coil
+        sensitivities (C).
+      gn_res : list of floats
+        The residual values for of each Gauss-Newton step. Each iteration
+        appends its value to the list.
+      irgn_par : dict
+        The parameters read from the config file to guide the IRGN
+        optimization process
+    """
+
+    def __init__(self, par, model, trafo=1, imagespace=False, SMS=0,
+                 reg_type='TGV', config='', streamed=False,
+                 DTYPE=np.complex64, DTYPE_real=np.float32):
+        self.par = par
+        self.gn_res = []
+        self.irgn_par = utils.read_config(config, 'IRGN', reg_type)
+        utils.save_config(self.irgn_par, par["outdir"], reg_type)
+        num_dev = len(par["num_dev"])
+        self._fval_old = 0
+        self._fval = 0
+        self._fval_init = 0
+        self._ctx = par["ctx"]
+        self._queue = par["queue"]
+        self._reg_type = reg_type
+        self._prg = []
+
+        self._DTYPE = DTYPE
+        self._DTYPE_real = DTYPE_real
+        self._model = model
+
+        self._SMS = SMS
+
+        if DTYPE == np.complex128:
+            kernname = 'kernels/OpenCL_Kernels_double.c'
+            for j in range(num_dev):
+                self._prg.append(Program(
+                    self._ctx[j],
+                    open(
+                        resource_filename(
+                            'pyqmri', kernname)
+                        ).read()))
+        else:
+            kernname = 'kernels/OpenCL_Kernels.c'
+            for j in range(num_dev):
+                self._prg.append(Program(
+                    self._ctx[j],
+                    open(
+                        resource_filename(
+                            'pyqmri', kernname)).read()))
+
+        if SMS:
+            self._data_shape = (par["NScan"], par["NC"],
+                                par["packs"]*par["numofpacks"],
+                                par["Nproj"], par["N"])
+        else:
+            if par["is3D"] and trafo:
+                self._data_shape = (par["NScan"], par["NC"],
+                                    1, par["Nproj"], par["N"])
+            else:
+                self._data_shape = (par["NScan"], par["NC"],
+                                    par["NSlice"], par["Nproj"], par["N"])
+
+        self._coils = clarray.to_device(self._queue[0],
+                                        self.par["C"])
+
+        self._MRI_operator, self._FT = operator.Operator.MRIOperatorFactory(
+            par,
+            self._prg,
+            DTYPE,
+            DTYPE_real,
+            trafo,
+            imagespace,
+            SMS,
+            streamed,
+            imagerecon=True
+            )
+        
+        self._MRI_operator.modelgrad = None
+
+        grad_op, symgrad_op, self._v = self._setupLinearOps(
+            DTYPE,
+            DTYPE_real)
+
+        self._pdop = optimizer.PDBaseSolver.factory(
+            self._prg,
+            self._queue,
+            self.par,
+            self.irgn_par,
+            self._fval_init,
+            self._coils,
+            linops=(self._MRI_operator, *grad_op, symgrad_op),
+            model=model,
+            reg_type=self._reg_type,
+            SMS=self._SMS,
+            streamed=False,
+            imagespace=False,
+            DTYPE=DTYPE,
+            DTYPE_real=DTYPE_real
+            )
+
+        self._gamma = None
+        self._delta = None
+        self._omega = None
+
+    def _setupLinearOps(self, DTYPE, DTYPE_real):
+        if self._reg_type == 'ICTV':
+            if hasattr(self._model, "dt"):
+                dt=self._model.dt
+            else:
+                dt = self.irgn_par["dt"]*np.ones(self.par["NScan"]-1)
+            
+            grad_op_1 = operator.Operator.GradientOperatorFactory(
+            self.par,
+            self._prg,
+            DTYPE,
+            DTYPE_real,
+            False,
+            self._reg_type,
+            mu_1=self.irgn_par["mu1_1"],
+            dt=dt,
+            tsweight=self.irgn_par["t1"])
+
+            grad_op_2 = operator.Operator.GradientOperatorFactory(
+            self.par,
+            self._prg,
+            DTYPE,
+            DTYPE_real,
+            False,
+            self._reg_type,
+            mu_1=self.irgn_par["mu2_1"],
+            dt=dt,
+            tsweight=self.irgn_par["t2"])
+            grad_op = [grad_op_1, grad_op_2]
+
+        else:
+            grad_op = [operator.Operator.GradientOperatorFactory(
+                self.par,
+                self._prg,
+                DTYPE,
+                DTYPE_real,
+                False)]
+        symgrad_op = None
+        v = None
+        if self._reg_type == 'TGV':
+            symgrad_op = operator.Operator.SymGradientOperatorFactory(
+                self.par,
+                self._prg,
+                DTYPE,
+                DTYPE_real,
+                False)
+            v = np.zeros(
+                ([self.par["unknowns_TGV"], self.par["NSlice"],
+                  self.par["dimY"], self.par["dimX"], 4]),
+                dtype=DTYPE)
+        return grad_op, symgrad_op, v
+
+    def execute(self, data):
+        """Start the IRGN optimization.
+
+        This method performs iterative regularized Gauss-Newton optimization
+        and calls the inner loop after precomputing the current linearization
+        point. Results of the fitting process are saved after each
+        linearization step to the output folder.
+
+        Parameters
+        ----------
+          data : numpy.array
+            the data to perform optimization/fitting on.
+        """
+        self.const_save = self._model.constraints
+        
+        self._gamma = self.irgn_par["gamma"]
+        self._delta = self.irgn_par["delta"]
+        self._omega = self.irgn_par["omega"]
+        self.lambd = self.irgn_par["lambd"]
+
+        iters = self.irgn_par["start_iters"]
+        guess = self._model.guess
+
+        start = time.time()
+        
+        self._updateIRGNRegPar(0)
+        self._pdop.updateRegPar(self.irgn_par)
+        
+        tmpres = self._pdop.run((guess, self._v), data, iters)
+        for key in tmpres:
+            if key == 'x':
+                if isinstance(tmpres[key], np.ndarray):
+                    x = tmpres["x"]
+                else:
+                    x = tmpres["x"].get()
+            if key == 'v':
+                if isinstance(tmpres[key], np.ndarray):
+                    self._v = tmpres["v"]
+                else:
+                    self._v = tmpres["v"].get()
+
+        self._saveToFile(0, x)
+        end = time.time() - start
+        print("-" * 75)
+        print("Elapsed time: %f seconds" % (end))
+        print("-" * 75)
+            
+    def _updateIRGNRegPar(self, ign):
+
+        try:
+            self.irgn_par["delta"] = np.minimum(
+                self._delta
+                * self.irgn_par["delta_inc"]**ign,
+                self.irgn_par["delta_max"])*self.irgn_par["lambd"]
+        except OverflowError:
+            self.irgn_par["delta"] = np.minimum(
+                np.finfo(self._delta).max,
+                self.irgn_par["delta_max"])
+
+        
+        self.irgn_par["gamma"] = np.maximum(
+            self._gamma * self.irgn_par["gamma_dec"]**ign,
+            self.irgn_par["gamma_min"])/self.irgn_par["lambd"]
+        self.irgn_par["omega"] = np.maximum(
+            self._omega * self.irgn_par["omega_dec"]**ign,
+            self.irgn_par["omega_min"])/self.irgn_par["lambd"]
+
+###############################################################################
+# New .hdf5 save files ########################################################
+###############################################################################
+    def _saveToFile(self, myit, result):
+        f = h5py.File(self.par["outdir"]+"output_" + self.par["fname"] + ".h5",
+                      "a")
+        if self._reg_type == 'TGV':
+            f.create_dataset("tgv_result_iter_"+str(myit), result.shape,
+                             dtype=self._DTYPE, data=result)
+            f.attrs['res_tgv_iter_'+str(myit)] = self._fval
+        else:
+            f.create_dataset("tv_result_"+str(myit), result.shape,
+                             dtype=self._DTYPE, data=result)
+            f.attrs['res_tv_iter_'+str(myit)] = self._fval
+        f.attrs['data_norm'] = self.par["dscale"]
+        f.close()

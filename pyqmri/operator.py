@@ -215,7 +215,8 @@ class Operator(ABC):
                            trafo=False,
                            imagespace=False,
                            SMS=False,
-                           streamed=False):
+                           streamed=False,
+                           imagerecon=False):
         """MRI forward/adjoint operator factory method.
 
         Parameters
@@ -253,6 +254,16 @@ class Operator(ABC):
             An instance of the used (nu-)FFT if k-space fitting is performed,
             None otherwise.
         """
+        if imagerecon:
+            op = OperatorKspaceImageRecon(
+                par,
+                prg[0],
+                trafo=trafo,
+                DTYPE=DTYPE,
+                DTYPE_real=DTYPE_real)
+            FT = op.NUFFT
+            return op, FT
+        
         if streamed:
             if imagespace:
                 op = OperatorImagespaceStreamed(
@@ -3821,3 +3832,213 @@ class OperatorFiniteSpaceTimeGradient(Operator):
             
         return ds/mu1, dt/mu2
         
+    
+    
+class OperatorKspaceImageRecon(OperatorKspace):
+    """k-Space based Operator for simple image reconstruction.
+
+    This class serves as linear operator between iamge and k-space.
+
+    Use this operator if you want to perform complex image fitting from
+    complex k-space data. The type of fft is defined through the NUFFT object.
+    The NUFFT object can also be used for simple Cartesian FFTs.
+
+    Parameters
+    ----------
+      par : dict A python dict containing the necessary information to
+        setup the object. Needs to contain the number of slices (NSlice),
+        number of scans (NScan), image dimensions (dimX, dimY), number of
+        coils (NC), sampling points (N) and read outs (NProj)
+        a PyOpenCL queue (queue) and the complex coil
+        sensitivities (C).
+      prg : PyOpenCL.Program
+        The PyOpenCL.Program object containing the necessary kernels to
+        execute the linear Operator.
+      DTYPE : numpy.dtype, numpy.complex64
+        Complex working precission.
+      DTYPE_real : numpy.dtype, numpy.float32
+        Real working precission.
+      trafo : bool, true
+        Switch between cartesian (false) and non-cartesian FFT (True, default).
+
+    Attributes
+    ----------
+    ctx : PyOpenCL.Context
+      The context for the PyOpenCL computations.
+    queue : PyOpenCL.Queue
+      The computation Queue for the PyOpenCL kernels.
+    NUFFT : PyQMRI.PyOpenCLnuFFT
+      The (nu) FFT used for fitting.
+    """
+
+    def __init__(self, par, prg, DTYPE=np.complex64,
+                 DTYPE_real=np.float32, trafo=True):
+        super().__init__(par, prg, DTYPE, DTYPE_real, trafo)
+
+    def fwd(self, out, inp, **kwargs):
+        """Forward operator application in-place.
+
+        Apply the linear operator from parameter space to measurement space
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+
+        Parameters
+        ----------
+          out : PyOpenCL.Array
+            The complex measurement space data which is the result of the
+            computation.
+          inp : PyOpenCL.Array
+            The complex parameter space data which is used as input.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+          PyOpenCL.Event
+            A PyOpenCL event to wait for.
+        """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
+        self._tmp_result.add_event(
+            self.prg.operator_fwd_imagerecon(
+                self.queue,
+                (self.NSlice, self.dimY, self.dimX),
+                None,
+                self._tmp_result.data, inp[0].data,
+                inp[1].data,
+                np.int32(self.NC),
+                np.int32(self.NScan),
+                wait_for=(self._tmp_result.events + inp[0].events
+                          + wait_for)))
+
+        return self.NUFFT.FFT(
+            out,
+            self._tmp_result,
+            wait_for=wait_for + self._tmp_result.events + out.events)
+
+    def fwdoop(self, inp, **kwargs):
+        """Forward operator application out-of-place.
+
+        Apply the linear operator from parameter space to measurement space
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+        This method need to generate a temporary array and will return it as
+        the result.
+
+        Parameters
+        ----------
+          inp : PyOpenCL.Array
+            The complex parameter space data which is used as input.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+          PyOpenCL.Array: A PyOpenCL array containing the result of the
+          computation.
+        """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
+        self._tmp_result.add_event(
+            self.prg.operator_fwd_imagerecon(
+                self.queue,
+                (self.NSlice, self.dimY, self.dimX),
+                None,
+                self._tmp_result.data, inp[0].data,
+                inp[1].data,
+                np.int32(self.NC),
+                np.int32(self.NScan),
+                wait_for=(self._tmp_result.events + inp[0].events
+                          + wait_for)))
+        tmp_sino = clarray.zeros(
+            self.queue,
+            self._out_shape_fwd,
+            self.DTYPE, "C")
+        self.NUFFT.FFT(tmp_sino, self._tmp_result,
+                       wait_for=tmp_sino.events).wait()
+        return tmp_sino
+
+    def adj(self, out, inp, **kwargs):
+        """Adjoint operator application in-place.
+
+        Apply the linear operator from measurement space to parameter space
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+
+        Parameters
+        ----------
+          out : PyOpenCL.Array
+            The complex parameter space data which is the result of the
+            computation.
+          inp : PyOpenCL.Array
+            The complex measurement space data which is used as input.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+          PyOpenCL.Event: A PyOpenCL event to wait for.
+        """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
+        self._tmp_result.add_event(
+            self.NUFFT.FFTH(
+                self._tmp_result, inp[0], wait_for=(wait_for
+                                                    + inp[0].events)))
+
+        return self.prg.operator_ad_imagerecon(
+            self.queue, (self.NSlice, self.dimY, self.dimX), None,
+            out.data, self._tmp_result.data, inp[1].data,
+            np.int32(self.NC),
+            np.int32(self.NScan),
+            wait_for=self._tmp_result.events + out.events)
+
+    def adjoop(self, inp, **kwargs):
+        """Adjoint operator application out-of-place.
+
+        Apply the linear operator from measurement space to parameter space
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+        This method need to generate a temporary array and will return it as
+        the result.
+
+        Parameters
+        ----------
+          inp : PyOpenCL.Array
+            The complex measurement space which is used as input.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+          PyOpenCL.Array: A PyOpenCL array containing the result of the
+          computation.
+        """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
+        self._tmp_result.add_event(
+            self.NUFFT.FFTH(
+                self._tmp_result, inp[0], wait_for=(wait_for
+                                                    + inp[0].events)))
+        out = clarray.zeros(
+            self.queue, (self.unknowns, self.NSlice, self.dimY, self.dimX),
+            dtype=self.DTYPE)
+        self.prg.operator_ad(
+            out.queue, (self.NSlice, self.dimY, self.dimX), None,
+            out.data, self._tmp_result.data, inp[1].data,
+            np.int32(self.NC),
+            np.int32(self.NScan),
+            wait_for=(self._tmp_result.events
+                      + out.events)).wait()
+        return out
+
+    def adjKyk1(self, out, inp, **kwargs):
+        raise NotImplementedError("adjKyk1 not implemented ofr IC recon.")

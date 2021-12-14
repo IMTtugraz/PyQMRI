@@ -24,7 +24,7 @@ from pyqmri._helper_fun import _goldcomp as goldcomp
 from pyqmri._helper_fun._est_coils import est_coils
 from pyqmri._helper_fun import _utils as utils
 from pyqmri.solver import CGSolver
-from pyqmri.irgn import IRGNOptimizer
+from pyqmri.irgn import IRGNOptimizer, ICOptimizer
 np.seterr(divide='ignore', invalid='ignore')
 
 np.seterr(divide='ignore')
@@ -828,16 +828,28 @@ def _start_recon(myargs):
 ###############################################################################
 # initialize operator  ########################################################
 ###############################################################################
-    opt = IRGNOptimizer(par,
-                        model,
-                        trafo=myargs.trafo,
-                        imagespace=myargs.imagespace,
-                        SMS=myargs.sms,
-                        config=myargs.config,
-                        streamed=myargs.streamed,
-                        reg_type=myargs.reg,
-                        DTYPE=par["DTYPE"],
-                        DTYPE_real=par["DTYPE_real"])
+    if myargs.sig_model == "ImageReco" and myargs.reg == "ICTV":
+        opt = ICOptimizer(par,
+                          model,
+                          trafo=myargs.trafo,
+                          imagespace=myargs.imagespace,
+                          SMS=myargs.sms,
+                          config=myargs.config,
+                          streamed=myargs.streamed,
+                          reg_type=myargs.reg,
+                          DTYPE=par["DTYPE"],
+                          DTYPE_real=par["DTYPE_real"])
+    else:
+        opt = IRGNOptimizer(par,
+                            model,
+                            trafo=myargs.trafo,
+                            imagespace=myargs.imagespace,
+                            SMS=myargs.sms,
+                            config=myargs.config,
+                            streamed=myargs.streamed,
+                            reg_type=myargs.reg,
+                            DTYPE=par["DTYPE"],
+                            DTYPE_real=par["DTYPE_real"])
     f = h5py.File(par["outdir"]+"output_" + par["fname"]+".h5", "a")
     f.create_dataset("images_ifft", data=images)
     f.close()
