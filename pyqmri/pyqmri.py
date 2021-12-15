@@ -540,7 +540,7 @@ def _read_data_from_file(par, myargs):
                             requirements='C')
             par["traj"] = np.require(par["traj"][
                 ..., int(dimreduction/2):
-            par["traj"].shape[-1]-int(dimreduction/2)], requirements='C')
+            par["traj"].shape[-1]-int(dimreduction/2), :], requirements='C')
             par["dcf"] = np.sqrt(goldcomp.cmp(par["traj"]))
             par["dcf"] = np.require(np.abs(par["dcf"]),
                                     par["DTYPE_real"], requirements='C')
