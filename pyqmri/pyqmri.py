@@ -24,7 +24,7 @@ from pyqmri._helper_fun import _goldcomp as goldcomp
 from pyqmri._helper_fun._est_coils import est_coils
 from pyqmri._helper_fun import _utils as utils
 from pyqmri.solver import CGSolver
-from pyqmri.irgn import IRGNOptimizer
+from pyqmri.irgn import IRGNOptimizer, ICOptimizer
 np.seterr(divide='ignore', invalid='ignore')
 
 np.seterr(divide='ignore')
@@ -102,10 +102,10 @@ def _precoompFFT(data, par):
     trans_z = False
 
     if par["is3D"]:
-        full_dimY = (np.all(np.abs(data[0, 0, 0, :, 0])) or
-                     np.all(np.abs(data[0, 0, 0, :, 1])) or
-                     np.all(np.abs(data[0, 0, 1, :, 0])) or
-                     np.all(np.abs(data[0, 0, 1, :, 1])))
+        full_dimY = False#(np.all(np.abs(data[0, 0, 0, :, 0])) or
+#                     np.all(np.abs(data[0, 0, 0, :, 1])) or
+#                     np.all(np.abs(data[0, 0, 1, :, 0])) or
+#                     np.all(np.abs(data[0, 0, 1, :, 1])))
 
         full_dimX = (np.all(np.abs(data[0, 0, 0, 0, :])) or
                      np.all(np.abs(data[0, 0, 0, 1, :])) or
@@ -113,9 +113,9 @@ def _precoompFFT(data, par):
                      np.all(np.abs(data[0, 0, 1, 1, :])))
 
         full_dimZ = False#(np.all(np.abs(data[0, 0, :, 0, 0:])) or
-                     # np.all(np.abs(data[0, 0, :, 1, 1])) or
-                     # np.all(np.abs(data[0, 0, :, 0, 1])) or
-                     # np.all(np.abs(data[0, 0, :, 1, 0])))
+#                     np.all(np.abs(data[0, 0, :, 1, 1])) or
+#                     np.all(np.abs(data[0, 0, :, 0, 1])) or
+#                     np.all(np.abs(data[0, 0, :, 1, 0])))
     else:
         full_dimY = (np.all(np.abs(data[0, 0, 0, :, 0])) or
                      np.all(np.abs(data[0, 0, 0, :, 1])))
@@ -161,7 +161,7 @@ def _precoompFFT(data, par):
             par["NSlice"] = dimX
             par["par_slices"] = dimX
             par["N"] = NSlice
-            par["transpXY"] = True
+            par["transpXYZ"] = True
             par["fft_dim"] = [-2, -1]
         elif not trans_z and trans_y:
             data = np.require(
@@ -179,7 +179,7 @@ def _precoompFFT(data, par):
             par["NSlice"] = dimX
             par["par_slices"] = dimX
             par["N"] = NSlice
-            par["transpXY"] = True
+            par["transpXYZ"] = True
             par["fft_dim"] = [-1]
         else:
             data = np.require(
@@ -220,7 +220,7 @@ def _precoompFFT(data, par):
             par["NSlice"] = dimY
             par["par_slices"] = dimY
             par["Nproj"] = NSlice
-            par["transpXY"] = True
+            par["transpYZ"] = True
             par["fft_dim"] = [-2, -1]
         else:
             par["fft_dim"] = [-2, -1]
@@ -812,7 +812,6 @@ def _start_recon(myargs):
 ###############################################################################
 # Reconstruct images using CG-SENSE  ##########################################
 ###############################################################################
-    # del par["file"]["images"]
     images = _genImages(myargs, par, data, off)
 ###############################################################################
 # Scale data norm  ############################################################
@@ -829,16 +828,28 @@ def _start_recon(myargs):
 ###############################################################################
 # initialize operator  ########################################################
 ###############################################################################
-    opt = IRGNOptimizer(par,
-                        model,
-                        trafo=myargs.trafo,
-                        imagespace=myargs.imagespace,
-                        SMS=myargs.sms,
-                        config=myargs.config,
-                        streamed=myargs.streamed,
-                        reg_type=myargs.reg,
-                        DTYPE=par["DTYPE"],
-                        DTYPE_real=par["DTYPE_real"])
+    if myargs.sig_model == "ImageReco" and myargs.reg == "ICTV":
+        opt = ICOptimizer(par,
+                          model,
+                          trafo=myargs.trafo,
+                          imagespace=myargs.imagespace,
+                          SMS=myargs.sms,
+                          config=myargs.config,
+                          streamed=myargs.streamed,
+                          reg_type=myargs.reg,
+                          DTYPE=par["DTYPE"],
+                          DTYPE_real=par["DTYPE_real"])
+    else:
+        opt = IRGNOptimizer(par,
+                            model,
+                            trafo=myargs.trafo,
+                            imagespace=myargs.imagespace,
+                            SMS=myargs.sms,
+                            config=myargs.config,
+                            streamed=myargs.streamed,
+                            reg_type=myargs.reg,
+                            DTYPE=par["DTYPE"],
+                            DTYPE_real=par["DTYPE_real"])
     f = h5py.File(par["outdir"]+"output_" + par["fname"]+".h5", "a")
     f.create_dataset("images_ifft", data=images)
     f.close()
@@ -882,7 +893,7 @@ def run(reg_type='TGV',
         modelfile="models.ini",
         modelname="VFA-E1",
         double_precision=False,
-        coils3D=False,
+        estCoils3D=False,
         is3Ddata=False,
         initial_guess=-1):
     """
@@ -975,7 +986,7 @@ def run(reg_type='TGV',
               ('--initial_guess', str(initial_guess)),
               ('--out', str(out)),
               ('--double_precision', str(double_precision)),
-              ('--estCoils3D', str(coils3D)),
+              ('--estCoils3D', str(estCoils3D)),
               ('--is3Ddata', str(is3Ddata))
               ]
 

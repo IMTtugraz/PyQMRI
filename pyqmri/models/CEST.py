@@ -23,6 +23,9 @@ class Model(BaseModel):
                          int(np.ceil(par["NSlice"] / 2)))
         
         self.omega = par["omega"]
+        
+        self.dt = 1/(self.omega[1:]-self.omega[:-1])
+        self.dt /= np.max(self.dt)
         while len(self.omega.shape) < 4:
             self.omega = self.omega[..., None]
         
