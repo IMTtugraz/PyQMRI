@@ -98,4 +98,4 @@ class Model(BaseModel):
             guess.
         """
         self.dscale = kwargs["dscale"]
-        self.guess = 0*(kwargs['images']/kwargs["dscale"]).astype(self._DTYPE)
+        self.guess = (kwargs['images']).astype(self._DTYPE)
