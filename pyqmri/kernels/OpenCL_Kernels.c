@@ -449,9 +449,9 @@ __kernel void update_Kyk1_ssense(
 }
 
 __kernel void update_v(
-                __global float8 *v,
-                __global float8 *v_,
-                __global float8 *Kyk2,
+                __global float2 *v,
+                __global float2 *v_,
+                __global float2 *Kyk2,
                 const float tau
                 )
 {
@@ -2285,6 +2285,221 @@ __global int* real, const int NUk
                 u_new[i].s0 *= 1/norm*max[uk];
                 u_new[i].s1 *= 1/norm*max[uk];
             }
+        }
+        i += NSl*Nx*Ny;
+    }
+}
+
+__kernel void update_z2_ictgv(
+                __global float8 *z_new,
+                __global float8 *z,
+                __global float8 *gx,
+                __global float8 *gx_,
+                __global float8 *w,
+                __global float8 *w_,
+                const float sigma, const float theta, const float alphainv,
+                const int NUk
+                )
+{
+    size_t Nx = get_global_size(2), Ny = get_global_size(1);
+    size_t NSl = get_global_size(0);
+    size_t x = get_global_id(2), y = get_global_id(1);
+    size_t k = get_global_id(0);
+    size_t i = k*Nx*Ny+Nx*y + x;
+
+    float fac = 0.0f;
+    float8 square = 0.0f;
+
+    for (int uk=0; uk<NUk; uk++)
+    {
+        z_new[i] = z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]-((1+theta)*w[i]-theta*w_[i]));
+
+        // reproject
+        fac = hypot(
+                hypot(
+                z_new[i].s0,
+                z_new[i].s1
+                ),
+                hypot(
+                hypot(
+                    z_new[i].s2,
+                    z_new[i].s3
+                    ),
+                hypot(
+                    hypot(
+                    z_new[i].s4,
+                    z_new[i].s5
+                    ),
+                    hypot(
+                    z_new[i].s6,
+                    z_new[i].s7
+                    )
+                    
+                )
+                )
+                );
+        fac *= alphainv;
+        if (fac > 1.0f){z_new[i] /= fac;}
+        i += NSl*Nx*Ny;
+    }
+}
+
+__kernel void update_z1_ictgv(
+                __global float8 *z_new,
+                __global float8 *z,
+                __global float8 *gx1,
+                __global float8 *gx1_,
+                __global float8 *gx2,
+                __global float8 *gx2_,
+                __global float8 *w,
+                __global float8 *w_,
+                const float sigma, const float theta, const float alphainv,
+                const int NUk
+                )
+{
+    size_t Nx = get_global_size(2), Ny = get_global_size(1);
+    size_t NSl = get_global_size(0);
+    size_t x = get_global_id(2), y = get_global_id(1);
+    size_t k = get_global_id(0);
+    size_t i = k*Nx*Ny+Nx*y + x;
+
+    float fac = 0.0f;
+    float8 square = 0.0f;
+
+    for (int uk=0; uk<NUk; uk++)
+    {
+        z_new[i] = z[i] + sigma*((1+theta)*gx1[i]-theta*gx1_[i]-((1+theta)*gx2[i]-theta*gx2_[i])-((1+theta)*w[i]-theta*w_[i]));
+
+        // reproject
+        fac = hypot(
+                hypot(
+                z_new[i].s0,
+                z_new[i].s1
+                ),
+                hypot(
+                hypot(
+                    z_new[i].s2,
+                    z_new[i].s3
+                    ),
+                hypot(
+                    hypot(
+                    z_new[i].s4,
+                    z_new[i].s5
+                    ),
+                    hypot(
+                    z_new[i].s6,
+                    z_new[i].s7
+                    )
+                    
+                )
+                )
+                );
+        fac *= alphainv;
+        if (fac > 1.0f){z_new[i] /= fac;}
+        i += NSl*Nx*Ny;
+    }
+}
+
+__kernel void update_z3_ictgv(
+                __global float8 *z_new_diag,
+                __global float16 *z_new_offdiag,
+                __global float8 *z_diag,
+                __global float16 *z_offdiag,
+                __global float8 *gx_diag,
+                __global float16 *gx_offdiag,
+                __global float8 *gx_diag_,
+                __global float16 *gx_offdiag_,
+                const float sigma,
+                const float theta,
+                const float alphainv,
+                const int NUk
+                )
+{
+    size_t Nx = get_global_size(2), Ny = get_global_size(1);
+    size_t NSl = get_global_size(0);
+    size_t x = get_global_id(2), y = get_global_id(1);
+    size_t k = get_global_id(0);
+    size_t i = k*Nx*Ny+Nx*y + x;
+
+    float fac = 0.0f;
+    float16 square = 0.0f;
+
+    for (int uk=0; uk<NUk; uk++)
+    {
+        z_new_diag[i] = z_diag[i] + sigma*((1+theta)*gx_diag[i]-theta*gx_diag_[i]);
+        z_new_offdiag[i] = z_offdiag[i] + sigma*((1+theta)*gx_offdiag[i]-theta*gx_offdiag_[i]);
+
+        // reproject
+        fac = hypot(fac,
+        hypot(
+            hypot(
+                hypot(
+                    hypot(
+                      z_new_diag[i].s0,
+                      z_new_diag[i].s1
+                      ),
+                  hypot(
+                    z_new_diag[i].s2,
+                    z_new_diag[i].s3
+                    )
+                ),
+                hypot(
+                    hypot(
+                      z_new_diag[i].s4,
+                      z_new_diag[i].s5
+                      ),
+                    hypot(
+                      z_new_diag[i].s6,
+                      z_new_diag[i].s7
+                      )
+                )
+            ),
+            hypot(
+                hypot(
+                    hypot(
+                      2.0f*hypot(
+                        z_new_offdiag[i].s0,
+                        z_new_offdiag[i].s1
+                        ),
+                      2.0f*hypot(
+                        z_new_offdiag[i].s2,
+                        z_new_offdiag[i].s3
+                        )
+                    ),
+                    hypot(
+                      2.0f*hypot(
+                        z_new_offdiag[i].s4,
+                        z_new_offdiag[i].s5
+                        ),
+                      2.0f*hypot(
+                        z_new_offdiag[i].s6,
+                        z_new_offdiag[i].s7
+                        )
+                    )
+                ),
+                hypot(
+                  2.0f*hypot(
+                    z_new_offdiag[i].s8,
+                    z_new_offdiag[i].s9
+                    ),
+                  2.0f*hypot(
+                    z_new_offdiag[i].sa,
+                    z_new_offdiag[i].sb
+                    )
+                )                   
+            )
+          )
+        );
+
+        i += NSl*Nx*Ny;
+    }
+    fac *= alphainv;
+    i = k*Nx*Ny+Nx*y + x;
+    for (int uk=0; uk<NUk; uk++)
+    {
+        if (fac > 1.0f){
+            z_new_diag[i] /= fac;
+            z_new_offdiag[i] /= fac;
         }
         i += NSl*Nx*Ny;
     }

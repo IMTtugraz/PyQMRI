@@ -926,6 +926,23 @@ class PDBaseSolver:
                               DTYPE=DTYPE,
                               DTYPE_real=DTYPE_real
                               )
+        elif reg_type == 'ICTGV':
+            if streamed:
+              raise NotImplementedError
+            if SMS:
+              raise NotImplementedError
+            L = irgn_par["gamma"]*np.max(par["weights"])*((0.5 * (18.0 + np.sqrt(33)))**2)
+            pdop = PDSolverICTGV(par,
+                              irgn_par,
+                              queue,
+                              DTYPE_real(1 / L),
+                              init_fval, prg,
+                              linops,
+                              coils,
+                              model,
+                              DTYPE=DTYPE,
+                              DTYPE_real=DTYPE_real
+                              )
         else:
             raise NotImplementedError
         return pdop
@@ -1294,7 +1311,7 @@ class PDBaseSolver:
         if wait_for is None:
             wait_for = []
         return self._prg[idx].update_v(
-            self._queue[4*idx+idxq], (outp[..., 0].size,), None,
+            self._queue[4*idx+idxq], (outp.size,), None,
             outp.data, inp[0].data, inp[1].data, self._DTYPE_real(par[0]),
             wait_for=outp.events+inp[0].events+inp[1].events+wait_for)
 
@@ -4048,7 +4065,7 @@ class PDSoftSenseBaseSolver:
         if wait_for is None:
             wait_for = []
         return self._prg[idx].update_v(
-            self._queue[4 * idx + idxq], (outp[..., 0].size,), None,
+            self._queue[4 * idx + idxq], (outp.size,), None,
             outp.data, inp[0].data, inp[1].data,
             self._DTYPE_real(par[0]),
             wait_for=outp.events + inp[0].events + inp[1].events + wait_for)
@@ -5642,8 +5659,8 @@ class PDSolverICTV(PDBaseSolver):
         
         
         self._op = linop[0]
-        self._grad_op_1 = linop[1]
-        self._grad_op_2 = linop[2]
+        self._grad_op_1 = linop[1][0]
+        self._grad_op_2 = linop[1][0]
 
     def _setupVariables(self, inp, data):
 
@@ -5662,10 +5679,12 @@ class PDSolverICTV(PDBaseSolver):
         tmp_results_adjoint["Kyk1"] = clarray.zeros_like(primal_vars["x"])
         tmp_results_adjoint_new["Kyk1"] = clarray.zeros_like(primal_vars["x"])
 
-        tmp_results_adjoint["Kyk2"] = np.zeros(
+        tmp_results_adjoint["Kyk2"] = clarray.zeros(
+                                        self._queue[0],
                                         primal_vars["x"].shape+(4,),
                                         dtype=self._DTYPE)
-        tmp_results_adjoint_new["Kyk2"] = np.zeros(
+        tmp_results_adjoint_new["Kyk2"] = clarray.zeros(
+                                        self._queue[0],
                                         primal_vars["x"].shape+(4,),
                                         dtype=self._DTYPE)
 
@@ -5958,6 +5977,643 @@ class PDSolverICTV(PDBaseSolver):
             self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
             wait_for=(outp.events+inp[0].events +
                       inp[1].events+inp[2].events+wait_for))
+
+        
+
+    def update_primal(self, outp, inp, par, idx=0, idxq=0,
+                      bound_cond=0, wait_for=None):
+        """Primal update of the x variable in the Primal-Dual Algorithm.
+
+        Parameters
+        ----------
+          outp : PyOpenCL.Array
+            The result of the update step
+          inp : PyOpenCL.Array
+            The previous values of x
+          par : list
+            List of necessary parameters for the update
+          idx : int
+            Index of the device to use
+          idxq : int
+            Index of the queue to use
+          bound_cond : int
+            Apply boundary condition (1) or not (0).
+          wait_for : list of PyOpenCL.Events, None
+            A optional list for PyOpenCL.Events to wait for
+
+        Returns
+        -------
+            PyOpenCL.Event:
+                A PyOpenCL.Event to wait for.
+        """
+        if wait_for is None:
+            wait_for = []
+            
+        if not self.precond:
+            return self._prg[idx].update_primal_imagerecon(
+            self._queue[4 * idx + idxq],
+                self._kernelsize, None,
+                outp.data, inp[0].data, inp[1].data,
+                self._DTYPE_real(par[0]),
+                self.min_const[idx].data, self.max_const[idx].data,
+                self.real_const[idx].data, np.int32(self.unknowns),
+                wait_for=(outp.events +
+                          inp[0].events+inp[1].events +
+                          wait_for))
+        
+        
+class PDSolverICTGV(PDBaseSolver):
+    """Primal Dual splitting optimization for IC-TV.
+
+    This Class performs a primal-dual variable splitting based reconstruction
+    on single precission complex input data.
+
+    Parameters
+    ----------
+        par : dict
+          A python dict containing the necessary information to
+          setup the object. Needs to contain the number of slices (NSlice),
+          number of scans (NScan), image dimensions (dimX, dimY), number of
+          coils (NC), sampling points (N) and read outs (NProj)
+          a PyOpenCL queue (queue) and the complex coil
+          sensitivities (C).
+        irgn_par : dict
+          A python dict containing the regularization
+          parameters for a given gauss newton step.
+        queue : list of PyOpenCL.Queues
+          A list of PyOpenCL queues to perform the optimization.
+        tau : float
+          Estimated step size based on operator norm of regularization.
+        fval : float
+          Estimate of the initial cost function value to
+          scale the displayed values.
+        prg : PyOpenCL.Program
+          A PyOpenCL Program containing the
+          kernels for optimization.
+        linops : list of PyQMRI Operator
+          The linear operators used for fitting.
+        coils : PyOpenCL Buffer or empty list
+          The coils used for reconstruction.
+        model : PyQMRI.Model
+          The model which should be fitted
+
+    Attributes
+    ----------
+      alpha : float
+        TV regularization weight
+    """
+
+    def __init__(self,
+                 par,
+                 irgn_par,
+                 queue,
+                 tau,
+                 fval,
+                 prg,
+                 linop,
+                 coils,
+                 model,
+                 **kwargs
+                 ):
+        super().__init__(
+            par,
+            irgn_par,
+            queue,
+            tau,
+            fval,
+            prg,
+            coils,
+            model,
+            **kwargs)
+        self.alpha = irgn_par["gamma"]
+        self.beta = 2*irgn_par["gamma"]
+        
+        s = irgn_par["s"]
+        if s == 0:
+            self.gamma_1 = 1
+            self.gamma_2 = 1e10
+        elif s == 1:
+            self.gamma_1 = 1e10
+            self.gamma_2 = 1
+        else:
+            self.gamma_1 = s/np.minimum(s, 1-s)
+            self.gamma_2 = (1-s)/np.minimum(s, 1-s)
+        
+        
+        self._op = linop[0]
+        self._grad_op_1 = linop[1][0]
+        self._grad_op_2 = linop[1][1]
+        self._symgrad_op_1 = linop[2][0]
+        self._symgrad_op_2 = linop[2][1]
+
+    def _setupVariables(self, inp, data):
+
+        data = clarray.to_device(self._queue[0], data.astype(self._DTYPE))
+
+        primal_vars = {}
+        primal_vars_new = {}
+        tmp_results_adjoint = {}
+        tmp_results_adjoint_new = {}
+
+        primal_vars["x"] = clarray.to_device(self._queue[0], inp[0])
+        primal_vars_new["x"] = clarray.zeros_like(primal_vars["x"])
+        primal_vars["v"] = clarray.zeros_like(primal_vars["x"])
+        primal_vars_new["v"] = clarray.zeros_like(primal_vars["x"])
+        
+        primal_vars["w1"] = clarray.zeros(self._queue[0],primal_vars["x"].shape+(4,), dtype=self._DTYPE)
+        primal_vars_new["w1"] = clarray.zeros_like(primal_vars["w1"])
+        primal_vars["w2"] = clarray.zeros_like(primal_vars["w1"])
+        primal_vars_new["w2"] = clarray.zeros_like(primal_vars["w1"])
+        
+
+        tmp_results_adjoint["Kyk1"] = clarray.zeros_like(primal_vars["x"])
+        tmp_results_adjoint_new["Kyk1"] = clarray.zeros_like(primal_vars["x"])
+
+        tmp_results_adjoint["Kyk2"] = clarray.zeros_like(primal_vars["x"])
+        tmp_results_adjoint_new["Kyk2"] = clarray.zeros_like(primal_vars["x"])
+        
+        tmp_results_adjoint["Kyk3"] = clarray.zeros(
+                                        self._queue[0],
+                                        primal_vars["x"].shape+(4,),
+                                        dtype=self._DTYPE)
+        tmp_results_adjoint_new["Kyk3"] = clarray.zeros(
+                                        self._queue[0],
+                                        primal_vars["x"].shape+(4,),
+                                        dtype=self._DTYPE)
+        
+        tmp_results_adjoint["Kyk4"] = clarray.zeros(
+                                        self._queue[0],
+                                        primal_vars["x"].shape+(4,),
+                                        dtype=self._DTYPE)
+        tmp_results_adjoint_new["Kyk4"] = clarray.zeros(
+                                        self._queue[0],
+                                        primal_vars["x"].shape+(4,),
+                                        dtype=self._DTYPE)
+
+        dual_vars = {}
+        dual_vars_new = {}
+        tmp_results_forward = {}
+        tmp_results_forward_new = {}
+        dual_vars["r"] = clarray.zeros(
+            self._queue[0],
+            data.shape,
+            dtype=self._DTYPE)
+        dual_vars_new["r"] = clarray.zeros_like(dual_vars["r"])
+
+        dual_vars["z1"] = clarray.zeros(self._queue[0],
+                                        primal_vars["x"].shape + (4,),
+                                        dtype=self._DTYPE)
+        dual_vars_new["z1"] = clarray.zeros_like(dual_vars["z1"])
+
+        dual_vars["z2"] = clarray.zeros(self._queue[0],
+                                        primal_vars["x"].shape + (4,),
+                                        dtype=self._DTYPE)
+        dual_vars_new["z2"] = clarray.zeros_like(dual_vars["z2"])
+        
+        dual_vars["z3_diag"] = clarray.zeros(self._queue[0],
+                                        primal_vars["x"].shape + (4,),
+                                        dtype=self._DTYPE)
+        dual_vars_new["z3_diag"] = clarray.zeros_like(dual_vars["z3_diag"])
+        
+        dual_vars["z4_diag"] = clarray.zeros(self._queue[0],
+                                        primal_vars["x"].shape + (4,),
+                                        dtype=self._DTYPE)
+        dual_vars_new["z4_diag"] = clarray.zeros_like(dual_vars["z4_diag"])
+        
+        dual_vars["z3_offdiag"] = clarray.zeros(self._queue[0],
+                                        primal_vars["x"].shape + (8,),
+                                        dtype=self._DTYPE)
+        dual_vars_new["z3_offdiag"] = clarray.zeros_like(dual_vars["z3_offdiag"])
+        
+        dual_vars["z4_offdiag"] = clarray.zeros(self._queue[0],
+                                        primal_vars["x"].shape + (8,),
+                                        dtype=self._DTYPE)
+        dual_vars_new["z4_offdiag"] = clarray.zeros_like(dual_vars["z4_offdiag"])
+
+        tmp_results_forward["gradx1"] = clarray.zeros_like(
+            dual_vars["z1"])
+        tmp_results_forward_new["gradx1"] = clarray.zeros_like(
+            dual_vars["z1"])
+        tmp_results_forward["gradx2"] = clarray.zeros_like(
+            dual_vars["z1"])
+        tmp_results_forward_new["gradx2"] = clarray.zeros_like(
+            dual_vars["z1"])
+        tmp_results_forward["gradx3"] = clarray.zeros_like(
+            dual_vars["z1"])
+        tmp_results_forward_new["gradx3"] = clarray.zeros_like(
+            dual_vars["z1"])
+        
+        tmp_results_forward["symgradx1_diag"] = clarray.zeros_like(
+            dual_vars["z3_diag"])
+        tmp_results_forward_new["symgradx1_diag"] = clarray.zeros_like(
+            dual_vars["z3_diag"])
+        
+        tmp_results_forward["symgradx2_diag"] = clarray.zeros_like(
+            dual_vars["z4_diag"])
+        tmp_results_forward_new["symgradx2_diag"] = clarray.zeros_like(
+            dual_vars["z4_diag"])
+        
+        tmp_results_forward["symgradx1_offdiag"] = clarray.zeros_like(
+            dual_vars["z3_offdiag"])
+        tmp_results_forward_new["symgradx1_offdiag"] = clarray.zeros_like(
+            dual_vars["z3_offdiag"])
+        
+        tmp_results_forward["symgradx2_offdiag"] = clarray.zeros_like(
+            dual_vars["z4_offdiag"])
+        tmp_results_forward_new["symgradx2_offdiag"] = clarray.zeros_like(
+            dual_vars["z4_offdiag"])
+        
+
+        tmp_results_forward["Ax"] = clarray.zeros_like(data)
+        tmp_results_forward_new["Ax"] = clarray.zeros_like(data)
+
+        return (primal_vars,
+                primal_vars_new,
+                tmp_results_forward,
+                tmp_results_forward_new,
+                dual_vars,
+                dual_vars_new,
+                tmp_results_adjoint,
+                tmp_results_adjoint_new,
+                data)
+
+    def _updateInitial(self,
+                       out_fwd, out_adj,
+                       in_primal, in_dual):
+
+        out_fwd["Ax"].add_event(self._op.fwd(
+            out_fwd["Ax"], [in_primal["x"], self._coils, self.modelgrad]))
+
+
+        out_fwd["gradx1"].add_event(
+            self._grad_op_1.fwd(out_fwd["gradx1"], in_primal["x"]))
+        out_fwd["gradx2"].add_event(
+            self._grad_op_1.fwd(out_fwd["gradx2"], in_primal["v"]))
+        out_fwd["gradx3"].add_event(
+            self._grad_op_2.fwd(out_fwd["gradx3"], in_primal["v"]))
+        
+        symgradevent = self._symgrad_op_1.fwd([out_fwd["symgradx1_diag"], out_fwd["symgradx1_offdiag"]], in_primal["w1"])
+        out_fwd["symgradx1_diag"].add_event(symgradevent)
+        out_fwd["symgradx1_offdiag"].add_event(symgradevent)
+        symgradevent = self._symgrad_op_2.fwd([out_fwd["symgradx2_diag"], out_fwd["symgradx2_offdiag"]], in_primal["w2"])
+        out_fwd["symgradx2_diag"].add_event(symgradevent)
+        out_fwd["symgradx2_offdiag"].add_event(symgradevent)            
+                     
+        out_fwd["gradx3"].add_event(
+            self._grad_op_2.fwd(out_fwd["gradx3"], in_primal["v"]))
+
+        (self._op.adj(
+            out_adj["Kyk1"], [in_dual["r"], self._coils, self.modelgrad])).wait()
+        out_adj["Kyk1"] = out_adj["Kyk1"] - self._grad_op_1.adjoop(in_dual["z1"])
+
+        out_adj["Kyk2"] = self._grad_op_1.adjoop(in_dual["z1"]) - self._grad_op_2.adjoop(in_dual["z2"])
+        
+        out_adj["Kyk3"] = - in_dual["z1"] - self._symgrad_op_1.adjoop([in_dual["z3_diag"], in_dual["z3_offdiag"]])
+        out_adj["Kyk4"] = - in_dual["z2"] - self._symgrad_op_2.adjoop([in_dual["z4_diag"], in_dual["z4_offdiag"]])
+        
+
+    def _updatePrimal(self,
+                      out_primal, out_fwd,
+                      in_primal, in_precomp_adj,
+                      tau):
+        out_primal["x"].add_event(self.update_primal(
+            outp=out_primal["x"],
+            inp=(in_primal["x"], in_precomp_adj["Kyk1"]),
+            par=(tau, self.delta)))
+
+        out_primal["v"].add_event(self.update_v(
+            outp=out_primal["v"],
+            inp=(in_primal["v"], in_precomp_adj["Kyk2"]),
+            par=(tau,)))
+        
+        out_primal["w1"].add_event(self.update_v(
+            outp=out_primal["w1"],
+            inp=(in_primal["w1"], in_precomp_adj["Kyk3"]),
+            par=(tau,)))
+        
+        out_primal["w2"].add_event(self.update_v(
+            outp=out_primal["w2"],
+            inp=(in_primal["w2"], in_precomp_adj["Kyk4"]),
+            par=(tau,)))
+
+        out_fwd["gradx1"].add_event(
+            self._grad_op_1.fwd(
+                out_fwd["gradx1"], out_primal["x"]))
+        out_fwd["gradx2"].add_event(
+            self._grad_op_1.fwd(
+                out_fwd["gradx2"], out_primal["v"]))
+
+        out_fwd["gradx3"].add_event(
+            self._grad_op_2.fwd(
+                out_fwd["gradx3"], out_primal["v"]))
+        
+        symgradevent = self._symgrad_op_1.fwd([out_fwd["symgradx1_diag"], out_fwd["symgradx1_offdiag"]], out_primal["w1"])
+        out_fwd["symgradx1_diag"].add_event(symgradevent)
+        out_fwd["symgradx1_offdiag"].add_event(symgradevent)
+        symgradevent = self._symgrad_op_2.fwd([out_fwd["symgradx2_diag"], out_fwd["symgradx2_offdiag"]], out_primal["w2"])
+        out_fwd["symgradx2_diag"].add_event(symgradevent)
+        out_fwd["symgradx2_offdiag"].add_event(symgradevent)  
+
+
+        out_fwd["Ax"].add_event(
+            self._op.fwd(out_fwd["Ax"],
+                         [out_primal["x"],
+                          self._coils,
+                          self.modelgrad]))
+
+    def _updateDual(self,
+                    out_dual, out_adj,
+                    in_primal,
+                    in_primal_new,
+                    in_dual,
+                    in_precomp_fwd,
+                    in_precomp_fwd_new,
+                    in_precomp_adj,
+                    data,
+                    beta,
+                    tau,
+                    theta):
+        out_dual["z1"].add_event(
+            self.update_z1_ictgv(
+                outp=out_dual["z1"],
+                inp=(
+                        in_dual["z1"],
+                        in_precomp_fwd_new["gradx1"],
+                        in_precomp_fwd["gradx1"],
+                        in_precomp_fwd_new["gradx2"],
+                        in_precomp_fwd["gradx2"],
+                        in_primal_new["w1"],
+                        in_primal["w1"]
+                    ),
+                par=(beta*tau, theta, self.alpha*self.gamma_1)
+                )
+            )
+        out_dual["z2"].add_event(
+            self.update_z2_ictgv(
+                outp=out_dual["z2"],
+                inp=(
+                        in_dual["z2"],
+                        in_precomp_fwd_new["gradx3"],
+                        in_precomp_fwd["gradx3"],
+                        in_primal_new["w2"],
+                        in_primal["w2"]
+                    ),
+                par=(beta*tau, theta, self.alpha*self.gamma_2)
+                )
+            )
+        
+        z3_events = self.update_z_sympart(
+                outp=[out_dual["z3_diag"],out_dual["z3_offdiag"]],
+                inp=(
+                        in_dual["z3_diag"],
+                        in_dual["z3_offdiag"],
+                        in_precomp_fwd_new["symgradx1_diag"],
+                        in_precomp_fwd_new["symgradx1_offdiag"],
+                        in_precomp_fwd["symgradx1_diag"],
+                        in_precomp_fwd["symgradx1_offdiag"]
+                    ),
+                par=(beta*tau, theta, self.beta*self.gamma_1)
+                )
+        out_dual["z3_diag"].add_event(z3_events)
+        out_dual["z3_offdiag"].add_event(z3_events)
+        z4_events = self.update_z_sympart(
+                outp=[out_dual["z4_diag"],out_dual["z4_offdiag"]],
+                inp=(
+                        in_dual["z4_diag"],
+                        in_dual["z4_offdiag"],
+                        in_precomp_fwd_new["symgradx2_diag"],
+                        in_precomp_fwd_new["symgradx2_offdiag"],
+                        in_precomp_fwd["symgradx2_diag"],
+                        in_precomp_fwd["symgradx2_offdiag"]
+                    ),
+                par=(beta*tau, theta, self.beta*self.gamma_2)
+                )
+        out_dual["z4_diag"].add_event(z4_events)
+        out_dual["z4_offdiag"].add_event(z4_events)
+
+        out_dual["r"].add_event(
+            self.update_r(
+                outp=out_dual["r"],
+                inp=(
+                        in_dual["r"],
+                        in_precomp_fwd_new["Ax"],
+                        in_precomp_fwd["Ax"],
+                        data
+                     ),
+                par=(beta*tau, theta, self.lambd)
+                )
+            )
+
+        (self._op.adj(
+            out_adj["Kyk1"], [out_dual["r"], self._coils, self.modelgrad])).wait()
+        out_adj["Kyk1"] = out_adj["Kyk1"] - self._grad_op_1.adjoop(out_dual["z1"])
+    
+        out_adj["Kyk2"] = self._grad_op_1.adjoop(out_dual["z1"]) - self._grad_op_2.adjoop(out_dual["z2"])
+        
+        out_adj["Kyk3"] = - out_dual["z1"] - self._symgrad_op_1.adjoop([out_dual["z3_diag"], out_dual["z3_offdiag"]])
+        out_adj["Kyk4"] = - out_dual["z2"] - self._symgrad_op_2.adjoop([out_dual["z4_diag"], out_dual["z4_offdiag"]])
+
+        ynorm = (
+            (
+                self.normkrnldiff(out_dual["r"], in_dual["r"])
+                + self.normkrnldiff(out_dual["z1"], in_dual["z1"])
+                + self.normkrnldiff(out_dual["z1"], in_dual["z1"])
+                + self.normkrnldiff(out_dual["z3_diag"], in_dual["z3_diag"])
+                + self.normkrnldiff(out_dual["z3_offdiag"], in_dual["z3_offdiag"])
+                + self.normkrnldiff(out_dual["z4_diag"], in_dual["z4_diag"])
+                + self.normkrnldiff(out_dual["z4_offdiag"], in_dual["z4_offdiag"])
+            )**(1 / 2))
+        lhs = np.sqrt(beta) * tau * (
+            (
+                self.normkrnldiff(out_adj["Kyk1"], in_precomp_adj["Kyk1"])
+                + self.normkrnldiff(out_adj["Kyk2"], in_precomp_adj["Kyk2"])
+                + self.normkrnldiff(out_adj["Kyk3"], in_precomp_adj["Kyk3"])
+                + self.normkrnldiff(out_adj["Kyk4"], in_precomp_adj["Kyk4"])
+            )**(1 / 2))
+        return lhs.get(), ynorm.get()
+
+    def _calcResidual(
+            self,
+            in_primal,
+            in_dual,
+            in_precomp_fwd,
+            in_precomp_adj,
+            data):
+        
+        primal_new = (
+            self.lambd / 2 *
+            self.normkrnldiff(in_precomp_fwd["Ax"], data)
+            + self.alpha * self.gamma_1 * self.abskrnldiff(in_precomp_fwd["gradx1"],in_precomp_fwd["gradx2"]+in_primal["w1"])
+            + self.alpha * self.gamma_2 * self.abskrnldiff(in_precomp_fwd["gradx3"], in_primal["w2"])
+            + self.beta * self.gamma_1* self.abskrnl(in_precomp_fwd["symgradx1_diag"])
+            + self.beta * self.gamma_1* self.abskrnl(in_precomp_fwd["symgradx1_offdiag"])
+            + self.beta * self.gamma_2* self.abskrnl(in_precomp_fwd["symgradx2_diag"])
+            + self.beta * self.gamma_2* self.abskrnl(in_precomp_fwd["symgradx2_offdiag"])
+            ).real
+
+        dual = (
+            - clarray.sum(in_precomp_adj["Kyk1"])
+            - clarray.sum(in_precomp_adj["Kyk2"])
+            - clarray.sum(in_precomp_adj["Kyk3"])
+            - clarray.sum(in_precomp_adj["Kyk4"])
+            - 1 / (2 * self.lambd) * self.normkrnl(in_dual["r"])
+            - clarray.vdot(data, in_dual["r"])
+            ).real
+
+        if self.unknowns_H1 > 0:
+            primal_new += (
+                 self.omega / 2 * self.normkrnl(
+                     in_precomp_fwd["gradx"][self.unknowns_TGV:]
+                     )
+                 ).real
+
+            dual += (
+                - 1 / (2 * self.omega) * self.normkrnl(
+                    in_dual["z1"][self.unknowns_TGV:]
+                    )
+                ).real
+        gap = np.abs(primal_new - dual)
+        return primal_new.get(), dual.get(), gap.get()
+
+    def update_z2_ictgv(self, outp, inp, par=None, idx=0, idxq=0,
+                     bound_cond=0, wait_for=None):
+        """Dual update of the z1 variable in Primal-Dual Algorithm for TV.
+
+        Parameters
+        ----------
+          outp : PyOpenCL.Array
+            The result of the update step
+          inp : PyOpenCL.Array
+            The previous values of x
+          par : list
+            List of necessary parameters for the update
+          idx : int
+            Index of the device to use
+          idxq : int
+            Index of the queue to use
+          bound_cond : int
+            Apply boundary condition (1) or not (0).
+          wait_for : list of PyOpenCL.Events, None
+            A optional list for PyOpenCL.Events to wait for
+
+        Returns
+        -------
+            PyOpenCL.Event:
+                A PyOpenCL.Event to wait for.
+        """
+        if wait_for is None:
+            wait_for = []
+            
+        return self._prg[idx].update_z2_ictgv(
+            self._queue[4*idx+idxq],
+            self._kernelsize, None,
+            outp.data, inp[0].data, 
+            inp[1].data, 
+            inp[2].data,
+            inp[3].data, 
+            inp[4].data,
+            self._DTYPE_real(par[0]),
+            self._DTYPE_real(par[1]),
+            self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
+            wait_for=(outp.events+inp[0].events +
+                      inp[1].events+inp[2].events+
+                      inp[3].events+inp[4].events + wait_for))
+
+    def update_z1_ictgv(self, outp, inp, par=None, idx=0, idxq=0,
+                     bound_cond=0, wait_for=None):
+        """Dual update of the z1 variable in Primal-Dual Algorithm for TV.
+
+        Parameters
+        ----------
+          outp : PyOpenCL.Array
+            The result of the update step
+          inp : PyOpenCL.Array
+            The previous values of x
+          par : list
+            List of necessary parameters for the update
+          idx : int
+            Index of the device to use
+          idxq : int
+            Index of the queue to use
+          bound_cond : int
+            Apply boundary condition (1) or not (0).
+          wait_for : list of PyOpenCL.Events, None
+            A optional list for PyOpenCL.Events to wait for
+
+        Returns
+        -------
+            PyOpenCL.Event:
+                A PyOpenCL.Event to wait for.
+        """
+        if wait_for is None:
+            wait_for = []
+            
+        return self._prg[idx].update_z1_ictgv(
+            self._queue[4*idx+idxq],
+            self._kernelsize, None,
+            outp.data, 
+            inp[0].data, 
+            inp[1].data, 
+            inp[2].data,
+            inp[3].data, 
+            inp[4].data,
+            inp[5].data, 
+            inp[6].data,
+            self._DTYPE_real(par[0]),
+            self._DTYPE_real(par[1]),
+            self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
+            wait_for=(outp.events+inp[0].events +
+                      inp[1].events+inp[2].events+
+                      inp[3].events+inp[4].events+
+                      inp[5].events+inp[6].events+ wait_for))
+    
+    def update_z_sympart(self, outp, inp, par=None, idx=0, idxq=0,
+                     bound_cond=0, wait_for=None):
+        """Dual update of the z variable for the symmetrized gradient in Primal-Dual Algorithm forg TV.
+
+        Parameters
+        ----------
+          outp : PyOpenCL.Array
+            The result of the update step
+          inp : PyOpenCL.Array
+            The previous values of x
+          par : list
+            List of necessary parameters for the update
+          idx : int
+            Index of the device to use
+          idxq : int
+            Index of the queue to use
+          bound_cond : int
+            Apply boundary condition (1) or not (0).
+          wait_for : list of PyOpenCL.Events, None
+            A optional list for PyOpenCL.Events to wait for
+
+        Returns
+        -------
+            PyOpenCL.Event:
+                A PyOpenCL.Event to wait for.
+        """
+        if wait_for is None:
+            wait_for = []
+            
+        return self._prg[idx].update_z3_ictgv(
+            self._queue[4*idx+idxq],
+            self._kernelsize, None,
+            outp[0].data, 
+            outp[1].data, 
+            inp[0].data, 
+            inp[1].data, 
+            inp[2].data,
+            inp[3].data, 
+            inp[4].data,
+            inp[5].data,
+            self._DTYPE_real(par[0]),
+            self._DTYPE_real(par[1]),
+            self._DTYPE_real(1/par[2]), np.int32(self.unknowns_TGV),
+            wait_for=(outp[0].events+outp[1].events+inp[0].events +
+                      inp[1].events+inp[2].events+
+                      inp[3].events+inp[4].events+inp[5].events+
+                      wait_for))
 
         
 

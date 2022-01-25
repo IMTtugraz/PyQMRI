@@ -374,7 +374,9 @@ class Operator(ABC):
                                    prg,
                                    DTYPE,
                                    DTYPE_real,
-                                   streamed=False):
+                                   streamed=False,                                
+                                   spacetimederivatives="",
+                                   **kwargs):
         """Symmetrized Gradient forward/adjoint operator factory method.
 
         Parameters
@@ -404,15 +406,26 @@ class Operator(ABC):
             and ajoint symmetriced gradient calculations.
         """
         if streamed:
+            if "IC" in spacetimederivatives:
+              raise NotImplementedError
             op = OperatorFiniteSymGradientStreamed(par,
                                                    prg,
                                                    DTYPE,
                                                    DTYPE_real)
         else:
-            op = OperatorFiniteSymGradient(par,
-                                           prg[0],
-                                           DTYPE,
-                                           DTYPE_real)
+            if "IC" in spacetimederivatives:
+              op = OperatorFiniteSpaceTimeSymGradient(par,
+                                                  prg[0],
+                                                  DTYPE,
+                                                  DTYPE_real,
+                                                  kwargs["mu_1"],
+                                                  kwargs["dt"],
+                                                  kwargs["tsweight"])
+            else:
+                op = OperatorFiniteSymGradient(par,
+                                               prg[0],
+                                               DTYPE,
+                                               DTYPE_real)
         return op
 
     @staticmethod
@@ -3832,7 +3845,229 @@ class OperatorFiniteSpaceTimeGradient(Operator):
             
         return ds/mu1, dt/mu2
         
-    
+class OperatorFiniteSpaceTimeSymGradient(Operator):
+    """Symmetrized gradient operator.
+
+    This class implements the finite difference symmetrized gradient operation and
+    the adjoint (negative symmetrized divergence).
+
+    Parameters
+    ----------
+      par : dict A python dict containing the necessary information to
+        setup the object. Needs to contain the number of slices (NSlice),
+        number of scans (NScan), image dimensions (dimX, dimY), number of
+        coils (NC), sampling points (N) and read outs (NProj)
+        a PyOpenCL queue (queue) and the complex coil
+        sensitivities (C).
+      prg : PyOpenCL.Program
+        The PyOpenCL.Program object containing the necessary kernels to
+        execute the linear Operator.
+      DTYPE : numpy.dtype, numpy.complex64
+        Complex working precission.
+      DTYPE_real : numpy.dtype, numpy.float32
+        Real working precission.
+
+    Attributes
+    ----------
+      ctx : PyOpenCL.Context
+        The context for the PyOpenCL computations.
+      queue : PyOpenCL.Queue
+        The computation Queue for the PyOpenCL kernels.
+      ratio : list of PyOpenCL.Array
+        Ratio between the different unknowns
+    """
+
+    def __init__(self, par, prg, DTYPE=np.complex64, DTYPE_real=np.float32, mu1=1, dt=1, tsweight=1):
+        super().__init__(par, prg, DTYPE, DTYPE_real)
+        self.queue = self.queue[0]
+        self.ctx = self.ctx[0]
+        self.ratio = None
+        self.tmp_grad_array = None
+        self.precond = False
+        self.timeSpaceWeight = tsweight
+        
+        self.mu1 = mu1
+        self.dt = dt
+        
+        self.mu1, self.dt = self.computeTimeSpaceWeight(self.mu1, self.dt, tsweight)
+        
+        self.dt = self.dt.astype(DTYPE_real)
+        self.dt = clarray.to_device(self.queue, self.dt)
+        
+
+    def fwd(self, out, inp, **kwargs):
+        """Forward operator application in-place.
+
+        Apply the linear operator from parameter space to measurement space
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+
+        Parameters
+        ----------
+          out : PyOpenCL.Array
+            The complex data which is the result of the
+            computation.
+          inp : PyOpenCL.Array
+            The complex data which is used as input.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+          PyOpenCL.Event
+            A PyOpenCL event to wait for.
+        """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
+            
+        return self.prg.sym_grad_w_time(
+        self.queue, inp.shape[1:-1], None, out[0].data, out[1].data, inp.data,
+        np.int32(self.unknowns),
+        self.DTYPE_real(self._dz),
+        self.DTYPE_real(self.mu1),
+        self.dt.data,
+        wait_for=out[0].events + out[1].events + inp.events + wait_for)
+            
+
+    def fwdoop(self, inp, **kwargs):
+        """Forward operator application out-of-place.
+
+        Apply the linear operator from parameter space to measurement space
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+        This method need to generate a temporary array and will return it as
+        the result.
+
+        Parameters
+        ----------
+          inp : PyOpenCL.Array
+            The complex parameter space data which is used as input.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+          PyOpenCL.Array: A PyOpenCL array containing the result of the
+          computation.
+        """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
+        tmp_result1 = clarray.zeros(
+            self.queue, (self.unknowns,
+                         self.NSlice, self.dimY, self.dimX, 4),
+            self.DTYPE, "C")
+        tmp_result2 = clarray.zeros(
+            self.queue, (self.unknowns,
+                         self.NSlice, self.dimY, self.dimX, 8),
+            self.DTYPE, "C")
+        
+        self.prg.sym_grad_w_time(
+            self.queue, inp.shape[1:-1], None, tmp_result1.data,tmp_result2.data, inp.data,
+            np.int32(self.unknowns),
+            self.DTYPE_real(self._dz),
+            self.DTYPE_real(self.mu1),
+            self.dt.data,
+            wait_for=tmp_result1.events + tmp_result2.events + inp.events + wait_for)
+        return [tmp_result1, tmp_result2]
+
+    def adj(self, out, inp, **kwargs):
+        """Adjoint operator application in-place.
+
+        Apply the linear operator from measurement space to parameter space
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+
+        Parameters
+        ----------
+          out : PyOpenCL.Array
+            The complex parameter space data which is the result of the
+            computation.
+          inp : PyOpenCL.Array
+            The complex measurement space data which is used as input.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+          PyOpenCL.Event: A PyOpenCL event to wait for.
+        """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
+            
+        return self.prg.sym_divergence_w_time(
+                self.queue, inp[0].shape[1:-1], None, out.data, inp[0].data, inp[1].data,
+                np.int32(self.unknowns),
+                self.DTYPE_real(self._dz),
+                self.DTYPE_real(self.mu1),
+                self.dt.data,
+                wait_for=out.events + inp[0].events + inp[1].events + wait_for)
+
+    def adjoop(self, inp, **kwargs):
+        """Adjoint operator application out-of-place.
+
+        Apply the linear operator from measurement space to parameter space
+        If streamed operations are used the PyOpenCL.Arrays are replaced
+        by Numpy.Array
+        This method need to generate a temporary array and will return it as
+        the result.
+
+        Parameters
+        ----------
+          inp : PyOpenCL.Array
+            The complex measurement space which is used as input.
+          wait_for : list of PyopenCL.Event
+            A List of PyOpenCL events to wait for.
+
+        Returns
+        -------
+          PyOpenCL.Array: A PyOpenCL array containing the result of the
+          computation.
+        """
+        if "wait_for" in kwargs.keys():
+            wait_for = kwargs["wait_for"]
+        else:
+            wait_for = []
+        tmp_result = clarray.zeros(
+            self.queue, (self.unknowns, self.NSlice, self.dimY, self.dimX, 4),
+            self.DTYPE, "C")
+
+        self.prg.sym_divergence_w_time(
+                    self.queue, inp[0].shape[1:-1], None, tmp_result.data, inp[0].data, inp[1].data,
+                    np.int32(self.unknowns),
+                    self.DTYPE_real(self._dz),
+                    self.DTYPE_real(self.mu1),
+                    self.dt.data,
+                    wait_for=tmp_result.events + inp[0].events + inp[1].events + wait_for).wait()
+        return tmp_result
+
+
+    def updateRatio(self, inp):
+        self.precondmat = clarray.to_device(
+            self.queue,
+            inp)
+        
+    def computeTimeSpaceWeight(self, ds, dt, t):
+        timeSpaceRatio = 1/t
+        
+        if timeSpaceRatio > 0 and timeSpaceRatio <= 1:
+            tmp = sps.ellipk(1 - timeSpaceRatio**2)
+            mu2 = np.pi / (2*tmp)
+            mu1 = timeSpaceRatio *  mu2
+        elif timeSpaceRatio > 1:
+            timeSpaceRatio = 1/timeSpaceRatio
+            tmp = sps.ellipk(1 - timeSpaceRatio**2)
+            mu1 = np.pi / (2*tmp)
+            mu2 = timeSpaceRatio * mu1
+        else:
+            raise ValueError("Invalid value for time/space weighting")
+            
+        return ds/mu1, dt/mu2    
     
 class OperatorKspaceImageRecon(OperatorKspace):
     """k-Space based Operator for simple image reconstruction.

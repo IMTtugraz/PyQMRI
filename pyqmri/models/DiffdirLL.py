@@ -76,33 +76,33 @@ class Model(BaseModel):
                 False))
         self.constraints.append(
             constraints(
-                (-np.sqrt(5) / self.uk_scale[1]),
-                (np.sqrt(5) / self.uk_scale[1]),
+                (-5 / self.uk_scale[1]),
+                (5 / self.uk_scale[1]),
                 True))
         self.constraints.append(
             constraints(
-                (-1 / self.uk_scale[2]),
-                (1 / self.uk_scale[2]),
+                (-5 / self.uk_scale[2]),
+                (5 / self.uk_scale[2]),
                 True))
         self.constraints.append(
             constraints(
-                (-2 / self.uk_scale[3]),
-                (2 / self.uk_scale[3]),
+                (-5 / self.uk_scale[3]),
+                (5 / self.uk_scale[3]),
                 True))
         self.constraints.append(
             constraints(
-                (-1 / self.uk_scale[4]),
-                (1 / self.uk_scale[4]),
+                (-5 / self.uk_scale[4]),
+                (5 / self.uk_scale[4]),
                 True))
         self.constraints.append(
             constraints(
-                (-np.sqrt(3) / self.uk_scale[5]),
-                (np.sqrt(3) / self.uk_scale[5]),
+                (-5 / self.uk_scale[5]),
+                (5 / self.uk_scale[5]),
                 True))
         self.constraints.append(
             constraints(
-                (-1 / self.uk_scale[6]),
-                (1 / self.uk_scale[6]),
+                (-5 / self.uk_scale[6]),
+                (5 / self.uk_scale[6]),
                 True))
 
         self.guess = None

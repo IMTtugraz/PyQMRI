@@ -411,7 +411,7 @@ def _estScaleNorm(myargs, par, images, data):
     # SNR_est = (np.abs(sig/noise))
     # par["SNR_est"] = SNR_est
     # print("Estimated SNR from kspace", SNR_est)
-    dscale = par["DTYPE_real"](np.sqrt(2*1e3*par["NSlice"]) / np.linalg.norm(np.abs(data)))
+    dscale = par["DTYPE_real"](par["NSlice"]*np.sqrt(2*1e3) / np.linalg.norm(np.abs(data)))
     # dscale = 1/np.quantile(np.abs(images), 0.9)
     print("Data scale: ", dscale)
     par["dscale"] = dscale
@@ -449,7 +449,7 @@ def _readInput(myargs, par):
     if myargs.outdir == '':
         outdir = os.sep.join(name.split(os.sep)[:-1]) + os.sep + \
             "PyQMRI_out" + \
-            os.sep + myargs.sig_model + os.sep + \
+            os.sep + myargs.sig_model + os.sep + par["fname"] +\
             time.strftime("%Y-%m-%d  %H-%M-%S") + os.sep
         if not os.sep.join(name.split(os.sep)[:-1]):
             outdir = '.'+outdir
@@ -828,7 +828,7 @@ def _start_recon(myargs):
 ###############################################################################
 # initialize operator  ########################################################
 ###############################################################################
-    if myargs.sig_model == "ImageReco" and myargs.reg == "ICTV":
+    if myargs.sig_model == "ImageReco" and "ICT" in myargs.reg:
         opt = ICOptimizer(par,
                           model,
                           trafo=myargs.trafo,

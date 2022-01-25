@@ -898,7 +898,7 @@ class ICOptimizer:
             self.irgn_par,
             self._fval_init,
             self._coils,
-            linops=(self._MRI_operator, *grad_op, symgrad_op),
+            linops=(self._MRI_operator, grad_op, symgrad_op),
             model=model,
             reg_type=self._reg_type,
             SMS=self._SMS,
@@ -913,55 +913,62 @@ class ICOptimizer:
         self._omega = None
 
     def _setupLinearOps(self, DTYPE, DTYPE_real):
-        if self._reg_type == 'ICTV':
-            if hasattr(self._model, "dt"):
-                dt=self._model.dt
-            else:
-                dt = self.irgn_par["dt"]*np.ones(self.par["NScan"]-1)
-            
-            grad_op_1 = operator.Operator.GradientOperatorFactory(
-            self.par,
-            self._prg,
-            DTYPE,
-            DTYPE_real,
-            False,
-            self._reg_type,
-            mu_1=self.irgn_par["mu1_1"],
-            dt=dt,
-            tsweight=self.irgn_par["t1"])
-
-            grad_op_2 = operator.Operator.GradientOperatorFactory(
-            self.par,
-            self._prg,
-            DTYPE,
-            DTYPE_real,
-            False,
-            self._reg_type,
-            mu_1=self.irgn_par["mu2_1"],
-            dt=dt,
-            tsweight=self.irgn_par["t2"])
-            grad_op = [grad_op_1, grad_op_2]
-
-        else:
-            grad_op = [operator.Operator.GradientOperatorFactory(
-                self.par,
-                self._prg,
-                DTYPE,
-                DTYPE_real,
-                False)]
         symgrad_op = None
         v = None
-        if self._reg_type == 'TGV':
-            symgrad_op = operator.Operator.SymGradientOperatorFactory(
+
+        if hasattr(self._model, "dt"):
+            dt=self._model.dt
+        else:
+            dt = self.irgn_par["dt"]*np.ones(self.par["NScan"]-1)
+        
+        grad_op_1 = operator.Operator.GradientOperatorFactory(
+        self.par,
+        self._prg,
+        DTYPE,
+        DTYPE_real,
+        False,
+        self._reg_type,
+        mu_1=self.irgn_par["mu1_1"],
+        dt=dt,
+        tsweight=self.irgn_par["t1"])
+
+        grad_op_2 = operator.Operator.GradientOperatorFactory(
+        self.par,
+        self._prg,
+        DTYPE,
+        DTYPE_real,
+        False,
+        self._reg_type,
+        mu_1=self.irgn_par["mu2_1"],
+        dt=dt,
+        tsweight=self.irgn_par["t2"])
+        grad_op = [grad_op_1, grad_op_2]
+        
+        if self._reg_type == "ICTGV":
+            symgrad_op_1 = operator.Operator.SymGradientOperatorFactory(
                 self.par,
                 self._prg,
                 DTYPE,
                 DTYPE_real,
-                False)
-            v = np.zeros(
-                ([self.par["unknowns_TGV"], self.par["NSlice"],
-                  self.par["dimY"], self.par["dimX"], 4]),
-                dtype=DTYPE)
+                False,
+                self._reg_type,
+                mu_1=self.irgn_par["mu1_1"],
+                dt=dt,
+                tsweight=self.irgn_par["t1"]
+                )
+            symgrad_op_2 = operator.Operator.SymGradientOperatorFactory(
+                self.par,
+                self._prg,
+                DTYPE,
+                DTYPE_real,
+                False,
+                self._reg_type,
+                mu_1=self.irgn_par["mu2_1"],
+                dt=dt,
+                tsweight=self.irgn_par["t2"]
+                )
+            symgrad_op = [symgrad_op_1, symgrad_op_2]
+
         return grad_op, symgrad_op, v
 
     def execute(self, data):
@@ -999,11 +1006,6 @@ class ICOptimizer:
                     x = tmpres["x"]
                 else:
                     x = tmpres["x"].get()
-            if key == 'v':
-                if isinstance(tmpres[key], np.ndarray):
-                    self._v = tmpres["v"]
-                else:
-                    self._v = tmpres["v"].get()
 
         self._saveToFile(0, x)
         end = time.time() - start
@@ -1037,12 +1039,12 @@ class ICOptimizer:
     def _saveToFile(self, myit, result):
         f = h5py.File(self.par["outdir"]+"output_" + self.par["fname"] + ".h5",
                       "a")
-        if self._reg_type == 'TGV':
-            f.create_dataset("tgv_result_iter_"+str(myit), result.shape,
+        if self._reg_type == 'ICTGV':
+            f.create_dataset("ictgv_result_iter_"+str(myit), result.shape,
                              dtype=self._DTYPE, data=result)
             f.attrs['res_tgv_iter_'+str(myit)] = self._fval
         else:
-            f.create_dataset("tv_result_"+str(myit), result.shape,
+            f.create_dataset("ictv_result_"+str(myit), result.shape,
                              dtype=self._DTYPE, data=result)
             f.attrs['res_tv_iter_'+str(myit)] = self._fval
         f.attrs['data_norm'] = self.par["dscale"]
