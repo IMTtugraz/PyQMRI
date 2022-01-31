@@ -450,9 +450,9 @@ __kernel void update_Kyk1_ssense(
 }
 
 __kernel void update_v(
-                __global double8 *v,
-                __global double8 *v_,
-                __global double8 *Kyk2,
+                __global double2 *v,
+                __global double2 *v_,
+                __global double2 *Kyk2,
                 const double tau
                 )
 {

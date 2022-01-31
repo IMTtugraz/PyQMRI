@@ -13,21 +13,20 @@ class Model(BaseModel):
         super().__init__(par)
         self.constraints = []
         self.t = par["t"]
-        self.b = par["b"]
-        if "b0" in par.keys():
-            self.b0 = par["b0"]
-        else:
-            self.b0 = self.b[0]
+        self.b_evo = par["b_evo"]
+        self.b_pol = par["b_pol"]
+
 
         if len(self.t.shape) < 2:
-            self.b = self.b[None]
+            self.b_pol = self.b_pol[None]
+            self.b_evo = self.b_evo[None]
             self.t = self.t[None]
 
-        self.numT1Scale = len(self.b)
-        self.numC = 1#len(self.b)
-        self.numAlpha = len(self.b)
+        self.numT1Scale = len(self.b_pol)
+        self.numC = 1#len(self.b_pol)
+        self.numAlpha = 1#len(self.b_pol)
 
-        par["unknowns_TGV"] = self.numC + self.numAlpha + len(self.b)
+        par["unknowns_TGV"] = self.numC + self.numAlpha + len(self.b_pol)
         par["unknowns_H1"] = 0
         par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
 
@@ -46,21 +45,21 @@ class Model(BaseModel):
                             False))
         for j in range(self.numAlpha):
             self.constraints.append(
-                constraints(0.1,
-                            1.2,
-                            False))
+                constraints(0,
+                            2,
+                            True))
         for j in range(self.numT1Scale):
             self.constraints.append(
                 constraints(t1min,
-                            1000*np.abs(np.log(self.b[0])/np.log(self.b[j])).squeeze(),
+                            500,
                             True))
         self._ind1 = 0
         self._ind2 = 0
         self._labels = []
-        for j in range(len(self.b)):
+        for j in range(len(self.b_pol)):
             self._labels.append(
-                "Field "+str(np.round(self.b[j]*1e3, 2))+" mT")
-        par["weights"] = 1e3*np.array([1]*self.numC+self.numAlpha*[1]+self.numT1Scale*[1],dtype=par["DTYPE_real"])
+                "Evo Field "+str(np.round(self.b_evo[j]*1e3, 2))+" mT")
+        par["weights"] = 1*np.array([1]*self.numC+self.numAlpha*[10]+self.numT1Scale*[1],dtype=par["DTYPE_real"])
         # par["weights"] *= 1/np.sum(par["weights"])
 
     def rescale(self, x):
@@ -90,15 +89,15 @@ class Model(BaseModel):
         t = self.t[0][:, None, None, None]
 
 
-        for j in range(len(self.b)):
+        for j in range(len(self.b_pol)):
             offset = len(self.t[j])
             t = self.t[j][:, None, None, None]
             S[offset*(j):offset*(j+1)] = (
                 x[np.mod(j,self.numC)] * self.uk_scale[np.mod(j,self.numC)]
-                * (-self.b0 * x[self.numC+np.mod(j,self.numAlpha)]*self.uk_scale[self.numC+np.mod(j,self.numAlpha)] *
+                * (self.b_pol[j] * x[self.numC+np.mod(j,self.numAlpha)]*self.uk_scale[self.numC+np.mod(j,self.numAlpha)] *
                    np.exp(-t / (x[-self.numT1Scale+j] * self.uk_scale[-self.numT1Scale+j]))
                    + (1 - np.exp(-t / (x[-self.numT1Scale+j] * self.uk_scale[-self.numT1Scale+j])))
-                   * self.b[j])
+                   * self.b_evo[j])
                 )
         S[~np.isfinite(S)] = 0
         S = np.array(S, dtype=self._DTYPE)
@@ -120,15 +119,15 @@ class Model(BaseModel):
         t = self.t[0][:, None, None, None]
 
 
-        for j in range(len(self.b)):
+        for j in range(len(self.b_pol)):
             offset = len(self.t[j])
             t = self.t[j][:, None, None, None]
             grad[np.mod(j,self.numC), offset*(j):offset*(j+1)] = (
                 self.uk_scale[np.mod(j,self.numC)]
-                * (-self.b0 * x[self.numC+np.mod(j,self.numAlpha)]*self.uk_scale[self.numC+np.mod(j,self.numAlpha)] *
+                * (self.b_pol[j] * x[self.numC+np.mod(j,self.numAlpha)]*self.uk_scale[self.numC+np.mod(j,self.numAlpha)] *
                    np.exp(-t / (x[-self.numT1Scale+j] * self.uk_scale[-self.numT1Scale+j]))
                    + (1 - np.exp(-t / (x[-self.numT1Scale+j] * self.uk_scale[-self.numT1Scale+j])))
-                   * self.b[j])
+                   * self.b_evo[j])
                 )
         grad[~np.isfinite(grad)] = 0
 
@@ -141,12 +140,12 @@ class Model(BaseModel):
         t = self.t[0][:, None, None, None]
 
 
-        for j in range(len(self.b)):
+        for j in range(len(self.b_pol)):
             offset = len(self.t[j])
             t = self.t[j][:, None, None, None]
             grad[np.mod(j,self.numAlpha), offset*(j):offset*(j+1)] = (
                 x[np.mod(j,self.numC)] * self.uk_scale[np.mod(j,self.numC)]*self.uk_scale[self.numC+np.mod(j,self.numAlpha)]
-                * (-self.b0 *
+                * (self.b_pol[j] *
                    np.exp(-t / (x[-self.numT1Scale+j] * self.uk_scale[-self.numT1Scale+j]))
                    )
                 )
@@ -159,14 +158,14 @@ class Model(BaseModel):
             (self.numT1Scale, self.NScan, self.NSlice, self.dimY, self.dimX),
             dtype=self._DTYPE)
         t = self.t[0][:, None, None, None]
-        for j in range(len(self.b)):
+        for j in range(len(self.b_pol)):
             offset = len(self.t[j])
             t = self.t[j][:, None, None, None]
             grad[j, (j)*offset:(j+1)*offset] = (
                 x[np.mod(j,self.numC)]*self.uk_scale[np.mod(j,self.numC)]*(
-                    -self.b0*t*x[self.numC+np.mod(j,self.numAlpha)]*self.uk_scale[self.numC+np.mod(j,self.numAlpha)]
+                    self.b_pol[j]*t*x[self.numC+np.mod(j,self.numAlpha)]*self.uk_scale[self.numC+np.mod(j,self.numAlpha)]
                     * np.exp(-t/(x[-self.numT1Scale+j]*self.uk_scale[-self.numT1Scale+j]))
-                    - self.b[j]*t
+                    - self.b_evo[j]*t
                     * np.exp(-t/(x[-self.numT1Scale+j]*self.uk_scale[-self.numT1Scale+j]))
                     )
                 )/(x[-self.numT1Scale+j]**2*self.uk_scale[-self.numT1Scale+j])
@@ -227,7 +226,7 @@ class Model(BaseModel):
                 self.plot_ax = plt.subplot(self.gs[-1, :])
                 self.plot_ax.set_title("Time course", color='w')
                 self.time_course_ref = []
-                for j in range(len(self.b)):
+                for j in range(len(self.b_pol)):
                     self.time_course_ref.append(self.plot_ax.plot(
                         self.t[j], np.real(
                             self.images[j, :,
@@ -277,7 +276,7 @@ class Model(BaseModel):
                     self._plot[j].set_clim(
                         [tmp_x[j].min(), tmp_x[j].max()])
 
-                for j in range(len(self.b)):
+                for j in range(len(self.b_pol)):
                     self.time_course[j].set_ydata(
                         np.real(images[
                             j, :, int(self.NSlice/2), self._ind2, self._ind1]))
@@ -305,7 +304,7 @@ class Model(BaseModel):
         if event.inaxes in self.ax[::3]:
             self._ind1 = int(event.xdata)
             self._ind2 = int(event.ydata)
-            for j in range(len(self.b)):
+            for j in range(len(self.b_pol)):
                 self.time_course_ref[j].set_ydata(np.real(
                         self.images[j, :,
                                     int(self.NSlice/2),
@@ -321,20 +320,20 @@ class Model(BaseModel):
         
         test_M0 = []
         for j in range(self.numC):
-            test_M0.append(1*np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)*
+            test_M0.append(10*np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)*
                 np.exp(1j*np.angle(kwargs['images'][0])))
             # self.constraints[j].update(1/kwargs['dscale'])
         test_Xi = []
         for j in range(self.numAlpha):
             test_Xi.append(
-                0.1 *
+                1 *
                 np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE))
  
         test_R1 = []
-        # self.b *= args[1]
+        # self.b_pol *= args[1]
         for j in range(self.numT1Scale):
             test_R1.append(
-                50 *
+                10 *
                 np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE))
             
             

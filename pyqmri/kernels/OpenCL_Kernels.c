@@ -703,8 +703,6 @@ __global int* real, const int NUk
     size_t k = get_global_id(0);
     size_t i = k*Nx*Ny+Nx*y + x;
     float norm = 0;
-    int idx, idx2, idx3, idx4, idx5;
-    float2 tmp;
 
     for (int uk=0; uk<NUk; uk++)
     {
@@ -731,8 +729,6 @@ __global int* real, const int NUk
     size_t k = get_global_id(0);
     size_t i = k*Nx*Ny+Nx*y + x;
     float norm = 0;
-    int idx, idx2, idx3, idx4, idx5;
-    float2 tmp;
 
     for (int uk=0; uk<NUk; uk++)
     {
