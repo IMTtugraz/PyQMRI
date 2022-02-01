@@ -21,7 +21,7 @@ class Model(BaseModel):
             self.b_pol = self.b_pol[None]
             self.b_evo = self.b_evo[None]
             self.t = self.t[None]
-
+            
         self.numT1Scale = len(self.b_pol)
         self.numC = 1#len(self.b_pol)
         self.numAlpha = 1#len(self.b_pol)
@@ -86,8 +86,6 @@ class Model(BaseModel):
         S = np.zeros(
             (self.NScan, self.NSlice, self.dimY, self.dimX),
             dtype=self._DTYPE)
-        t = self.t[0][:, None, None, None]
-
 
         for j in range(len(self.b_pol)):
             offset = len(self.t[j])
@@ -116,8 +114,6 @@ class Model(BaseModel):
         grad = np.zeros(
             (self.numC, self.NScan, self.NSlice, self.dimY, self.dimX),
             dtype=self._DTYPE)
-        t = self.t[0][:, None, None, None]
-
 
         for j in range(len(self.b_pol)):
             offset = len(self.t[j])
@@ -137,8 +133,6 @@ class Model(BaseModel):
         grad = np.zeros(
             (self.numAlpha, self.NScan, self.NSlice, self.dimY, self.dimX),
             dtype=self._DTYPE)
-        t = self.t[0][:, None, None, None]
-
 
         for j in range(len(self.b_pol)):
             offset = len(self.t[j])
@@ -157,7 +151,7 @@ class Model(BaseModel):
         grad = np.zeros(
             (self.numT1Scale, self.NScan, self.NSlice, self.dimY, self.dimX),
             dtype=self._DTYPE)
-        t = self.t[0][:, None, None, None]
+ 
         for j in range(len(self.b_pol)):
             offset = len(self.t[j])
             t = self.t[j][:, None, None, None]
