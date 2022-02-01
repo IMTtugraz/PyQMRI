@@ -37,8 +37,8 @@ class Model(BaseModel):
 
         for j in range(par["unknowns"]):
             self.constraints.append(
-                constraints(-100 / self.uk_scale[j],
-                            100 / self.uk_scale[j],
+                constraints(-np.inf / self.uk_scale[j],
+                            np.inf / self.uk_scale[j],
                             False))
             
         self.guess = None
@@ -77,14 +77,14 @@ class Model(BaseModel):
         for j in range(self.NScan):
             S[j, ...] = x[j, ...] * self.uk_scale[j]
         S[~np.isfinite(S)] = 1e-20
-        return S
+        return S*self.dscale
 
     def _execute_gradient_3D(self, x):
         grad_M0 = np.zeros(((self.NScan, )+x.shape), dtype=self._DTYPE)
         for j in range(self.NScan):
             grad_M0[j, j, ...] = self.uk_scale[j]*np.ones_like(x[j])
         grad_M0[~np.isfinite(grad_M0)] = 1e-20
-        return grad_M0
+        return grad_M0*self.dscale
 
     def computeInitialGuess(self, **kwargs):
         """Initialize unknown array for the fitting.
@@ -97,4 +97,5 @@ class Model(BaseModel):
             Assumes the images series at position 0 and uses it as initial
             guess.
         """
-        self.guess = np.zeros_like((kwargs['images']).astype(self._DTYPE))
+        self.dscale = kwargs["dscale"]
+        self.guess = (kwargs['images']).astype(self._DTYPE)

@@ -84,10 +84,17 @@ class Model(BaseModel):
     def __init__(self, par):
         super().__init__(par)
         full_slices = par["file"]["T1b"].shape[0]
+        
+        reco_slices = par["NSlice"]
+        if par["transpXYZ"]:
+          reco_slices = par["dimX"]
+        elif par["transpYZ"]:
+          reco_slices = par["dimY"]
+          
         sliceind = slice(int(full_slices / 2) -
-                         int(np.floor((par["NSlice"]) / 2)),
+                         int(np.floor((reco_slices) / 2)),
                          int(full_slices / 2) +
-                         int(np.ceil(par["NSlice"] / 2)))
+                         int(np.ceil(reco_slices / 2)))
         self.T1b = par["file"]["T1b"][sliceind]
         self.T1 = par["file"]["T1"][sliceind]
         self.lambd = par["file"]["lambd"][sliceind]
@@ -95,7 +102,29 @@ class Model(BaseModel):
         self.tau = par["file"]["tau"][:, sliceind]
         self.t = par['t']
         self.alpha = par["file"]["alpha"][sliceind]
-
+        
+        if par["transpXYZ"]:
+          self.T1b = self.T1b.T
+          self.T1 = self.T1.T
+          self.lambd = self.lambd.T
+          self.M0 = self.M0.T
+          self.alpha = self.alpha.T
+          self.tau = self.tau.transpose(0,-1,2,1)
+        elif par["transpXY"]:
+          self.T1b = self.T1b.transpose(0,2,1)
+          self.T1 = self.T1.transpose(0,2,1)
+          self.lambd = self.lambd.transpose(0,2,1)
+          self.M0 = self.M0.transpose(0,2,1)
+          self.alpha = self.alpha.transpose(0,2,1)
+          self.tau = self.tau.transpose(0,1,-1,2)
+        elif par["transpYZ"]:
+          self.T1b = self.T1b.transpose(2,1,0)
+          self.T1 = self.T1.transpose(2,1,0)
+          self.lambd = self.lambd.transpose(2,1,0)
+          self.M0 = self.M0.transpose(2,1,0)
+          self.alpha = self.alpha.transpose(2,1,0)
+          self.tau = self.tau.transpose(0,2,1,3)         
+          
         par["unknowns_TGV"] = 2
         par["unknowns_H1"] = 0
         par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
