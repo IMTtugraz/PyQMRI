@@ -23,8 +23,8 @@ class Model(BaseModel):
             self.t = self.t[None]
             
         self.numT1Scale = len(self.b_pol)
-        self.numC = 1#len(self.b_pol)
-        self.numAlpha = 1#len(self.b_pol)
+        self.numC = len(self.b_pol)
+        self.numAlpha = len(self.b_pol)
 
         par["unknowns_TGV"] = self.numC + self.numAlpha + len(self.b_pol)
         par["unknowns_H1"] = 0
@@ -47,7 +47,7 @@ class Model(BaseModel):
             self.constraints.append(
                 constraints(0,
                             2,
-                            True))
+                            False))
         for j in range(self.numT1Scale):
             self.constraints.append(
                 constraints(t1min,
@@ -172,7 +172,7 @@ class Model(BaseModel):
         tmp_x = unknowns["data"]
         uknames = unknowns["unknown_name"]
 
-        images = np.abs(self._execute_forward_3D(x) / self.dscale)
+        images = np.real(self._execute_forward_3D(x) / self.dscale)
         images = np.reshape(images, self.t.shape+images.shape[-3:])
 
         tmp_x[:self.numC] = np.abs(tmp_x[:self.numC])
@@ -306,7 +306,7 @@ class Model(BaseModel):
 
     def computeInitialGuess(self, **kwargs):
         self.dscale = kwargs['dscale']
-        self.images = np.reshape(np.abs(kwargs['images']/kwargs['dscale']),
+        self.images = np.reshape(np.real(kwargs['images']/kwargs['dscale']),
                                  self.t.shape+kwargs['images'].shape[-3:])
         
         scale = np.max(np.abs(self.images))

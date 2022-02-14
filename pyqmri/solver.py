@@ -976,7 +976,7 @@ class PDBaseSolver:
 
         self._updateConstraints()
         
-        l_max = 1#np.sqrt(self.power_iteration(inp[0], data.shape))
+        l_max = 0#np.sqrt(self.power_iteration(inp[0], data.shape))
         l_max += self.alpha*((0.5 * (18.0 + np.sqrt(33)))**2)
         print("Estimated L: ", l_max)
         print()

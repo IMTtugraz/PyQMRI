@@ -321,7 +321,7 @@ class IRGNOptimizer:
                 self._model.execute_forward(result))
                 
             # Precond only for image data!!!!
-            if ign < 0:
+            if ign >= 0:
                 self.precond = True
                 self._pdop.precond = True
                 self._pdop._grad_op.precond = True
@@ -351,6 +351,7 @@ class IRGNOptimizer:
             if self.precond:
                 self._pdop._grad_op.updateRatio(np.require(self.UTE
                                           ,requirements='C'))
+                self._pdop._grad_op.irgn = self
 
             if self._streamed:
                 if self._SMS is False:
@@ -436,7 +437,7 @@ class IRGNOptimizer:
         
         jacobi = np.require(jacobi.T, requirements='C')
         
-        cutoff = 5e2#np.inf
+        cutoff = 1e3
 
         maxval = 0
         minval = 1e30
@@ -445,6 +446,7 @@ class IRGNOptimizer:
             V[j], E[j], U[j] = spl.svd(jacobi[j], full_matrices=False)
             if np.any(E[j].imag!=0):
                 print("Non-zero complex eigenvalue")
+
             einv = 1/E[j]
             einv[~np.isfinite(einv)] = cutoff*einv[0]
             einv[einv/einv[0] > cutoff] = cutoff*einv[0]
@@ -454,7 +456,7 @@ class IRGNOptimizer:
             minval = np.minimum(minval, np.min((E[j])))
   
             self.UTE[j] = (np.conj(U[j].T)@np.diag(einv))
-            self.UT[j] = np.conj(U[j].T)@np.diag(einv)
+            self.UT[j] = np.diag(einv)
             self.EU[j] = np.diag(1/einv)@U[j]
             
         print("Maximum Eigenvalue: ", maxval)
@@ -470,6 +472,11 @@ class IRGNOptimizer:
         
         self.UTE = np.require(self.UTE.transpose(1,2,0), requirements='C')
         self.UT = np.require(self.UT.transpose(1,2,0), requirements='C')
+        # import ipdb
+        # import matplotlib.pyplot as plt
+        # import pyqmri
+        # ipdb.set_trace()
+        
         self.EU = np.require(self.EU.transpose(1,2,0), requirements='C')
         
         self._pdop.EU = clarray.to_device(self._pdop._queue[0], self.EU)
@@ -714,7 +721,7 @@ class IRGNOptimizer:
                 x.events).wait()
             x = x.get()
             grad = grad.get()
-            grad *= self.par["weights"][:,None,None,None,None]
+            # grad *= self.par["weights"][:,None,None,None,None]
             grad = [grad]
         sym_grad = None
         if self._reg_type == 'TGV':

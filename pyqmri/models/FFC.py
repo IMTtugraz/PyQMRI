@@ -60,8 +60,8 @@ class Model(BaseModel):
         for j in range(len(self.b)):
             self._labels.append(
                 "Field "+str(np.round(self.b[j]*1e3, 2))+" mT")
-        par["weights"] = 1*np.array([1]*self.numC+self.numAlpha*[10]+self.numT1Scale*[1],dtype=par["DTYPE_real"])
-        par["weights"][-self.numT1Scale:] *= np.abs(np.log(self.b[0])/np.log(self.b)).squeeze()
+        par["weights"] = 1*np.array([1]*self.numC+self.numAlpha*[1]+self.numT1Scale*[1e-3],dtype=par["DTYPE_real"])
+        # par["weights"][-self.numT1Scale:] *= np.abs(np.log(self.b[0])/np.log(self.b)).squeeze()
 
     def rescale(self, x):
         tmp_x = np.copy(x)

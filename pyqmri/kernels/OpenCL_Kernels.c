@@ -853,6 +853,7 @@ __kernel void gradient(
                 __global float2 *u,
                 const int NUk,
                 const float dz
+//                 __global float* ratio
                 )
 {
     size_t Nx = get_global_size(2), Ny = get_global_size(1);
@@ -892,6 +893,7 @@ __kernel void gradient(
         {
             grad[i].s45 = 0.0f;
         }
+//         grad[i] *= ratio[uk];
         i += NSl*Nx*Ny;
     }
 }
@@ -974,6 +976,7 @@ __kernel void divergence(
                 __global float8 *p,
                 const int NUk,
                 const float dz
+//                 __global float* ratio
                 )
 {
     size_t Nx = get_global_size(2), Ny = get_global_size(1);
@@ -1029,7 +1032,7 @@ __kernel void divergence(
             //imag
 //             val.s5 -= p[j-Nx*Ny].s5*ratio[j-Nx*Ny];
         }
-        div[i] = val.s01+val.s23+val.s45*dz;
+        div[i] = (val.s01+val.s23+val.s45*dz);
         // scale gradients
         i += NSl*Nx*Ny;
     }

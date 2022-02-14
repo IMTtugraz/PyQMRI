@@ -2186,7 +2186,7 @@ class OperatorFiniteGradient(Operator):
         super().__init__(par, prg, DTYPE, DTYPE_real)
         self.queue = self.queue[0]
         self.ctx = self.ctx[0]
-        self.ratio = None
+        # self.ratio = None
         self.tmp_grad_array = None
         self.precond = False
 
@@ -2230,11 +2230,17 @@ class OperatorFiniteGradient(Operator):
         self.prg.squarematvecmult(self.queue, inp.shape[1:], None,
             self.tmp_grad_array.data, self.precondmat.data, inp.data, np.int32(self.unknowns),
             wait_for=self.tmp_grad_array.events + inp.events + wait_for)
+        
+        
+        # import ipdb
+        # ipdb.set_trace()
+        
             
         return self.prg.gradient(
             self.queue, inp.shape[1:], None, out.data, self.tmp_grad_array.data,
             np.int32(self.unknowns),
             self.DTYPE_real(self._dz),
+            # self.ratio[0].data,
             wait_for=out.events + self.tmp_grad_array.events + wait_for)
 
     def fwdoop(self, inp, **kwargs):
@@ -2285,6 +2291,7 @@ class OperatorFiniteGradient(Operator):
             self.queue, inp.shape[1:], None, tmp_result.data, self.tmp_grad_array.data,
             np.int32(self.unknowns),
             self.DTYPE_real(self._dz),
+            # self.ratio[0].data,
             wait_for=tmp_result.events + self.tmp_grad_array.events + wait_for).wait()
         return tmp_result
 
@@ -2327,6 +2334,7 @@ class OperatorFiniteGradient(Operator):
                     self.queue, inp.shape[1:-1], None, self.tmp_grad_array.data, inp.data,
                     np.int32(self.unknowns),
                     self.DTYPE_real(self._dz),
+                    # self.ratio[0].data,
                     wait_for=self.tmp_grad_array.events + inp.events + wait_for)
             
         return self.prg.squarematvecmult_conj(self.queue, inp.shape[1:-1], None,
@@ -2377,6 +2385,7 @@ class OperatorFiniteGradient(Operator):
                     self.queue, inp.shape[1:-1], None, self.tmp_grad_array.data, inp.data,
                     np.int32(self.unknowns),
                     self.DTYPE_real(self._dz),
+                    # self.ratio[0].data,
                     wait_for=self.tmp_grad_array.events + inp.events + wait_for).wait()
             
         self.prg.squarematvecmult_conj(self.queue, inp.shape[1:-1], None,
@@ -4119,7 +4128,8 @@ class OperatorKspaceImageRecon(OperatorKspace):
     def __init__(self, par, prg, DTYPE=np.complex64,
                  DTYPE_real=np.float32, trafo=True):
         super().__init__(par, prg, DTYPE, DTYPE_real, trafo)
-
+        self.queue = self.queue[0]
+        
     def fwd(self, out, inp, **kwargs):
         """Forward operator application in-place.
 
@@ -4146,6 +4156,7 @@ class OperatorKspaceImageRecon(OperatorKspace):
             wait_for = kwargs["wait_for"]
         else:
             wait_for = []
+            
         self._tmp_result.add_event(
             self.prg.operator_fwd_imagerecon(
                 self.queue,
