@@ -411,7 +411,7 @@ def _estScaleNorm(myargs, par, images, data):
     # SNR_est = (np.abs(sig/noise))
     # par["SNR_est"] = SNR_est
     # print("Estimated SNR from kspace", SNR_est)
-    dscale = par["DTYPE_real"](np.sqrt(2*1e3*par["NSlice"]) / np.linalg.norm(np.abs(data)))
+    dscale = par["DTYPE_real"](par["NSlice"]*np.sqrt(2*1e3) / np.linalg.norm(np.abs(data)))
     # dscale = 1/np.quantile(np.abs(images), 0.9)
     print("Data scale: ", dscale)
     par["dscale"] = dscale
