@@ -68,7 +68,7 @@ class Model(BaseModel):
 
         self.constraints.append(
             constraints(0 / self.uk_scale[0],
-                        1e5 / self.uk_scale[0],
+                        1e2 / self.uk_scale[0],
                         False))
         self.constraints.append(
             constraints(np.exp(-self.TR / (50)),
@@ -152,7 +152,7 @@ class Model(BaseModel):
             #default setting 
             test_T1 = 1500 * np.ones(
                 kwargs['images'].shape[-3:], dtype=self._DTYPE)
-            test_M0 = 0*np.ones(
+            test_M0 = 1/self.dscale*np.ones(
                 kwargs['images'].shape[-3:], dtype=self._DTYPE)
         else:
             #custom initial guess

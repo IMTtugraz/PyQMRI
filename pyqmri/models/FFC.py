@@ -24,7 +24,7 @@ class Model(BaseModel):
             self.t = self.t[None]
 
         self.numT1Scale = len(self.b)
-        self.numC = 1#len(self.b)
+        self.numC = len(self.b)
         self.numAlpha = len(self.b)
 
         par["unknowns_TGV"] = self.numC + self.numAlpha + len(self.b)
@@ -46,8 +46,8 @@ class Model(BaseModel):
                             False))
         for j in range(self.numAlpha):
             self.constraints.append(
-                constraints(0,
-                            1.2,
+                constraints(0.1,
+                            2,
                             False))
         for j in range(self.numT1Scale):
             self.constraints.append(
@@ -60,8 +60,8 @@ class Model(BaseModel):
         for j in range(len(self.b)):
             self._labels.append(
                 "Field "+str(np.round(self.b[j]*1e3, 2))+" mT")
-        par["weights"] = 1*np.array([1]*self.numC+self.numAlpha*[10]+self.numT1Scale*[1],dtype=par["DTYPE_real"])
-        par["weights"][-self.numT1Scale:] *= np.abs(np.log(self.b[0])/np.log(self.b)).squeeze()
+        par["weights"] = 1*np.array([1]*self.numC+self.numAlpha*[10]+self.numT1Scale*[2],dtype=par["DTYPE_real"])
+        # par["weights"][-self.numT1Scale:] *= np.abs(np.log(self.b[0])/np.log(self.b)).squeeze()
 
     def rescale(self, x):
         tmp_x = np.copy(x)
@@ -102,7 +102,7 @@ class Model(BaseModel):
                 )
         S[~np.isfinite(S)] = 0
         S = np.array(S, dtype=self._DTYPE)
-        return S*self.dscale
+        return S*self.dscale*self.phase
 
     def _execute_gradient_3D(self, x):
 
@@ -111,7 +111,7 @@ class Model(BaseModel):
         gradT1 = self._gradT1(x)
 
         grad = np.concatenate((gradC, gradAlpha, gradT1), axis=0)
-        return grad*self.dscale
+        return grad*self.dscale*self.phase
 
     def _gradC(self, x):
         grad = np.zeros(
@@ -313,6 +313,7 @@ class Model(BaseModel):
 
     def computeInitialGuess(self, **kwargs):
         self.dscale = kwargs['dscale']
+        self.phase = 1#np.exp(1j*np.angle(kwargs["images"]))
         self.images = np.reshape(np.abs(kwargs['images']/kwargs['dscale']),
                                  self.t.shape+kwargs['images'].shape[-3:])
         
@@ -322,7 +323,7 @@ class Model(BaseModel):
         test_M0 = []
         for j in range(self.numC):
             test_M0.append(10*np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)*
-                np.exp(1j*np.angle(kwargs['images'][0])))
+                np.exp(1j*np.angle(kwargs['images'][j*len(self.b)])))
             # self.constraints[j].update(1/kwargs['dscale'])
         test_Xi = []
         for j in range(self.numAlpha):

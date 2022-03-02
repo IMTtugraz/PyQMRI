@@ -24,7 +24,7 @@ class Model(BaseModel):
             
         self.numT1Scale = len(self.b_pol)
         self.numC = 1#len(self.b_pol)
-        self.numAlpha = 1#len(self.b_pol)
+        self.numAlpha = len(self.b_pol)
 
         par["unknowns_TGV"] = self.numC + self.numAlpha + len(self.b_pol)
         par["unknowns_H1"] = 0
@@ -47,7 +47,7 @@ class Model(BaseModel):
             self.constraints.append(
                 constraints(0,
                             2,
-                            True))
+                            False))
         for j in range(self.numT1Scale):
             self.constraints.append(
                 constraints(t1min,
@@ -60,7 +60,7 @@ class Model(BaseModel):
             self._labels.append(
                 "Evo Field "+str(np.round(self.b_evo[j]*1e3, 2))+" mT")
         par["weights"] = 1*np.array([1]*self.numC+self.numAlpha*[10]+self.numT1Scale*[1],dtype=par["DTYPE_real"])
-        # par["weights"] *= 1/np.sum(par["weights"])
+        # par["weights"][-self.numT1Scale:] *= np.abs(np.log(self.b_evo[0])/np.log(self.b_evo)).squeeze()
 
     def rescale(self, x):
         tmp_x = np.copy(x)
@@ -99,7 +99,7 @@ class Model(BaseModel):
                 )
         S[~np.isfinite(S)] = 0
         S = np.array(S, dtype=self._DTYPE)
-        return S*self.dscale
+        return S*self.dscale*self.phase
 
     def _execute_gradient_3D(self, x):
 
@@ -108,7 +108,7 @@ class Model(BaseModel):
         gradT1 = self._gradT1(x)
 
         grad = np.concatenate((gradC, gradAlpha, gradT1), axis=0)
-        return grad*self.dscale
+        return grad*self.dscale*self.phase
 
     def _gradC(self, x):
         grad = np.zeros(
@@ -306,6 +306,7 @@ class Model(BaseModel):
 
     def computeInitialGuess(self, **kwargs):
         self.dscale = kwargs['dscale']
+        self.phase = np.exp(1j*np.angle(kwargs["images"]))
         self.images = np.reshape(np.abs(kwargs['images']/kwargs['dscale']),
                                  self.t.shape+kwargs['images'].shape[-3:])
         
@@ -314,8 +315,8 @@ class Model(BaseModel):
         
         test_M0 = []
         for j in range(self.numC):
-            test_M0.append(10*np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)*
-                np.exp(1j*np.angle(kwargs['images'][0])))
+            test_M0.append(10*np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE))#*
+                #np.exp(1j*np.angle(kwargs['images'][0])))
             # self.constraints[j].update(1/kwargs['dscale'])
         test_Xi = []
         for j in range(self.numAlpha):
@@ -327,7 +328,7 @@ class Model(BaseModel):
         # self.b_pol *= args[1]
         for j in range(self.numT1Scale):
             test_R1.append(
-                10 *
+                100 *
                 np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE))
             
             
