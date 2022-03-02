@@ -548,7 +548,7 @@ __kernel void update_z2(
     i = k*Nx*Ny+Nx*y + x;
     for (int uk=0; uk<NUk; uk++)
     {
-        if (fac/ratio[uk] > 1.0f) z_new[i] /= fac/ratio[uk];
+        if (fac > 1.0f) z_new[i] /= fac;
         i += NSl*Nx*Ny;
     }
 }
@@ -581,6 +581,7 @@ __kernel void update_z1(
 
     for (int uk=0; uk<NUk_tgv; uk++)
     {
+//         fac = 0.0f;
         z_new[i] = z[i] + sigma*(
             (1+theta)*gx[i]-theta*gx_[i]-((1+theta)*vx[i]-theta*vx_[i]));
 
@@ -611,7 +612,7 @@ __kernel void update_z1(
     i = k*Nx*Ny+Nx*y + x;
     for (int uk=0; uk<NUk_tgv; uk++)
     {
-        if (fac/ratio[uk] > 1.0f) z_new[i] /= fac/ratio[uk];
+        if (fac > 1.0f) z_new[i] /= fac;
         i += NSl*Nx*Ny;
     }
     i = NSl*Nx*Ny*NUk_tgv+k*Nx*Ny+Nx*y + x;
@@ -643,6 +644,7 @@ __kernel void update_z1_tv(
 
     for (int uk=0; uk<NUk_tgv; uk++)
     {
+//         fac = 0.0f;
         z_new[i] = z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]);
 
         // reproject
@@ -673,7 +675,7 @@ __kernel void update_z1_tv(
     i = k*Nx*Ny+Nx*y + x;
     for (int uk=0; uk<NUk_tgv; uk++)
     {
-        if (fac/ratio[uk] > 1.0f){z_new[i] /= fac/ratio[uk];}
+        if (fac > 1.0f){z_new[i] /= fac;}
         i += NSl*Nx*Ny;
     }
     i = NSl*Nx*Ny*NUk_tgv+k*Nx*Ny+Nx*y + x;
@@ -852,8 +854,8 @@ __kernel void gradient(
                 __global float8 *grad,
                 __global float2 *u,
                 const int NUk,
-                const float dz
-//                 __global float* ratio
+                const float dz,
+                __global float* ratio
                 )
 {
     size_t Nx = get_global_size(2), Ny = get_global_size(1);
@@ -893,7 +895,7 @@ __kernel void gradient(
         {
             grad[i].s45 = 0.0f;
         }
-//         grad[i] *= ratio[uk];
+        grad[i] *= ratio[uk];
         i += NSl*Nx*Ny;
     }
 }
@@ -975,8 +977,8 @@ __kernel void divergence(
                 __global float2 *div,
                 __global float8 *p,
                 const int NUk,
-                const float dz
-//                 __global float* ratio
+                const float dz,
+                __global float* ratio
                 )
 {
     size_t Nx = get_global_size(2), Ny = get_global_size(1);
@@ -1032,7 +1034,7 @@ __kernel void divergence(
             //imag
 //             val.s5 -= p[j-Nx*Ny].s5*ratio[j-Nx*Ny];
         }
-        div[i] = (val.s01+val.s23+val.s45*dz);
+        div[i] = (val.s01+val.s23+val.s45*dz)*ratio[uk];
         // scale gradients
         i += NSl*Nx*Ny;
     }
@@ -1281,8 +1283,7 @@ __kernel void operator_ad(
     float2 tmp_mul = 0.0f;
     float2 conj_grad = 0.0f;
     float2 conj_coils = 0.0f;
-
-
+    
     for (int uk=0; uk<Nuk; uk++)
     {
         float2 sum = (float2) 0.0f;
@@ -1322,7 +1323,8 @@ __kernel void update_Kyk1(
                 const int NCo,
                 const int NScan,
                 const int NUk,
-                const float dz
+                const float dz,
+                __global float* ratio
                 )
 {
     size_t X = get_global_size(2);
@@ -1393,7 +1395,7 @@ __kernel void update_Kyk1(
             val.s45 -= p[i-X*Y].s45;
         }
 
-        out[uk*NSl*X*Y+k*X*Y+y*X+x] = sum - (val.s01+val.s23+val.s45*dz);
+        out[uk*NSl*X*Y+k*X*Y+y*X+x] = sum - (val.s01+val.s23+val.s45*dz)*ratio[uk];
         i += NSl*X*Y;
     }
 }

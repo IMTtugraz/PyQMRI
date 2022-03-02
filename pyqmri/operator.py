@@ -955,6 +955,7 @@ class OperatorKspace(Operator):
             inp[3].data, inp[1].data, np.int32(self.NC),
             np.int32(self.NScan),
             np.int32(self.unknowns), self.DTYPE_real(self._dz),
+            self.ratio[0].data,
             wait_for=(self._tmp_result.events +
                       out.events + inp[1].events))
 
@@ -2186,7 +2187,6 @@ class OperatorFiniteGradient(Operator):
         super().__init__(par, prg, DTYPE, DTYPE_real)
         self.queue = self.queue[0]
         self.ctx = self.ctx[0]
-        # self.ratio = None
         self.tmp_grad_array = None
         self.precond = False
 
@@ -2222,6 +2222,7 @@ class OperatorFiniteGradient(Operator):
             self.queue, inp.shape[1:], None, out.data, inp.data,
             np.int32(self.unknowns),
             self.DTYPE_real(self._dz),
+            self.ratio[0].data,
             wait_for=out.events + inp.events + wait_for)
             
         if self.tmp_grad_array is None:
@@ -2231,16 +2232,11 @@ class OperatorFiniteGradient(Operator):
             self.tmp_grad_array.data, self.precondmat.data, inp.data, np.int32(self.unknowns),
             wait_for=self.tmp_grad_array.events + inp.events + wait_for)
         
-        
-        # import ipdb
-        # ipdb.set_trace()
-        
-            
         return self.prg.gradient(
             self.queue, inp.shape[1:], None, out.data, self.tmp_grad_array.data,
             np.int32(self.unknowns),
             self.DTYPE_real(self._dz),
-            # self.ratio[0].data,
+            self.ratio[0].data,
             wait_for=out.events + self.tmp_grad_array.events + wait_for)
 
     def fwdoop(self, inp, **kwargs):
@@ -2278,6 +2274,7 @@ class OperatorFiniteGradient(Operator):
                 self.queue, inp.shape[1:], None, tmp_result.data, inp.data,
                 np.int32(self.unknowns),
                 self.DTYPE_real(self._dz),
+                self.ratio[0].data,
                 wait_for=tmp_result.events + inp.events + wait_for).wait()
             return tmp_result
             
@@ -2291,7 +2288,7 @@ class OperatorFiniteGradient(Operator):
             self.queue, inp.shape[1:], None, tmp_result.data, self.tmp_grad_array.data,
             np.int32(self.unknowns),
             self.DTYPE_real(self._dz),
-            # self.ratio[0].data,
+            self.ratio[0].data,
             wait_for=tmp_result.events + self.tmp_grad_array.events + wait_for).wait()
         return tmp_result
 
@@ -2326,6 +2323,7 @@ class OperatorFiniteGradient(Operator):
                     self.queue, inp.shape[1:-1], None, out.data, inp.data,
                     np.int32(self.unknowns),
                     self.DTYPE_real(self._dz),
+                    self.ratio[0].data,
                     wait_for=out.events + inp.events + wait_for)
             
         if self.tmp_grad_array is None:
@@ -2334,7 +2332,7 @@ class OperatorFiniteGradient(Operator):
                     self.queue, inp.shape[1:-1], None, self.tmp_grad_array.data, inp.data,
                     np.int32(self.unknowns),
                     self.DTYPE_real(self._dz),
-                    # self.ratio[0].data,
+                    self.ratio[0].data,
                     wait_for=self.tmp_grad_array.events + inp.events + wait_for)
             
         return self.prg.squarematvecmult_conj(self.queue, inp.shape[1:-1], None,
@@ -2375,6 +2373,7 @@ class OperatorFiniteGradient(Operator):
                         self.queue, inp.shape[1:-1], None, tmp_result.data, inp.data,
                         np.int32(self.unknowns),
                         self.DTYPE_real(self._dz),
+                        self.ratio[0].data,
                         wait_for=tmp_result.events + inp.events + wait_for).wait()
             return tmp_result
         
@@ -2385,7 +2384,7 @@ class OperatorFiniteGradient(Operator):
                     self.queue, inp.shape[1:-1], None, self.tmp_grad_array.data, inp.data,
                     np.int32(self.unknowns),
                     self.DTYPE_real(self._dz),
-                    # self.ratio[0].data,
+                    self.ratio[0].data,
                     wait_for=self.tmp_grad_array.events + inp.events + wait_for).wait()
             
         self.prg.squarematvecmult_conj(self.queue, inp.shape[1:-1], None,
@@ -2393,11 +2392,17 @@ class OperatorFiniteGradient(Operator):
             wait_for=self.tmp_grad_array.events + tmp_result.events + wait_for).wait()
         return tmp_result
 
-    def updateRatio(self, inp):
+    def updatePrecondMat(self, inp):
         self.precondmat = clarray.to_device(
             self.queue,
             inp)
 
+    def updateRatio(self, inp):       
+            self.ratio = (
+                clarray.to_device(
+                    self.queue,
+                    self._weights*inp.astype(
+                        dtype=self.DTYPE_real)))
 
 class OperatorFiniteSymGradient(Operator):
     """Symmetrized gradient operator.
@@ -2763,6 +2768,9 @@ class OperatorFiniteGradientStreamed(Operator):
         return self._stream_grad
 
     def updateRatio(self, inp):
+        pass
+    
+    def updatePrecondMat(self, inp):
         pass
         # for j in range(self.num_dev):
         #     self.ratio = clarray.to_device(

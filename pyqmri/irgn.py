@@ -320,13 +320,14 @@ class IRGNOptimizer:
             self._step_val = np.nan_to_num(
                 self._model.execute_forward(result))
                 
-            # Precond only for image data!!!!
-            if ign >= 0:
+            # Use this to enable Preconditioning at a certain IGN step.
+            if ign < 0:
                 self.precond = True
                 self._pdop.precond = True
                 self._pdop._grad_op.precond = True
                 if self._reg_type == 'TGV':
                     self._pdop._symgrad_op.precond = True
+                # Switch between pointwise and average preconditioning
                 if False:
                     self._balanceModelGradientsAverage(result, ign)
                 else:
@@ -341,15 +342,10 @@ class IRGNOptimizer:
                     if self._reg_type == 'TGV':
                         self._pdop._symgrad_op.precond = False
                 self._balanceModelGradientsNorm(result, ign)
-                # scale = (result*np.array(self._model.uk_scale)[:,None,None,None]).reshape(self.par["unknowns"], -1)
-                # scale = np.linalg.norm(np.abs(scale), axis=-1)
-                # scale = 1e2/scale
-                # scale[~np.isfinite(scale)] = 1
-                # self._pdop._op.updateRatio(np.array(self._model.uk_scale)*scale)
             
             self._updateIRGNRegPar(ign)
             if self.precond:
-                self._pdop._grad_op.updateRatio(np.require(self.UTE
+                self._pdop._grad_op.updatePrecondMat(np.require(self.UTE
                                           ,requirements='C'))
                 self._pdop._grad_op.irgn = self
 
@@ -437,7 +433,7 @@ class IRGNOptimizer:
         
         jacobi = np.require(jacobi.T, requirements='C')
         
-        cutoff = 1e3
+        cutoff = 1e1
 
         maxval = 0
         minval = 1e30
@@ -455,7 +451,7 @@ class IRGNOptimizer:
             maxval = np.maximum(maxval, np.max((E[j])))
             minval = np.minimum(minval, np.min((E[j])))
   
-            self.UTE[j] = (np.conj(U[j].T)@np.diag(einv))
+            self.UTE[j] = np.conj(U[j].T)@np.diag(einv)
             self.UT[j] = np.diag(einv)
             self.EU[j] = np.diag(1/einv)@U[j]
             
@@ -465,6 +461,7 @@ class IRGNOptimizer:
         
         print("Mean Eigenvalues: ", np.mean(E, axis=0).real)
             
+        # self._pdop._grad_op.updateRatio(1/np.mean(E, axis=0).real)
         
         V = np.require(np.transpose(V, (2,1,0)), requirements='C')
 
@@ -472,10 +469,6 @@ class IRGNOptimizer:
         
         self.UTE = np.require(self.UTE.transpose(1,2,0), requirements='C')
         self.UT = np.require(self.UT.transpose(1,2,0), requirements='C')
-        # import ipdb
-        # import matplotlib.pyplot as plt
-        # import pyqmri
-        # ipdb.set_trace()
         
         self.EU = np.require(self.EU.transpose(1,2,0), requirements='C')
         
@@ -487,30 +480,34 @@ class IRGNOptimizer:
         
         scale = self._modelgrad.reshape(self.par["unknowns"], self.par["NScan"], -1)
 
-        tmp = np.quantile(scale, 0.85, axis=-1)
+        tmp = np.mean(scale, axis=-1)
+        
         V, eigvals, U = spl.svd(tmp.T)
         
         jacobi = self._modelgrad.reshape(*self._modelgrad.shape[:2], -1)
         
         self.k = np.minimum(*self._modelgrad.shape[:2])
-        
+        # U = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
+        # V = np.zeros((jacobi.shape[-1], self._modelgrad.shape[1], self.k), dtype=self.par["DTYPE"])
+        # E = np.zeros((jacobi.shape[-1], self.k), dtype=self.par["DTYPE"])
         self.UTE = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
         self.EU = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
         
         jacobi = np.require(jacobi.T, requirements='C')
         
-        cutoff = np.inf
+        cutoff = 5e1
         
         einv = 1/(eigvals)
         einv[~np.isfinite(einv)] = cutoff*einv[0]
         einv[einv/einv[0] > cutoff] = cutoff*einv[0]
         
         for j in range(jacobi.shape[0]):
-
+            # V[j], E[j], U[j] = spl.svd(jacobi[j], full_matrices=False)
+            # V[j] = V[j]@np.diag(eigvals)@np.diag(einv)
+            jacobi[j] = jacobi[j]@np.conj(U.T)@np.diag(einv)
             
-            jacobi[j] = jacobi[j]@np.conj(U.T)@np.conj(np.diag(einv))
             
-            self.UTE[j] = (np.conj(U.T)@np.conj(np.diag(einv)))
+            self.UTE[j] = np.conj(U.T)@np.diag(einv)
             self.EU[j] = np.diag(1/einv)@U
             
             
@@ -549,7 +546,7 @@ class IRGNOptimizer:
         print("Initial Ratio: ", scale)
         scale /= 1e2/np.sqrt(self.par["unknowns"])
         scale = 1/scale
-        scale[~np.isfinite(scale)] = 1e2/np.sqrt(self.par["unknowns"])
+        scale[~np.isfinite(scale)] = 1
         for uk in range(self.par["unknowns"]):
             self._model.constraints[uk].update(scale[uk])
             result[uk, ...] *= self._model.uk_scale[uk]
@@ -721,7 +718,7 @@ class IRGNOptimizer:
                 x.events).wait()
             x = x.get()
             grad = grad.get()
-            # grad *= self.par["weights"][:,None,None,None,None]
+            grad *= self.par["weights"][:,None,None,None,None]
             grad = [grad]
         sym_grad = None
         if self._reg_type == 'TGV':
