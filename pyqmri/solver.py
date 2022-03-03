@@ -1071,7 +1071,7 @@ class PDBaseSolver:
 
             # self.tau = tau
             
-            if not np.mod(i+1, 100):
+            if not np.mod(i+1, 10):
                 if self.display_iterations:
                     if isinstance(primal_vars["x"], np.ndarray):
                         self.model.plot_unknowns(

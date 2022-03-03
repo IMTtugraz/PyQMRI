@@ -291,7 +291,6 @@ def _genImages(myargs, par, data, off):
             end = time.time()-start
             print("FT took %f s" % end)
             return result
-        
         images = np.require(np.sum(nFTH(data, FFT, par) *
                                    (np.conj(par["C"])), axis=1),
                             requirements='C')
@@ -514,15 +513,17 @@ def _read_data_from_file(par, myargs):
             par["traj"][..., -2, :]-par["traj"][..., -1, :], axis=-1))
         overgrid_factor_b = (1/np.linalg.norm(
             par["traj"][..., 0, :]-par["traj"][..., 1, :], axis=-1))
-        par["ogf"] = np.min((overgrid_factor_a,
-                             overgrid_factor_b))
+        par["ogf"] = np.round(np.min((overgrid_factor_a,
+                             overgrid_factor_b)),1)
+        
         print("Estimated OGF: ", par["ogf"])
         par["traj"] *= par["ogf"]
+        par["ogf"]
     else:
         par["traj"] = None
         par["dcf"] = None
-    
-    if (myargs.trafo and np.max(utils.prime_factors(data.shape[-1])) > 13) or \
+
+    if (myargs.trafo and np.max(utils.prime_factors(np.ceil(par["ogf"]*dimX))) > 13) or \
         (not myargs.trafo and \
         (np.max(utils.prime_factors(data.shape[-1])) > 13 or \
         np.max(utils.prime_factors(data.shape[-2])) > 13)):
@@ -530,7 +531,7 @@ def _read_data_from_file(par, myargs):
             print("Samples along the spoke need to have their largest prime factor"
                 " to be 13 or lower. Finding next smaller grid.")
             dimreduction = 2
-            while np.max(utils.prime_factors(data.shape[-1]-dimreduction)) > 13:
+            while np.max(utils.prime_factors(np.ceil(par["ogf"]*dimX)-dimreduction)) > 13:
                 dimreduction += 2
             print('Decrease grid size by %i' % dimreduction)
             dimX -= dimreduction
@@ -771,7 +772,6 @@ def _start_recon(myargs):
 # Standardize data ############################################################
 ###############################################################################
     [NScan, NC] = data.shape[:2]
-
     if myargs.trafo:
         if par["file"].attrs['data_normalized_with_dcf']:
             pass

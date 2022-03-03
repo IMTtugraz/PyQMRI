@@ -315,7 +315,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
             np.sqrt(np.prod(self.fft_shape[self.fft_dim[0]:])))
 
         (kerneltable, kerneltable_FT) = calckbkernel(
-            kwidth, self.ogf, par["N"], klength)
+            kwidth, self.ogf, int(self.ogf*par["dimX"]), klength)
 
         deapo = 1 / kerneltable_FT.astype(DTYPE_real)
 
@@ -400,7 +400,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
             self.prg.grid_lut(
                 self.queue,
                 (s.shape[0], s.shape[1] * s.shape[2],
-                 s.shape[-2] * self._gridsize),
+                 s.shape[-2] * s.shape[-1]),
                 None,
                 self._tmp_fft_array.data,
                 s.data,
@@ -444,6 +444,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
                 self._tmp_fft_array.data,
                 self._check.data,
                 wait_for=fft_events))
+
         return self.prg.deapo_adj(
             self.queue,
             (sg.shape[0] * sg.shape[1] *
@@ -537,7 +538,7 @@ class PyOpenCLRadialNUFFT(PyOpenCLnuFFT):
         return self.prg.invgrid_lut(
             self.queue,
             (s.shape[0], s.shape[1] * s.shape[2], s.shape[-2] *
-             self._gridsize),
+             s.shape[-1]),
             None,
             s.data,
             self._tmp_fft_array.data,
