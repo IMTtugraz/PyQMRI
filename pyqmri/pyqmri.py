@@ -523,7 +523,7 @@ def _read_data_from_file(par, myargs):
         par["traj"] = None
         par["dcf"] = None
 
-    if (myargs.trafo and np.max(utils.prime_factors(np.ceil(par["ogf"]*dimX))) > 13) or \
+    if (myargs.trafo and np.max(utils.prime_factors(par["ogf"]*dimX)) > 13) or \
         (not myargs.trafo and \
         (np.max(utils.prime_factors(data.shape[-1])) > 13 or \
         np.max(utils.prime_factors(data.shape[-2])) > 13)):
@@ -531,7 +531,7 @@ def _read_data_from_file(par, myargs):
             print("Samples along the spoke need to have their largest prime factor"
                 " to be 13 or lower. Finding next smaller grid.")
             dimreduction = 2
-            while np.max(utils.prime_factors(np.ceil(par["ogf"]*dimX)-dimreduction)) > 13:
+            while np.max(utils.prime_factors((par["ogf"]*dimX)-dimreduction)) > 13:
                 dimreduction += 2
             print('Decrease grid size by %i' % dimreduction)
             dimX -= dimreduction
