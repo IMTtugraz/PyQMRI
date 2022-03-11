@@ -812,7 +812,7 @@ def _start_recon(myargs):
 ###############################################################################
 # Reconstruct images using CG-SENSE  ##########################################
 ###############################################################################
-    del par["file"]["images"]
+    # del par["file"]["images"]
     images = _genImages(myargs, par, data, off)
     # import ipdb
     # import pyqmri
