@@ -686,6 +686,7 @@ class OperatorImagespace(Operator):
             np.int32(self.NScan),
             np.int32(self.unknowns),
             self.DTYPE_real(self._dz),
+            self.ratio[0].data,
             wait_for=(inp[0].events + out.events
                       + inp[1].events + wait_for))
 
@@ -1222,6 +1223,7 @@ class OperatorKspaceSMS(Operator):
             inp[3].data, inp[1].data, np.int32(self.NC),
             np.int32(self.NScan),
             np.int32(self.unknowns), self.DTYPE_real(self._dz),
+            self.ratio[0].data,
             wait_for=(self._tmp_result.events +
                       out.events + inp[1].events))
 
@@ -1448,6 +1450,7 @@ class OperatorImagespaceStreamed(Operator):
             np.int32(self.NScan),
             np.int32(self.unknowns),
             np.int32(bound_cond), self.DTYPE_real(self._dz),
+            self.ratio[idx].data,
             wait_for=(outp.events+inp[0].events+inp[1].events +
                       inp[3].events+wait_for))
 
@@ -1731,6 +1734,7 @@ class OperatorKspaceStreamed(Operator):
             inp[1].data, np.int32(self.NC), np.int32(self.NScan),
             np.int32(self.unknowns),
             np.int32(bound_cond), self.DTYPE_real(self._dz),
+            self.ratio[idx].data,
             wait_for=(
                 self._tmp_result[2*idx+idxq].events +
                 outp.events+inp[1].events +
@@ -2126,6 +2130,7 @@ class OperatorKspaceSMSStreamed(Operator):
             inp[1].data,
             np.int32(self.unknowns),
             np.int32(bound_cond), self.DTYPE_real(self._dz),
+            self.ratio[idx].data,
             wait_for=(
                 inp[0].events +
                 outp.events+inp[1].events +

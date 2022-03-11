@@ -108,7 +108,7 @@ class Model(BaseModel):
         self.constraints.append(
             constraints(
                 #(0 / self.uk_scale[7]),
-                (0.001 / self.uk_scale[7]),     
+                (1e-6 / self.uk_scale[7]),     
                 (1 / self.uk_scale[7]),
                 True))
         self.constraints.append(
@@ -117,6 +117,10 @@ class Model(BaseModel):
                 (300 / self.uk_scale[8]),
                 True))
         
+        par["weights"] = 1*np.array([1]*len(self.constraints),dtype=par["DTYPE_real"])
+        # par["weights"][0] *= 1e1
+        # par["weights"][1:-2] *= 0.5
+        # par["weights"][-2:] *= 0.1
         self.guess = None
         self.phase = None
 
@@ -288,7 +292,7 @@ class Model(BaseModel):
         if np.allclose(kwargs['initial_guess'],-1):
             #default setting
             ADC = 1 * np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)
-            f = 0.1 * np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)
+            f = 0.5 * np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)
             ADC_ivim = 50 * np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)
         else:
             assert len(kwargs['initial_guess']) == 3
