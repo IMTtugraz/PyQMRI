@@ -503,44 +503,44 @@ __kernel void update_z2(
         z_new[i] = z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]);
 
         // reproject
-        square = powr(z_new[i], 2);
-        fac += (square.s0+square.s1+square.s2+square.s3+square.s4+square.s5
-                    +4.0f*(square.s6+square.s7+square.s8+square.s9+square.sa+square.sb));
-//         fac = hypot(fac,hypot(
-//             hypot(
-//               hypot(
-//                 hypot(
-//                   z_new[i].s0,
-//                   z_new[i].s1
-//                   ),
-//               hypot(
-//                 z_new[i].s2,
-//                 z_new[i].s3
-//                 )
-//               ),
-//             hypot(
-//               z_new[i].s4,
-//               z_new[i].s5
-//               )
-//             ),
-//           hypot(
-//             hypot(
-//               2.0f*hypot(
-//                 z_new[i].s6,
-//                 z_new[i].s7
-//                 ),
-//               2.0f*hypot(
-//                 z_new[i].s8,
-//                 z_new[i].s9
-//                 )
-//               ),
-//             2.0f*hypot(
-//               z_new[i].sa,
-//               z_new[i].sb
-//               )
-//             )
-//           )
-//         );
+//         square = powr(z_new[i], 2);
+//         fac += (square.s0+square.s1+square.s2+square.s3+square.s4+square.s5
+//                     +4.0f*(square.s6+square.s7+square.s8+square.s9+square.sa+square.sb));
+        fac = hypot(fac,hypot(
+            hypot(
+              hypot(
+                hypot(
+                  z_new[i].s0,
+                  z_new[i].s1
+                  ),
+              hypot(
+                z_new[i].s2,
+                z_new[i].s3
+                )
+              ),
+            hypot(
+              z_new[i].s4,
+              z_new[i].s5
+              )
+            ),
+          hypot(
+            hypot(
+              2.0f*hypot(
+                z_new[i].s6,
+                z_new[i].s7
+                ),
+              2.0f*hypot(
+                z_new[i].s8,
+                z_new[i].s9
+                )
+              ),
+            2.0f*hypot(
+              z_new[i].sa,
+              z_new[i].sb
+              )
+            )
+          )
+        );
 
         i += NSl*Nx*Ny;
     }
@@ -587,26 +587,26 @@ __kernel void update_z1(
             (1+theta)*gx[i]-theta*gx_[i]-((1+theta)*vx[i]-theta*vx_[i]));
 
         // reproject
-        square = powr(z_new[i], 2);
-        fac += (square.s0+square.s1+square.s2+square.s3+square.s4+square.s5);
-//         fac = hypot(fac,
-//           hypot(
-//             hypot(
-//               z_new[i].s0,
-//               z_new[i].s1
-//               ),
-//             hypot(
-//               hypot(
-//                 z_new[i].s2,
-//                 z_new[i].s3
-//                 ),
-//               hypot(
-//                 z_new[i].s4,
-//                 z_new[i].s5
-//                 )
-//               )
-//             )
-//           );
+//         square = powr(z_new[i], 2);
+//         fac += (square.s0+square.s1+square.s2+square.s3+square.s4+square.s5);
+        fac = hypot(fac,
+          hypot(
+            hypot(
+              z_new[i].s0,
+              z_new[i].s1
+              ),
+            hypot(
+              hypot(
+                z_new[i].s2,
+                z_new[i].s3
+                ),
+              hypot(
+                z_new[i].s4,
+                z_new[i].s5
+                )
+              )
+            )
+          );
         i += NSl*Nx*Ny;
     }
     fac = sqrt(fac);
