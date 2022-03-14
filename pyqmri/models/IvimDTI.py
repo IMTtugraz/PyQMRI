@@ -45,6 +45,8 @@ class Model(BaseModel):
     
     def __init__(self, par):
         super().__init__(par)
+          
+        self.outdir = par["outdir"]
 
         self.b = np.ones((self.NScan, 1, 1, 1))
         self.dir = par["DWI_dir"].T
@@ -296,14 +298,18 @@ class Model(BaseModel):
             ADC_ivim = 50 * np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)
         else:
             assert len(kwargs['initial_guess']) == 3
-            
-            ADC = kwargs['initial_guess'][0] * np.ones(
+            #ADC into Cholesky coefficient 
+            ADC = np.sqrt(kwargs['initial_guess'][0]) * np.ones(
                 kwargs['images'].shape[-3:], dtype=self._DTYPE)
             f = kwargs['initial_guess'][-2] * np.ones(
                 kwargs['images'].shape[-3:], dtype=self._DTYPE)
             ADC_ivim = kwargs['initial_guess'][-1] * np.ones(
                 kwargs['images'].shape[-3:], dtype=self._DTYPE)
-
+       
+        with open(self.outdir+"initial_guess.txt", 'w') as file:
+            file.write('ADC '+np.array2string(np.absolute(np.square(np.unique(ADC))))+ ' \n')
+            file.write('f '+np.array2string(np.absolute(np.unique(f)))+' \n')
+            file.write('Ds '+np.array2string(np.absolute(np.unique(ADC_ivim))))
 
         x = np.array(
                 [
