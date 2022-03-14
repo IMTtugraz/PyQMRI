@@ -22,7 +22,7 @@ lint-job:
         paths: 
             - pylint.log
 
-test-dsingle-on-cpu:
+test-single-on-cpu:
     stage: unittests
     image: registry.gitlab.tugraz.at/f23b736137140d66/pyqmri_private/amd_build
     tags: [cpu]
