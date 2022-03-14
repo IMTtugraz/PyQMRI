@@ -544,7 +544,7 @@ __kernel void update_z2(
 
         i += NSl*Nx*Ny;
     }
-    fac = sqrt(fac);
+//     fac = sqrt(fac);
     fac *= alphainv;
     i = k*Nx*Ny+Nx*y + x;
     for (int uk=0; uk<NUk; uk++)
@@ -609,7 +609,7 @@ __kernel void update_z1(
           );
         i += NSl*Nx*Ny;
     }
-    fac = sqrt(fac);
+//     fac = sqrt(fac);
     fac *= alphainv;
     i = k*Nx*Ny+Nx*y + x;
     for (int uk=0; uk<NUk_tgv; uk++)
