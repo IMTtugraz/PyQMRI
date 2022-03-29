@@ -51,9 +51,14 @@ class CGSolver:
         self._dimY = par["dimY"]
         self._NC = par["NC"]
         self._queue = par["queue"][0]
-        file = open(
-            resource_filename(
-                'pyqmri', 'kernels/OpenCL_Kernels.c'))
+        if par["DTYPE"] == np.complex64:
+            file = open(
+                resource_filename(
+                    'pyqmri', 'kernels/OpenCL_Kernels.c'))
+        else:
+            file = open(
+                resource_filename(
+                    'pyqmri', 'kernels/OpenCL_Kernels_double.c'))
         self._prg = Program(
             par["ctx"][0],
             file.read())
