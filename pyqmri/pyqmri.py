@@ -112,10 +112,10 @@ def _precoompFFT(data, par):
                      np.all(np.abs(data[0, 0, 1, 0, :])) or
                      np.all(np.abs(data[0, 0, 1, 1, :])))
 
-        full_dimZ = False#(np.all(np.abs(data[0, 0, :, 0, 0:])) or
-                     # np.all(np.abs(data[0, 0, :, 1, 1])) or
-                     # np.all(np.abs(data[0, 0, :, 0, 1])) or
-                     # np.all(np.abs(data[0, 0, :, 1, 0])))
+        full_dimZ = (np.all(np.abs(data[0, 0, :, 0, 0:])) or
+                      np.all(np.abs(data[0, 0, :, 1, 1])) or
+                      np.all(np.abs(data[0, 0, :, 0, 1])) or
+                      np.all(np.abs(data[0, 0, :, 1, 0])))
     else:
         full_dimY = (np.all(np.abs(data[0, 0, 0, :, 0])) or
                      np.all(np.abs(data[0, 0, 0, :, 1])))
@@ -755,7 +755,13 @@ def _start_recon(myargs):
                                 myargs.trafo, 
                                 myargs.dz)
     if not myargs.trafo:
-        tmpmask = np.ones(data.shape[2:])
+        # max_val = 1
+        # w_x = np.abs(np.linspace(-max_val / 2, max_val / 2, par["dimX"]))**3
+        # w_x = w_x/np.max(w_x)
+        # w_y = np.abs(np.linspace(-max_val / 2, max_val / 2, par["dimY"]))**3
+        # w_y = w_y/np.max(w_y)
+
+        tmpmask = np.ones(data.shape[2:])#*(w_y[:,None]@w_x[None,:]))
         tmpmask[np.abs(data[0, 0, ...]) == 0] = 0
         par['mask'] = np.reshape(
             tmpmask,
@@ -802,13 +808,17 @@ def _start_recon(myargs):
     if myargs.sig_model == "GeneralModel":
         par["modelfile"] = myargs.modelfile
         par["modelname"] = myargs.modelname
-    model = sig_model.Model(par)
+        
     if np.allclose(myargs.weights, -1):
         if "weights" not in par.keys():
             par["weights"] = np.ones(
                 (par["unknowns"]), dtype=par["DTYPE_real"])
     else:
         par["weights"] = np.array(myargs.weights, dtype=par["DTYPE_real"])
+        
+    model = sig_model.Model(par)
+
+
 ###############################################################################
 # Reconstruct images using CG-SENSE  ##########################################
 ###############################################################################
@@ -830,6 +840,8 @@ def _start_recon(myargs):
         dscale = par["dscale"],
         weights = myargs.weights,
         initial_guess = myargs.initial_guess)
+    
+    # par["weights"] *= model.uk_scale
 ###############################################################################
 # initialize operator  ########################################################
 ###############################################################################

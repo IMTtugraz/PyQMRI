@@ -95,6 +95,7 @@ class Model(BaseModel):
         
         self.guess = None
         self.phase = None
+        self.weights = par["weights"]
 
     def rescale(self, x):
         """Rescale the unknowns with the scaling factors. 
@@ -214,7 +215,8 @@ class Model(BaseModel):
         with open(self.outdir+"initial_guess.txt", 'w') as file:
             file.write('ADC '+np.array2string(np.absolute(np.unique(ADC)))+' \n')
             file.write('f '+np.array2string(np.absolute(np.unique(f)))+' \n')
-            file.write('Ds '+np.array2string(np.absolute(np.unique(ADC_ivim))))    
+            file.write('Ds '+np.array2string(np.absolute(np.unique(ADC_ivim)))+'\n')    
+            file.write("Weights:" + np.array2string(self.weights))
 
         x = np.array(
                 [

@@ -71,24 +71,24 @@ class Model(BaseModel):
                         np.pi,
                         True))
         self.constraints.append(
-            constraints(-np.pi,
-                        np.pi,
+            constraints(-10*np.pi,
+                        10*np.pi,
                         True))
         self.constraints.append(
-            constraints(-np.pi,
-                        np.pi,
+            constraints(-10*np.pi,
+                        10*np.pi,
                         True))
         self.constraints.append(
-            constraints(-np.pi,
-                        np.pi,
+            constraints(-10*np.pi,
+                        10*np.pi,
                         True))
         self.constraints.append(
-            constraints(-np.pi,
-                        np.pi,
+            constraints(-10*np.pi,
+                        10*np.pi,
                         True))
         self.constraints.append(
-            constraints(-np.pi,
-                        np.pi,
+            constraints(-10*np.pi,
+                        10*np.pi,
                         True))
         
     def rescale(self, x):
@@ -147,7 +147,7 @@ class Model(BaseModel):
 
         S[~np.isfinite(S)] = 1e-20
         S = np.array(S, dtype=self._DTYPE)
-        return S
+        return S*self.dscale
 
     def _execute_gradient_3D(self, x):
                
@@ -190,7 +190,7 @@ class Model(BaseModel):
                                )
                               )
         grad[~np.isfinite(grad)] = 1e-20
-        return grad
+        return grad*self.dscale
 
     def computeInitialGuess(self, **kwargs):
         """Initialize unknown array for the fitting.
@@ -203,8 +203,8 @@ class Model(BaseModel):
             Serves as universal interface. No objects need to be passed
             here.
         """
-        
-        M0_init = np.abs(kwargs["images"])#np.abs(args[0])
+        self.dscale = kwargs["dscale"]
+        M0_init = np.abs(kwargs["images"])/self.dscale
         R2_init = 1/50 * np.ones(
             (M0_init.shape[-3:]), dtype=self._DTYPE)
         
@@ -236,7 +236,7 @@ class Model(BaseModel):
         #     np.conj(np.exp(1j*self.neg_offset*phase_neg))
         #     )
         
-        x = np.concatenate((M0_init.astype(self._DTYPE),
+        self.guess = np.concatenate((M0_init.astype(self._DTYPE),
                             np.array([
                             bss_est,
                             del_b0,
@@ -246,10 +246,3 @@ class Model(BaseModel):
                             0*R2_init], dtype=self._DTYPE)
                             )
                            )
-        x_scale = np.max(np.abs(x).reshape(x.shape[0], -1), axis=-1)
-        x_scale[x_scale==0] = 1
-        self.uk_scale = x_scale
-        self.guess = x/x_scale[:,None,None,None]
-        for uk in range(self.unknowns):
-            self.constraints[uk].update(x_scale[uk])
-

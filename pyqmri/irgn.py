@@ -321,7 +321,7 @@ class IRGNOptimizer:
                 self._model.execute_forward(result))
                 
             # Use this to enable Preconditioning at a certain IGN step.
-            if ign < 0:
+            if ign >= 0:
                 self.precond = True
                 self._pdop.precond = True
                 self._pdop._grad_op.precond = True
@@ -433,7 +433,7 @@ class IRGNOptimizer:
         
         jacobi = np.require(jacobi.T, requirements='C')
         
-        cutoff = 1e1
+        cutoff = 1e2
 
         maxval = 0
         minval = 1e30
@@ -455,9 +455,9 @@ class IRGNOptimizer:
             self.UT[j] = np.diag(einv)
             self.EU[j] = np.diag(1/einv)@U[j]
             
-        print("Maximum Eigenvalue: ", maxval)
-        print("Minimum Eigenvalue: ", minval)
-        print("Condition number: ", maxval/minval)
+        print("Maximum Eigenvalue: ", maxval.real)
+        print("Minimum Eigenvalue: ", minval.real)
+        print("Condition number: ", maxval.real/minval.real)
         
         print("Mean Eigenvalues: ", np.mean(E, axis=0).real)
             
@@ -494,8 +494,8 @@ class IRGNOptimizer:
         self.EU = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
         
         jacobi = np.require(jacobi.T, requirements='C')
-        
-        cutoff = 5e1
+    
+        cutoff = 1e1
         
         einv = 1/(eigvals)
         einv[~np.isfinite(einv)] = cutoff*einv[0]
@@ -733,7 +733,7 @@ class IRGNOptimizer:
                 wait_for=sym_grad.events +
                 v.events).wait()
             sym_grad = sym_grad.get()
-            sym_grad *= self.par["weights"][:,None,None,None,None]
+            # sym_grad *= self.par["weights"][:,None,None,None,None]
 
         return b, grad, sym_grad
 

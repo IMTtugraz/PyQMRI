@@ -44,6 +44,17 @@ class Model(BaseModel):
         par["unknowns_TGV"] = 3
         par["unknowns_H1"] = 0
         par["unknowns"] = par["unknowns_TGV"]+par["unknowns_H1"]
+        
+        self.init_M0 = None
+        self.init_R2 = None
+        self.init_B0 = None
+        
+        if "M0" in par["file"].keys():
+            self.init_M0 = par["file"]["M0"][()]
+        if "B0" in par["file"].keys():
+            self.init_B0 = par["file"]["B0"][()]
+        if "R2" in par["file"].keys():
+            self.init_R2 = par["file"]["R2"][()]
 
         for j in range(par["unknowns"]):
             self.uk_scale.append(1)
@@ -136,7 +147,7 @@ class Model(BaseModel):
             here.
         """
         self.dscale = kwargs["dscale"]
-        self.images = np.real(kwargs["images"]/self.dscale)
+        self.images = np.abs(kwargs["images"]/self.dscale)
         
         phase = np.angle(kwargs["images"])
         for j in range(phase.shape[0]):
@@ -159,10 +170,20 @@ class Model(BaseModel):
         # test_M0 = 1e-5 * np.ones(
         #     (self.NSlice, self.dimY, self.dimX),
         #     dtype=self._DTYPE)
-        test_M0 = (kwargs["images"][0])/self.dscale
-        test_R2s = 20 * np.ones(
-            (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
-       	test_B0 = del_b0
+        if self.init_M0 is not None:
+            test_M0 = self.init_M0
+        else:
+            test_M0 = (kwargs["images"][0])/self.dscale
+            
+        if self.init_R2 is not None:
+            test_R2s = self.init_R2
+        else:
+            test_R2s = 50 * np.ones(
+                (self.NSlice, self.dimY, self.dimX), dtype=self._DTYPE)
+        if self.init_B0 is not None:
+            test_B0 = self.init_B0
+        else:
+            test_B0 = del_b0
 
         self.guess = np.array([
             test_M0,
@@ -176,7 +197,7 @@ class Model(BaseModel):
         tmp_x = unknowns["data"]
         uknames = unknowns["unknown_name"]
 
-        images = np.real(self._execute_forward_3D(x) / self.dscale)
+        images = np.abs(self._execute_forward_3D(x) / self.dscale)
         images = np.reshape(images, self.TE.shape+images.shape[-3:])
 
         tmp_x[0] = np.abs(tmp_x[0])
