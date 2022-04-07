@@ -2402,12 +2402,12 @@ class OperatorFiniteGradient(Operator):
             self.queue,
             inp)
 
-    def updateRatio(self, inp):       
-            self.ratio = (
-                clarray.to_device(
-                    self.queue,
-                    self._weights*inp.astype(
-                        dtype=self.DTYPE_real)))
+    def updateRatio(self, inp):      
+        self.ratio = (
+            clarray.to_device(
+                self.queue,
+                self._weights*inp.astype(
+                    dtype=self.DTYPE_real)))
 
 class OperatorFiniteSymGradient(Operator):
     """Symmetrized gradient operator.
@@ -2773,15 +2773,15 @@ class OperatorFiniteGradientStreamed(Operator):
         return self._stream_grad
 
     def updateRatio(self, inp):
-        pass
+        for j in range(self.num_dev):
+            self.ratio = clarray.to_device(
+                self.queue[4*j],
+                (self._weights*inp).astype(
+                          dtype=self.DTYPE_real))
     
     def updatePrecondMat(self, inp):
-        pass
-        # for j in range(self.num_dev):
-        #     self.ratio = clarray.to_device(
-        #         self.queue[4*j],
-        #         (self._weights*inp).astype(
-        #                  dtype=self.DTYPE_real))
+        raise(NotImplementedError("Streamed and Preconditioning is not implemented."))
+
     # def updateRatio(self, inp):
     #     x = np.require(np.swapaxes(inp, 0, 1), requirements='C')
     #     grad = np.zeros(x.shape + (4,), dtype=self.DTYPE)

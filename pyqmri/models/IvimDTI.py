@@ -119,7 +119,6 @@ class Model(BaseModel):
                 (300 / self.uk_scale[8]),
                 True))
         
-        self.weights = par["weights"]
         # par["weights"] = 1*np.array([1]*len(self.constraints),dtype=par["DTYPE_real"])
         # par["weights"][0] *= 1e1
         # par["weights"][1:-2] *= 0.5
@@ -306,6 +305,8 @@ class Model(BaseModel):
                 kwargs['images'].shape[-3:], dtype=self._DTYPE)
             ADC_ivim = kwargs['initial_guess'][-1] * np.ones(
                 kwargs['images'].shape[-3:], dtype=self._DTYPE)
+            
+        self.weights = kwargs["weights"]
        
         with open(self.outdir+"initial_guess.txt", 'w') as file:
             file.write('ADC '+np.array2string(np.absolute(np.square(np.unique(ADC))))+ ' \n')

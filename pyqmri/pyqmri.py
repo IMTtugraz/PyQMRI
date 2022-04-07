@@ -808,17 +808,15 @@ def _start_recon(myargs):
     if myargs.sig_model == "GeneralModel":
         par["modelfile"] = myargs.modelfile
         par["modelname"] = myargs.modelname
-        
+                
+    model = sig_model.Model(par)
+    
     if np.allclose(myargs.weights, -1):
         if "weights" not in par.keys():
             par["weights"] = np.ones(
                 (par["unknowns"]), dtype=par["DTYPE_real"])
     else:
         par["weights"] = np.array(myargs.weights, dtype=par["DTYPE_real"])
-        
-    model = sig_model.Model(par)
-
-
 ###############################################################################
 # Reconstruct images using CG-SENSE  ##########################################
 ###############################################################################
@@ -838,10 +836,10 @@ def _start_recon(myargs):
     model.setInitalGuess(
         images = images, 
         dscale = par["dscale"],
-        weights = myargs.weights,
+        weights = par["weights"],
         initial_guess = myargs.initial_guess)
     
-    # par["weights"] *= model.uk_scale
+    par["images"] = images
 ###############################################################################
 # initialize operator  ########################################################
 ###############################################################################

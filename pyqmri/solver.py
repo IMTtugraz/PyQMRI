@@ -1894,7 +1894,7 @@ class PDSolverTGV(PDBaseSolver):
         primal_vars["x"] = clarray.to_device(self._queue[0], inp[0])
         primal_vars["xk"] = primal_vars["x"].copy()
         primal_vars_new["x"] = clarray.zeros_like(primal_vars["x"])
-        primal_vars["v"] = clarray.to_device(self._queue[0], inp[1])
+        primal_vars["v"] = clarray.to_device(self._queue[0], np.zeros_like(inp[1]))
         primal_vars_new["v"] = clarray.zeros_like(primal_vars["v"])
         primal_vars_new["xk"] = primal_vars["x"].copy()
 

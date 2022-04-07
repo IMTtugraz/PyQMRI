@@ -95,7 +95,6 @@ class Model(BaseModel):
         
         self.guess = None
         self.phase = None
-        self.weights = par["weights"]
 
     def rescale(self, x):
         """Rescale the unknowns with the scaling factors. 
