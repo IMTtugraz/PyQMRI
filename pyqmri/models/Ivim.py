@@ -210,7 +210,7 @@ class Model(BaseModel):
                 kwargs['images'].shape[-3:], dtype=self._DTYPE)
             ADC_ivim = kwargs['initial_guess'][2] * np.ones(
                 kwargs['images'].shape[-3:], dtype=self._DTYPE)
-        
+        self.weights = kwargs["weights"]
         with open(self.outdir+"initial_guess.txt", 'w') as file:
             file.write('ADC '+np.array2string(np.absolute(np.unique(ADC)))+' \n')
             file.write('f '+np.array2string(np.absolute(np.unique(f)))+' \n')
