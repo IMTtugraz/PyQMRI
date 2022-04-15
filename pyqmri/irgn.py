@@ -582,21 +582,21 @@ class IRGNOptimizer:
 # New .hdf5 save files ########################################################
 ###############################################################################
     def _saveToFile(self, myit, result):
-        f = h5py.File(self.par["outdir"]+"output_" + self.par["fname"] + ".h5",
-                      "a")
-        if self._reg_type == 'TGV':
-            f.create_dataset("tgv_result_iter_"+str(myit).zfill(3), result.shape,
-                             dtype=self._DTYPE, data=result)
-            f.attrs['res_tgv_iter_'+str(myit).zfill(3)] = self._fval
-        else:
-            f.create_dataset("tv_result_"+str(myit).zfill(3), result.shape,
-                             dtype=self._DTYPE, data=result)
-            f.attrs['res_tv_iter_'+str(myit).zfill(3)] = self._fval
-        f.attrs['datacost_iter_'+str(myit).zfill(3)] = self._datacost
-        f.attrs['regcost_iter_'+str(myit).zfill(3)] = self._regcost 
-        f.attrs['data_norm'] = self.par["dscale"]
+        with h5py.File(self.par["outdir"]+"output_" + self.par["fname"] + ".h5",
+                      "a") as f:
+            if self._reg_type == 'TGV':
+                f.create_dataset("tgv_result_iter_"+str(myit).zfill(3), result.shape,
+                                 dtype=self._DTYPE, data=result)
+                f.attrs['res_tgv_iter_'+str(myit).zfill(3)] = self._fval
+            else:
+                f.create_dataset("tv_result_"+str(myit).zfill(3), result.shape,
+                                 dtype=self._DTYPE, data=result)
+                f.attrs['res_tv_iter_'+str(myit).zfill(3)] = self._fval
+            f.attrs['datacost_iter_'+str(myit).zfill(3)] = self._datacost
+            f.attrs['regcost_iter_'+str(myit).zfill(3)] = self._regcost 
+            f.attrs['data_norm'] = self.par["dscale"]
         # f.attrs['L2Cost_iter_'+str(myit)] = self._L2Cost 
-        f.close()
+        # f.close()
 
 ###############################################################################
 # Precompute constant terms of the GN linearization step ######################

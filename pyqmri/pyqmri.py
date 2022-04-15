@@ -853,9 +853,8 @@ def _start_recon(myargs):
                         reg_type=myargs.reg,
                         DTYPE=par["DTYPE"],
                         DTYPE_real=par["DTYPE_real"])
-    f = h5py.File(par["outdir"]+"output_" + par["fname"]+".h5", "a")
-    f.create_dataset("images_ifft", data=images)
-    f.close()
+    with h5py.File(par["outdir"]+"output_" + par["fname"]+".h5", "a") as f:
+        f.create_dataset("images_ifft", data=images)
     par["file"].close()
 ###############################################################################
 # Start Reco ##################################################################
@@ -878,7 +877,7 @@ def _str2bool(v):
 
 
 def run(reg_type='TGV',
-        slices=1,
+        slices=-1,
         trafo=True,
         streamed=False,
         par_slices=1,
@@ -1016,10 +1015,10 @@ def _parseArguments(args):
     argparmain.add_argument(
       '--reg_type', dest='reg',
       help="Choose regularization type (default: TGV) "
-           "options are: TGV, TV, all")
+           "options are: TGV, TV")
     argparmain.add_argument(
       '--slices', dest='slices', type=int,
-      help="Number of reconstructed slices (default=40). "
+      help="Number of reconstructed slices (default=-1, takes all available). "
            "Symmetrical around the center slice.")
     argparmain.add_argument(
       '--trafo', dest='trafo', type=_str2bool,
@@ -1037,8 +1036,7 @@ def _parseArguments(args):
            "If not provided, a file dialog will open.")
     argparmain.add_argument(
       '--config', dest='config',
-      help='Name of config file to use (assumed to be in the same folder). \
- If not specified, use default parameters.')
+      help='Path to the config file to use. If not specified, use default parameters.')
     argparmain.add_argument(
       '--imagespace', dest='imagespace', type=_str2bool,
       help="Select if Reco is performed on images (1) or on kspace (0) data. "
@@ -1049,7 +1047,7 @@ def _parseArguments(args):
     argparmain.add_argument(
       '--use_GPU', dest='use_GPU', type=_str2bool,
       help="Select if CPU or GPU should be used as OpenCL platform. "
-           "Defaults to GPU (1). CAVE: CPU FFT not working")
+           "Defaults to GPU (1).")
     argparmain.add_argument(
       '--devices', dest='devices', type=int,
       help="Device ID of device(s) to use for streaming. "

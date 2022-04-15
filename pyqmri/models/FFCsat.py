@@ -306,7 +306,7 @@ class Model(BaseModel):
 
     def computeInitialGuess(self, **kwargs):
         self.dscale = kwargs['dscale']
-        self.phase = np.exp(1j*np.angle(kwargs["images"]))
+        self.phase = 1#np.exp(1j*np.angle(kwargs["images"]))
         self.images = np.reshape(np.abs(kwargs['images']/kwargs['dscale']),
                                  self.t.shape+kwargs['images'].shape[-3:])
         
@@ -315,8 +315,8 @@ class Model(BaseModel):
         
         test_M0 = []
         for j in range(self.numC):
-            test_M0.append(10*np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE))#*
-                #np.exp(1j*np.angle(kwargs['images'][0])))
+            test_M0.append(np.abs(kwargs['images'][j*self.t.shape[1]])/self.dscale*
+                np.exp(1j*np.angle(kwargs['images'][j*self.t.shape[1]])))
             # self.constraints[j].update(1/kwargs['dscale'])
         test_Xi = []
         for j in range(self.numAlpha):
@@ -328,7 +328,7 @@ class Model(BaseModel):
         # self.b_pol *= args[1]
         for j in range(self.numT1Scale):
             test_R1.append(
-                100 *
+                150 * np.abs(np.log(self.b_evo[0])/np.log(self.b_evo[j])).squeeze() *
                 np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE))
             
             
