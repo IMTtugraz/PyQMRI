@@ -8,12 +8,11 @@ inline double2 cmult_conj(double2 a, double2 b)
     return (double2)(a.x*b.x+a.y*b.y, -a.x*b.y+a.y*b.x);
 }
 
-
 __kernel void squarematvecmult(__global double2* outvec,
-                         __global double2* mat,
-                         __global double2* invec,
-                         const int vecdim
-                         )
+                          __global double2* mat,
+                          __global double2* invec,
+                          const int vecdim
+                          )
 {
     size_t Nx = get_global_size(2), Ny = get_global_size(1);
     size_t NSl = get_global_size(0);
@@ -39,10 +38,10 @@ __kernel void squarematvecmult(__global double2* outvec,
 }
 
 __kernel void squarematvecmult_conj(__global double2* outvec,
-                         __global double2* mat,
-                         __global double2* invec,
-                         const int vecdim
-                         )
+                          __global double2* mat,
+                          __global double2* invec,
+                          const int vecdim
+                          )
 {
     size_t Nx = get_global_size(2), Ny = get_global_size(1);
     size_t NSl = get_global_size(0);
@@ -89,9 +88,9 @@ __kernel void extrapolate_v(
 }
 
 __kernel void update_x(
-                __global double2 *xn1, 
-                __global double2 *xn, 
-                __global double2 *Kay, 
+                __global double2 *xn1,
+                __global double2 *xn,
+                __global double2 *Kay,
                 const double tau,
                 const double theta)
 {
@@ -100,11 +99,11 @@ __kernel void update_x(
 }
 
 __kernel void update_x_explicit(
-                __global double2 *xn1, 
-                __global double2 *xn, 
+                __global double2 *xn1,
+                __global double2 *xn,
                 __global double2 *Kay,
-                __global double2 *divz, 
-                const double tau, 
+                __global double2 *divz,
+                const double tau,
                 const double theta)
 {
     size_t i = get_global_id(0);
@@ -112,23 +111,23 @@ __kernel void update_x_explicit(
 }
 
 __kernel void update_y(
-                __global double2 *yn1, 
-                __global double2 *yn, 
-                __global double2 *Kx, 
+                __global double2 *yn1,
+                __global double2 *yn,
+                __global double2 *Kx,
                 __global double2 *dx,
-                const double sigma, 
-                const double lambdainv)
+                const double sigma,
+                const double prox)
 {
     size_t i = get_global_id(0);
-    double prox = 1.0 / (1.0 + sigma * lambdainv);
+    // double prox = 1.0 / (1.0 + sigma * lambdainv);
     yn1[i] = prox * (yn[i] + sigma * (Kx[i] - dx[i]));
 }
 
 __kernel void update_z_tv(
-        __global double8 *zn1, 
-        __global double8 *zn, 
+        __global double8 *zn1,
+        __global double8 *zn,
         __global double8 *gx,
-        const double sigma, 
+        const double sigma,
         const int NUk)
 {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
@@ -141,9 +140,9 @@ __kernel void update_z_tv(
 
   for (int uk=0; uk<NUk; uk++)
   {
-     zn1[i] = zn[i] + sigma * gx[i];
+      zn1[i] = zn[i] + sigma * gx[i];
 
-     abs_val = hypot(abs_val,hypot(
+      abs_val = hypot(abs_val,hypot(
         hypot(
           zn1[i].s0,
           zn1[i].s1
@@ -159,23 +158,22 @@ __kernel void update_z_tv(
             )
           )
         ));
-     i += NSl*Nx*Ny;
+      i += NSl*Nx*Ny;
   }
   i = k*Nx*Ny+Nx*y + x;
   for (int uk=0; uk<NUk; uk++)
   {
-     if (abs_val > 1.0f) zn1[i] /=abs_val;
-     i += NSl*Nx*Ny;
+      if (abs_val > 1.0f) zn1[i] /=abs_val;
+      i += NSl*Nx*Ny;
   }
 }
 
-
 __kernel void update_v_explicit(
-                __global double8 *v_new, 
-                __global double8 *v, 
+                __global double8 *v_new,
+                __global double8 *v,
                 __global double8 *z1,
-                __global double8 *ez2, 
-                const double tau, 
+                __global double8 *ez2,
+                const double tau,
                 const double theta)
 {
     size_t i = get_global_id(0);
@@ -183,12 +181,12 @@ __kernel void update_v_explicit(
 }
 
 __kernel void update_z1_tgv(
-                __global double8 *z_new, 
-                __global double8 *z, 
-                __global double8 *gx, 
+                __global double8 *z_new,
+                __global double8 *z,
+                __global double8 *gx,
                 __global double8 *v,
-                const double sigma, 
-                const double alphainv, 
+                const double sigma,
+                const double alphainv,
                 const int NUk)
 {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
@@ -201,7 +199,7 @@ __kernel void update_z1_tgv(
 
   for (int uk=0; uk<NUk; uk++)
   {
-     z_new[i] = z[i] + sigma * (gx[i] - v[i]);
+      z_new[i] = z[i] + sigma * (gx[i] - v[i]);
 
         fac = hypot(fac,
           hypot(
@@ -219,26 +217,27 @@ __kernel void update_z1_tgv(
                 z_new[i].s5
                 )
               )
-            ));
-
-     i += NSl*Nx*Ny;
+            )
+          );
+      i += NSl*Nx*Ny;
   }
   fac *= alphainv;
-    i = k*Nx*Ny+Nx*y + x;
+  //printf("fac: %2.2f\n", fac);
+  i = k*Nx*Ny+Nx*y + x;
   for (int uk=0; uk<NUk; uk++)
   {
-     if (fac > 1.0f) z_new[i] /=fac;
-     i += NSl*Nx*Ny;
+      if (fac > 1.0f) z_new[i] /=fac;
+      i += NSl*Nx*Ny;
   }
 }
 
 __kernel void update_z2_tgv(
-                    __global double16 *z_new, 
-                    __global double16 *z, 
+                    __global double16 *z_new,
+                    __global double16 *z,
                     __global double16 *symgv,
-                    const double sigma, 
-                    const double alphainv, 
-                    const int NUk) 
+                    const double sigma,
+                    const double alphainv,
+                    const int NUk)
 {
   size_t Nx = get_global_size(2), Ny = get_global_size(1);
   size_t NSl = get_global_size(0);
@@ -250,57 +249,58 @@ __kernel void update_z2_tgv(
 
   for (int uk=0; uk<NUk; uk++)
   {
-     z_new[i] = z[i] + sigma * symgv[i];
+      z_new[i] = z[i] + sigma * symgv[i];
 
-       fac = hypot(fac,hypot(
-           hypot(
-             hypot(
-               hypot(
-                 z_new[i].s0,
-                 z_new[i].s1
-                 ),
-             hypot(
-               z_new[i].s2,
-               z_new[i].s3
-               )
-             ),
-           hypot(
-             z_new[i].s4,
-             z_new[i].s5
-             )
-           ),
-         hypot(
-           hypot(
-             2.0f*hypot(
-               z_new[i].s6,
-               z_new[i].s7
-               ),
-             2.0f*hypot(
-               z_new[i].s8,
-               z_new[i].s9
-               )
-             ),
-           2.0f*hypot(
-             z_new[i].sa,
-             z_new[i].sb
-             )
-           )
-         ));
-       i+=NSl*Nx*Ny;
+        fac = hypot(fac,hypot(
+            hypot(
+              hypot(
+                hypot(
+                  z_new[i].s0,
+                  z_new[i].s1
+                  ),
+              hypot(
+                z_new[i].s2,
+                z_new[i].s3
+                )
+              ),
+            hypot(
+              z_new[i].s4,
+              z_new[i].s5
+              )
+            ),
+          hypot(
+            hypot(
+              2.0f*hypot(
+                z_new[i].s6,
+                z_new[i].s7
+                ),
+              2.0f*hypot(
+                z_new[i].s8,
+                z_new[i].s9
+                )
+              ),
+            2.0f*hypot(
+              z_new[i].sa,
+              z_new[i].sb
+              )
+            )
+          )
+        );
+        i+=NSl*Nx*Ny;
   }
   fac *= alphainv;
   i = k*Nx*Ny+Nx*y + x;
   for (int uk=0; uk<NUk; uk++)
   {
-     if (fac > 1.0f) z_new[i] /=fac;
-     i += NSl*Nx*Ny;
+      if (fac > 1.0f) z_new[i] /=fac;
+      i += NSl*Nx*Ny;
   }
 }
 
 __kernel void operator_fwd_ssense(
-                    __global double2 *out, 
+                    __global double2 *out,
                     __global double2 *in,
-                    __global double2 *coils, 
+                    __global double2 *coils,
                     const int NCo,
                     const int Nmaps)
 {
@@ -330,9 +330,9 @@ __kernel void operator_fwd_ssense(
 }
 
 __kernel void operator_ad_ssense(
-                    __global double2 *out, 
+                    __global double2 *out,
                     __global double2 *in,
-                    __global double2 *coils, 
+                    __global double2 *coils,
                     const int NCo,
                     const int Nmaps)
 {
@@ -363,13 +363,13 @@ __kernel void operator_ad_ssense(
 }
 
 __kernel void update_Kyk1_ssense(
-                    __global double2 *out, 
+                    __global double2 *out,
                     __global double2 *in,
-                    __global double2 *coils, 
-                    __global double8 *p, 
+                    __global double2 *coils,
+                    __global double8 *p,
                     const int NCo,
-                    const int Nmaps, 
-                    __global double* ratio,                     
+                    const int Nmaps,
+                    __global double* ratio,
                     const double dz)
 {
   size_t X = get_global_size(2);
@@ -441,8 +441,7 @@ __kernel void update_Kyk1_ssense(
         val.s5 -= p[i-X*Y].s5;
     }
 
-    // scale gradients
-    {val*=ratio[map];}
+    val*=ratio[map];
 
     out[map*NSl*X*Y + k*X*Y + y*X + x] = f_sum - (val.s01+val.s23+val.s45/dz);
     i += NSl*X*Y;
@@ -504,53 +503,53 @@ __kernel void update_z2(
         z_new[i] = z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]);
 
         // reproject
-       square = powr(z_new[i], 2);
-       fac += sqrt(square.s0+square.s1+square.s2+square.s3+square.s4+square.s5
-                   +4.0f*(square.s6+square.s7+square.s8+square.s9+square.sa+square.sb));
-        
-//         fac += hypot(fac,
-//         hypot(
-//           hypot(
-//             hypot(
-//               hypot(
-//                 z_new[i].s0,
-//                 z_new[i].s1
-//                 ),
-//                 hypot(
-//                   z_new[i].s2,
-//                   z_new[i].s3
-//                   )
-//               ),
-//               hypot(
-//                 z_new[i].s4
-//                 ,z_new[i].s5
-//                 )
-//             ),
-//             hypot(
-//               hypot(
-//                 2.0f*hypot(
-//                   z_new[i].s6,
-//                   z_new[i].s7
-//                   ),
-//                 2.0f*hypot(
-//                   z_new[i].s8,
-//                   z_new[i].s9
-//                   )
-//                 ),
-//                 2.0f*hypot(
-//                   z_new[i].sa,
-//                   z_new[i].sb
-//                   )
-//               )
-//             )
-//           );
+//         square = powr(z_new[i], 2);
+//         fac += (square.s0+square.s1+square.s2+square.s3+square.s4+square.s5
+//                     +4.0f*(square.s6+square.s7+square.s8+square.s9+square.sa+square.sb));
+        fac = hypot(fac,hypot(
+            hypot(
+              hypot(
+                hypot(
+                  z_new[i].s0,
+                  z_new[i].s1
+                  ),
+              hypot(
+                z_new[i].s2,
+                z_new[i].s3
+                )
+              ),
+            hypot(
+              z_new[i].s4,
+              z_new[i].s5
+              )
+            ),
+          hypot(
+            hypot(
+              2.0f*hypot(
+                z_new[i].s6,
+                z_new[i].s7
+                ),
+              2.0f*hypot(
+                z_new[i].s8,
+                z_new[i].s9
+                )
+              ),
+            2.0f*hypot(
+              z_new[i].sa,
+              z_new[i].sb
+              )
+            )
+          )
+        );
+
         i += NSl*Nx*Ny;
     }
+//     fac = sqrt(fac);
     fac *= alphainv;
     i = k*Nx*Ny+Nx*y + x;
     for (int uk=0; uk<NUk; uk++)
     {
-        if (fac/ratio[uk] > 1.0f) z_new[i] /= fac/ratio[uk];
+        if (fac > 1.0f) z_new[i] /= fac;
         i += NSl*Nx*Ny;
     }
 }
@@ -583,20 +582,39 @@ __kernel void update_z1(
 
     for (int uk=0; uk<NUk_tgv; uk++)
     {
-//        fac = 0.0f;
-       z_new[i] = z[i] + sigma*(
-           (1+theta)*gx[i]-theta*gx_[i]-((1+theta)*vx[i]-theta*vx_[i]));
+//         fac = 0.0f;
+        z_new[i] = z[i] + sigma*(
+            (1+theta)*gx[i]-theta*gx_[i]-((1+theta)*vx[i]-theta*vx_[i]));
 
-       // reproject
-       square = powr(z_new[i], 2);
-       fac += sqrt(square.s0+square.s1+square.s2+square.s3+square.s4+square.s5);
+        // reproject
+//         square = powr(z_new[i], 2);
+//         fac += (square.s0+square.s1+square.s2+square.s3+square.s4+square.s5);
+        fac = hypot(fac,
+          hypot(
+            hypot(
+              z_new[i].s0,
+              z_new[i].s1
+              ),
+            hypot(
+              hypot(
+                z_new[i].s2,
+                z_new[i].s3
+                ),
+              hypot(
+                z_new[i].s4,
+                z_new[i].s5
+                )
+              )
+            )
+          );
         i += NSl*Nx*Ny;
     }
+//     fac = sqrt(fac);
     fac *= alphainv;
     i = k*Nx*Ny+Nx*y + x;
     for (int uk=0; uk<NUk_tgv; uk++)
     {
-        if (fac/ratio[uk] > 1.0f) z_new[i] /= fac/ratio[uk];
+        if (fac > 1.0f) z_new[i] /= fac;
         i += NSl*Nx*Ny;
     }
     i = NSl*Nx*Ny*NUk_tgv+k*Nx*Ny+Nx*y + x;
@@ -606,7 +624,6 @@ __kernel void update_z1(
         i += NSl*Nx*Ny;
     }
 }
-
 
 __kernel void update_z1_tv(
                 __global double8 *z_new,
@@ -633,43 +650,42 @@ __kernel void update_z1_tv(
         z_new[i] = z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]);
 
         // reproject
-        square = powr(z_new[i], 2);
-        fac += sqrt(square.s0+square.s1+square.s2+square.s3+square.s4+square.s5);///ratio[uk];
-//         fac = sqrt(fac)/ratio[uk];
-//         fac = hypot(fac,
-//         hypot(
-//           hypot(
-//             z_new[i].s0,
-//             z_new[i].s1
-//             ),
-//           hypot(
-//             hypot(
-//               z_new[i].s2,
-//               z_new[i].s3
-//               ),
-//             hypot(
-//               z_new[i].s4,
-//               z_new[i].s5
-//               )
-//             )
-//           )
-//         )/ratio[uk];
+//         square = powr(z_new[i], 2);
+//         fac += sqrt(square.s0+square.s1+square.s2+square.s3+square.s4+square.s5);///ratio[uk];
+        fac = hypot(fac,
+          hypot(
+            hypot(
+              z_new[i].s0,
+              z_new[i].s1
+              ),
+            hypot(
+              hypot(
+                z_new[i].s2,
+                z_new[i].s3
+                ),
+              hypot(
+                z_new[i].s4,
+                z_new[i].s5
+                )
+              )
+            )
+          );
+
         i += NSl*Nx*Ny;
     }
     fac *= alphainv;
-    //printf("fac: %2.2f\n", fac);
     i = k*Nx*Ny+Nx*y + x;
     for (int uk=0; uk<NUk_tgv; uk++)
     {
-        if (fac/ratio[uk] > 1.0f){z_new[i] /= fac/ratio[uk];}
+        if (fac > 1.0f){z_new[i] /= fac;}
         i += NSl*Nx*Ny;
     }
-//     i = NSl*Nx*Ny*NUk_tgv+k*Nx*Ny+Nx*y + x;
-//     for (int uk=NUk_tgv; uk<(NUk_tgv+NUk_H1); uk++)
-//     {
-//         z_new[i] = (z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]))*h1inv;
-//         i += NSl*Nx*Ny;
-//     }
+    i = NSl*Nx*Ny*NUk_tgv+k*Nx*Ny+Nx*y + x;
+    for (int uk=NUk_tgv; uk<(NUk_tgv+NUk_H1); uk++)
+    {
+        z_new[i] = (z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]))*h1inv;
+        i += NSl*Nx*Ny;
+    }
 }
 
 
@@ -691,8 +707,6 @@ __global int* real, const int NUk
     size_t k = get_global_id(0);
     size_t i = k*Nx*Ny+Nx*y + x;
     double norm = 0;
-    int idx, idx2, idx3, idx4, idx5;
-    double2 tmp;
 
     for (int uk=0; uk<NUk; uk++)
     {
@@ -719,8 +733,6 @@ __global int* real, const int NUk
     size_t k = get_global_id(0);
     size_t i = k*Nx*Ny+Nx*y + x;
     double norm = 0;
-    int idx, idx2, idx3, idx4, idx5;
-    double2 tmp;
 
     for (int uk=0; uk<NUk; uk++)
     {
@@ -835,34 +847,6 @@ __kernel void update_primal_LM(
     {
         u_new[i] = (u[i]-tau*Kyk[i]+tauinv*A[i]*u_k[i])/(1+tauinv*A[i]);
 
-//         if(real[uk]>=1)
-//         {
-//             u_new[i].s1 = 0.0f;
-//             if (u_new[i].s0<min[uk])
-//             {
-//                 u_new[i].s0 = min[uk];
-//             }
-//             if(u_new[i].s0>max[uk])
-//             {
-//                 u_new[i].s0 = max[uk];
-//             }
-//         }
-//         else
-//         {
-//             norm =  sqrt(
-//                       pow((double)(u_new[i].s0),(double)(2.0))
-//                       + pow((double)(u_new[i].s1),(double)(2.0)));
-//             if (norm<min[uk])
-//             {
-//                 u_new[i].s0 *= 1/norm*min[uk];
-//                 u_new[i].s1 *= 1/norm*min[uk];
-//             }
-//             if(norm>max[uk])
-//             {
-//                 u_new[i].s0 *= 1/norm*max[uk];
-//                 u_new[i].s1 *= 1/norm*max[uk];
-//             }
-//         }
         i += NSl*Nx*Ny;
     }
 }
@@ -872,7 +856,8 @@ __kernel void gradient(
                 __global double8 *grad,
                 __global double2 *u,
                 const int NUk,
-                const double dz
+                const double dz,
+                __global double* ratio
                 )
 {
     size_t Nx = get_global_size(2), Ny = get_global_size(1);
@@ -912,6 +897,7 @@ __kernel void gradient(
         {
             grad[i].s45 = 0.0f;
         }
+        grad[i] *= ratio[uk];
         i += NSl*Nx*Ny;
     }
 }
@@ -993,7 +979,8 @@ __kernel void divergence(
                 __global double2 *div,
                 __global double8 *p,
                 const int NUk,
-                const double dz
+                const double dz,
+                __global double* ratio
                 )
 {
     size_t Nx = get_global_size(2), Ny = get_global_size(1);
@@ -1049,7 +1036,7 @@ __kernel void divergence(
             //imag
 //             val.s5 -= p[j-Nx*Ny].s5*ratio[j-Nx*Ny];
         }
-        div[i] = val.s01+val.s23+val.s45*dz;
+        div[i] = (val.s01+val.s23+val.s45*dz)*ratio[uk];
         // scale gradients
         i += NSl*Nx*Ny;
     }
@@ -1298,8 +1285,7 @@ __kernel void operator_ad(
     double2 tmp_mul = 0.0f;
     double2 conj_grad = 0.0f;
     double2 conj_coils = 0.0f;
-
-
+    
     for (int uk=0; uk<Nuk; uk++)
     {
         double2 sum = (double2) 0.0f;
@@ -1339,7 +1325,8 @@ __kernel void update_Kyk1(
                 const int NCo,
                 const int NScan,
                 const int NUk,
-                const double dz
+                const double dz,
+                __global double* ratio
                 )
 {
     size_t X = get_global_size(2);
@@ -1410,7 +1397,7 @@ __kernel void update_Kyk1(
             val.s45 -= p[i-X*Y].s45;
         }
 
-        out[uk*NSl*X*Y+k*X*Y+y*X+x] = sum - (val.s01+val.s23+val.s45*dz);
+        out[uk*NSl*X*Y+k*X*Y+y*X+x] = sum - (val.s01+val.s23+val.s45*dz)*ratio[uk];
         i += NSl*X*Y;
     }
 }
@@ -1502,7 +1489,8 @@ __kernel void update_Kyk1_imagespace(
                 __global double8 *p,
                 const int NScan,
                 const int Nuk,
-                const double dz
+                const double dz,
+                __global double* ratio
                 )
 {
     size_t X = get_global_size(2);
@@ -1576,7 +1564,7 @@ __kernel void update_Kyk1_imagespace(
             val.s5 -= p[i-X*Y].s5;
         }
         // scale gradients
-//         val*=ratio[uk];
+        val*=ratio[uk];
         out[uk*NSl*X*Y+k*X*Y+y*X+x] = sum - (val.s01+val.s23+val.s45*dz);
         i += NSl*X*Y;
     }
@@ -1723,5 +1711,800 @@ __kernel void operator_ad_cg(
                     tmp_in.x*conj_coils.y+tmp_in.y*conj_coils.x);
         }
         out[scan*NSl*X*Y+k*X*Y+y*X+x] = sum;
+    }
+}
+
+
+
+__kernel void gradient_w_time(
+                __global double8 *grad,
+                __global double2 *u,
+                const int NUk,
+                const double dz,
+                const double mu_1,
+                __global double* dt
+                )
+{
+    size_t Nx = get_global_size(2), Ny = get_global_size(1);
+    size_t NSl = get_global_size(0);
+    size_t x = get_global_id(2), y = get_global_id(1);
+    size_t k = get_global_id(0);
+    size_t i = k*Nx*Ny+Nx*y + x;
+    
+    double2 tmp_u = 0.0f;
+    
+    for (int uk=0; uk<NUk; uk++)
+    {
+        // gradient
+        grad[i] = (double8)(-u[i]*mu_1,-u[i]*mu_1,-u[i]*dz*mu_1,-u[i]);
+        if (x < Nx-1)
+        {
+            grad[i].s01 += u[i+1]*mu_1;
+        }
+        else
+        {
+            grad[i].s01 = 0.0f;
+        }
+
+        if (y < Ny-1)
+        {
+            grad[i].s23 += u[i+Nx]*mu_1;
+        }
+        else
+        {
+            grad[i].s23 = 0.0f;
+        }
+        if (k < NSl-1)
+        {
+            grad[i].s45 += u[i+Nx*Ny]*dz*mu_1;
+                }
+        else
+        {
+            grad[i].s45 = 0.0f;
+        }
+        if (uk < NUk-1)
+        {
+            grad[i].s67 += u[i+NSl*Nx*Ny];
+            grad[i].s67 *= dt[uk];
+        }
+        else
+        {
+            grad[i].s67 = 0.0f;
+        }
+        
+        i += NSl*Nx*Ny;
+    }
+}
+
+
+__kernel void divergence_w_time(
+                __global double2 *div,
+                __global double8 *p,
+                const int NUk,
+                const double dz,
+                const double mu_1,
+                __global double* dt
+                )
+{
+    size_t Nx = get_global_size(2), Ny = get_global_size(1);
+    size_t NSl = get_global_size(0);
+    size_t x = get_global_id(2), y = get_global_id(1);
+    size_t k = get_global_id(0);
+    size_t i = k*Nx*Ny+Nx*y + x;
+    
+
+    for (int uk=0; uk<NUk; uk++)
+    {
+        // divergence
+        double8 val = p[i];
+        if (x == Nx-1)
+        {
+            val.s01 = 0.0f;
+        }
+        if (x > 0)
+        {   
+            val.s01 -= p[i-1].s01;
+        }
+        if (y == Ny-1)
+        {
+            val.s23 = 0.0f;
+        }
+        if (y > 0)
+        {
+            val.s23 -= p[i-Nx].s23;
+        }
+        if (k == NSl-1)
+        {
+            val.s45 = 0.0f;
+        }
+        if (k > 0)
+        {
+            val.s45 -= p[i-Nx*Ny].s45;
+        }
+        if (uk == NUk-1)
+        {
+            val.s67 = 0.0f;
+        }
+        else
+        {
+            val.s67 *= dt[uk];
+        }
+        if (uk > 0)
+        {
+            val.s67 -= p[i-NSl*Nx*Ny].s67*dt[uk-1];
+        }
+
+        div[i] = (val.s01+val.s23+val.s45*dz)*mu_1 + val.s67;
+        // scale gradients
+        i += NSl*Nx*Ny;
+    }
+}
+
+
+__kernel void update_z2_ictv(
+                __global double8 *z_new,
+                __global double8 *z,
+                __global double8 *gx,
+                __global double8 *gx_,
+                const double sigma, const double theta, const double alphainv,
+                const int NUk
+                )
+{
+    size_t Nx = get_global_size(2), Ny = get_global_size(1);
+    size_t NSl = get_global_size(0);
+    size_t x = get_global_id(2), y = get_global_id(1);
+    size_t k = get_global_id(0);
+    size_t i = k*Nx*Ny+Nx*y + x;
+
+    double fac = 0.0f;
+    double8 square = 0.0f;
+
+    for (int uk=0; uk<NUk; uk++)
+    {
+        z_new[i] = z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]);
+
+        // reproject
+        fac = hypot(
+                hypot(
+                z_new[i].s0,
+                z_new[i].s1
+                ),
+                hypot(
+                hypot(
+                    z_new[i].s2,
+                    z_new[i].s3
+                    ),
+                hypot(
+                    hypot(
+                    z_new[i].s4,
+                    z_new[i].s5
+                    ),
+                    hypot(
+                    z_new[i].s6,
+                    z_new[i].s7
+                    )
+                    
+                )
+                )
+                );
+        fac *= alphainv;
+        if (fac > 1.0f){z_new[i] /= fac;}
+        i += NSl*Nx*Ny;
+    }
+}
+
+__kernel void update_z1_ictv(
+                __global double8 *z_new,
+                __global double8 *z,
+                __global double8 *gx1,
+                __global double8 *gx1_,
+                __global double8 *gx2,
+                __global double8 *gx2_,
+                const double sigma, const double theta, const double alphainv,
+                const int NUk
+                )
+{
+    size_t Nx = get_global_size(2), Ny = get_global_size(1);
+    size_t NSl = get_global_size(0);
+    size_t x = get_global_id(2), y = get_global_id(1);
+    size_t k = get_global_id(0);
+    size_t i = k*Nx*Ny+Nx*y + x;
+
+    double fac = 0.0f;
+    double8 square = 0.0f;
+
+    for (int uk=0; uk<NUk; uk++)
+    {
+        z_new[i] = z[i] + sigma*((1+theta)*gx1[i]-theta*gx1_[i]-((1+theta)*gx2[i]-theta*gx2_[i]));
+
+        // reproject
+        fac = hypot(
+                hypot(
+                z_new[i].s0,
+                z_new[i].s1
+                ),
+                hypot(
+                hypot(
+                    z_new[i].s2,
+                    z_new[i].s3
+                    ),
+                hypot(
+                    hypot(
+                    z_new[i].s4,
+                    z_new[i].s5
+                    ),
+                    hypot(
+                    z_new[i].s6,
+                    z_new[i].s7
+                    )
+                    
+                )
+                )
+                );
+        fac *= alphainv;
+        if (fac > 1.0f){z_new[i] /= fac;}
+        i += NSl*Nx*Ny;
+    }
+}
+
+__kernel void sym_grad_w_time(
+                __global double8 *sym_diag,
+                __global double16 *sym_offdiag,
+                __global double8 *w,
+                const int NUk,
+                const double dz,
+                const double mu_1,
+                __global double* dt
+                )
+{
+    size_t Nx = get_global_size(2), Ny = get_global_size(1);
+    size_t NSl = get_global_size(0);
+    size_t x = get_global_id(2), y = get_global_id(1);
+    size_t k = get_global_id(0);
+    size_t i = k*Nx*Ny+Nx*y + x;
+
+
+    for (int uk=0; uk<NUk; uk++)
+    {
+        // symmetrized gradient
+        double16 val_real = (double16)(
+            w[i].s0246, w[i].s0246, w[i].s0246, w[i].s0246);
+        double16 val_imag = (double16)(
+            w[i].s1357, w[i].s1357, w[i].s1357, w[i].s1357);
+        if (x > 0)
+        {
+            val_real.s0123 -= w[i-1].s0246;
+            val_imag.s0123 -= w[i-1].s1357;
+        }
+        else
+        {
+            val_real.s0123 = (double4) 0.0f;
+            val_imag.s0123 = (double4) 0.0f;
+        }
+
+        if (y > 0)
+        {
+            val_real.s4567 -= w[i-Nx].s0246;
+            val_imag.s4567 -= w[i-Nx].s1357;
+        }
+        else
+        {
+            val_real.s4567 = (double4) 0.0f;
+            val_imag.s4567 = (double4) 0.0f;
+        }
+
+        if (k > 0)
+        {
+            val_real.s89ab -= w[i-Nx*Ny].s0246;
+            val_imag.s89ab -= w[i-Nx*Ny].s1357;
+        }
+        else
+        {
+            val_real.s89ab = (double4) 0.0f;
+            val_imag.s89ab = (double4) 0.0f;
+        }
+        
+        if (uk > 0)
+        {
+            val_real.scdef -= w[i-Nx*Ny*NSl].s0246;
+            val_imag.scdef -= w[i-Nx*Ny*NSl].s1357;
+            val_real.scdef *= dt[uk-1];
+            val_imag.scdef *= dt[uk-1];  
+            
+        }
+        else
+        {
+            val_real.scdef = (double4) 0.0f;
+            val_imag.scdef = (double4) 0.0f;
+        }
+        
+
+        sym_diag[i] = (double8)(
+          val_real.s0*mu_1, val_imag.s0*mu_1,
+          val_real.s5*mu_1, val_imag.s5*mu_1,
+          val_real.sa*dz*mu_1, val_imag.sa*dz*mu_1,
+          val_real.sf, val_imag.sf);
+          
+        sym_offdiag[i] = (double16)(
+          
+          0.5f*(val_real.s1 + val_real.s4)*mu_1,
+          0.5f*(val_imag.s1 + val_imag.s4)*mu_1,
+          
+          0.5f*(val_real.s2 + val_real.s8*dz)*mu_1,
+          0.5f*(val_imag.s2 + val_imag.s8*dz)*mu_1,
+          
+          0.5f*(val_real.s3*mu_1 + val_real.sc),
+          0.5f*(val_imag.s3*mu_1 + val_imag.sc),
+          
+          0.5f*(val_real.s6 + val_real.s9*dz)*mu_1,
+          0.5f*(val_imag.s6 + val_imag.s9*dz)*mu_1,
+          
+          0.5f*(val_real.s7*mu_1 + val_real.sd),
+          0.5f*(val_imag.s7*mu_1 + val_imag.sd),
+          
+          0.5f*(val_real.sb*dz*mu_1 + val_real.se),
+          0.5f*(val_imag.sb*dz*mu_1 + val_imag.se),
+          
+          0.0f, 0.0f, 0.0f, 0.0f
+          );
+        i += NSl*Nx*Ny;
+    }
+}
+
+
+__kernel void sym_divergence_w_time(
+                __global double8 *w,
+                __global double8 *q_diag,
+                __global double16 *q_offdiag,
+                const int NUk,
+                const double dz,
+                const double mu_1,
+                __global double* dt
+                )
+{
+    size_t Nx = get_global_size(2), Ny = get_global_size(1);
+    size_t NSl = get_global_size(0);
+    size_t x = get_global_id(2), y = get_global_id(1);
+    size_t k = get_global_id(0);
+    size_t i = k*Nx*Ny+Nx*y + x;
+
+    for (int uk=0; uk<NUk; uk++)
+    {
+        // divergence
+        double8 val_diag = -q_diag[i];
+        double16 val_offdiag = -q_offdiag[i];
+        
+        double16 val_real = (double16)(
+            val_diag.s0, val_offdiag.s0, val_offdiag.s2, val_offdiag.s4,
+            val_offdiag.s0, val_diag.s2, val_offdiag.s6, val_offdiag.s8,
+            val_offdiag.s2, val_offdiag.s6, val_diag.s4, val_offdiag.sa,
+            val_offdiag.s4, val_offdiag.s8, val_offdiag.sa, val_diag.s6);
+            
+            
+        double16 val_imag = (double16)(
+            val_diag.s1, val_offdiag.s1, val_offdiag.s3, val_offdiag.s5,
+            val_offdiag.s1, val_diag.s3, val_offdiag.s7, val_offdiag.s9,
+            val_offdiag.s3, val_offdiag.s7, val_diag.s5, val_offdiag.sb,
+            val_offdiag.s5, val_offdiag.s9, val_offdiag.sb, val_diag.s7);
+            
+        if (x == 0)
+        {
+            //real
+            val_real.s0123 = 0.0f;
+            //imag
+            val_imag.s0123 = 0.0f;
+        }
+        if (x < Nx-1)
+        {
+            //real
+            val_real.s0123 += (double4)(q_diag[i+1].s0, q_offdiag[i+1].s024);
+            //imag
+            val_imag.s0123 += (double4)(q_diag[i+1].s1, q_offdiag[i+1].s135);
+        }
+        if (y == 0)
+        {
+            //real
+            val_real.s4567 = 0.0f;
+            //imag
+            val_imag.s4567 = 0.0f;
+        }
+        if (y < Ny-1)
+        {
+            //real
+            val_real.s4567 += (double4)(q_offdiag[i+Nx].s2, q_diag[i+Nx].s2, q_offdiag[i+Nx].s68);
+            //imag
+            val_imag.s4567 += (double4)(q_offdiag[i+Nx].s3, q_diag[i+Nx].s3, q_offdiag[i+Nx].s79);
+        }
+        if (k == 0)
+        {
+        //real
+            val_real.s89ab = 0.0f;
+            //imag
+            val_imag.s89ab = 0.0f;
+        }
+        if (k < NSl-1)
+        {
+            //real
+            val_real.s89ab += (double4)(q_offdiag[i+Nx*Ny].s26, q_diag[i+Nx*Ny].s4, q_offdiag[i+Nx*Ny].sa);
+            //imag
+            val_imag.s89ab += (double4)(q_offdiag[i+Nx*Ny].s37, q_diag[i+Nx*Ny].s5, q_offdiag[i+Nx*Ny].sb);
+        }
+        if (uk == 0)
+        {
+            //real
+            val_real.scdef = 0.0f;
+            //imag
+            val_imag.scdef = 0.0f;
+        }
+        else
+        {
+            val_real.scdef *= dt[uk-1];
+            val_imag.scdef *= dt[uk-1];
+        }
+        if (uk < NUk-1)
+        {
+            //real
+            val_real.scdef += (double4)(q_offdiag[i+Nx*Ny].s48a, q_diag[i+Nx*Ny].s6)*dt[uk];
+            //imag
+            val_imag.scdef += (double4)(q_offdiag[i+Nx*Ny].s59b, q_diag[i+Nx*Ny].s7)*dt[uk];
+        }
+        
+        // linear step
+        //real
+        w[i].s0246 = val_real.s0123*mu_1 + val_real.s4567*mu_1 + val_real.s89ab*dz*mu_1 + val_real.scdef;
+        //imag
+        w[i].s1357 = val_imag.s0123*mu_1 + val_imag.s4567*mu_1 + val_imag.s89ab*dz*mu_1 + val_imag.scdef;
+
+        i += NSl*Nx*Ny;
+    }
+}
+
+
+__kernel void operator_fwd_imagerecon(
+                __global double2 *out,
+                __global double2 *in,
+                __global double2 *coils,
+                const int NCo,
+                const int NScan
+                )
+{
+    size_t X = get_global_size(2);
+    size_t Y = get_global_size(1);
+    size_t NSl = get_global_size(0);
+
+    size_t x = get_global_id(2);
+    size_t y = get_global_id(1);
+    size_t k = get_global_id(0);
+
+    double2 tmp_in = 0.0f;
+    double2 tmp_coil = 0.0f;
+
+
+    for (int scan=0; scan<NScan; scan++)
+    {
+        for (int coil=0; coil < NCo; coil++)
+        {
+            tmp_coil = coils[coil*NSl*X*Y + k*X*Y + y*X + x];
+            tmp_in = in[scan*NSl*X*Y+k*X*Y+ y*X + x];
+
+            out[scan*NCo*NSl*X*Y+coil*NSl*X*Y+k*X*Y + y*X + x] = (double2)(
+                        tmp_in.x*tmp_coil.x-tmp_in.y*tmp_coil.y,
+                        tmp_in.x*tmp_coil.y+tmp_in.y*tmp_coil.x);
+        }
+    }
+}
+
+
+__kernel void operator_ad_imagerecon(
+                __global double2 *out,
+                __global double2 *in,
+                __global double2 *coils,
+                const int NCo,
+                const int NScan
+                )
+{
+    size_t X = get_global_size(2);
+    size_t Y = get_global_size(1);
+    size_t NSl = get_global_size(0);
+
+    size_t x = get_global_id(2);
+    size_t y = get_global_id(1);
+    size_t k = get_global_id(0);
+
+
+    double2 tmp_in = 0.0f;
+    double2 conj_coils = 0.0f;
+
+
+    
+    for (int scan=0; scan<NScan; scan++)
+    {
+        double2 sum = (double2) 0.0f;
+        for (int coil=0; coil < NCo; coil++)
+        {
+            conj_coils = (double2)(
+                    coils[coil*NSl*X*Y + k*X*Y + y*X + x].x,
+                    -coils[coil*NSl*X*Y + k*X*Y + y*X + x].y);
+
+            tmp_in = in[scan*NCo*NSl*X*Y+coil*NSl*X*Y + k*X*Y+ y*X + x];
+
+
+            sum += (double2)(
+                    tmp_in.x*conj_coils.x-tmp_in.y*conj_coils.y,
+                    tmp_in.x*conj_coils.y+tmp_in.y*conj_coils.x);
+        }
+    
+        out[scan*NSl*X*Y+k*X*Y+y*X+x] = sum;
+    }
+}
+
+__kernel void update_primal_imagerecon(
+__global double2 *u_new,
+__global double2 *u,
+__global double2 *Kyk,
+const double tau,
+__global double* min,
+__global double* max,
+__global int* real, const int NUk
+)
+{
+    size_t Nx = get_global_size(2), Ny = get_global_size(1);
+    size_t NSl = get_global_size(0);
+    size_t x = get_global_id(2), y = get_global_id(1);
+    size_t k = get_global_id(0);
+    size_t i = k*Nx*Ny+Nx*y + x;
+    double norm = 0;
+    int idx, idx2, idx3, idx4, idx5;
+    double2 tmp;
+
+    for (int uk=0; uk<NUk; uk++)
+    {
+        u_new[i] = u[i]-tau*Kyk[i];
+
+        if(real[uk]>=1)
+        {
+            u_new[i].s1 = 0.0f;
+            if (u_new[i].s0<min[uk])
+            {
+                u_new[i].s0 = min[uk];
+            }
+            if(u_new[i].s0>max[uk])
+            {
+                u_new[i].s0 = max[uk];
+            }
+        }
+        else
+        {
+            norm =  sqrt(
+              pow(
+                (double)(u_new[i].s0),(double)(2.0))
+              + pow((double)(u_new[i].s1),(double)(2.0)));
+            if (norm<min[uk])
+            {
+                u_new[i].s0 *= 1/norm*min[uk];
+                u_new[i].s1 *= 1/norm*min[uk];
+            }
+            if(norm>max[uk])
+            {
+                u_new[i].s0 *= 1/norm*max[uk];
+                u_new[i].s1 *= 1/norm*max[uk];
+            }
+        }
+        i += NSl*Nx*Ny;
+    }
+}
+
+__kernel void update_z2_ictgv(
+                __global double8 *z_new,
+                __global double8 *z,
+                __global double8 *gx,
+                __global double8 *gx_,
+                __global double8 *w,
+                __global double8 *w_,
+                const double sigma, const double theta, const double alphainv,
+                const int NUk
+                )
+{
+    size_t Nx = get_global_size(2), Ny = get_global_size(1);
+    size_t NSl = get_global_size(0);
+    size_t x = get_global_id(2), y = get_global_id(1);
+    size_t k = get_global_id(0);
+    size_t i = k*Nx*Ny+Nx*y + x;
+
+    double fac = 0.0f;
+    double8 square = 0.0f;
+
+    for (int uk=0; uk<NUk; uk++)
+    {
+        z_new[i] = z[i] + sigma*((1+theta)*gx[i]-theta*gx_[i]-((1+theta)*w[i]-theta*w_[i]));
+
+        // reproject
+        fac = hypot(
+                hypot(
+                z_new[i].s0,
+                z_new[i].s1
+                ),
+                hypot(
+                hypot(
+                    z_new[i].s2,
+                    z_new[i].s3
+                    ),
+                hypot(
+                    hypot(
+                    z_new[i].s4,
+                    z_new[i].s5
+                    ),
+                    hypot(
+                    z_new[i].s6,
+                    z_new[i].s7
+                    )
+                    
+                )
+                )
+                );
+        fac *= alphainv;
+        if (fac > 1.0f){z_new[i] /= fac;}
+        i += NSl*Nx*Ny;
+    }
+}
+
+__kernel void update_z1_ictgv(
+                __global double8 *z_new,
+                __global double8 *z,
+                __global double8 *gx1,
+                __global double8 *gx1_,
+                __global double8 *gx2,
+                __global double8 *gx2_,
+                __global double8 *w,
+                __global double8 *w_,
+                const double sigma, const double theta, const double alphainv,
+                const int NUk
+                )
+{
+    size_t Nx = get_global_size(2), Ny = get_global_size(1);
+    size_t NSl = get_global_size(0);
+    size_t x = get_global_id(2), y = get_global_id(1);
+    size_t k = get_global_id(0);
+    size_t i = k*Nx*Ny+Nx*y + x;
+
+    double fac = 0.0f;
+    double8 square = 0.0f;
+
+    for (int uk=0; uk<NUk; uk++)
+    {
+        z_new[i] = z[i] + sigma*((1+theta)*gx1[i]-theta*gx1_[i]-((1+theta)*gx2[i]-theta*gx2_[i])-((1+theta)*w[i]-theta*w_[i]));
+
+        // reproject
+        fac = hypot(
+                hypot(
+                z_new[i].s0,
+                z_new[i].s1
+                ),
+                hypot(
+                hypot(
+                    z_new[i].s2,
+                    z_new[i].s3
+                    ),
+                hypot(
+                    hypot(
+                    z_new[i].s4,
+                    z_new[i].s5
+                    ),
+                    hypot(
+                    z_new[i].s6,
+                    z_new[i].s7
+                    )
+                    
+                )
+                )
+                );
+        fac *= alphainv;
+        if (fac > 1.0f){z_new[i] /= fac;}
+        i += NSl*Nx*Ny;
+    }
+}
+
+__kernel void update_z3_ictgv(
+                __global double8 *z_new_diag,
+                __global double16 *z_new_offdiag,
+                __global double8 *z_diag,
+                __global double16 *z_offdiag,
+                __global double8 *gx_diag,
+                __global double16 *gx_offdiag,
+                __global double8 *gx_diag_,
+                __global double16 *gx_offdiag_,
+                const double sigma,
+                const double theta,
+                const double alphainv,
+                const int NUk
+                )
+{
+    size_t Nx = get_global_size(2), Ny = get_global_size(1);
+    size_t NSl = get_global_size(0);
+    size_t x = get_global_id(2), y = get_global_id(1);
+    size_t k = get_global_id(0);
+    size_t i = k*Nx*Ny+Nx*y + x;
+
+    double fac = 0.0f;
+    double16 square = 0.0f;
+
+    for (int uk=0; uk<NUk; uk++)
+    {
+        z_new_diag[i] = z_diag[i] + sigma*((1+theta)*gx_diag[i]-theta*gx_diag_[i]);
+        z_new_offdiag[i] = z_offdiag[i] + sigma*((1+theta)*gx_offdiag[i]-theta*gx_offdiag_[i]);
+
+        // reproject
+        fac = hypot(fac,
+        hypot(
+            hypot(
+                hypot(
+                    hypot(
+                      z_new_diag[i].s0,
+                      z_new_diag[i].s1
+                      ),
+                  hypot(
+                    z_new_diag[i].s2,
+                    z_new_diag[i].s3
+                    )
+                ),
+                hypot(
+                    hypot(
+                      z_new_diag[i].s4,
+                      z_new_diag[i].s5
+                      ),
+                    hypot(
+                      z_new_diag[i].s6,
+                      z_new_diag[i].s7
+                      )
+                )
+            ),
+            hypot(
+                hypot(
+                    hypot(
+                      2.0f*hypot(
+                        z_new_offdiag[i].s0,
+                        z_new_offdiag[i].s1
+                        ),
+                      2.0f*hypot(
+                        z_new_offdiag[i].s2,
+                        z_new_offdiag[i].s3
+                        )
+                    ),
+                    hypot(
+                      2.0f*hypot(
+                        z_new_offdiag[i].s4,
+                        z_new_offdiag[i].s5
+                        ),
+                      2.0f*hypot(
+                        z_new_offdiag[i].s6,
+                        z_new_offdiag[i].s7
+                        )
+                    )
+                ),
+                hypot(
+                  2.0f*hypot(
+                    z_new_offdiag[i].s8,
+                    z_new_offdiag[i].s9
+                    ),
+                  2.0f*hypot(
+                    z_new_offdiag[i].sa,
+                    z_new_offdiag[i].sb
+                    )
+                )                   
+            )
+          )
+        );
+
+        i += NSl*Nx*Ny;
+    }
+    fac *= alphainv;
+    i = k*Nx*Ny+Nx*y + x;
+    for (int uk=0; uk<NUk; uk++)
+    {
+        if (fac > 1.0f){
+            z_new_diag[i] /= fac;
+            z_new_offdiag[i] /= fac;
+        }
+        i += NSl*Nx*Ny;
     }
 }

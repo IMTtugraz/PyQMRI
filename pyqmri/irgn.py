@@ -310,7 +310,13 @@ class IRGNOptimizer:
             data = np.require(
                 np.transpose(data, self._data_trans_axes),
                 requirements='C')
-
+            
+        # Check if preconditioning should be used
+        if "precond" in self.irgn_par.keys():
+            self.precond = self.irgn_par["precond"]
+        else:
+            self.precond = False
+            
         for ign in range(self.irgn_par["max_gn_it"]):
             start = time.time()
 
@@ -320,9 +326,9 @@ class IRGNOptimizer:
             self._step_val = np.nan_to_num(
                 self._model.execute_forward(result))
                 
-            # Precond only for image data!!!!
-            if ign < 0:
-                self.precond = True
+            # Use this to enable Preconditioning at a certain IGN step.
+            if self.precond and ign >= self.irgn_par["precond_startiter"]:
+                # Switch between pointwise and average preconditioning
                 self._pdop.precond = True
                 self._pdop._grad_op.precond = True
                 if self._reg_type == 'TGV':
@@ -334,23 +340,18 @@ class IRGNOptimizer:
                 result = self.applyPrecond(result)
                 self._pdop.irgn = self
             else:
-                self.precond = False
                 if "IC" not in self._reg_type:
                     self._pdop.precond = False
                     self._pdop._grad_op.precond = False
                     if self._reg_type == 'TGV':
                         self._pdop._symgrad_op.precond = False
                 self._balanceModelGradientsNorm(result, ign)
-                # scale = (result*np.array(self._model.uk_scale)[:,None,None,None]).reshape(self.par["unknowns"], -1)
-                # scale = np.linalg.norm(np.abs(scale), axis=-1)
-                # scale = 1e2/scale
-                # scale[~np.isfinite(scale)] = 1
-                # self._pdop._op.updateRatio(np.array(self._model.uk_scale)*scale)
             
             self._updateIRGNRegPar(ign)
-            if self.precond:
-                self._pdop._grad_op.updateRatio(np.require(self.UTE
+            if self.precond and ign >= self.irgn_par["precond_startiter"]:
+                self._pdop._grad_op.updatePrecondMat(np.require(self.UTE
                                           ,requirements='C'))
+                self._pdop._grad_op.irgn = self
 
             if self._streamed:
                 if self._SMS is False:
@@ -374,7 +375,7 @@ class IRGNOptimizer:
             self._pdop.updateRegPar(self.irgn_par)
 
             result = self._irgnSolve3D(result, iters, data, ign)
-            if self.precond:
+            if self.precond and ign >= self.irgn_par["precond_startiter"]:
                 result = self.removePrecond(result)
 
             iters = np.fmin(iters * inc, self.irgn_par["max_iters"])
@@ -396,7 +397,7 @@ class IRGNOptimizer:
             % (ign, np.abs(self.gn_res[-1]-self.gn_res[-2])/self.gn_res[0], 
                              self.irgn_par["rtol"]))
                     break
-        if self.precond:            
+        if self.precond and ign >= self.irgn_par["precond_startiter"]:            
             self._calcResidual(self.applyPrecond(result), data, ign+1)
         else:
             self._calcResidual((result), data, ign+1)
@@ -436,7 +437,7 @@ class IRGNOptimizer:
         
         jacobi = np.require(jacobi.T, requirements='C')
         
-        cutoff = 5e2#np.inf
+        cutoff = 1e-2
 
         maxval = 0
         minval = 1e30
@@ -445,24 +446,30 @@ class IRGNOptimizer:
             V[j], E[j], U[j] = spl.svd(jacobi[j], full_matrices=False)
             if np.any(E[j].imag!=0):
                 print("Non-zero complex eigenvalue")
-            einv = 1/E[j]
-            einv[~np.isfinite(einv)] = cutoff*einv[0]
-            einv[einv/einv[0] > cutoff] = cutoff*einv[0]
+                
+            E_cut = E[j]
+            E_cut[E_cut/E_cut[0] < cutoff] = cutoff*E_cut[0]
+            
+            einv = 1/E_cut
+
+            # einv[~np.isfinite(einv)] = cutoff*einv[0]
+            # einv[einv/einv[0] > cutoff] = cutoff*einv[0]
 
             V[j] = V[j]@np.diag(E[j])@np.diag(einv)
             maxval = np.maximum(maxval, np.max((E[j])))
             minval = np.minimum(minval, np.min((E[j])))
   
-            self.UTE[j] = (np.conj(U[j].T)@np.diag(einv))
-            self.UT[j] = np.conj(U[j].T)@np.diag(einv)
+            self.UTE[j] = np.conj(U[j].T)@np.diag(einv)
+            self.UT[j] = np.diag(einv)
             self.EU[j] = np.diag(1/einv)@U[j]
             
-        print("Maximum Eigenvalue: ", maxval)
-        print("Minimum Eigenvalue: ", minval)
-        print("Condition number: ", maxval/minval)
+        print("Maximum Eigenvalue: ", maxval.real)
+        print("Minimum Eigenvalue: ", minval.real)
+        print("Condition number: ", maxval.real/minval.real)
         
         print("Mean Eigenvalues: ", np.mean(E, axis=0).real)
-            
+        
+        self._pdop._grad_op.updateRatio(np.mean(E,axis=0).real*np.sqrt(self.par["NSlice"]))
         
         V = np.require(np.transpose(V, (2,1,0)), requirements='C')
 
@@ -470,6 +477,7 @@ class IRGNOptimizer:
         
         self.UTE = np.require(self.UTE.transpose(1,2,0), requirements='C')
         self.UT = np.require(self.UT.transpose(1,2,0), requirements='C')
+        
         self.EU = np.require(self.EU.transpose(1,2,0), requirements='C')
         
         self._pdop.EU = clarray.to_device(self._pdop._queue[0], self.EU)
@@ -477,39 +485,53 @@ class IRGNOptimizer:
         
     def _balanceModelGradientsAverage(self, result, ign):
         
+        image_mask = np.mean(np.abs(self.par["images"]), axis=0)
+        cut_off = np.quantile(np.abs(image_mask),0.7)
+        image_mask[image_mask<=cut_off] = 0
+        image_mask[image_mask>cut_off] = 1
+        image_mask = image_mask.astype(bool)
         
-        scale = self._modelgrad.reshape(self.par["unknowns"], self.par["NScan"], -1)
+        masked_grad = self._modelgrad[..., image_mask]
+        # import ipdb
+        # ipdb.set_trace()
+        
+        # scale = masked_grad.reshape(self.par["unknowns"], self.par["NScan"], -1)
 
-        tmp = np.quantile(scale, 0.85, axis=-1)
+        tmp = np.mean(masked_grad, axis=-1)
+        
         V, eigvals, U = spl.svd(tmp.T)
         
         jacobi = self._modelgrad.reshape(*self._modelgrad.shape[:2], -1)
         
         self.k = np.minimum(*self._modelgrad.shape[:2])
-        
+        # U = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
+        # V = np.zeros((jacobi.shape[-1], self._modelgrad.shape[1], self.k), dtype=self.par["DTYPE"])
+        # E = np.zeros((jacobi.shape[-1], self.k), dtype=self.par["DTYPE"])
         self.UTE = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
         self.EU = np.zeros((jacobi.shape[-1], self.k, self._modelgrad.shape[0]), dtype=self.par["DTYPE"])
         
         jacobi = np.require(jacobi.T, requirements='C')
-        
-        cutoff = np.inf
+    
+        cutoff = 1e0
         
         einv = 1/(eigvals)
         einv[~np.isfinite(einv)] = cutoff*einv[0]
         einv[einv/einv[0] > cutoff] = cutoff*einv[0]
         
         for j in range(jacobi.shape[0]):
-
+            # V[j], E[j], U[j] = spl.svd(jacobi[j], full_matrices=False)
+            # V[j] = V[j]@np.diag(eigvals)@np.diag(einv)
+            jacobi[j] = jacobi[j]@np.conj(U.T)@np.diag(einv)
             
-            jacobi[j] = jacobi[j]@np.conj(U.T)@np.conj(np.diag(einv))
             
-            self.UTE[j] = (np.conj(U.T)@np.conj(np.diag(einv)))
+            self.UTE[j] = np.conj(U.T)@np.diag(einv)
             self.EU[j] = np.diag(1/einv)@U
             
             
         print("Average Eigenvalues: ", eigvals)
-
-
+        
+        # self._pdop._grad_op.updateRatio(eigvals.real)
+        
         self._modelgrad = np.require(jacobi.T.reshape(*self._modelgrad.shape), requirements='C')
         
         self.UTE = np.require(self.UTE.transpose(1,2,0), requirements='C')
@@ -542,7 +564,7 @@ class IRGNOptimizer:
         print("Initial Ratio: ", scale)
         scale /= 1e2/np.sqrt(self.par["unknowns"])
         scale = 1/scale
-        scale[~np.isfinite(scale)] = 1e2/np.sqrt(self.par["unknowns"])
+        scale[~np.isfinite(scale)] = 1
         for uk in range(self.par["unknowns"]):
             self._model.constraints[uk].update(scale[uk])
             result[uk, ...] *= self._model.uk_scale[uk]
@@ -560,21 +582,21 @@ class IRGNOptimizer:
 # New .hdf5 save files ########################################################
 ###############################################################################
     def _saveToFile(self, myit, result):
-        f = h5py.File(self.par["outdir"]+"output_" + self.par["fname"] + ".h5",
-                      "a")
-        if self._reg_type == 'TGV':
-            f.create_dataset("tgv_result_iter_"+str(myit), result.shape,
-                             dtype=self._DTYPE, data=result)
-            f.attrs['res_tgv_iter_'+str(myit)] = self._fval
-        else:
-            f.create_dataset("tv_result_"+str(myit), result.shape,
-                             dtype=self._DTYPE, data=result)
-            f.attrs['res_tv_iter_'+str(myit)] = self._fval
-        f.attrs['datacost_iter_'+str(myit)] = self._datacost
-        f.attrs['regcost_iter_'+str(myit)] = self._regcost 
-        f.attrs['data_norm'] = self.par["dscale"]
+        with h5py.File(self.par["outdir"]+"output_" + self.par["fname"] + ".h5",
+                      "a") as f:
+            if self._reg_type == 'TGV':
+                f.create_dataset("tgv_result_iter_"+str(myit).zfill(3), result.shape,
+                                 dtype=self._DTYPE, data=result)
+                f.attrs['res_tgv_iter_'+str(myit).zfill(3)] = self._fval
+            else:
+                f.create_dataset("tv_result_"+str(myit).zfill(3), result.shape,
+                                 dtype=self._DTYPE, data=result)
+                f.attrs['res_tv_iter_'+str(myit).zfill(3)] = self._fval
+            f.attrs['datacost_iter_'+str(myit).zfill(3)] = self._datacost
+            f.attrs['regcost_iter_'+str(myit).zfill(3)] = self._regcost 
+            f.attrs['data_norm'] = self.par["dscale"]
         # f.attrs['L2Cost_iter_'+str(myit)] = self._L2Cost 
-        f.close()
+        # f.close()
 
 ###############################################################################
 # Precompute constant terms of the GN linearization step ######################
@@ -703,8 +725,8 @@ class IRGNOptimizer:
                 x,
                 wait_for=grad.events +
                 x.events).wait()
-            grad = grad.get()*self.par["weights"][:,None,None,None,None]
-            grad2 = grad2.get()*self.par["weights"][:,None,None,None,None]
+            grad = grad.get()
+            grad2 = grad2.get()
             grad = [grad, grad2]
         else:
             self._pdop._grad_op.fwd(
@@ -714,7 +736,6 @@ class IRGNOptimizer:
                 x.events).wait()
             x = x.get()
             grad = grad.get()
-            grad *= self.par["weights"][:,None,None,None,None]
             grad = [grad]
         sym_grad = None
         if self._reg_type == 'TGV':
@@ -729,7 +750,7 @@ class IRGNOptimizer:
                 wait_for=sym_grad.events +
                 v.events).wait()
             sym_grad = sym_grad.get()
-            sym_grad *= self.par["weights"][:,None,None,None,None]
+            # sym_grad *= self.par["weights"][:,None,None,None,None]
 
         return b, grad, sym_grad
 
@@ -756,13 +777,11 @@ class IRGNOptimizer:
             b = self._step_val
         grad = np.zeros(x.shape+(4,), dtype=self._DTYPE)
         self._pdop._grad_op.fwd([grad], [[x]])
-        grad *= self.par["weights"][None,:,None,None,None]
 
         sym_grad = None
         if self._reg_type == 'TGV':
             sym_grad = np.zeros(x.shape+(8,), dtype=self._DTYPE)
             self._pdop._symgrad_op.fwd([sym_grad], [[self._v]])
-            sym_grad *= self.par["weights"][None,:,None,None,None]
 
         return b, grad, sym_grad
 

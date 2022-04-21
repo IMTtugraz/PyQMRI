@@ -83,6 +83,8 @@ class GradientTest(unittest.TestCase):
         self.dz = par["dz"]
         self.queue = par["queue"][0]
         
+        self.weights = par["weights"]
+        
         # parser = tmpArgs()
         # parser.streamed = False
         # parser.devices = -1
@@ -119,6 +121,8 @@ class GradientTest(unittest.TestCase):
         grad = np.stack((gradx,
                          grady,
                          gradz), axis=-1)
+        
+        grad *= self.weights[:, None, None, None, None]
 
         inp = clarray.to_device(self.queue, self.gradin)
         outp = self.grad.fwdoop(inp)
@@ -138,6 +142,8 @@ class GradientTest(unittest.TestCase):
         grad = np.stack((gradx,
                          grady,
                          gradz), axis=-1)
+        
+        grad *= self.weights[:, None, None, None, None]
 
         inp = clarray.to_device(self.queue, self.gradin)
         outp = clarray.to_device(self.queue, self.divin)
@@ -263,10 +269,12 @@ class GradientTestPrecond(unittest.TestCase):
         
                     
         
-        self.grad.updateRatio(np.require(self.UTE
+        self.grad.updatePrecondMat(np.require(self.UTE
                                     ,requirements='C'))
         
         self.UTE = np.require(self.UTE.transpose(2,0,1), requirements='C')
+        
+        self.weights = par["weights"]
 
     def test_grad_outofplace(self):
         gradx = np.zeros_like(self.gradin)
@@ -288,6 +296,8 @@ class GradientTestPrecond(unittest.TestCase):
         grad = np.stack((gradx,
                          grady,
                          gradz), axis=-1)
+        
+        grad *= self.weights[:, None, None, None, None]
 
         inp = clarray.to_device(self.queue, self.gradin)
         outp = self.grad.fwdoop(inp)
@@ -315,6 +325,8 @@ class GradientTestPrecond(unittest.TestCase):
         grad = np.stack((gradx,
                          grady,
                          gradz), axis=-1)
+        
+        grad *= self.weights[:, None, None, None, None]
 
         inp = clarray.to_device(self.queue, self.gradin)
         outp = clarray.to_device(self.queue, self.divin)

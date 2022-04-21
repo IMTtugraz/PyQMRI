@@ -51,9 +51,14 @@ class CGSolver:
         self._dimY = par["dimY"]
         self._NC = par["NC"]
         self._queue = par["queue"][0]
-        file = open(
-            resource_filename(
-                'pyqmri', 'kernels/OpenCL_Kernels.c'))
+        if par["DTYPE"] == np.complex64:
+            file = open(
+                resource_filename(
+                    'pyqmri', 'kernels/OpenCL_Kernels.c'))
+        else:
+            file = open(
+                resource_filename(
+                    'pyqmri', 'kernels/OpenCL_Kernels_double.c'))
         self._prg = Program(
             par["ctx"][0],
             file.read())
@@ -1889,7 +1894,7 @@ class PDSolverTGV(PDBaseSolver):
         primal_vars["x"] = clarray.to_device(self._queue[0], inp[0])
         primal_vars["xk"] = primal_vars["x"].copy()
         primal_vars_new["x"] = clarray.zeros_like(primal_vars["x"])
-        primal_vars["v"] = clarray.to_device(self._queue[0], inp[1])
+        primal_vars["v"] = clarray.to_device(self._queue[0], np.zeros_like(inp[1]))
         primal_vars_new["v"] = clarray.zeros_like(primal_vars["v"])
         primal_vars_new["xk"] = primal_vars["x"].copy()
 

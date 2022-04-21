@@ -45,6 +45,8 @@ class Model(BaseModel):
     
     def __init__(self, par):
         super().__init__(par)
+          
+        self.outdir = par["outdir"]
 
         self.b = np.ones((self.NScan, 1, 1, 1))
         self.dir = par["DWI_dir"].T
@@ -108,8 +110,8 @@ class Model(BaseModel):
         self.constraints.append(
             constraints(
                 #(0 / self.uk_scale[7]),
-                (0.001 / self.uk_scale[7]),     
-                (1 / self.uk_scale[7]),
+                (1e-4 / self.uk_scale[7]),     
+                (0.9999 / self.uk_scale[7]),
                 True))
         self.constraints.append(
             constraints(
@@ -117,6 +119,10 @@ class Model(BaseModel):
                 (300 / self.uk_scale[8]),
                 True))
         
+        # par["weights"] = 1*np.array([1]*len(self.constraints),dtype=par["DTYPE_real"])
+        # par["weights"][0] *= 1e1
+        # par["weights"][1:-2] *= 0.5
+        # par["weights"][-2:] *= 0.1
         self.guess = None
         self.phase = None
 
@@ -288,18 +294,25 @@ class Model(BaseModel):
         if np.allclose(kwargs['initial_guess'],-1):
             #default setting
             ADC = 1 * np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)
-            f = 0.1 * np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)
+            f = 0.5 * np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)
             ADC_ivim = 50 * np.ones(kwargs['images'].shape[-3:], dtype=self._DTYPE)
         else:
             assert len(kwargs['initial_guess']) == 3
-            
-            ADC = kwargs['initial_guess'][0] * np.ones(
+            #ADC into Cholesky coefficient 
+            ADC = np.sqrt(kwargs['initial_guess'][0]) * np.ones(
                 kwargs['images'].shape[-3:], dtype=self._DTYPE)
             f = kwargs['initial_guess'][-2] * np.ones(
                 kwargs['images'].shape[-3:], dtype=self._DTYPE)
             ADC_ivim = kwargs['initial_guess'][-1] * np.ones(
                 kwargs['images'].shape[-3:], dtype=self._DTYPE)
-
+            
+        self.weights = kwargs["weights"]
+       
+        with open(self.outdir+"initial_guess.txt", 'w') as file:
+            file.write('ADC '+np.array2string(np.absolute(np.square(np.unique(ADC))))+ ' \n')
+            file.write('f '+np.array2string(np.absolute(np.unique(f)))+' \n')
+            file.write('Ds '+np.array2string(np.absolute(np.unique(ADC_ivim)))+'\n')    
+            file.write("Weights:" + np.array2string(self.weights))
 
         x = np.array(
                 [

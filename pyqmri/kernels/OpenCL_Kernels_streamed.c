@@ -1217,7 +1217,8 @@ __kernel void update_Kyk1(
                 const int NScan,
                 const int Nuk,
                 const int last,
-                const float dz
+                const float dz,
+                __global float* ratio
                 )
 {
     size_t X = get_global_size(2);
@@ -1312,7 +1313,7 @@ __kernel void update_Kyk1(
             //imag
             val.s5 -= p[i-X*Y*Nuk].s5;
         }
-        out[i] = sum - (val.s01+val.s23+val.s45*dz);
+        out[i] = sum - (val.s01+val.s23+val.s45*dz)*ratio[uk];
         i+=X*Y;
     }
 }
@@ -1324,7 +1325,8 @@ __kernel void update_Kyk1SMS(
                 __global float8 *p,
                 const int Nuk,
                 const int last,
-                const float dz
+                const float dz,
+                __global float* ratio
                 )
 {
 size_t X = get_global_size(2);
@@ -1387,7 +1389,7 @@ for (int uk=0; uk<Nuk; uk++)
         val.s5 -= p[i-X*Y*Nuk].s5;
     }
     // scale gradients
-    out[i] = in[i] - (val.s01+val.s23+val.s45*dz);
+    out[i] = in[i] - (val.s01+val.s23+val.s45*dz)*ratio[uk];
     i+=X*Y;
     }
 }

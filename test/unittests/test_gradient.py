@@ -65,7 +65,7 @@ class GradientTest(unittest.TestCase):
                 myfile.read()))
         prg = prg[0]
         
-        # self.weights = par["weights"]
+        self.weights = par["weights"]
 
         self.grad = pyqmri.operator.OperatorFiniteGradient(
             par, prg,
@@ -107,7 +107,7 @@ class GradientTest(unittest.TestCase):
                          grady,
                          gradz), axis=-1)
         
-        # grad *= self.weights[:, None, None, None, None]
+        grad *= self.weights[:, None, None, None, None]
 
         inp = clarray.to_device(self.queue, self.gradin)
         outp = self.grad.fwdoop(inp)
@@ -128,7 +128,7 @@ class GradientTest(unittest.TestCase):
                          grady,
                          gradz), axis=-1)
         
-        # grad *= self.weights[:, None, None, None, None]
+        grad *= self.weights[:, None, None, None, None]
 
         inp = clarray.to_device(self.queue, self.gradin)
         outp = clarray.to_device(self.queue, self.divin)
@@ -208,6 +208,7 @@ class GradientTestPrecond(unittest.TestCase):
             DTYPE_real=DTYPE_real)
         
         self.grad.precond = True
+        self.weights = par["weights"]
         
         
         self.UTE = (np.random.randn(par["unknowns"],par["unknowns"], par["NSlice"]*par["dimY"]*par["dimX"])
@@ -216,7 +217,7 @@ class GradientTestPrecond(unittest.TestCase):
         
                     
         
-        self.grad.updateRatio(np.require(self.UTE
+        self.grad.updatePrecondMat(np.require(self.UTE
                                     ,requirements='C'))
         
         self.UTE = np.require(self.UTE.transpose(2,0,1), requirements='C')
@@ -254,6 +255,8 @@ class GradientTestPrecond(unittest.TestCase):
         grad = np.stack((gradx,
                          grady,
                          gradz), axis=-1)
+        
+        grad *= self.weights[:, None, None, None, None]
 
         inp = clarray.to_device(self.queue, self.gradin)
         outp = self.grad.fwdoop(inp)
@@ -282,6 +285,8 @@ class GradientTestPrecond(unittest.TestCase):
         grad = np.stack((gradx,
                          grady,
                          gradz), axis=-1)
+        
+        grad *= self.weights[:, None, None, None, None]
     
 
         inp = clarray.to_device(self.queue, self.gradin)

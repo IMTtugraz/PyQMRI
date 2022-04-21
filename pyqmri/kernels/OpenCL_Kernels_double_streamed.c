@@ -476,8 +476,8 @@ __kernel void update_z2(
 
        i+=Nx*Ny;
     }
-    fac *= alphainv;
     i = k*Nx*Ny*NUk+Nx*y + x;
+    fac *= alphainv;
     for (int uk=0; uk<NUk; uk++)
     {
         if (fac/ratio[uk] > 1.0f) {z_new[i] /=fac/ratio[uk];}
@@ -1217,7 +1217,8 @@ __kernel void update_Kyk1(
                 const int NScan,
                 const int Nuk,
                 const int last,
-                const double dz
+                const double dz,
+                __global double* ratio
                 )
 {
     size_t X = get_global_size(2);
@@ -1312,7 +1313,7 @@ __kernel void update_Kyk1(
             //imag
             val.s5 -= p[i-X*Y*Nuk].s5;
         }
-        out[i] = sum - (val.s01+val.s23+val.s45*dz);
+        out[i] = sum - (val.s01+val.s23+val.s45*dz)*ratio[uk];
         i+=X*Y;
     }
 }
@@ -1324,7 +1325,8 @@ __kernel void update_Kyk1SMS(
                 __global double8 *p,
                 const int Nuk,
                 const int last,
-                const double dz
+                const double dz,
+                __global double* ratio
                 )
 {
 size_t X = get_global_size(2);
@@ -1387,7 +1389,7 @@ for (int uk=0; uk<Nuk; uk++)
         val.s5 -= p[i-X*Y*Nuk].s5;
     }
     // scale gradients
-    out[i] = in[i] - (val.s01+val.s23+val.s45*dz);
+    out[i] = in[i] - (val.s01+val.s23+val.s45*dz)*ratio[uk];
     i+=X*Y;
     }
 }

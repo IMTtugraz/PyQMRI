@@ -104,7 +104,10 @@ def gen_default_config():
     config['TGV']["gamma_dec"] = '0.5'
     config['TGV']["omega_dec"] = '0.5'
     config['TGV']["beta"] = '15'
-
+    config['TGV']["precond"] = 'False'
+    config['TGV']["precond_startiter"] = '0'
+    
+    
     config['TV'] = {}
     config['TV']["max_iters"] = '1000'
     config['TV']["start_iters"] = '10'
@@ -124,7 +127,9 @@ def gen_default_config():
     config['TV']["gamma_dec"] = '0.5'
     config['TV']["omega_dec"] = '0.5'
     config['TV']["beta"] = '1'
-
+    config['TGV']["precond"] = 'False'
+    config['TGV']["precond_startiter"] = '0'
+    
     with open('default.ini', 'w') as configfile:
         config.write(configfile)
 
@@ -160,7 +165,7 @@ def read_config(conf_file, optimizer="IRGN", reg_type="TGV"):
         for key in config[reg_type]:
             if key in {'max_gn_it', 'max_iters', 'start_iters'}:
                 params[key] = int(config[reg_type][key])
-            elif key in {'display_iterations', 'adaptive_stepsize'}:
+            elif key in {'display_iterations', 'adaptive_stepsize', 'precond'}:
                 params[key] = config[reg_type].getboolean(key)
             else:
                 params[key] = float(config[reg_type][key])
