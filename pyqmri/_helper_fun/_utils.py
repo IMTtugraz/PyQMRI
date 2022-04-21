@@ -152,7 +152,7 @@ def gen_default_config():
     config['ICTV']["beta"] = '1'
     
     config['ICTV']["mu1_1"] = '1'
-    config['ICTV']["mu1_2"] = '1'
+    config['ICTV']["mu2_1"] = '1'
     config['ICTV']["dt"] = '1'
     
     config['ICTV']["t1"] = '4'
@@ -180,7 +180,7 @@ def gen_default_config():
     config['ICTGV']["beta"] = '1'
     
     config['ICTGV']["mu1_1"] = '1'
-    config['ICTGV']["mu1_2"] = '1'
+    config['ICTGV']["mu2_1"] = '1'
     config['ICTGV']["dt"] = '1'
     
     config['ICTGV']["t1"] = '4'
