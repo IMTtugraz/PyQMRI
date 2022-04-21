@@ -120,15 +120,74 @@ def gen_default_config():
     config['TV']["gamma_min"] = '3e-4'
     config['TV']["delta_max"] = '1e10'
     config['TV']["omega_min"] = '0'
-    config['TGV']["rtol"] = '1e-6'
-    config['TGV']["atol"] = '1e-8'
+    config['TV']["rtol"] = '1e-6'
+    config['TV']["atol"] = '1e-8'
     config['TV']["stag"] = '1e-10'
     config['TV']["delta_inc"] = '10'
     config['TV']["gamma_dec"] = '0.5'
     config['TV']["omega_dec"] = '0.5'
     config['TV']["beta"] = '1'
-    config['TGV']["precond"] = 'False'
-    config['TGV']["precond_startiter"] = '0'
+    config['TV']["precond"] = 'False'
+    config['TV']["precond_startiter"] = '0'
+    
+    
+    config['ICTV'] = {}
+    config['ICTV']["max_iters"] = '500'
+    config['ICTV']["start_iters"] = '500'
+    config['ICTV']["max_gn_it"] = '1'
+    config['ICTV']["lambd"] = '1e0'
+    config['ICTV']["gamma"] = '1e-3'
+    config['ICTV']["delta"] = '1e500'
+    config['ICTV']["omega"] = '0'
+    config['ICTV']["display_iterations"] = '1'
+    config['ICTV']["gamma_min"] = '1e-3'
+    config['ICTV']["delta_max"] = '1e500'
+    config['ICTV']["omega_min"] = '0'
+    config['ICTV']["rtol"] = '0'
+    config['ICTV']["atol"] = '0'
+    config['ICTV']["stag"] = '0'
+    config['ICTV']["delta_inc"] = '10'
+    config['ICTV']["gamma_dec"] = '0.1'
+    config['ICTV']["omega_dec"] = '0.5'
+    config['ICTV']["beta"] = '1'
+    
+    config['ICTV']["mu1_1"] = '1'
+    config['ICTV']["mu1_2"] = '1'
+    config['ICTV']["dt"] = '1'
+    
+    config['ICTV']["t1"] = '4'
+    config['ICTV']["t2"] = '0.5'
+    config['ICTV']["s"] = '0.5'
+    
+    config['ICTGV'] = {}
+    config['ICTGV']["max_iters"] = '500'
+    config['ICTGV']["start_iters"] = '500'
+    config['ICTGV']["max_gn_it"] = '1'
+    config['ICTGV']["lambd"] = '1e0'
+    config['ICTGV']["gamma"] = '3.5e-5'
+    config['ICTGV']["delta"] = '1e500'
+    config['ICTGV']["omega"] = '0'
+    config['ICTGV']["display_iterations"] = '1'
+    config['ICTGV']["gamma_min"] = '3.5e-5'
+    config['ICTGV']["delta_max"] = '1e500'
+    config['ICTGV']["omega_min"] = '0'
+    config['ICTGV']["rtol"] = '0'
+    config['ICTGV']["atol"] = '0'
+    config['ICTGV']["stag"] = '0'
+    config['ICTGV']["delta_inc"] = '10'
+    config['ICTGV']["gamma_dec"] = '0.1'
+    config['ICTGV']["omega_dec"] = '0.5'
+    config['ICTGV']["beta"] = '1'
+    
+    config['ICTGV']["mu1_1"] = '1'
+    config['ICTGV']["mu1_2"] = '1'
+    config['ICTGV']["dt"] = '1'
+    
+    config['ICTGV']["t1"] = '4'
+    config['ICTGV']["t2"] = '0.5'
+    config['ICTGV']["s"] = '0.5'
+    
+
     
     with open('default.ini', 'w') as configfile:
         config.write(configfile)
