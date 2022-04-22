@@ -42,6 +42,11 @@ class Model(BaseModel):
                             False))
             
         self.guess = None
+        
+        if "omega" in par.keys():
+            self.dt = 1/(par["omega"][1:]-par["omega"][:-1])
+            self.dt /= np.max(self.dt)
+
 
     def rescale(self, x):
         """Rescale the unknowns with the scaling factors.
