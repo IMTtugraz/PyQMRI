@@ -448,6 +448,95 @@ class GradientStreamedTest(unittest.TestCase):
 
         np.testing.assert_allclose(a, b, rtol=RTOL, atol=ATOL)
 
+class GradientTestICTV(unittest.TestCase):
+    def setUp(self):
+        parser = tmpArgs()
+        parser.streamed = False
+        parser.devices = -1
+        parser.use_GPU = True
+
+        par = {}
+        pyqmri.pyqmri._setupOCL(parser, par)
+        setupPar(par)
+        if DTYPE == np.complex128:
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels_double.c')
+        else:
+            file = resource_filename(
+                        'pyqmri', 'kernels/OpenCL_Kernels.c')
+
+        prg = []
+        for j in range(len(par["ctx"])):
+          with open(file) as myfile:
+            prg.append(Program(
+                par["ctx"][j],
+                myfile.read()))
+        prg = prg[0]
+        
+        self.weights = par["weights"]
+        
+        dt = np.random.randn(par["NScan"]-1)*10
+
+        self.grad = pyqmri.operator.OperatorFiniteSpaceTimeGradient(
+            par, prg,
+            DTYPE=DTYPE,
+            DTYPE_real=DTYPE_real,
+            dt=dt,
+            tsweight=0.5)
+
+        self.gradin = np.random.randn(par["unknowns"], par["NSlice"],
+                                      par["dimY"], par["dimX"]) +\
+            1j * np.random.randn(par["unknowns"], par["NSlice"],
+                                 par["dimY"], par["dimX"])
+        self.divin = np.random.randn(par["unknowns"], par["NSlice"],
+                                     par["dimY"], par["dimX"], 4) +\
+            1j * np.random.randn(par["unknowns"], par["NSlice"],
+                                 par["dimY"], par["dimX"], 4)
+        self.gradin = self.gradin.astype(DTYPE)
+        self.divin = self.divin.astype(DTYPE)
+        self.dz = par["dz"]
+        self.queue = par["queue"][0]
+
+
+    def test_adj_outofplace(self):
+        inpgrad = clarray.to_device(self.queue, self.gradin)
+        inpdiv = clarray.to_device(self.queue, self.divin)
+
+        outgrad = self.grad.fwdoop(inpgrad)
+        outdiv = self.grad.adjoop(inpdiv)
+
+        outgrad = outgrad.get()
+        outdiv = outdiv.get()
+
+        a = np.vdot(outgrad.flatten(),
+                    self.divin.flatten())/self.gradin.size
+        b = np.vdot(self.gradin.flatten(), -outdiv.flatten())/self.gradin.size
+
+        print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
+
+        np.testing.assert_allclose(a, b, rtol=RTOL, atol=ATOL)
+
+    def test_adj_inplace(self):
+        inpgrad = clarray.to_device(self.queue, self.gradin)
+        inpdiv = clarray.to_device(self.queue, self.divin)
+
+        outgrad = clarray.zeros_like(inpdiv)
+        outdiv = clarray.zeros_like(inpgrad)
+
+        outgrad.add_event(self.grad.fwd(outgrad, inpgrad))
+        outgrad.add_event(self.grad.adj(outdiv, inpdiv))
+
+        outgrad = outgrad.get()
+        outdiv = outdiv.get()
+
+        a = np.vdot(outgrad.flatten(),
+                    self.divin.flatten())/self.gradin.size
+        b = np.vdot(self.gradin.flatten(), -outdiv.flatten())/self.gradin.size
+
+        print("Adjointness: %.2e +1j %.2e" % ((a - b).real, (a - b).imag))
+
+        np.testing.assert_allclose(a, b, rtol=RTOL, atol=ATOL)
+
 
 if __name__ == '__main__':
     unittest.main()

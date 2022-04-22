@@ -2111,9 +2111,9 @@ __kernel void sym_divergence_w_time(
         if (y < Ny-1)
         {
             //real
-            val_real.s4567 += (double4)(q_offdiag[i+Nx].s2, q_diag[i+Nx].s2, q_offdiag[i+Nx].s68);
+            val_real.s4567 += (double4)(q_offdiag[i+Nx].s0, q_diag[i+Nx].s2, q_offdiag[i+Nx].s68);
             //imag
-            val_imag.s4567 += (double4)(q_offdiag[i+Nx].s3, q_diag[i+Nx].s3, q_offdiag[i+Nx].s79);
+            val_imag.s4567 += (double4)(q_offdiag[i+Nx].s1, q_diag[i+Nx].s3, q_offdiag[i+Nx].s79);
         }
         if (k == 0)
         {
@@ -2144,9 +2144,9 @@ __kernel void sym_divergence_w_time(
         if (uk < NUk-1)
         {
             //real
-            val_real.scdef += (double4)(q_offdiag[i+Nx*Ny].s48a, q_diag[i+Nx*Ny].s6)*dt[uk];
+            val_real.scdef += (double4)(q_offdiag[i+Nx*Ny*NSl].s48a, q_diag[i+Nx*Ny*NSl].s6)*dt[uk];
             //imag
-            val_imag.scdef += (double4)(q_offdiag[i+Nx*Ny].s59b, q_diag[i+Nx*Ny].s7)*dt[uk];
+            val_imag.scdef += (double4)(q_offdiag[i+Nx*Ny*NSl].s59b, q_diag[i+Nx*Ny*NSl].s7)*dt[uk];
         }
         
         // linear step
