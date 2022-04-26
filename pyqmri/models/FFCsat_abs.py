@@ -23,8 +23,8 @@ class Model(BaseModel):
             self.t = self.t[None]
             
         self.numT1Scale = len(self.b_pol)
-        self.numC = 1#len(self.b_pol)
-        self.numAlpha = len(self.b_pol)
+        self.numC = len(self.b_pol)
+        self.numAlpha = 1#len(self.b_pol)
 
         par["unknowns_TGV"] = self.numC + self.numAlpha + len(self.b_pol)
         par["unknowns_H1"] = 0

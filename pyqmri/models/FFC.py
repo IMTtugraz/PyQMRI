@@ -24,7 +24,7 @@ class Model(BaseModel):
             self.t = self.t[None]
 
         self.numT1Scale = len(self.b)
-        self.numC = 1#len(self.b)
+        self.numC = len(self.b)
         self.numAlpha = 1#len(self.b)
 
         par["unknowns_TGV"] = self.numC + self.numAlpha + len(self.b)
