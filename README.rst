@@ -61,6 +61,10 @@ For more detailed instructions on how to contribute have a look at contributing_
 
 Changelog:
 ------------------------------
+* v1.3
+   * Added various new models for quantification
+   * Initial release of ICTV/ICTGV image reconstruction code.
+   * Added the possibility to use preconditioning during optimization.
 * v1.2
    * Added and tested AMD CPU and AMD GPU support. (Tested on Ryzen 9 with AMD APP SDK and Radeon 6900XT with ROCm)
    * Added the model for fast field-cycling (FFC) MRI
