@@ -1,6 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Module handling the start up of the fitting procedure."""
+from pyqmri.irgn import IRGNOptimizer, ICOptimizer
+from pyqmri.solver import CGSolver
+from pyqmri._helper_fun import _utils as utils
+from pyqmri._helper_fun._est_coils import est_coils
+from pyqmri._helper_fun import _goldcomp as goldcomp
+import pyopencl.array as clarray
+import pyopencl as cl
+import h5py
+import matplotlib.pyplot as plt
 import sys
 import argparse
 import os
@@ -11,24 +20,13 @@ import numpy as np
 from tkinter import filedialog
 from tkinter import Tk
 from inputimeout import inputimeout, TimeoutOccurred
-import faulthandler; faulthandler.enable()
-
-import matplotlib.pyplot as plt
-
-import h5py
-import pyopencl as cl
-import pyopencl.array as clarray
+import faulthandler
+faulthandler.enable()
 
 
-from pyqmri._helper_fun import _goldcomp as goldcomp
-from pyqmri._helper_fun._est_coils import est_coils
-from pyqmri._helper_fun import _utils as utils
-from pyqmri.solver import CGSolver
-from pyqmri.irgn import IRGNOptimizer, ICOptimizer
 np.seterr(divide='ignore', invalid='ignore')
 
 np.seterr(divide='ignore')
-
 
 
 def _choosePlatform(myargs, par):
@@ -54,8 +52,8 @@ def _choosePlatform(myargs, par):
                 try:
                     inp = inputimeout(
                         (str(len(dev_ind)) +
-                         " GPU platforms found."+
-                         " Defaulting to (0) in 4 seconds.\n"), 
+                         " GPU platforms found." +
+                         " Defaulting to (0) in 4 seconds.\n"),
                         4)
                 except:
                     inp = None
@@ -69,12 +67,12 @@ def _choosePlatform(myargs, par):
                         continue
                     if inp >= len(dev_ind) or inp < 0:
                         print("Integer needs to be in range 0-"
-                              +str(len(dev_ind)-1))
+                              + str(len(dev_ind)-1))
                         continue
                 break
         if inp is not None:
             par["Platform_Indx"] = dev_ind[inp]
-     
+
     if not use_GPU:
         if myargs.use_GPU:
             print("No GPU OpenCL platform found. Falling back to CPU.")
@@ -89,7 +87,7 @@ def _choosePlatform(myargs, par):
                 use_GPU = False
                 par["Platform_Indx"] = j
         if par["Platform_Indx"] is None:
-            raise(ValueError("No OpenCL device found."))   
+            raise(ValueError("No OpenCL device found."))
 
     par["use_GPU"] = use_GPU
     return platforms
@@ -112,10 +110,11 @@ def _precoompFFT(data, par):
                      np.all(np.abs(data[0, 0, 1, 0, :])) or
                      np.all(np.abs(data[0, 0, 1, 1, :])))
 
-        full_dimZ = (np.all(np.abs(data[0, 0, :, 0, 0:])) or
-                      np.all(np.abs(data[0, 0, :, 1, 1])) or
-                      np.all(np.abs(data[0, 0, :, 0, 1])) or
-                      np.all(np.abs(data[0, 0, :, 1, 0])))
+#        full_dimZ = (np.all(np.abs(data[0, 0, :, 0, 0:])) or
+#                      np.all(np.abs(data[0, 0, :, 1, 1])) or
+#                      np.all(np.abs(data[0, 0, :, 0, 1])) or
+#                     np.all(np.abs(data[0, 0, :, 1, 0])))
+        full_dimZ = False
     else:
         full_dimY = (np.all(np.abs(data[0, 0, 0, :, 0])) or
                      np.all(np.abs(data[0, 0, 0, :, 1])))
@@ -259,11 +258,11 @@ def _setupOCL(myargs, par):
         for j in range(4):
             par["queue"].append(
                 cl.CommandQueue(
-                   tmpxtx,
-                   platforms[par["Platform_Indx"]].get_devices()[device],
-                   properties=queue_par
-                   )
+                    tmpxtx,
+                    platforms[par["Platform_Indx"]].get_devices()[device],
+                    properties=queue_par
                 )
+            )
 
 
 def _genImages(myargs, par, data, off):
@@ -298,7 +297,7 @@ def _genImages(myargs, par, data, off):
 
     else:
         tol = 1e-16
-        par_scans = 4
+        par_scans = 4 #why?
         lambd = 1e-1
         if "images" not in list(par["file"].keys()):
             images = np.zeros((par["NScan"],
@@ -342,7 +341,7 @@ def _genImages(myargs, par, data, off):
                             data[-np.mod(par["NScan"], par_scans):, ...],
                             tol=tol, lambd=lambd,
                             scan_offset=par["NScan"]-np.mod(
-                                    par["NScan"], par_scans))
+                                par["NScan"], par_scans))
                 del cgs
             par["file"].create_dataset("images", images.shape,
                                        dtype=par["DTYPE"], data=images)
@@ -356,18 +355,18 @@ def _genImages(myargs, par, data, off):
                 slices_images = par["file"]['images'][()].shape[1]
                 images = \
                     par["file"]['images'][
-                      :,
-                      int(slices_images / 2) - int(
-                        np.floor((par["NSlice"]) / 2)) + off:int(
-                          slices_images / 2) + int(
+                        :,
+                        int(slices_images / 2) - int(
+                            np.floor((par["NSlice"]) / 2)) + off:int(
+                            slices_images / 2) + int(
                             np.ceil(par["NSlice"] / 2)) + off,
-                      ...].astype(par["DTYPE"])
+                        ...].astype(par["DTYPE"])
     return images
 
 
 def _estScaleNorm(myargs, par, images, data):
 
-    # if myargs.trafo:
+    #if myargs.trafo:
     #     center = int(par["N"]*0.1)
     #     ind = np.zeros((par["N"]), dtype=bool)
     #     ind[int(par["N"]/2-center):int(par["N"]/2+center)] = 1
@@ -407,17 +406,19 @@ def _estScaleNorm(myargs, par, images, data):
     #         noise = np.sum(
     #             np.abs(tmp[..., ~ind])**2)
 
+
     # SNR_est = (np.abs(sig/noise))
     # par["SNR_est"] = SNR_est
     # print("Estimated SNR from kspace", SNR_est)
-    dscale = par["DTYPE_real"](par["NSlice"]*np.sqrt(2*1e3) / np.linalg.norm(np.abs(data)))
+    dscale = par["DTYPE_real"](
+        par["NSlice"]*np.sqrt(2*1e3) / np.linalg.norm(np.abs(data)))
     # dscale = 1/np.quantile(np.abs(images), 0.9)
     print("Data scale: ", dscale)
     par["dscale"] = dscale
     images = images*dscale
     data = data*dscale
 
-    return data, images
+    return data, images, par
 
 
 def _readInput(myargs, par):
@@ -470,20 +471,20 @@ def _read_data_from_file(par, myargs):
     off = 0
     if myargs.sms or myargs.is3Ddata:
         data = par["file"]['real_dat'][()].astype(par["DTYPE"])\
-               + 1j*par["file"]['imag_dat'][()].astype(par["DTYPE"])
+            + 1j*par["file"]['imag_dat'][()].astype(par["DTYPE"])
     else:
         data = par["file"]['real_dat'][
-          ...,
-          int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:
-          int(NSlice/2)+int(np.ceil(reco_Slices/2))+off, :, :
-              ].astype(par["DTYPE"])\
-               + 1j*par["file"]['imag_dat'][
-          ...,
-          int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:
-          int(NSlice/2)+int(np.ceil(reco_Slices/2))+off, :, :
-              ].astype(par["DTYPE"])
+            ...,
+            int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:
+            int(NSlice/2)+int(np.ceil(reco_Slices/2))+off, :, :
+        ].astype(par["DTYPE"])\
+            + 1j*par["file"]['imag_dat'][
+            ...,
+            int(NSlice/2)-int(np.floor((reco_Slices)/2))+off:
+            int(NSlice/2)+int(np.ceil(reco_Slices/2))+off, :, :
+        ].astype(par["DTYPE"])
 
-    dimreduction = np.array([0,0])
+    dimreduction = np.array([0, 0])
     if myargs.trafo:
         if "real_traj" in par["file"].keys():
             par["traj"] = np.stack((
@@ -498,38 +499,37 @@ def _read_data_from_file(par, myargs):
                 par["file"]["dcf"][()].astype(par["DTYPE_real"]))
         else:
             par["dcf"] = np.sqrt(goldcomp.cmp(
-                             par["traj"]))
+                par["traj"]))
         par["dcf"] = np.require(np.abs(par["dcf"]),
                                 par["DTYPE_real"], requirements='C')
-                    
+
         # Check if traj is scaled
         max_traj_val = np.max(np.abs(par["traj"]))
-        if  np.allclose(max_traj_val, 0.5, rtol=1e-1):
-           par["traj"] *= dimX
+        if np.allclose(max_traj_val, 0.5, rtol=1e-1):
+            par["traj"] *= dimX
         elif np.allclose(max_traj_val, 1, rtol=1e-1):
-           par["traj"] *= dimX/2
-        
+            par["traj"] *= dimX/2
+
         overgrid_factor_a = (1/np.linalg.norm(
             par["traj"][..., -2, :]-par["traj"][..., -1, :], axis=-1))
         overgrid_factor_b = (1/np.linalg.norm(
             par["traj"][..., 0, :]-par["traj"][..., 1, :], axis=-1))
         par["ogf"] = np.round(np.min((overgrid_factor_a,
-                             overgrid_factor_b)),1)
-        
+                                      overgrid_factor_b)), 1)
+
         print("Estimated OGF: ", par["ogf"])
         par["traj"] *= par["ogf"]
-        par["ogf"]
     else:
         par["traj"] = None
         par["dcf"] = None
 
     if (myargs.trafo and np.max(utils.prime_factors(par["ogf"]*dimX)) > 13) or \
-        (not myargs.trafo and \
-        (np.max(utils.prime_factors(data.shape[-1])) > 13 or \
-        np.max(utils.prime_factors(data.shape[-2])) > 13)):
+        (not myargs.trafo and
+         (np.max(utils.prime_factors(data.shape[-1])) > 13 or
+          np.max(utils.prime_factors(data.shape[-2])) > 13)):
         if myargs.trafo:
             print("Samples along the spoke need to have their largest prime factor"
-                " to be 13 or lower. Finding next smaller grid.")
+                  " to be 13 or lower. Finding next smaller grid.")
             dimreduction = 2
             while np.max(utils.prime_factors((par["ogf"]*dimX)-dimreduction)) > 13:
                 dimreduction += 2
@@ -537,19 +537,19 @@ def _read_data_from_file(par, myargs):
             dimX -= dimreduction
             dimY -= dimreduction
             data = np.require(data[..., int(dimreduction/2):
-                                data.shape[-1]-int(dimreduction/2)],
-                            requirements='C')
+                                   data.shape[-1]-int(dimreduction/2)],
+                              requirements='C')
             par["traj"] = np.require(par["traj"][
                 ..., int(dimreduction/2):
-            par["traj"].shape[-1]-int(dimreduction/2), :], requirements='C')
+                par["traj"].shape[-1]-int(dimreduction/2), :], requirements='C')
             par["dcf"] = np.sqrt(goldcomp.cmp(par["traj"]))
             par["dcf"] = np.require(np.abs(par["dcf"]),
                                     par["DTYPE_real"], requirements='C')
             dimreduction = np.array([dimreduction, dimreduction])
-            
-        else: 
+
+        else:
             print("Samples need to have their largest prime factor"
-                " to be 13 or lower. Finding next smaller grid.")
+                  " to be 13 or lower. Finding next smaller grid.")
             dimredX = 0
             dimredY = 0
             while np.max(utils.prime_factors(data.shape[-1]-dimredX)) > 13:
@@ -562,14 +562,14 @@ def _read_data_from_file(par, myargs):
             dimY -= dimreduction[1]
 
             data = np.fft.fftshift(data)
-            data = np.require(data[..., 
-                int(dimreduction[1]/2):data.shape[-2]-int(dimreduction[1]/2),
-                int(dimreduction[0]/2):data.shape[-1]-int(dimreduction[0]/2)],
-                requirements='C')
+            data = np.require(data[...,
+                                   int(dimreduction[1]/2):data.shape[-2]-int(dimreduction[1]/2),
+                                   int(dimreduction[0]/2):data.shape[-1]-int(dimreduction[0]/2)],
+                              requirements='C')
             data = np.fft.ifftshift(data)
-    
+
     return data, dimX, dimY, NSlice, reco_Slices, dimreduction, off
-    
+
 
 def _read_flip_angle_correction_data(par, myargs, dimreduction, reco_Slices):
     if "fa_corr" in list(par["file"].keys()):
@@ -580,14 +580,14 @@ def _read_flip_angle_correction_data(par, myargs, dimreduction, reco_Slices):
     par["fa_corr"] = np.flip(
         par["file"]['fa_corr'][()].astype(par["DTYPE"]),
         0)[
-          int(NSlice_fa/2)-int(np.floor((reco_Slices)/2)):
-          int(NSlice_fa/2)+int(np.ceil(reco_Slices/2)),
-          ...]
+        int(NSlice_fa/2)-int(np.floor((reco_Slices)/2)):
+        int(NSlice_fa/2)+int(np.ceil(reco_Slices/2)),
+        ...]
     par["fa_corr"][par["fa_corr"] == 0] = 1
     par["fa_corr"] = par["fa_corr"][
-       ...,
-       int(dimreduction[1]/2):par["fa_corr"].shape[-2]-int(dimreduction[1]/2),
-       int(dimreduction[0]/2):par["fa_corr"].shape[-1]-int(dimreduction[0]/2)]
+        ...,
+        int(dimreduction[1]/2):par["fa_corr"].shape[-2]-int(dimreduction[1]/2),
+        int(dimreduction[0]/2):par["fa_corr"].shape[-1]-int(dimreduction[0]/2)]
     par["fa_corr"] = np.require((np.transpose(par["fa_corr"], (0, 2, 1))),
                                 requirements='C')
 
@@ -628,11 +628,11 @@ def _populate_par_w_sequencepar(par,
                                 imagespace,
                                 streamded,
                                 par_slices,
-                                trafo, 
+                                trafo,
                                 dz):
     for att in par["file"].attrs:
         par[att] = par["file"].attrs[att]
-    
+
     # ratio of z direction to x,y, important for finite differences
     if "dz" in par.keys() and np.allclose(dz, -1):
         par["dz"] = par["dz"].item()
@@ -641,7 +641,7 @@ def _populate_par_w_sequencepar(par,
     else:
         par["dz"] = 1
     par["dz"] = par["DTYPE_real"](par["dz"])
-        
+
     par["NC"] = datashape[1]
     par["dimY"] = imagedims[-2]
     par["dimX"] = imagedims[-1]
@@ -679,11 +679,11 @@ def _import_sigmodel(modelpath):
     if len(sig_model_path.split(os.sep)) > 1:
         if os.path.splitext(sig_model_path)[-1] == '':
             spec = importlib.util.spec_from_file_location(
-                    sig_model_path.split(os.sep)[-1]+'.py',
-                    sig_model_path+'.py')
+                sig_model_path.split(os.sep)[-1]+'.py',
+                sig_model_path+'.py')
         elif os.path.splitext(sig_model_path)[-1] == '.py':
             spec = importlib.util.spec_from_file_location(
-                    sig_model_path.split(os.sep)[-1], sig_model_path)
+                sig_model_path.split(os.sep)[-1], sig_model_path)
         else:
             raise argparse.ArgumentTypeError(
                 "Specified model file does not end with .py nor does it have "
@@ -735,7 +735,7 @@ def _start_recon(myargs):
             myargs,
             dimreduction,
             reco_Slices
-            )
+        )
     else:
         print("No flip angle correction provided/used.")
 ###############################################################################
@@ -752,21 +752,33 @@ def _start_recon(myargs):
                                 myargs.imagespace,
                                 myargs.streamed,
                                 myargs.par_slices,
-                                myargs.trafo, 
+                                myargs.trafo,
                                 myargs.dz)
     if not myargs.trafo:
         # max_val = 1
         # w_x = np.abs(np.linspace(-max_val / 2, max_val / 2, par["dimX"]))**3
         # w_x = w_x/np.max(w_x)
         # w_y = np.abs(np.linspace(-max_val / 2, max_val / 2, par["dimY"]))**3
-        # w_y = w_y/np.max(w_y)
+        # w_y = w_y/np.max(w_y)1
 
-        tmpmask = np.ones(data.shape[2:])#*(w_y[:,None]@w_x[None,:]))
-        tmpmask[np.abs(data[0, 0, ...]) == 0] = 0
+        # tmpmask = np.ones(data.shape[2:])  # *(w_y[:,None]@w_x[None,:]))
+        # tmpmask[np.abs(data[0, 0, ...]) == 0] = 0
+        # par['mask'] = np.reshape(
+        #     tmpmask,
+        #     (data.shape[2:])).astype(par["DTYPE_real"])
+        # del tmpmask
+
+        tmpmask = np.ones(data.shape)  # *(w_y[:,None]@w_x[None,:]))
+        tmpmask[np.abs(data) == 0] = 0
         par['mask'] = np.reshape(
             tmpmask,
-            (data.shape[2:])).astype(par["DTYPE_real"])
+            (data.shape)).astype(par["DTYPE_real"])
+        
+        #par['mask'] = np.reshape(tmpmask,(data.shape[0]*data.shape[1]*data.shape[2],data.shape[3],data.shape[4])).astype(par["DTYPE_real"])
+
         del tmpmask
+
+
     else:
         par['mask'] = None
 ###############################################################################
@@ -780,9 +792,15 @@ def _start_recon(myargs):
     [NScan, NC] = data.shape[:2]
     if myargs.trafo:
         if par["file"].attrs['data_normalized_with_dcf']:
-            pass
+           pass
         else:
-            data = data*(par["dcf"])
+           #par["dcf"] = par["dcf"][:,1:-1].copy()
+           #par["traj"] = par["traj"][:,:,1:-1,:].copy()
+           
+           data = data*(par["dcf"])
+
+
+
     if NC == 1:
         par['C'] = np.ones(
             (1, par["NSlice"], dimY, dimX), dtype=par["DTYPE"])
@@ -794,9 +812,9 @@ def _start_recon(myargs):
                 0))
         par["C"] = par["C"] / sumSqrC
     else:
-###############################################################################
-# Coil Sensitivity Estimation #################################################
-###############################################################################
+        ###############################################################################
+        # Coil Sensitivity Estimation #################################################
+        ###############################################################################
         est_coils(data, par, par["file"], myargs, off, dimreduction)
         par['C'] = par['C'].astype(par["DTYPE"])
 ###############################################################################
@@ -804,13 +822,13 @@ def _start_recon(myargs):
 ###############################################################################
     if myargs.trafo is False:
         data = _precoompFFT(data, par)
-        
+
     if myargs.sig_model == "GeneralModel":
         par["modelfile"] = myargs.modelfile
         par["modelname"] = myargs.modelname
-                
+
     model = sig_model.Model(par)
-    
+
     if np.allclose(myargs.weights, -1):
         if "weights" not in par.keys():
             par["weights"] = np.ones(
@@ -820,7 +838,7 @@ def _start_recon(myargs):
 ###############################################################################
 # Reconstruct images using CG-SENSE  ##########################################
 ###############################################################################
-    # del par["file"]["images"]
+#    del par["file"]["images"]
     images = _genImages(myargs, par, data, off)
     # import ipdb
     # import pyqmri
@@ -829,16 +847,22 @@ def _start_recon(myargs):
 ###############################################################################
 # Scale data norm  ############################################################
 ###############################################################################
-    data, images = _estScaleNorm(myargs, par, images, data)    
+    data, images, par = _estScaleNorm(myargs, par, images, data)
 ###############################################################################
 # Compute initial guess #######################################################
 ###############################################################################
     model.setInitalGuess(
-        images = images, 
-        dscale = par["dscale"],
-        weights = par["weights"],
-        initial_guess = myargs.initial_guess)
+        images=images,
+        dscale=par["dscale"],
+        weights=par["weights"],
+        initial_guess=myargs.initial_guess)
     
+    if "startvalues" in par["file"].keys():
+        model.guess =  par["file"]["startvalues"][()]
+        model.guess = model.guess.astype(model._DTYPE)
+        #model._rescaleInitGuess()
+
+
     par["images"] = images
 ###############################################################################
 # initialize operator  ########################################################
@@ -1022,90 +1046,90 @@ def _parseArguments(args):
                     "data. By default runs 3D "
                     "regularization for TGV.")
     argparmain.add_argument(
-      '--recon_type', dest='type',
-      help='Choose reconstruction type (currently only 3D)')
+        '--recon_type', dest='type',
+        help='Choose reconstruction type (currently only 3D)')
     argparmain.add_argument(
-      '--reg_type', dest='reg',
-      help="Choose regularization type (default: TGV) "
-           "options are: TGV, TV")
+        '--reg_type', dest='reg',
+        help="Choose regularization type (default: TGV) "
+        "options are: TGV, TV")
     argparmain.add_argument(
-      '--slices', dest='slices', type=int,
-      help="Number of reconstructed slices (default=-1, takes all available). "
-           "Symmetrical around the center slice.")
+        '--slices', dest='slices', type=int,
+        help="Number of reconstructed slices (default=-1, takes all available). "
+        "Symmetrical around the center slice.")
     argparmain.add_argument(
-      '--trafo', dest='trafo', type=_str2bool,
-      help='Choos between radial (1, default) and Cartesian (0) sampling. ')
+        '--trafo', dest='trafo', type=_str2bool,
+        help='Choos between radial (1, default) and Cartesian (0) sampling. ')
     argparmain.add_argument(
-      '--streamed', dest='streamed', type=_str2bool,
-      help='Enable streaming of large data arrays (e.g. >10 slices).')
+        '--streamed', dest='streamed', type=_str2bool,
+        help='Enable streaming of large data arrays (e.g. >10 slices).')
     argparmain.add_argument(
-      '--par_slices', dest='par_slices', type=int,
-      help='number of slices per package. Volume devided by GPU\'s and'
-           ' par_slices must be an even number!')
+        '--par_slices', dest='par_slices', type=int,
+        help='number of slices per package. Volume devided by GPU\'s and'
+        ' par_slices must be an even number!')
     argparmain.add_argument(
-      '--data', dest='file',
-      help="Full path to input data. "
-           "If not provided, a file dialog will open.")
+        '--data', dest='file',
+        help="Full path to input data. "
+        "If not provided, a file dialog will open.")
     argparmain.add_argument(
-      '--config', dest='config',
-      help='Path to the config file to use. If not specified, use default parameters.')
+        '--config', dest='config',
+        help='Path to the config file to use. If not specified, use default parameters.')
     argparmain.add_argument(
-      '--imagespace', dest='imagespace', type=_str2bool,
-      help="Select if Reco is performed on images (1) or on kspace (0) data. "
-           "Defaults to 0")
+        '--imagespace', dest='imagespace', type=_str2bool,
+        help="Select if Reco is performed on images (1) or on kspace (0) data. "
+        "Defaults to 0")
     argparmain.add_argument(
-      '--sms', dest='sms', type=_str2bool,
-      help="Switch to SMS reconstruction")
+        '--sms', dest='sms', type=_str2bool,
+        help="Switch to SMS reconstruction")
     argparmain.add_argument(
-      '--use_GPU', dest='use_GPU', type=_str2bool,
-      help="Select if CPU or GPU should be used as OpenCL platform. "
-           "Defaults to GPU (1).")
+        '--use_GPU', dest='use_GPU', type=_str2bool,
+        help="Select if CPU or GPU should be used as OpenCL platform. "
+        "Defaults to GPU (1).")
     argparmain.add_argument(
-      '--devices', dest='devices', type=int,
-      help="Device ID of device(s) to use for streaming. "
-           "-1 selects all available devices", nargs='*')
+        '--devices', dest='devices', type=int,
+        help="Device ID of device(s) to use for streaming. "
+        "-1 selects all available devices", nargs='*')
     argparmain.add_argument(
-      '--dz', dest='dz', type=float,
-      help="Ratio of physical Z to X/Y dimension. "
-           "X/Y is assumed to be isotropic. Defaults to  1")
+        '--dz', dest='dz', type=float,
+        help="Ratio of physical Z to X/Y dimension. "
+        "X/Y is assumed to be isotropic. Defaults to  1")
     argparmain.add_argument(
-      '--weights', dest='weights', type=float,
-      help="Ratio of unkowns to each other. Defaults to 1. "
-           "If passed, needs to be in the same size as the number of unknowns",
-           nargs='*')
+        '--weights', dest='weights', type=float,
+        help="Ratio of unkowns to each other. Defaults to 1. "
+        "If passed, needs to be in the same size as the number of unknowns",
+        nargs='*')
     argparmain.add_argument(
-      '--useCGguess', dest='usecg', type=_str2bool,
-      help="Switch between CG sense and simple FFT as "
-           "initial guess for the images.")
+        '--useCGguess', dest='usecg', type=_str2bool,
+        help="Switch between CG sense and simple FFT as "
+        "initial guess for the images.")
     argparmain.add_argument('--out', dest='outdir', type=str,
                             help="Set output directory. Defaults to the input "
                             "file directory")
     argparmain.add_argument(
-      '--model', dest='sig_model',
-      help='Name of the signal model to use. Defaults to VFA. \
+        '--model', dest='sig_model',
+        help='Name of the signal model to use. Defaults to VFA. \
  Please put your signal model file in the Model subfolder.')
     argparmain.add_argument(
-      '--modelfile', dest='modelfile', type=str,
-      help="Path to the model file.")
+        '--modelfile', dest='modelfile', type=str,
+        help="Path to the model file.")
     argparmain.add_argument(
-      '--modelname', dest='modelname', type=str,
-      help="Name of the model to use.")
+        '--modelname', dest='modelname', type=str,
+        help="Name of the model to use.")
     argparmain.add_argument(
-      '--double_precision', dest='double_precision', type=_str2bool,
-      help="Switch between single (False, default) and double "
-           "precision (True). Usually, single precision gives high enough "
-           "accuracy.")
+        '--double_precision', dest='double_precision', type=_str2bool,
+        help="Switch between single (False, default) and double "
+        "precision (True). Usually, single precision gives high enough "
+        "accuracy.")
     argparmain.add_argument(
         '--initial_guess', dest='initial_guess', type=float,
-        help="Initial guess for the model parameters.", 
+        help="Initial guess for the model parameters.",
         nargs='*')
     argparmain.add_argument(
-      '--estCoils3D', dest='use3Dcoilest', type=_str2bool,
-      help="Use 3D coil estimation instead of 2D slice-by-slice. \
+        '--estCoils3D', dest='use3Dcoilest', type=_str2bool,
+        help="Use 3D coil estimation instead of 2D slice-by-slice. \
       Defaults to false. Currently limited to Cartesian data.")
     argparmain.add_argument(
-      '--is3Ddata', dest='is3Ddata', type=_str2bool,
-      help="Flag to indicate 3D k-space data as input.")
+        '--is3Ddata', dest='is3Ddata', type=_str2bool,
+        help="Flag to indicate 3D k-space data as input.")
 
     arguments, unknown = argparmain.parse_known_args(args)
     return arguments, unknown

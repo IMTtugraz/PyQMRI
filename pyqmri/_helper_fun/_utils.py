@@ -4,7 +4,7 @@
 import configparser
 import os
 from pyqmri.transforms import PyOpenCLnuFFT
-
+import numpy as np
 
 def prime_factors(n):
     """Prime factorication.
@@ -106,7 +106,7 @@ def gen_default_config():
     config['TGV']["beta"] = '15'
     config['TGV']["precond"] = 'False'
     config['TGV']["precond_startiter"] = '0'
-    
+    config['TGV']["cutoffPre"] = '1e-2 '  
     
     config['TV'] = {}
     config['TV']["max_iters"] = '1000'
@@ -129,7 +129,7 @@ def gen_default_config():
     config['TV']["beta"] = '1'
     config['TV']["precond"] = 'False'
     config['TV']["precond_startiter"] = '0'
-    
+    config['TV']["cutoffPre"] = '1e-2 '     
     
     config['ICTV'] = {}
     config['ICTV']["max_iters"] = '500'
@@ -193,7 +193,7 @@ def gen_default_config():
         config.write(configfile)
 
 
-def read_config(conf_file, optimizer="IRGN", reg_type="TGV"):
+def read_config(conf_file,optimizer="IRGN", reg_type="TGV",par = []):
     """Config file reader.
 
     Parameters
@@ -224,8 +224,13 @@ def read_config(conf_file, optimizer="IRGN", reg_type="TGV"):
         for key in config[reg_type]:
             if key in {'max_gn_it', 'max_iters', 'start_iters'}:
                 params[key] = int(config[reg_type][key])
-            elif key in {'display_iterations', 'adaptive_stepsize', 'precond'}:
+            elif key in {'display_iterations', 'adaptive_stepsize', 'precond','adaptive_gamma'}:
                 params[key] = config[reg_type].getboolean(key)
+            elif key in {'weights','dt_custom'}:
+                if ',' in config[reg_type][key]:
+                    params[key] = np.array([float(x) for x in config[reg_type][key].split(',')],dtype=par["DTYPE_real"])
+                else:
+                    params[key] = np.array([float(x) for x in config[reg_type][key][1:-1].split()],dtype=par["DTYPE_real"])
             else:
                 params[key] = float(config[reg_type][key])
         return params

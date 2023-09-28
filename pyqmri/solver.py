@@ -165,8 +165,11 @@ class CGSolver:
         for i in range(iters):
             self._operator_lhs(Ax, p)
             Ax = Ax + lambd*p
+            #alpha = (clarray.vdot(res, res) /
+            #         (clarray.vdot(p, Ax))).real.get()
             alpha = (clarray.vdot(res, res) /
-                     (clarray.vdot(p, Ax))).real.get()
+                    (clarray.vdot(p, Ax))).real     
+
             x = (x + alpha*p)
             res_new = res - alpha*Ax
             delta = np.linalg.norm(res_new.get())**2 /\
@@ -177,8 +180,11 @@ class CGSolver:
                 del Ax, \
                     b, res, p, data, res_new
                 return np.squeeze(x.get())
+            # beta = (clarray.vdot(res_new, res_new) /
+            #         clarray.vdot(res, res)).real.get()
             beta = (clarray.vdot(res_new, res_new) /
-                    clarray.vdot(res, res)).real.get()
+                    clarray.vdot(res, res)).real        
+
             p = res_new + beta * p
             (res, res_new) = (res_new, res)
         del Ax, b, res, p, data, res_new
@@ -1204,11 +1210,18 @@ class PDBaseSolver:
         ----------
           irgn_par (dic): A dictionary containing the new parameters.
         """
-        self.alpha = irgn_par["gamma"]
-        self.beta = irgn_par["gamma"] * 2
+        if "alpha_ratio" in irgn_par.keys():
+          self.alpha = irgn_par["gamma"] * irgn_par["alpha_ratio"]
+          self.beta = irgn_par["gamma"] #* 2 #MH changed
+        else:
+          self.alpha = irgn_par["gamma"] #* 2
+          self.beta = irgn_par["gamma"] * 2 #MH changed
+          
         self.delta = irgn_par["delta"]
         self.omega = irgn_par["omega"]
-        self.lambd = 1#irgn_par["lambd"]
+        self.lambd = irgn_par["lambd"]
+        #self.lambd = 1#irgn_par["lambd"]
+        
         self.mu = 1/self.delta
 
     def update_primal(self, outp, inp, par, idx=0, idxq=0,
@@ -1877,8 +1890,13 @@ class PDSolverTGV(PDBaseSolver):
             coils,
             model,
             **kwargs)
-        self.alpha = irgn_par["gamma"]
-        self.beta = irgn_par["gamma"] * 2
+        
+        if "alpha_ratio" in irgn_par.keys():
+          self.alpha = irgn_par["gamma"] * irgn_par["alpha_ratio"]
+          self.beta = irgn_par["gamma"] #* 2 #MH changed
+        else:
+          self.alpha = irgn_par["gamma"] #* 2
+          self.beta = irgn_par["gamma"] * 2 #MH changed
         self._op = linop[0]
         self._grad_op = linop[1]
         self._symgrad_op = linop[2]
