@@ -39,7 +39,7 @@ test-single-on-cpu:
     artifacts:
         reports:
             junit: results_unittests_*.xml
-            cobertura: coverage_unittests_*.xml
+            #cobertura: coverage_unittests_*.xml
 
 test-single-on-amd-gpu:
     stage: unittests
@@ -60,7 +60,7 @@ test-single-on-amd-gpu:
     artifacts:
         reports:
             junit: results_unittests_*.xml
-            cobertura: coverage_unittests_*.xml
+            #cobertura: coverage_unittests_*.xml
 
 test-single-on-nvidia-gpu:
     stage: unittests
@@ -83,7 +83,7 @@ test-single-on-nvidia-gpu:
     artifacts:
         reports:
             junit: results_unittests_*.xml
-            cobertura: coverage_unittests_*.xml
+            #cobertura: coverage_unittests_*.xml
             
 test-double-on-cpu:
     stage: unittests
@@ -102,7 +102,7 @@ test-double-on-cpu:
     artifacts: 
         reports:    
             junit: results_unittests_*.xml
-            cobertura: coverage_unittests_*.xml
+            #cobertura: coverage_unittests_*.xml
 
 test-double-on-amd-gpu:
     stage: unittests
@@ -121,7 +121,7 @@ test-double-on-amd-gpu:
     artifacts:
         reports:
             junit: results_unittests_*.xml
-            cobertura: coverage_unittests_*.xml
+            #cobertura: coverage_unittests_*.xml
 
 test-double-on-nvidia-gpu:
     stage: unittests
@@ -140,7 +140,7 @@ test-double-on-nvidia-gpu:
     artifacts:
         reports:
             junit: results_unittests_*.xml
-            cobertura: coverage_unittests_*.xml
+            #cobertura: coverage_unittests_*.xml
 
 integration-job-cpu:
     stage: integration-test
@@ -159,7 +159,7 @@ integration-job-cpu:
     artifacts:
         reports:
             junit: results_integrationtests_*.xml
-            cobertura: coverage_integrationtests_*.xml
+            #cobertura: coverage_integrationtests_*.xml
 
 integration-job-gpu:
     stage: integration-test
@@ -178,7 +178,7 @@ integration-job-gpu:
     artifacts: 
         reports:    
             junit: results_integrationtests_*.xml
-            cobertura: coverage_integrationtests_*.xml
+            #cobertura: coverage_integrationtests_*.xml
 
 integration-job-nvidia-gpu:
     stage: integration-test
@@ -197,7 +197,7 @@ integration-job-nvidia-gpu:
     artifacts:
         reports:
             junit: results_integrationtests_*.xml
-            cobertura: coverage_integrationtests_*.xml
+            #cobertura: coverage_integrationtests_*.xml
 
 
 #pages:
