@@ -1,3 +1,6 @@
+**The main repository has moved to: https://gitlab.tugraz.at/ibi/mrirecon/software/PyQMRI**
+
+
 .. |travis| image:: https://travis-ci.com/IMTtugraz/PyQMRI.svg?branch=master
     :target: https://travis-ci.com/IMTtugraz/PyQMRI
 .. |gitlab| image:: https://gitlab.tugraz.at/F23B736137140D66/PyQMRI/badges/master/pipeline.svg
